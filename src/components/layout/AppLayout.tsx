@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { Toaster } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
 
 const TITLES: Record<string, string> = {
@@ -42,6 +43,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }
