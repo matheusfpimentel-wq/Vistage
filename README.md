@@ -57,31 +57,53 @@ cria o banco automaticamente.
 > Se quiser só rodar o frontend no navegador (sem Tauri), use `npm run dev` —
 > mas as APIs nativas (fs, dialog, sql) **não funcionam** fora do Tauri.
 
-## Ícones do app (necessário antes do primeiro build)
+## Ícones do app
 
-O Tauri precisa de ícones para gerar o `.app`/`.exe`. Gere a partir de
-qualquer PNG quadrado (mínimo 1024x1024):
+Já tem um ícone placeholder configurado (nota musical em fundo roxo escuro).
+Os arquivos finais (todos os tamanhos, `.icns` para Mac, `.ico` para Windows)
+estão em `src-tauri/icons/`. O PNG fonte está em `scripts/musicgest-icon.png`.
+
+Quando você tiver um logo definitivo, substitua o PNG e regenere os ícones:
 
 ```bash
-npm run tauri icon caminho/para/seu-icone.png
+npm run tauri icon scripts/musicgest-icon.png
 ```
 
-Isso popula `src-tauri/icons/` com todos os tamanhos/formatos. Sem isso, o
-`npm run tauri:dev` funciona normalmente, mas `npm run tauri:build` falha.
+## Build dos binários — duas opções
 
-## Build dos binários
+### Opção A (fácil): GitHub Actions builda pra você
+
+A cada `git push` para a branch, o workflow `.github/workflows/build.yml`
+roda **automaticamente** nos servidores do GitHub (um Mac + um Windows) e
+gera os instaladores. Para baixar:
+
+1. Abra <https://github.com/matheusfpimentel-wq/GM-/actions>
+2. Clique no workflow mais recente (deve estar verde)
+3. Role até o final da página → seção **Artifacts**
+4. Baixe `musicgest-macos-latest` (contém `.dmg`) e/ou
+   `musicgest-windows-latest` (contém `.msi` e `.exe`)
+
+Você não precisa instalar Rust nem nada na sua máquina pra isso.
+
+### Opção B: buildar localmente
+
+Precisa instalar uma vez:
+
+- **macOS:** Xcode CLI (`xcode-select --install`) e Rust
+  (<https://rustup.rs>)
+- **Windows:** Microsoft C++ Build Tools (Visual Studio Installer → "Desktop
+  development with C++") e Rust (<https://rustup.rs>)
+
+Depois, na pasta do projeto:
 
 ```bash
-# rode no SO de destino — não há cross-compile fácil em Tauri
 npm run tauri:build
 ```
 
-- **macOS:** gera `.app` e `.dmg` em `src-tauri/target/release/bundle/`
-- **Windows:** gera `.exe` (instalador) e `.msi` no mesmo diretório
+Saída: `src-tauri/target/release/bundle/` (`.dmg` no Mac, `.msi`+`.exe` no Windows).
 
-> Os binários precisam ser gerados na sua máquina Mac e/ou Windows — não há
-> cross-compile fácil no Tauri. Na Fase 8 podemos configurar GitHub Actions
-> para gerar binários automaticamente nos dois OSes.
+> O Tauri **não faz cross-compile**: só gera `.app` rodando em Mac, só gera
+> `.exe` rodando em Windows. Por isso a Opção A é mais prática.
 
 ### Portabilidade no HD externo
 
