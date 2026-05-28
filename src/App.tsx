@@ -1,19 +1,34 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
-import { DashboardPage } from "@/modules/dashboard/DashboardPage";
-import { GigsPage } from "@/modules/gigs/GigsPage";
-import { CrmPage } from "@/modules/crm/CrmPage";
-import { TasksPage } from "@/modules/tasks/TasksPage";
-import { FinancePage } from "@/modules/finance/FinancePage";
-import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
 import { isModKey, triggerNewItem } from "@/lib/shortcuts";
+
+// Lazy-load das páginas dos módulos para que cada um vire um chunk separado.
+// O FinancePage carrega o Recharts (~150kb) só quando o usuário abre o módulo.
+const DashboardPage = lazy(() =>
+  import("@/modules/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage }))
+);
+const GigsPage = lazy(() =>
+  import("@/modules/gigs/GigsPage").then((m) => ({ default: m.GigsPage }))
+);
+const CrmPage = lazy(() =>
+  import("@/modules/crm/CrmPage").then((m) => ({ default: m.CrmPage }))
+);
+const TasksPage = lazy(() =>
+  import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
+);
+const FinancePage = lazy(() =>
+  import("@/modules/finance/FinancePage").then((m) => ({ default: m.FinancePage }))
+);
+const SettingsPage = lazy(() =>
+  import("@/modules/settings/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
 
 export default function App() {
   const { ready, config, hydrate } = useConfigStore();
@@ -110,17 +125,25 @@ function RoutedApp() {
 
   return (
     <>
-      <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="gigs" element={<GigsPage />} />
-          <Route path="crm" element={<CrmPage />} />
-          <Route path="tarefas" element={<TasksPage />} />
-          <Route path="financeiro" element={<FinancePage />} />
-          <Route path="configuracoes" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      <Suspense
+        fallback={
+          <div className="flex h-screen items-center justify-center text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        }
+      >
+        <Routes>
+          <Route element={<AppLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="gigs" element={<GigsPage />} />
+            <Route path="crm" element={<CrmPage />} />
+            <Route path="tarefas" element={<TasksPage />} />
+            <Route path="financeiro" element={<FinancePage />} />
+            <Route path="configuracoes" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </>
   );

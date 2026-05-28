@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Download, Loader2, Upload } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
@@ -10,12 +10,19 @@ import {
   pickBackupFile,
   restoreBackup,
 } from "@/lib/backup";
+import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+  const [canSeed, setCanSeed] = useState(false);
+
+  useEffect(() => {
+    void isDatabaseEmpty().then(setCanSeed);
+  }, []);
 
   async function handleReset() {
     const ok = window.confirm(
@@ -35,6 +42,27 @@ export function SettingsPage() {
       toast.error(`Erro ao exportar: ${String(e)}`);
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleSeed() {
+    if (
+      !window.confirm(
+        "Carregar dados de exemplo? 5 contatos, 4 GIGs em estados diferentes, 6 tarefas e algumas transações vão ser adicionados ao banco."
+      )
+    )
+      return;
+    setSeeding(true);
+    try {
+      const result = await seedExampleData();
+      toast.success(
+        `${result.gigs} GIGs, ${result.contacts} contatos, ${result.tasks} tarefas e ${result.transactions} transações criadas.`
+      );
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(`Erro ao popular: ${String(e)}`);
+    } finally {
+      setSeeding(false);
     }
   }
 
@@ -90,6 +118,33 @@ export function SettingsPage() {
       </Card>
 
       <GoogleCalendarSettings />
+
+      {canSeed && (
+        <Card className="border-primary/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Carregar dados de exemplo
+            </CardTitle>
+            <CardDescription>
+              Seu banco está vazio. Quer popular com 4 GIGs (uma futura,
+              uma a caminho, uma concluída com debrief, uma com debrief
+              pendente), 5 contatos, 6 tarefas e algumas transações pra
+              você explorar como o sistema funciona?
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleSeed} disabled={seeding}>
+              {seeding ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              Popular com exemplos
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
