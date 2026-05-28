@@ -21,6 +21,9 @@ import {
 } from "./api";
 import { CONTACT_TYPES, type Contact, type ContactType } from "./types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
+import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
+import { getGig } from "@/modules/gigs/api";
+import type { Gig } from "@/modules/gigs/types";
 
 type TypeFilter = ContactType | "Todos";
 
@@ -40,6 +43,8 @@ export function CrmPage() {
 
   const [gigFormOpen, setGigFormOpen] = useState(false);
   const [gigPromoter, setGigPromoter] = useState<Contact | null>(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestGig, setSuggestGig] = useState<Gig | null>(null);
 
   const queryFilters: ContactFilters = useMemo(
     () => ({
@@ -232,10 +237,27 @@ export function CrmPage() {
         onOpenChange={setGigFormOpen}
         gig={null}
         prefillPromoter={gigPromoter}
-        onSaved={() => {
+        onSaved={async ({ id, isNew }) => {
           setGigPromoter(null);
           toast.success("GIG criada — confira na aba GIGs");
+          if (isNew) {
+            const fresh = await getGig(id);
+            if (
+              fresh &&
+              fresh.date >= new Date().toISOString().slice(0, 10)
+            ) {
+              setSuggestGig(fresh);
+              setSuggestOpen(true);
+            }
+          }
         }}
+      />
+
+      <SuggestStandardTasks
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
+        gig={suggestGig}
+        onCreated={() => setSuggestGig(null)}
       />
     </div>
   );

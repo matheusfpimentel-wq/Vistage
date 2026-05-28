@@ -43,7 +43,7 @@ type Props = {
   gig?: Gig | null;
   /** Pré-preenche o promoter_contact_id ao abrir em modo criar. */
   prefillPromoter?: Contact | null;
-  onSaved: (gig: { id: number; statusChanged: boolean }) => void;
+  onSaved: (gig: { id: number; statusChanged: boolean; isNew: boolean }) => void;
 };
 
 type FormState = Omit<GigCreateInput, "id">;
@@ -152,11 +152,15 @@ export function GigForm({
       if (gig) {
         await updateGig({ id: gig.id, ...state });
         toast.success("GIG atualizada");
-        onSaved({ id: gig.id, statusChanged: prevStatus !== state.status });
+        onSaved({
+          id: gig.id,
+          statusChanged: prevStatus !== state.status,
+          isNew: false,
+        });
       } else {
         const id = await createGig(state);
         toast.success("GIG criada");
-        onSaved({ id, statusChanged: false });
+        onSaved({ id, statusChanged: false, isNew: true });
       }
       onOpenChange(false);
     } catch (err) {

@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, CalendarRange, DollarSign, Star } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CalendarRange,
+  CheckSquare,
+  DollarSign,
+  Star,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   Card,
@@ -13,19 +20,24 @@ import { Button } from "@/components/ui/button";
 import { listGigs, loadInsights, type GigInsights } from "@/modules/gigs/api";
 import { type Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
+import { listUpcoming } from "@/modules/tasks/api";
+import { PriorityBadge } from "@/modules/tasks/components/PriorityBadge";
+import type { Task } from "@/modules/tasks/types";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 
 export function DashboardPage() {
   const [insights, setInsights] = useState<GigInsights | null>(null);
   const [upcoming, setUpcoming] = useState<Gig[]>([]);
   const [pending, setPending] = useState<Gig[]>([]);
+  const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     void (async () => {
       const today = todayISO();
-      const [ins, all] = await Promise.all([
+      const [ins, all, tasks] = await Promise.all([
         loadInsights(),
         listGigs(),
+        listUpcoming(5),
       ]);
       setInsights(ins);
       setUpcoming(
@@ -40,6 +52,7 @@ export function DashboardPage() {
           .slice(0, 3)
       );
       setPending(all.filter((g) => g.debrief_pending === 1).slice(0, 5));
+      setUpcomingTasks(tasks);
     })();
   }, []);
 
@@ -111,42 +124,85 @@ export function DashboardPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Próximas GIGs</CardTitle>
-          <CardDescription>
-            As 3 próximas com data, local e status.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {upcoming.length === 0 ? (
-            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              Sem GIGs futuras agendadas.{" "}
-              <Button asChild variant="link" className="px-1">
-                <Link to="/gigs">Criar uma</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {upcoming.map((g) => (
-                <div
-                  key={g.id}
-                  className="flex items-center justify-between rounded-md border p-3"
-                >
-                  <div>
-                    <div className="font-medium">{g.venue_name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(g.date)}
-                      {g.venue_city && ` · ${g.venue_city}`}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Próximas GIGs</CardTitle>
+            <CardDescription>
+              As 3 próximas com data, local e status.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {upcoming.length === 0 ? (
+              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Sem GIGs futuras agendadas.{" "}
+                <Button asChild variant="link" className="px-1">
+                  <Link to="/gigs">Criar uma</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {upcoming.map((g) => (
+                  <div
+                    key={g.id}
+                    className="flex items-center justify-between rounded-md border p-3"
+                  >
+                    <div>
+                      <div className="font-medium">{g.venue_name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(g.date)}
+                        {g.venue_city && ` · ${g.venue_city}`}
+                      </div>
                     </div>
+                    <StatusBadge status={g.status} />
                   </div>
-                  <StatusBadge status={g.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckSquare className="h-4 w-4" />
+              Tarefas (próximos 7 dias)
+            </CardTitle>
+            <CardDescription>
+              O que vence nessa semana e ainda está em aberto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {upcomingTasks.length === 0 ? (
+              <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Sem tarefas vencendo essa semana.{" "}
+                <Button asChild variant="link" className="px-1">
+                  <Link to="/tarefas">Criar uma</Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {upcomingTasks.map((t) => (
+                  <Link
+                    key={t.id}
+                    to="/tarefas"
+                    className="flex items-center justify-between rounded-md border p-3 transition hover:border-primary"
+                  >
+                    <div>
+                      <div className="font-medium">{t.title}</div>
+                      <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
+                        <CalendarClock className="h-3 w-3" />
+                        {t.due_date ? formatDate(t.due_date) : "—"}
+                      </div>
+                    </div>
+                    <PriorityBadge priority={t.priority} />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

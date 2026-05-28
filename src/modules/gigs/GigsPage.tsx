@@ -18,6 +18,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
+import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
 import { KanbanView } from "./views/KanbanView";
@@ -45,6 +46,9 @@ export function GigsPage() {
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [debriefGig, setDebriefGig] = useState<Gig | null>(null);
   const [debriefRequired, setDebriefRequired] = useState(false);
+
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestGig, setSuggestGig] = useState<Gig | null>(null);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -76,15 +80,25 @@ export function GigsPage() {
   async function handleSaved({
     id,
     statusChanged,
+    isNew,
   }: {
     id: number;
     statusChanged: boolean;
+    isNew: boolean;
   }) {
     const fresh = await getGig(id);
     if (!fresh) {
       await refresh();
       return;
     }
+
+    // Sugere tarefas-padrão para GIGs novas que ainda não rolaram
+    // (não faz sentido sugerir "confirmar 3 dias antes" para uma GIG passada).
+    if (isNew && fresh.date >= new Date().toISOString().slice(0, 10)) {
+      setSuggestGig(fresh);
+      setSuggestOpen(true);
+    }
+
     // Se acabou de virar Concluída e ainda não tem debrief preenchido,
     // dispara o modal de debrief em modo obrigatório.
     const justCompleted =
@@ -211,6 +225,15 @@ export function GigsPage() {
           onCompleted={() => void refresh()}
         />
       )}
+
+      <SuggestStandardTasks
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
+        gig={suggestGig}
+        onCreated={() => {
+          setSuggestGig(null);
+        }}
+      />
     </div>
   );
 }
