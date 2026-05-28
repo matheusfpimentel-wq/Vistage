@@ -34,11 +34,15 @@ import {
 } from "../types";
 import { createGig, updateGig } from "../api";
 import { todayISO } from "@/lib/format";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   gig?: Gig | null;
+  /** Pré-preenche o promoter_contact_id ao abrir em modo criar. */
+  prefillPromoter?: Contact | null;
   onSaved: (gig: { id: number; statusChanged: boolean }) => void;
 };
 
@@ -96,16 +100,34 @@ function gigToState(gig: Gig): FormState {
   return rest;
 }
 
-export function GigForm({ open, onOpenChange, gig, onSaved }: Props) {
+export function GigForm({
+  open,
+  onOpenChange,
+  gig,
+  prefillPromoter,
+  onSaved,
+}: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
   useEffect(() => {
     if (gig) setState(gigToState(gig));
+    else if (prefillPromoter)
+      setState({
+        ...EMPTY,
+        promoter_contact_id: prefillPromoter.id,
+        venue_city: prefillPromoter.city,
+      });
     else setState(EMPTY);
     setErrors({});
-  }, [gig, open]);
+  }, [gig, prefillPromoter, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    void listContacts().then(setContacts);
+  }, [open]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -209,6 +231,28 @@ export function GigForm({ open, onOpenChange, gig, onSaved }: Props) {
                 />
               </Field>
             </div>
+
+            <Field label="Promoter / Contratante (do CRM)">
+              <Select
+                value={state.promoter_contact_id?.toString() ?? "none"}
+                onValueChange={(v) =>
+                  set("promoter_contact_id", v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um contato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  {contacts.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.name}
+                      {c.city ? ` · ${c.city}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Contato no dia">
