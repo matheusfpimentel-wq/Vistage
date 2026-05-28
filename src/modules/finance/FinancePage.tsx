@@ -36,6 +36,7 @@ import {
   type TransactionStatus,
 } from "./types";
 import { formatCurrency } from "@/lib/format";
+import { useNewItemShortcut } from "@/lib/shortcuts";
 
 type KindFilter = TransactionKind | "all";
 type StatusFilter = TransactionStatus | "all";
@@ -116,6 +117,8 @@ export function FinancePage() {
     setDefaultKind(kind);
     setFormOpen(true);
   }
+
+  useNewItemShortcut(() => openCreate("income"));
 
   function openEdit(t: FinanceTransactionWithCategory) {
     setEditing(t);

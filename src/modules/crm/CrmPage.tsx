@@ -24,6 +24,7 @@ import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
 import { getGig } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
+import { useNewItemShortcut } from "@/lib/shortcuts";
 
 type TypeFilter = ContactType | "Todos";
 
@@ -68,6 +69,8 @@ export function CrmPage() {
     setEditing(null);
     setFormOpen(true);
   }
+
+  useNewItemShortcut(openCreate);
 
   function openEdit(contact: Contact) {
     setEditing(contact);

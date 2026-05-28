@@ -9,9 +9,11 @@ import { CrmPage } from "@/modules/crm/CrmPage";
 import { TasksPage } from "@/modules/tasks/TasksPage";
 import { FinancePage } from "@/modules/finance/FinancePage";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
+import { CommandPalette } from "@/components/shared/CommandPalette";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
+import { isModKey, triggerNewItem } from "@/lib/shortcuts";
 
 export default function App() {
   const { ready, config, hydrate } = useConfigStore();
@@ -77,6 +79,37 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <RoutedApp />
+    </BrowserRouter>
+  );
+}
+
+function RoutedApp() {
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Atalhos globais: Ctrl/Cmd+K abre busca; Ctrl/Cmd+N dispara "novo item" no
+  // módulo ativo (cada página registra seu handler via useNewItemShortcut).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!isModKey(e)) return;
+      const k = e.key.toLowerCase();
+      if (k === "k") {
+        e.preventDefault();
+        setPaletteOpen((p) => !p);
+      } else if (k === "n") {
+        // não interferir quando o foco está em um input do command palette
+        const target = e.target as HTMLElement | null;
+        if (target && /input|textarea/i.test(target.tagName)) return;
+        e.preventDefault();
+        triggerNewItem();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <>
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
@@ -88,7 +121,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+    </>
   );
 }
 

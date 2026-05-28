@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from "react-router-dom";
+import { Search } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Toaster } from "@/components/ui/toaster";
@@ -37,7 +38,30 @@ export function AppLayout() {
               </p>
             )}
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+                const ev = new KeyboardEvent("keydown", {
+                  key: "k",
+                  ctrlKey: !isMac,
+                  metaKey: isMac,
+                  bubbles: true,
+                });
+                window.dispatchEvent(ev);
+              }}
+              className="hidden sm:inline-flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground transition hover:bg-accent"
+              aria-label="Abrir busca global"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span>Buscar…</span>
+              <kbd className="ml-2 rounded border bg-background px-1.5 py-0.5 text-[10px]">
+                Ctrl K
+              </kbd>
+            </button>
+            <ThemeToggle />
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-6">
           <Outlet />

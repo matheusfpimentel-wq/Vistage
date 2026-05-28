@@ -36,6 +36,7 @@ import {
   type TaskStatus,
 } from "./types";
 import { cn } from "@/lib/utils";
+import { useNewItemShortcut } from "@/lib/shortcuts";
 
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
@@ -92,6 +93,8 @@ export function TasksPage() {
     setEditing(null);
     setFormOpen(true);
   }
+
+  useNewItemShortcut(openCreate);
 
   function openEdit(task: Task) {
     setEditing(task);

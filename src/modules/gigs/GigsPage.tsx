@@ -20,6 +20,7 @@ import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
 import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
 import { deleteGigFromCalendar } from "@/lib/gcal";
+import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
 import { KanbanView } from "./views/KanbanView";
@@ -72,6 +73,8 @@ export function GigsPage() {
     setEditing(null);
     setFormOpen(true);
   }
+
+  useNewItemShortcut(openCreate);
 
   function openEdit(gig: Gig) {
     setEditing(gig);
