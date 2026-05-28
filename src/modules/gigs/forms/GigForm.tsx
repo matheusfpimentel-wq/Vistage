@@ -33,6 +33,7 @@ import {
   type GigCreateInput,
 } from "../types";
 import { createGig, updateGig } from "../api";
+import { ensureGigPaymentTransaction } from "@/modules/finance/api";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
@@ -149,18 +150,38 @@ export function GigForm({
     setSaving(true);
     try {
       const prevStatus = gig?.status;
+      let savedId: number;
       if (gig) {
         await updateGig({ id: gig.id, ...state });
+        savedId = gig.id;
         toast.success("GIG atualizada");
         onSaved({
-          id: gig.id,
+          id: savedId,
           statusChanged: prevStatus !== state.status,
           isNew: false,
         });
       } else {
-        const id = await createGig(state);
+        savedId = await createGig(state);
         toast.success("GIG criada");
-        onSaved({ id, statusChanged: false, isNew: true });
+        onSaved({ id: savedId, statusChanged: false, isNew: true });
+      }
+      // Auto-vínculo financeiro: pagamento integral → cria receita na
+      // categoria DJ vinculada à GIG (idempotente)
+      if (
+        state.payment_status === "Pago integralmente" &&
+        typeof state.cache_amount === "number" &&
+        state.cache_amount > 0
+      ) {
+        try {
+          await ensureGigPaymentTransaction(
+            savedId,
+            state.cache_amount,
+            state.payment_due_date ?? state.date,
+            `Cachê — ${state.venue_name}`
+          );
+        } catch {
+          /* não interrompe o usuário */
+        }
       }
       onOpenChange(false);
     } catch (err) {

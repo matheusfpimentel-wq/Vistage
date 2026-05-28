@@ -23,6 +23,7 @@ import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { listUpcoming } from "@/modules/tasks/api";
 import { PriorityBadge } from "@/modules/tasks/components/PriorityBadge";
 import type { Task } from "@/modules/tasks/types";
+import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 
 export function DashboardPage() {
@@ -30,16 +31,19 @@ export function DashboardPage() {
   const [upcoming, setUpcoming] = useState<Gig[]>([]);
   const [pending, setPending] = useState<Gig[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
+  const [finance, setFinance] = useState<FinanceInsights | null>(null);
 
   useEffect(() => {
     void (async () => {
       const today = todayISO();
-      const [ins, all, tasks] = await Promise.all([
+      const [ins, all, tasks, fin] = await Promise.all([
         loadInsights(),
         listGigs(),
         listUpcoming(5),
+        loadFinanceInsights(),
       ]);
       setInsights(ins);
+      setFinance(fin);
       setUpcoming(
         all
           .filter(
@@ -99,14 +103,14 @@ export function DashboardPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
+          icon={<DollarSign className="h-4 w-4 text-emerald-500" />}
+          label="Saldo do mês"
+          value={finance ? formatCurrency(finance.monthBalance) : "—"}
+        />
+        <StatCard
           icon={<CalendarRange className="h-4 w-4" />}
           label="GIGs totais"
           value={insights?.totalCount.toString() ?? "—"}
-        />
-        <StatCard
-          icon={<DollarSign className="h-4 w-4" />}
-          label="Cachê total"
-          value={insights ? formatCurrency(insights.totalCache) : "—"}
         />
         <StatCard
           icon={<Star className="h-4 w-4 text-amber-500" />}
