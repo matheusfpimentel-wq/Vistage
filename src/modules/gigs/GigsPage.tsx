@@ -19,6 +19,7 @@ import { toast } from "@/components/ui/toaster";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
 import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
+import { deleteGigFromCalendar } from "@/lib/gcal";
 import { ListView } from "./views/ListView";
 import { CalendarView } from "./views/CalendarView";
 import { KanbanView } from "./views/KanbanView";
@@ -132,6 +133,8 @@ export function GigsPage() {
     );
     if (!ok) return;
     try {
+      // tenta deletar o evento espelhado no Google Calendar antes — não bloqueia se falhar
+      await deleteGigFromCalendar(gig);
       await deleteGig(gig.id);
       toast.success("GIG excluída");
       await refresh();

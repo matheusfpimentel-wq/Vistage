@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useConfigStore } from "@/lib/config";
 import { closeDatabase } from "@/lib/db";
+import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
@@ -41,13 +42,14 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      <GoogleCalendarSettings />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Próximas fases</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-1">
           <p>Backup completo (export/import) — Fase 7.</p>
-          <p>Integração Google Calendar — Fase 6.</p>
           <p>Atalhos de teclado e busca global — Fase 7.</p>
         </CardContent>
       </Card>

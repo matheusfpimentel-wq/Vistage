@@ -34,6 +34,7 @@ import {
 } from "../types";
 import { createGig, updateGig } from "../api";
 import { ensureGigPaymentTransaction } from "@/modules/finance/api";
+import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
@@ -182,6 +183,16 @@ export function GigForm({
         } catch {
           /* não interrompe o usuário */
         }
+      }
+
+      // Push para Google Calendar se conectado e com calendário escolhido
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id) {
+          await pushGigToCalendar(savedId);
+        }
+      } catch (e) {
+        toast.error(`GIG salva, mas sync com Google Calendar falhou: ${String(e)}`);
       }
       onOpenChange(false);
     } catch (err) {

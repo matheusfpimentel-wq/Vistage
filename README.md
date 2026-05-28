@@ -159,14 +159,40 @@ GM-/
 └── tailwind.config.js
 ```
 
+## Integração com Google Calendar
+
+A app sincroniza suas GIGs com um calendário do Google. Para configurar:
+
+1. Acesse o **Google Cloud Console**:
+   <https://console.cloud.google.com/apis/credentials>
+2. Crie um projeto novo (ou use um existente).
+3. Em **APIs &amp; Services → Library**, ative a **Google Calendar API**.
+4. Em **APIs &amp; Services → OAuth consent screen**:
+   - Tipo de usuário: **External**
+   - Preencha nome do app, e-mail de contato, e adicione o seu próprio
+     e-mail como **Test user** (enquanto o projeto está em modo Testing,
+     só Test users podem autorizar)
+5. Em **APIs &amp; Services → Credentials → Create credentials → OAuth client ID**:
+   - Tipo: **Desktop app**
+   - Copie o **Client ID** e o **Client secret** que aparecem
+6. Abra o MusicGest → **Configurações** → cole esses dois valores no card
+   "Google Calendar", clique em **Salvar credenciais** e depois em
+   **Conectar Google Calendar**.
+7. Uma janela do navegador padrão abre — autorize o acesso. O app recebe
+   o callback automaticamente em `127.0.0.1:<porta-aleatória>`.
+8. De volta no MusicGest, escolha qual calendário receberá as GIGs
+   (recomendado criar um calendário dedicado tipo "GIGs" no Google
+   Calendar antes — fica fora da sua agenda pessoal).
+9. Use **Sincronizar agora** para fazer um sync manual. A partir daí,
+   toda criação/edição de GIG no MusicGest empurra automaticamente o
+   evento para o GCal.
+
+> Os tokens ficam salvos só no `musicgest.db` (no seu HD) — nada vai pra
+> servidor nenhum nosso. O `Client secret` de Desktop app não é realmente
+> secreto (qualquer um que descompila o app pode lê-lo — esse é o modelo
+> de "Installed Applications" do Google).
+
 ## Próximas fases
 
-- **Fase 2 — GIGs:** CRUD completo, debrief automático ao concluir, avaliações
-  (carisma/técnica/repertório), estatísticas
-- **Fase 3 — CRM:** contatos com histórico de interações vinculado a GIGs
-- **Fase 4 — Tarefas:** com sugestões automáticas por GIG
-- **Fase 5 — Financeiro:** categorias customizáveis, dashboard, patrimônio,
-  recorrentes
-- **Fase 6 — Google Calendar:** OAuth 2.0 + sync bidirecional
 - **Fase 7 — Dashboard + polimento:** busca global, atalhos, backup/import
 - **Fase 8 — Builds cross-platform**
