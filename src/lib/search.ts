@@ -9,7 +9,8 @@ export type SearchHit = {
     | "venue"
     | "fan"
     | "content"
-    | "idea";
+    | "idea"
+    | "student";
   id: number;
   title: string;
   subtitle: string;
@@ -28,7 +29,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -99,6 +100,14 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, title, category, heat FROM ideas
         WHERE title LIKE $1 OR body LIKE $1
         ORDER BY heat DESC, updated_at DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; city: string | null }[]
+    >(
+      `SELECT id, name, city FROM students
+        WHERE name LIKE $1 OR email LIKE $1 OR phone LIKE $1 OR instagram LIKE $1
+        ORDER BY name LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -186,6 +195,15 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/ideias",
     });
   }
+  for (const s of students) {
+    hits.push({
+      kind: "student",
+      id: s.id,
+      title: s.name,
+      subtitle: s.city ?? "Aluno",
+      route: "/aulas",
+    });
+  }
 
   return hits;
 }
@@ -199,4 +217,5 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   fan: "Fã",
   content: "Conteúdo",
   idea: "Ideia",
+  student: "Aluno",
 };

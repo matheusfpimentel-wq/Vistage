@@ -12,6 +12,7 @@ import {
 } from "@/lib/backup";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
+import { ShortcutSettings } from "./ShortcutSettings";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
@@ -185,14 +186,13 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
+      <ShortcutSettings />
+
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Atalhos de teclado</CardTitle>
+          <CardTitle className="text-base">Outras teclas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <Shortcut keys={["Ctrl/Cmd", "K"]} label="Busca global em qualquer módulo" />
-          <Shortcut keys={["Ctrl/Cmd", "N"]} label="Criar novo item no módulo atual" />
-          <Shortcut keys={["Ctrl/Cmd", "I"]} label="Captura rápida de ideia (em qualquer tela)" />
           <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
           <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
         </CardContent>

@@ -5,6 +5,7 @@ import {
   Calendar,
   CheckSquare,
   Film,
+  GraduationCap,
   Heart,
   Lightbulb,
   Search,
@@ -28,6 +29,7 @@ const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: str
   fan: Heart,
   content: Film,
   idea: Lightbulb,
+  student: GraduationCap,
 };
 
 type Props = {
@@ -137,7 +139,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             <Empty>Nenhum resultado para "{query}".</Empty>
           ) : (
             <>
-              {(["gig", "venue", "contact", "fan", "content", "idea", "task", "transaction"] as SearchHit["kind"][])
+              {(["gig", "venue", "contact", "fan", "student", "content", "idea", "task", "transaction"] as SearchHit["kind"][])
                 .filter((k) => grouped.has(k))
                 .map((kind) => {
                   const items = grouped.get(kind)!;

@@ -368,6 +368,68 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_ideas_maturation ON ideas(maturation);
     `,
   },
+  {
+    version: 6,
+    description: "Aulas (alunos, pacotes, sessões)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS students (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT,
+        email TEXT,
+        instagram TEXT,
+        city TEXT,
+        acquisition TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS class_packages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        total_classes INTEGER NOT NULL,
+        price REAL,
+        description TEXT,
+        active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS student_packages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        package_id INTEGER,
+        total_classes INTEGER NOT NULL,
+        used_classes INTEGER DEFAULT 0,
+        purchased_at TEXT NOT NULL,
+        status TEXT DEFAULT 'Ativo',
+        notes TEXT,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (package_id) REFERENCES class_packages(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS classes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        student_id INTEGER NOT NULL,
+        student_package_id INTEGER,
+        date TEXT NOT NULL,
+        start_time TEXT,
+        duration_min INTEGER,
+        subject TEXT,
+        status TEXT DEFAULT 'Agendada',
+        feedback TEXT,
+        amount REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_package_id) REFERENCES student_packages(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_classes_date ON classes(date);
+      CREATE INDEX IF NOT EXISTS idx_classes_student ON classes(student_id);
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

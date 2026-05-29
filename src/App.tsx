@@ -9,7 +9,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
-import { isModKey, triggerNewItem, triggerQuickCapture, useQuickCaptureEvent } from "@/lib/shortcuts";
+import {
+  hydrateShortcuts,
+  isModKey,
+  matchShortcut,
+  triggerNewItem,
+  triggerQuickCapture,
+  useQuickCaptureEvent,
+} from "@/lib/shortcuts";
 
 // Lazy-load das páginas dos módulos para que cada um vire um chunk separado.
 // O FinancePage carrega o Recharts (~150kb) só quando o usuário abre o módulo.
@@ -33,6 +40,9 @@ const ContentPage = lazy(() =>
 );
 const IdeasPage = lazy(() =>
   import("@/modules/ideas/IdeasPage").then((m) => ({ default: m.IdeasPage }))
+);
+const ClassesPage = lazy(() =>
+  import("@/modules/classes/ClassesPage").then((m) => ({ default: m.ClassesPage }))
 );
 const TasksPage = lazy(() =>
   import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
@@ -119,19 +129,24 @@ function RoutedApp() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
 
-  // Atalhos globais: Ctrl/Cmd+K abre busca; Ctrl/Cmd+I abre captura de ideia;
-  // Ctrl/Cmd+N dispara "novo item" no módulo ativo.
+  // Atalhos globais — letras customizáveis em Configurações.
+  // Hidrata uma vez na primeira renderização.
+  useEffect(() => {
+    void hydrateShortcuts();
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!isModKey(e)) return;
-      const k = e.key.toLowerCase();
-      if (k === "k") {
+      const action = matchShortcut(e);
+      if (!action) return;
+      if (action === "search") {
         e.preventDefault();
         setPaletteOpen((p) => !p);
-      } else if (k === "i") {
+      } else if (action === "quickCapture") {
         e.preventDefault();
         triggerQuickCapture();
-      } else if (k === "n") {
+      } else if (action === "newItem") {
         // não interferir quando o foco está em um input do command palette
         const target = e.target as HTMLElement | null;
         if (target && /input|textarea/i.test(target.tagName)) return;
@@ -161,6 +176,7 @@ function RoutedApp() {
             <Route path="venues" element={<VenuesPage />} />
             <Route path="crm" element={<CrmPage />} />
             <Route path="fas" element={<FansPage />} />
+            <Route path="aulas" element={<ClassesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
             <Route path="tarefas" element={<TasksPage />} />
