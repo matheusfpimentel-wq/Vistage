@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,12 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import {
   GIG_STATUSES,
@@ -35,9 +30,12 @@ import {
 import { createGig, updateGig } from "../api";
 import { ensureGigPaymentTransaction } from "@/modules/finance/api";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
+import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { PrepChecklist } from "../components/PrepChecklist";
+import { parsePrepState } from "../prep";
 
 type Props = {
   open: boolean;
@@ -48,7 +46,7 @@ type Props = {
   onSaved: (gig: { id: number; statusChanged: boolean; isNew: boolean }) => void;
 };
 
-type FormState = Omit<GigCreateInput, "id">;
+type FormState = Omit<GigCreateInput, "id"> & { prep: Record<string, 1> };
 
 const EMPTY: FormState = {
   date: todayISO(),
@@ -95,11 +93,15 @@ const EMPTY: FormState = {
   rating_repertoire: null,
   rating_repertoire_note: null,
   gcal_event_id: null,
+  main_goal: null,
+  prep_state: null,
+  main_goal_task_id: null,
+  prep: {},
 };
 
 function gigToState(gig: Gig): FormState {
   const { id: _id, created_at: _c, updated_at: _u, debrief_pending: _dp, debrief_completed_at: _dca, ...rest } = gig;
-  return rest;
+  return { ...rest, prep: parsePrepState(gig.prep_state) };
 }
 
 export function GigForm({
@@ -151,23 +153,57 @@ export function GigForm({
     setSaving(true);
     try {
       const prevStatus = gig?.status;
+      const prevMainGoalTaskId = gig?.main_goal_task_id ?? null;
+      const isNew = !gig;
+
+      const payload: GigCreateInput = {
+        ...state,
+        prep_state: JSON.stringify(state.prep),
+      };
+      // remove o campo `prep` que não existe no banco
+      delete (payload as unknown as { prep?: unknown }).prep;
+
       let savedId: number;
       if (gig) {
-        await updateGig({ id: gig.id, ...state });
+        await updateGig({ id: gig.id, ...payload });
         savedId = gig.id;
         toast.success("GIG atualizada");
-        onSaved({
-          id: savedId,
-          statusChanged: prevStatus !== state.status,
-          isNew: false,
-        });
       } else {
-        savedId = await createGig(state);
+        savedId = await createGig(payload);
         toast.success("GIG criada");
-        onSaved({ id: savedId, statusChanged: false, isNew: true });
       }
-      // Auto-vínculo financeiro: pagamento integral → cria receita na
-      // categoria DJ vinculada à GIG (idempotente)
+
+      // objetivo principal vira tarefa (uma única vez por GIG)
+      if (
+        state.main_goal &&
+        state.main_goal.trim().length > 0 &&
+        !prevMainGoalTaskId
+      ) {
+        try {
+          const taskId = await createTask({
+            title: `Objetivo: ${state.main_goal.trim()}`,
+            description: `Objetivo principal da GIG em ${state.venue_name}.`,
+            category: "GIG",
+            gig_id: savedId,
+            contact_id: state.promoter_contact_id,
+            priority: "Alta",
+            status: "A fazer",
+            due_date: state.date,
+            tags: ["objetivo-gig"],
+          });
+          await updateGig({ id: savedId, main_goal_task_id: taskId });
+        } catch {
+          /* não interrompe se a tarefa falhar */
+        }
+      }
+
+      onSaved({
+        id: savedId,
+        statusChanged: !isNew && prevStatus !== state.status,
+        isNew,
+      });
+
+      // Auto-vínculo financeiro: pagamento integral → cria receita
       if (
         state.payment_status === "Pago integralmente" &&
         typeof state.cache_amount === "number" &&
@@ -181,11 +217,10 @@ export function GigForm({
             `Cachê — ${state.venue_name}`
           );
         } catch {
-          /* não interrompe o usuário */
+          /* não interrompe */
         }
       }
 
-      // Push para Google Calendar se conectado e com calendário escolhido
       try {
         const auth = await loadAuth();
         if (auth?.access_token && auth.calendar_id) {
@@ -194,6 +229,7 @@ export function GigForm({
       } catch (e) {
         toast.error(`GIG salva, mas sync com Google Calendar falhou: ${String(e)}`);
       }
+
       onOpenChange(false);
     } catch (err) {
       toast.error(`Erro ao salvar: ${String(err)}`);
@@ -208,19 +244,14 @@ export function GigForm({
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
           <DialogDescription>
-            Preencha os blocos abaixo. O Debrief (Pós-show) é solicitado
-            automaticamente quando você muda o status para Concluída.
+            Preencha o que souber agora — pode voltar a editar a qualquer momento.
+            O Debrief abre automaticamente quando o status vira Concluída.
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="pre" className="w-full">
-          <TabsList>
-            <TabsTrigger value="pre">Pré-evento</TabsTrigger>
-            <TabsTrigger value="logistics">Logística & Financeiro</TabsTrigger>
-          </TabsList>
-
-          {/* ============ PRÉ-EVENTO ============ */}
-          <TabsContent value="pre" className="space-y-4">
+        <div className="space-y-4">
+          {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
+          <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Data" required error={errors.date}>
                 <Input
@@ -229,14 +260,14 @@ export function GigForm({
                   onChange={(e) => set("date", e.target.value)}
                 />
               </Field>
-              <Field label="Início do set">
+              <Field label="Início">
                 <Input
                   type="time"
                   value={state.start_time ?? ""}
                   onChange={(e) => set("start_time", e.target.value || null)}
                 />
               </Field>
-              <Field label="Fim do set">
+              <Field label="Fim">
                 <Input
                   type="time"
                   value={state.end_time ?? ""}
@@ -245,9 +276,9 @@ export function GigForm({
               </Field>
             </div>
 
-            <Field label="Venue (local)" required error={errors.venue_name}>
+            <Field label="Venue" required error={errors.venue_name}>
               <Input
-                placeholder="Ex: Audio Club"
+                placeholder="Nome do local"
                 value={state.venue_name}
                 onChange={(e) => set("venue_name", e.target.value)}
               />
@@ -268,7 +299,10 @@ export function GigForm({
               </Field>
             </div>
 
-            <Field label="Promoter / Contratante (do CRM)">
+            <Field
+              label="Promoter"
+              hint="Contratante principal — vincule a um contato do CRM para gerar histórico."
+            >
               <Select
                 value={state.promoter_contact_id?.toString() ?? "none"}
                 onValueChange={(v) =>
@@ -291,20 +325,19 @@ export function GigForm({
             </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Contato no dia">
+              <Field
+                label="Contato no dia"
+                hint="Quem te recebe na chegada — produção, RP, etc."
+              >
                 <Input
                   value={state.day_contact_name ?? ""}
-                  onChange={(e) =>
-                    set("day_contact_name", e.target.value || null)
-                  }
+                  onChange={(e) => set("day_contact_name", e.target.value || null)}
                 />
               </Field>
-              <Field label="Telefone do contato">
+              <Field label="Telefone">
                 <Input
                   value={state.day_contact_phone ?? ""}
-                  onChange={(e) =>
-                    set("day_contact_phone", e.target.value || null)
-                  }
+                  onChange={(e) => set("day_contact_phone", e.target.value || null)}
                 />
               </Field>
               <Field label="Público estimado">
@@ -322,7 +355,7 @@ export function GigForm({
               </Field>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Cachê (R$)">
                 <Input
                   type="number"
@@ -330,10 +363,7 @@ export function GigForm({
                   step={0.01}
                   value={state.cache_amount ?? ""}
                   onChange={(e) =>
-                    set(
-                      "cache_amount",
-                      e.target.value ? Number(e.target.value) : null
-                    )
+                    set("cache_amount", e.target.value ? Number(e.target.value) : null)
                   }
                 />
               </Field>
@@ -354,114 +384,10 @@ export function GigForm({
                   </SelectContent>
                 </Select>
               </Field>
-            </div>
-
-            <Field label="Briefing — o que o contratante pediu / contexto do evento">
-              <Textarea
-                rows={3}
-                value={state.briefing ?? ""}
-                onChange={(e) => set("briefing", e.target.value || null)}
-              />
-            </Field>
-
-            <Field label="Conceito do set — direção artística, vibe, narrativa">
-              <Textarea
-                rows={3}
-                value={state.set_concept ?? ""}
-                onChange={(e) => set("set_concept", e.target.value || null)}
-              />
-            </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Objetivos concretos — o que quero conquistar">
-                <Textarea
-                  rows={3}
-                  value={state.concrete_goals ?? ""}
-                  onChange={(e) =>
-                    set("concrete_goals", e.target.value || null)
-                  }
-                />
-              </Field>
-              <Field label="Alvos — pessoas, contatos, marcas a atingir">
-                <Textarea
-                  rows={3}
-                  value={state.targets ?? ""}
-                  onChange={(e) => set("targets", e.target.value || null)}
-                />
-              </Field>
-            </div>
-
-            <Field label="Oportunidades — portas que essa GIG pode abrir">
-              <Textarea
-                rows={3}
-                value={state.opportunities ?? ""}
-                onChange={(e) => set("opportunities", e.target.value || null)}
-              />
-            </Field>
-          </TabsContent>
-
-          {/* ============ LOGÍSTICA / FINANCEIRO ============ */}
-          <TabsContent value="logistics" className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Como vou chegar (transporte)">
-                <Input
-                  value={state.transport ?? ""}
-                  onChange={(e) => set("transport", e.target.value || null)}
-                />
-              </Field>
-              <Field label="Hora de saída de casa">
-                <Input
-                  type="time"
-                  value={state.departure_time ?? ""}
-                  onChange={(e) =>
-                    set("departure_time", e.target.value || null)
-                  }
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Equipamento fornecido pelo local">
-                <Textarea
-                  rows={3}
-                  value={state.equipment_provided ?? ""}
-                  onChange={(e) =>
-                    set("equipment_provided", e.target.value || null)
-                  }
-                />
-              </Field>
-              <Field label="Equipamento que preciso levar">
-                <Textarea
-                  rows={3}
-                  value={state.equipment_to_bring ?? ""}
-                  onChange={(e) =>
-                    set("equipment_to_bring", e.target.value || null)
-                  }
-                />
-              </Field>
-            </div>
-
-            <Field label="Despesas relacionadas (transporte, hospedagem, etc.)">
-              <Textarea
-                rows={2}
-                value={state.related_expenses ?? ""}
-                onChange={(e) =>
-                  set("related_expenses", e.target.value || null)
-                }
-              />
-            </Field>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <Field label="Forma de pagamento">
-                <Input
-                  placeholder="PIX, transferência, etc."
-                  value={state.payment_method ?? ""}
-                  onChange={(e) =>
-                    set("payment_method", e.target.value || null)
-                  }
-                />
-              </Field>
-              <Field label="Status do pagamento">
+              <Field
+                label="Pagamento"
+                hint="Marcar como Pago integralmente cria automaticamente a receita em DJ no Financeiro."
+              >
                 <Select
                   value={state.payment_status ?? "Pendente"}
                   onValueChange={(v) =>
@@ -480,26 +406,156 @@ export function GigForm({
                   </SelectContent>
                 </Select>
               </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Forma de pagamento">
+                <Input
+                  placeholder="PIX, transferência…"
+                  value={state.payment_method ?? ""}
+                  onChange={(e) => set("payment_method", e.target.value || null)}
+                />
+              </Field>
               <Field label="Previsão de recebimento">
                 <Input
                   type="date"
                   value={state.payment_due_date ?? ""}
-                  onChange={(e) =>
-                    set("payment_due_date", e.target.value || null)
-                  }
+                  onChange={(e) => set("payment_due_date", e.target.value || null)}
+                />
+              </Field>
+            </div>
+          </Section>
+
+          {/* ============================ CAIXA 2: BRIEFING ============================ */}
+          <Section title="Briefing">
+            <Field
+              label="Objetivo principal"
+              hint="O 'norte' dessa GIG em uma frase. Quando preenchido, vira uma Tarefa automaticamente."
+              icon={<Target className="h-3.5 w-3.5 text-primary" />}
+            >
+              <Input
+                placeholder='Ex: "Conquistar uma residência mensal aqui"'
+                value={state.main_goal ?? ""}
+                onChange={(e) => set("main_goal", e.target.value || null)}
+              />
+            </Field>
+
+            <Field
+              label="Contexto"
+              hint="O que o contratante pediu e por quê. Ajuda quando você revisita a GIG dias depois."
+            >
+              <Textarea
+                rows={3}
+                value={state.briefing ?? ""}
+                onChange={(e) => set("briefing", e.target.value || null)}
+              />
+            </Field>
+
+            <Field
+              label="Conceito do set"
+              hint="Direção artística, vibe, narrativa. Ex: subida progressiva, melódico no início, peso no fim."
+            >
+              <Textarea
+                rows={3}
+                value={state.set_concept ?? ""}
+                onChange={(e) => set("set_concept", e.target.value || null)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                label="Objetivos concretos"
+                hint="Métricas e marcas alcançáveis. Ex: tocar 4 unreleased, ligar 30s ao Insta."
+              >
+                <Textarea
+                  rows={3}
+                  value={state.concrete_goals ?? ""}
+                  onChange={(e) => set("concrete_goals", e.target.value || null)}
+                />
+              </Field>
+              <Field
+                label="Alvos"
+                hint="Pessoas, contatos, marcas que você quer atingir/conhecer durante a GIG."
+              >
+                <Textarea
+                  rows={3}
+                  value={state.targets ?? ""}
+                  onChange={(e) => set("targets", e.target.value || null)}
                 />
               </Field>
             </div>
 
-            <Field label="Observações gerais (dress code, estacionamento, etc.)">
+            <Field
+              label="Oportunidades"
+              hint="Portas que essa GIG pode abrir no curto-médio prazo."
+            >
               <Textarea
                 rows={3}
+                value={state.opportunities ?? ""}
+                onChange={(e) => set("opportunities", e.target.value || null)}
+              />
+            </Field>
+          </Section>
+
+          {/* ============================ CAIXA 3: PREPARAÇÃO ============================ */}
+          <Section
+            title="Preparação"
+            description="Marque o que já está pronto. O progresso aparece no Dashboard."
+          >
+            <PrepChecklist
+              state={state.prep}
+              onChange={(prep) => setState((s) => ({ ...s, prep }))}
+            />
+
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Como vou chegar">
+                <Input
+                  value={state.transport ?? ""}
+                  onChange={(e) => set("transport", e.target.value || null)}
+                />
+              </Field>
+              <Field label="Hora de saída de casa">
+                <Input
+                  type="time"
+                  value={state.departure_time ?? ""}
+                  onChange={(e) => set("departure_time", e.target.value || null)}
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                label="Equipamento da casa"
+                hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
+              >
+                <Textarea
+                  rows={2}
+                  value={state.equipment_provided ?? ""}
+                  onChange={(e) => set("equipment_provided", e.target.value || null)}
+                />
+              </Field>
+              <Field
+                label="O que preciso levar"
+                hint="Fone, pendrives, adaptador, cabos extras…"
+              >
+                <Textarea
+                  rows={2}
+                  value={state.equipment_to_bring ?? ""}
+                  onChange={(e) => set("equipment_to_bring", e.target.value || null)}
+                />
+              </Field>
+            </div>
+
+            <Field label="Observações">
+              <Textarea
+                rows={2}
+                placeholder="Dress code, estacionamento, etc."
                 value={state.general_notes ?? ""}
                 onChange={(e) => set("general_notes", e.target.value || null)}
               />
             </Field>
-          </TabsContent>
-        </Tabs>
+          </Section>
+        </div>
 
         <DialogFooter className="gap-2">
           <Button
@@ -519,21 +575,52 @@ export function GigForm({
   );
 }
 
+function Section({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border bg-card p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-primary-gradient">
+          {title}
+        </h3>
+        {description && (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function Field({
   label,
   required,
   error,
+  hint,
+  icon,
   children,
 }: {
   label: string;
   required?: boolean;
   error?: string;
+  hint?: string;
+  icon?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>
-        {label} {required && <span className="text-destructive">*</span>}
+      <Label className="inline-flex items-center gap-1.5">
+        {icon}
+        {label}
+        {required && <span className="text-destructive">*</span>}
+        {hint && <InfoHint>{hint}</InfoHint>}
       </Label>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}

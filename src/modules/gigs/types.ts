@@ -70,6 +70,11 @@ export type Gig = {
   debrief_pending: number; // 0 ou 1
 
   gcal_event_id: string | null;
+  main_goal: string | null;
+  /** JSON string com `{ [itemId: string]: 1 }` para itens marcados. */
+  prep_state: string | null;
+  /** ID da tarefa auto-criada a partir do objetivo principal. */
+  main_goal_task_id: number | null;
   created_at: string;
   updated_at: string;
 };

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
@@ -93,9 +94,11 @@ export default function App() {
   if (!dbReady) return <FullscreenLoader label="Carregando banco e migrations…" />;
 
   return (
-    <BrowserRouter>
-      <RoutedApp />
-    </BrowserRouter>
+    <TooltipProvider delayDuration={200}>
+      <BrowserRouter>
+        <RoutedApp />
+      </BrowserRouter>
+    </TooltipProvider>
   );
 }
 

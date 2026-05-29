@@ -423,6 +423,9 @@ export async function syncAll(): Promise<{
       rating_repertoire: null,
       rating_repertoire_note: null,
       gcal_event_id: ev.id,
+      main_goal: null,
+      prep_state: null,
+      main_goal_task_id: null,
     });
     pulled += 1;
   }

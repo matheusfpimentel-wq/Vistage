@@ -18,7 +18,6 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
-import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
 import { deleteGigFromCalendar } from "@/lib/gcal";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ListView } from "./views/ListView";
@@ -48,9 +47,6 @@ export function GigsPage() {
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [debriefGig, setDebriefGig] = useState<Gig | null>(null);
   const [debriefRequired, setDebriefRequired] = useState(false);
-
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [suggestGig, setSuggestGig] = useState<Gig | null>(null);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -96,12 +92,7 @@ export function GigsPage() {
       return;
     }
 
-    // Sugere tarefas-padrão para GIGs novas que ainda não rolaram
-    // (não faz sentido sugerir "confirmar 3 dias antes" para uma GIG passada).
-    if (isNew && fresh.date >= new Date().toISOString().slice(0, 10)) {
-      setSuggestGig(fresh);
-      setSuggestOpen(true);
-    }
+    void isNew; // sem mais sugestão automática — agora o checklist vive na GIG
 
     // Se acabou de virar Concluída e ainda não tem debrief preenchido,
     // dispara o modal de debrief em modo obrigatório.
@@ -232,14 +223,6 @@ export function GigsPage() {
         />
       )}
 
-      <SuggestStandardTasks
-        open={suggestOpen}
-        onOpenChange={setSuggestOpen}
-        gig={suggestGig}
-        onCreated={() => {
-          setSuggestGig(null);
-        }}
-      />
     </div>
   );
 }

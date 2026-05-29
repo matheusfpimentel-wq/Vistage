@@ -49,6 +49,9 @@ const GIG_COLUMNS = [
   "debrief_completed_at",
   "debrief_pending",
   "gcal_event_id",
+  "main_goal",
+  "prep_state",
+  "main_goal_task_id",
   "created_at",
   "updated_at",
 ] as const;

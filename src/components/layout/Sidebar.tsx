@@ -23,8 +23,12 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        <Music2 className="h-5 w-5 text-primary" />
-        <div className="font-semibold tracking-tight">MusicGest</div>
+        <div className="bg-primary-gradient flex h-7 w-7 items-center justify-center rounded-md text-primary-foreground shadow-sm">
+          <Music2 className="h-4 w-4" />
+        </div>
+        <div className="text-primary-gradient font-semibold tracking-tight">
+          MusicGest
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">

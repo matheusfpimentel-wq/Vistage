@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { RatingSlider } from "../components/RatingSlider";
+import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
 import { averageRating, type Gig } from "../types";
 import {
   clearDebriefDraft,
@@ -26,6 +27,7 @@ import {
   saveDebriefDraft,
   updateGig,
 } from "../api";
+import { createTask } from "@/modules/tasks/api";
 import { formatRating } from "@/lib/format";
 
 type Props = {
@@ -96,6 +98,7 @@ export function DebriefForm({
   const [state, setState] = useState<DebriefState>(() => gigToDebrief(gig));
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [tasksToCreate, setTasksToCreate] = useState<PendingDebriefTask[]>([]);
   const draftTimer = useRef<number | null>(null);
   const skipNextSave = useRef(true);
 
@@ -104,6 +107,7 @@ export function DebriefForm({
   useEffect(() => {
     if (!open) return;
     skipNextSave.current = true;
+    setTasksToCreate([]);
     (async () => {
       const draft = await loadDebriefDraft(gig.id);
       if (draft) setState({ ...gigToDebrief(gig), ...(draft as DebriefState) });
@@ -137,6 +141,28 @@ export function DebriefForm({
     setState((s) => ({ ...s, [key]: value }));
   }
 
+  /** Cria todas as tarefas a partir do debrief (chamado ao salvar). */
+  async function flushDebriefTasks() {
+    for (const t of tasksToCreate) {
+      try {
+        await createTask({
+          title: t.title,
+          description: `Originada no debrief de ${gig.venue_name}.`,
+          category: "GIG",
+          gig_id: gig.id,
+          contact_id: gig.promoter_contact_id,
+          priority: "Média",
+          status: "A fazer",
+          due_date: t.dueDate,
+          tags: ["do-debrief"],
+        });
+      } catch {
+        /* não interrompe */
+      }
+    }
+    setTasksToCreate([]);
+  }
+
   const complete = useMemo(() => isComplete(state), [state]);
   const avg = useMemo(() => averageRating(state), [state]);
 
@@ -148,6 +174,7 @@ export function DebriefForm({
         ...state,
         debrief_pending: 1,
       });
+      await flushDebriefTasks();
       toast.warning("Debrief salvo como pendente — finalize quando puder.");
       onCompleted();
       onOpenChange(false);
@@ -176,6 +203,7 @@ export function DebriefForm({
         debrief_completed_at: completedAt,
       });
       await clearDebriefDraft(gig.id);
+      await flushDebriefTasks();
       toast.success("Debrief finalizado!");
       onCompleted();
       onOpenChange(false);
@@ -250,6 +278,14 @@ export function DebriefForm({
               )}
             </TabsTrigger>
             <TabsTrigger value="more">Outros</TabsTrigger>
+            <TabsTrigger value="tasks">
+              Tarefas
+              {tasksToCreate.length > 0 && (
+                <span className="ml-2 rounded bg-primary/20 px-1.5 text-xs text-primary">
+                  {tasksToCreate.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* ============ APRENDIZADOS ============ */}
@@ -338,6 +374,11 @@ export function DebriefForm({
               value={state.debrief_media_content}
               onChange={(v) => set("debrief_media_content", v)}
             />
+          </TabsContent>
+
+          {/* ============ TAREFAS A PARTIR DISSO ============ */}
+          <TabsContent value="tasks">
+            <DebriefTasks items={tasksToCreate} onChange={setTasksToCreate} />
           </TabsContent>
         </Tabs>
 

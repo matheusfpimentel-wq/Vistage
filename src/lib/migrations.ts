@@ -260,6 +260,15 @@ const MIGRATIONS: Migration[] = [
         ('Outros', 'expense', 1);
     `,
   },
+  {
+    version: 3,
+    description: "Gigs ganham main_goal, prep_state e main_goal_task_id",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN main_goal TEXT;
+      ALTER TABLE gigs ADD COLUMN prep_state TEXT;
+      ALTER TABLE gigs ADD COLUMN main_goal_task_id INTEGER;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

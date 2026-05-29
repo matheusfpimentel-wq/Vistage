@@ -20,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { listGigs, loadInsights, type GigInsights } from "@/modules/gigs/api";
 import { type Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
+import { PrepProgressMini } from "@/modules/gigs/components/PrepChecklist";
+import { parsePrepState, prepProgress } from "@/modules/gigs/prep";
 import { listUpcoming } from "@/modules/tasks/api";
 import { PriorityBadge } from "@/modules/tasks/components/PriorityBadge";
 import type { Task } from "@/modules/tasks/types";
@@ -146,21 +148,34 @@ export function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {upcoming.map((g) => (
-                  <div
-                    key={g.id}
-                    className="flex items-center justify-between rounded-md border p-3"
-                  >
-                    <div>
-                      <div className="font-medium">{g.venue_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDate(g.date)}
-                        {g.venue_city && ` · ${g.venue_city}`}
+                {upcoming.map((g) => {
+                  const prep = parsePrepState(g.prep_state);
+                  const { done, total } = prepProgress(prep);
+                  return (
+                    <div
+                      key={g.id}
+                      className="rounded-md border p-3 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium">{g.venue_name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatDate(g.date)}
+                            {g.venue_city && ` · ${g.venue_city}`}
+                            {g.main_goal && ` · 🎯 ${g.main_goal}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {done}/{total}
+                          </span>
+                          <StatusBadge status={g.status} />
+                        </div>
                       </div>
+                      <PrepProgressMini state={prep} />
                     </div>
-                    <StatusBadge status={g.status} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

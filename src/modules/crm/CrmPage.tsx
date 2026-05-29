@@ -21,10 +21,8 @@ import {
 } from "./api";
 import { CONTACT_TYPES, type Contact, type ContactType } from "./types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
-import { SuggestStandardTasks } from "@/modules/tasks/forms/SuggestStandardTasks";
-import { getGig } from "@/modules/gigs/api";
-import type { Gig } from "@/modules/gigs/types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { formatDate } from "@/lib/format";
 
 type TypeFilter = ContactType | "Todos";
 
@@ -44,8 +42,6 @@ export function CrmPage() {
 
   const [gigFormOpen, setGigFormOpen] = useState(false);
   const [gigPromoter, setGigPromoter] = useState<Contact | null>(null);
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [suggestGig, setSuggestGig] = useState<Gig | null>(null);
 
   const queryFilters: ContactFilters = useMemo(
     () => ({
@@ -163,12 +159,21 @@ export function CrmPage() {
                 <th className="px-3 py-2 text-left">Tipo</th>
                 <th className="px-3 py-2 text-left">Cidade</th>
                 <th className="px-3 py-2 text-left">Contato</th>
+                <th className="px-3 py-2 text-left">Último contato</th>
                 <th className="px-3 py-2 text-left">Avaliação</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.map((c) => (
+              {contacts.map((c) => {
+                const last = c.last_interaction_at;
+                const daysAgo = last
+                  ? Math.floor(
+                      (Date.now() - new Date(last).getTime()) / 86400000
+                    )
+                  : null;
+                const isStale = daysAgo !== null && daysAgo > 90;
+                return (
                 <tr
                   key={c.id}
                   className="cursor-pointer border-t transition-colors hover:bg-muted/40"
@@ -183,6 +188,30 @@ export function CrmPage() {
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {c.phone ?? c.email ?? c.instagram ?? "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    {last ? (
+                      <div className="flex flex-col">
+                        <span className="text-sm tabular-nums">
+                          {formatDate(last)}
+                        </span>
+                        <span
+                          className={
+                            isStale
+                              ? "text-xs text-amber-500"
+                              : "text-xs text-muted-foreground"
+                          }
+                        >
+                          {daysAgo === 0
+                            ? "hoje"
+                            : daysAgo === 1
+                            ? "ontem"
+                            : `há ${daysAgo}d`}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <RatingStars value={c.rating} readOnly size="sm" />
@@ -211,7 +240,8 @@ export function CrmPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -240,27 +270,10 @@ export function CrmPage() {
         onOpenChange={setGigFormOpen}
         gig={null}
         prefillPromoter={gigPromoter}
-        onSaved={async ({ id, isNew }) => {
+        onSaved={() => {
           setGigPromoter(null);
           toast.success("GIG criada — confira na aba GIGs");
-          if (isNew) {
-            const fresh = await getGig(id);
-            if (
-              fresh &&
-              fresh.date >= new Date().toISOString().slice(0, 10)
-            ) {
-              setSuggestGig(fresh);
-              setSuggestOpen(true);
-            }
-          }
         }}
-      />
-
-      <SuggestStandardTasks
-        open={suggestOpen}
-        onOpenChange={setSuggestOpen}
-        gig={suggestGig}
-        onCreated={() => setSuggestGig(null)}
       />
     </div>
   );
