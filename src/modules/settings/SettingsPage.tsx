@@ -192,6 +192,8 @@ export function SettingsPage() {
         <CardContent className="space-y-2 text-sm">
           <Shortcut keys={["Ctrl/Cmd", "K"]} label="Busca global em qualquer módulo" />
           <Shortcut keys={["Ctrl/Cmd", "N"]} label="Criar novo item no módulo atual" />
+          <Shortcut keys={["Ctrl/Cmd", "I"]} label="Captura rápida de ideia (em qualquer tela)" />
+          <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
           <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
         </CardContent>
       </Card>

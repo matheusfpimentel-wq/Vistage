@@ -1,0 +1,416 @@
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
+import { createTask } from "@/modules/tasks/api";
+import {
+  CONTENT_FORMATS,
+  CONTENT_NETWORKS,
+  CONTENT_STATUSES,
+  type Content,
+  type ContentCreateInput,
+  type ContentFormat,
+  type ContentNetwork,
+  type ContentStatus,
+} from "../types";
+import { createContent, updateContent } from "../api";
+
+type Props = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  content?: Content | null;
+  defaults?: Partial<ContentCreateInput>;
+  onSaved: (id: number) => void;
+};
+
+const EMPTY: ContentCreateInput = {
+  title: "",
+  script: null,
+  networks: [],
+  format: null,
+  purpose: null,
+  status: "Ideia",
+  due_date: null,
+  publish_date: null,
+  published_at: null,
+  post_url: null,
+  metric_views: null,
+  metric_likes: null,
+  metric_comments: null,
+  metric_shares: null,
+  metric_saves: null,
+  notes: null,
+  task_id: null,
+};
+
+function contentToState(c: Content): ContentCreateInput {
+  return {
+    title: c.title,
+    script: c.script,
+    networks: c.networks,
+    format: c.format,
+    purpose: c.purpose,
+    status: c.status,
+    due_date: c.due_date,
+    publish_date: c.publish_date,
+    published_at: c.published_at,
+    post_url: c.post_url,
+    metric_views: c.metric_views,
+    metric_likes: c.metric_likes,
+    metric_comments: c.metric_comments,
+    metric_shares: c.metric_shares,
+    metric_saves: c.metric_saves,
+    notes: c.notes,
+    task_id: c.task_id,
+  };
+}
+
+export function ContentForm({
+  open,
+  onOpenChange,
+  content,
+  defaults,
+  onSaved,
+}: Props) {
+  const [state, setState] = useState<ContentCreateInput>(EMPTY);
+  const [saving, setSaving] = useState(false);
+  const [titleError, setTitleError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (content) setState(contentToState(content));
+    else setState({ ...EMPTY, ...(defaults ?? {}) });
+    setTitleError(null);
+  }, [content, defaults, open]);
+
+  function set<K extends keyof ContentCreateInput>(
+    key: K,
+    value: ContentCreateInput[K]
+  ) {
+    setState((s) => ({ ...s, [key]: value }));
+  }
+
+  function toggleNetwork(n: ContentNetwork) {
+    setState((s) => ({
+      ...s,
+      networks: s.networks.includes(n)
+        ? s.networks.filter((x) => x !== n)
+        : [...s.networks, n],
+    }));
+  }
+
+  async function handleSubmit() {
+    if (!state.title.trim()) {
+      setTitleError("Obrigatório");
+      toast.error("O título é obrigatório");
+      return;
+    }
+    setSaving(true);
+    try {
+      const prevTaskId = content?.task_id ?? null;
+      const id = content
+        ? (await updateContent({ id: content.id, ...state }), content.id)
+        : await createContent(state);
+
+      // Cria tarefa pro prazo da primeira vez que due_date é definido
+      if (state.due_date && !prevTaskId) {
+        try {
+          const taskId = await createTask({
+            title: `Conteúdo: ${state.title.trim()}`,
+            description: state.purpose ?? null,
+            category: "Conteúdo",
+            gig_id: null,
+            contact_id: null,
+            priority: "Média",
+            status: "A fazer",
+            due_date: state.due_date,
+            tags: ["conteudo"],
+          });
+          await updateContent({ id, task_id: taskId });
+        } catch {
+          /* não interrompe */
+        }
+      }
+
+      toast.success(content ? "Conteúdo atualizado" : "Conteúdo criado");
+      onSaved(id);
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>{content ? "Editar conteúdo" : "Novo conteúdo"}</DialogTitle>
+          <DialogDescription>
+            Ao definir um prazo, é criada uma tarefa automaticamente.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>
+              Título <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              placeholder='Ex: "Reel — bastidor do meu set no Audio"'
+              value={state.title}
+              onChange={(e) => {
+                set("title", e.target.value);
+                if (titleError) setTitleError(null);
+              }}
+            />
+            {titleError && (
+              <p className="text-xs text-destructive">{titleError}</p>
+            )}
+          </div>
+
+          <Tabs defaultValue="basico">
+            <TabsList>
+              <TabsTrigger value="basico">Básico</TabsTrigger>
+              <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
+              <TabsTrigger value="metricas">Métricas</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="basico" className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Redes (multi-select)</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CONTENT_NETWORKS.map((n) => {
+                    const active = state.networks.includes(n);
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => toggleNetwork(n)}
+                        className={cn(
+                          "rounded-md border px-2.5 py-1 text-xs transition",
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input bg-background hover:bg-accent"
+                        )}
+                      >
+                        {n}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field label="Formato">
+                  <Select
+                    value={state.format ?? "none"}
+                    onValueChange={(v) =>
+                      set("format", v === "none" ? null : (v as ContentFormat))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {CONTENT_FORMATS.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {f}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Status">
+                  <Select
+                    value={state.status}
+                    onValueChange={(v) => set("status", v as ContentStatus)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONTENT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Finalidade">
+                  <Input
+                    placeholder="Ex: divulgar GIG"
+                    value={state.purpose ?? ""}
+                    onChange={(e) => set("purpose", e.target.value || null)}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Field label="Prazo (cria tarefa)">
+                  <Input
+                    type="date"
+                    value={state.due_date ?? ""}
+                    onChange={(e) => set("due_date", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="Data prevista de publicação">
+                  <Input
+                    type="date"
+                    value={state.publish_date ?? ""}
+                    onChange={(e) => set("publish_date", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="Publicado em">
+                  <Input
+                    type="date"
+                    value={state.published_at ?? ""}
+                    onChange={(e) => set("published_at", e.target.value || null)}
+                  />
+                </Field>
+              </div>
+
+              <Field label="Link do post publicado">
+                <Input
+                  placeholder="https://"
+                  value={state.post_url ?? ""}
+                  onChange={(e) => set("post_url", e.target.value || null)}
+                />
+              </Field>
+            </TabsContent>
+
+            <TabsContent value="roteiro" className="space-y-3">
+              <Field label="Roteiro">
+                <Textarea
+                  rows={8}
+                  placeholder="Hook, desenvolvimento, CTA…"
+                  value={state.script ?? ""}
+                  onChange={(e) => set("script", e.target.value || null)}
+                />
+              </Field>
+              <Field label="Notas internas">
+                <Textarea
+                  rows={3}
+                  value={state.notes ?? ""}
+                  onChange={(e) => set("notes", e.target.value || null)}
+                />
+              </Field>
+            </TabsContent>
+
+            <TabsContent value="metricas" className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Preencha manualmente depois de publicar (a app não puxa direto das
+                redes).
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <MetricInput
+                  label="Views"
+                  value={state.metric_views}
+                  onChange={(v) => set("metric_views", v)}
+                />
+                <MetricInput
+                  label="Curtidas"
+                  value={state.metric_likes}
+                  onChange={(v) => set("metric_likes", v)}
+                />
+                <MetricInput
+                  label="Comentários"
+                  value={state.metric_comments}
+                  onChange={(v) => set("metric_comments", v)}
+                />
+                <MetricInput
+                  label="Compart."
+                  value={state.metric_shares}
+                  onChange={(v) => set("metric_shares", v)}
+                />
+                <MetricInput
+                  label="Salvos"
+                  value={state.metric_saves}
+                  onChange={(v) => set("metric_saves", v)}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={saving}
+          >
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {content ? "Salvar alterações" : "Criar conteúdo"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function MetricInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input
+        type="number"
+        min={0}
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      />
+    </div>
+  );
+}

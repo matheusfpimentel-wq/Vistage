@@ -4,11 +4,12 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
+import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
-import { isModKey, triggerNewItem } from "@/lib/shortcuts";
+import { isModKey, triggerNewItem, triggerQuickCapture, useQuickCaptureEvent } from "@/lib/shortcuts";
 
 // Lazy-load das páginas dos módulos para que cada um vire um chunk separado.
 // O FinancePage carrega o Recharts (~150kb) só quando o usuário abre o módulo.
@@ -26,6 +27,12 @@ const VenuesPage = lazy(() =>
 );
 const FansPage = lazy(() =>
   import("@/modules/fans/FansPage").then((m) => ({ default: m.FansPage }))
+);
+const ContentPage = lazy(() =>
+  import("@/modules/content/ContentPage").then((m) => ({ default: m.ContentPage }))
+);
+const IdeasPage = lazy(() =>
+  import("@/modules/ideas/IdeasPage").then((m) => ({ default: m.IdeasPage }))
 );
 const TasksPage = lazy(() =>
   import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
@@ -110,9 +117,10 @@ export default function App() {
 
 function RoutedApp() {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
 
-  // Atalhos globais: Ctrl/Cmd+K abre busca; Ctrl/Cmd+N dispara "novo item" no
-  // módulo ativo (cada página registra seu handler via useNewItemShortcut).
+  // Atalhos globais: Ctrl/Cmd+K abre busca; Ctrl/Cmd+I abre captura de ideia;
+  // Ctrl/Cmd+N dispara "novo item" no módulo ativo.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!isModKey(e)) return;
@@ -120,6 +128,9 @@ function RoutedApp() {
       if (k === "k") {
         e.preventDefault();
         setPaletteOpen((p) => !p);
+      } else if (k === "i") {
+        e.preventDefault();
+        triggerQuickCapture();
       } else if (k === "n") {
         // não interferir quando o foco está em um input do command palette
         const target = e.target as HTMLElement | null;
@@ -131,6 +142,8 @@ function RoutedApp() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useQuickCaptureEvent(() => setQuickCaptureOpen(true));
 
   return (
     <>
@@ -148,6 +161,8 @@ function RoutedApp() {
             <Route path="venues" element={<VenuesPage />} />
             <Route path="crm" element={<CrmPage />} />
             <Route path="fas" element={<FansPage />} />
+            <Route path="conteudo" element={<ContentPage />} />
+            <Route path="ideias" element={<IdeasPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
@@ -156,6 +171,7 @@ function RoutedApp() {
         </Routes>
       </Suspense>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
     </>
   );
 }

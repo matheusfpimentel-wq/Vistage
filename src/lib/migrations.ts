@@ -321,6 +321,53 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_fans_level ON fans(level);
     `,
   },
+  {
+    version: 5,
+    description: "Gestão de Conteúdo e Banco de Ideias",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        script TEXT,
+        networks TEXT,                          -- JSON array
+        format TEXT,                            -- Reels | Story | Post | Carrossel | Vídeo longo | Live | Podcast
+        purpose TEXT,
+        status TEXT NOT NULL DEFAULT 'Ideia',
+        due_date TEXT,
+        publish_date TEXT,
+        published_at TEXT,
+        post_url TEXT,
+        metric_views INTEGER,
+        metric_likes INTEGER,
+        metric_comments INTEGER,
+        metric_shares INTEGER,
+        metric_saves INTEGER,
+        notes TEXT,
+        task_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_content_status ON content(status);
+      CREATE INDEX IF NOT EXISTS idx_content_publish ON content(publish_date);
+
+      CREATE TABLE IF NOT EXISTS ideas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body TEXT,
+        category TEXT,
+        tags TEXT,                              -- JSON array
+        heat INTEGER NOT NULL DEFAULT 1,        -- 1=fria, 2=morna, 3=quente
+        maturation TEXT NOT NULL DEFAULT 'Embrião',
+        converted_to TEXT,                      -- task | content | gig
+        converted_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_ideas_maturation ON ideas(maturation);
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

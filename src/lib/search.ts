@@ -1,7 +1,15 @@
 import { getDb } from "./db";
 
 export type SearchHit = {
-  kind: "gig" | "contact" | "task" | "transaction" | "venue" | "fan";
+  kind:
+    | "gig"
+    | "contact"
+    | "task"
+    | "transaction"
+    | "venue"
+    | "fan"
+    | "content"
+    | "idea";
   id: number;
   title: string;
   subtitle: string;
@@ -20,7 +28,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -75,6 +83,22 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, name, level, city FROM fans
         WHERE name LIKE $1 OR email LIKE $1 OR phone LIKE $1 OR instagram LIKE $1
         ORDER BY name LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; title: string; status: string; format: string | null }[]
+    >(
+      `SELECT id, title, status, format FROM content
+        WHERE title LIKE $1 OR purpose LIKE $1 OR script LIKE $1
+        ORDER BY publish_date DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; title: string; category: string | null; heat: number }[]
+    >(
+      `SELECT id, title, category, heat FROM ideas
+        WHERE title LIKE $1 OR body LIKE $1
+        ORDER BY heat DESC, updated_at DESC LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -143,6 +167,25 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/fas",
     });
   }
+  for (const c of contents) {
+    hits.push({
+      kind: "content",
+      id: c.id,
+      title: c.title,
+      subtitle: [c.status, c.format].filter(Boolean).join(" · "),
+      route: "/conteudo",
+    });
+  }
+  for (const i of ideas) {
+    const heatLabel = i.heat === 3 ? "Quente" : i.heat === 2 ? "Morna" : "Fria";
+    hits.push({
+      kind: "idea",
+      id: i.id,
+      title: i.title,
+      subtitle: [heatLabel, i.category].filter(Boolean).join(" · "),
+      route: "/ideias",
+    });
+  }
 
   return hits;
 }
@@ -154,4 +197,6 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   transaction: "Financeiro",
   venue: "Venue",
   fan: "Fã",
+  content: "Conteúdo",
+  idea: "Ideia",
 };
