@@ -1,7 +1,7 @@
 import { getDb } from "./db";
 
 export type SearchHit = {
-  kind: "gig" | "contact" | "task" | "transaction";
+  kind: "gig" | "contact" | "task" | "transaction" | "venue" | "fan";
   id: number;
   title: string;
   subtitle: string;
@@ -20,7 +20,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, fans] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -59,6 +59,22 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
          LEFT JOIN finance_categories c ON c.id = t.category_id
         WHERE t.description LIKE $1 OR c.name LIKE $1
         ORDER BY t.date DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; city: string | null; capacity: number | null }[]
+    >(
+      `SELECT id, name, city, capacity FROM venues
+        WHERE name LIKE $1 OR city LIKE $1 OR owner_name LIKE $1
+        ORDER BY name LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; level: string; city: string | null }[]
+    >(
+      `SELECT id, name, level, city FROM fans
+        WHERE name LIKE $1 OR email LIKE $1 OR phone LIKE $1 OR instagram LIKE $1
+        ORDER BY name LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -106,6 +122,27 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/financeiro",
     });
   }
+  for (const v of venues) {
+    hits.push({
+      kind: "venue",
+      id: v.id,
+      title: v.name,
+      subtitle:
+        [v.city, v.capacity ? `cap. ${v.capacity}` : null]
+          .filter(Boolean)
+          .join(" · ") || "Venue",
+      route: "/venues",
+    });
+  }
+  for (const f of fans) {
+    hits.push({
+      kind: "fan",
+      id: f.id,
+      title: f.name,
+      subtitle: [f.level, f.city].filter(Boolean).join(" · "),
+      route: "/fas",
+    });
+  }
 
   return hits;
 }
@@ -115,4 +152,6 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   contact: "Contato",
   task: "Tarefa",
   transaction: "Financeiro",
+  venue: "Venue",
+  fan: "Fã",
 };

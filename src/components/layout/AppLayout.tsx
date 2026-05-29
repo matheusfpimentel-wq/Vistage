@@ -8,7 +8,9 @@ import { useConfigStore } from "@/lib/config";
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
   "/gigs": "GIGs",
+  "/venues": "Venues",
   "/crm": "CRM",
+  "/fas": "Clube de fãs",
   "/tarefas": "Tarefas",
   "/financeiro": "Financeiro",
   "/configuracoes": "Configurações",

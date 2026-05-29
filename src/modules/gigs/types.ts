@@ -25,6 +25,7 @@ export type Gig = {
   venue_name: string;
   venue_city: string | null;
   venue_address: string | null;
+  venue_id: number | null;
   promoter_contact_id: number | null;
   day_contact_name: string | null;
   day_contact_phone: string | null;

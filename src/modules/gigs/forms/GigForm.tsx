@@ -34,6 +34,8 @@ import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { listVenues } from "@/modules/venues/api";
+import type { Venue } from "@/modules/venues/types";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { parsePrepState } from "../prep";
 
@@ -55,6 +57,7 @@ const EMPTY: FormState = {
   venue_name: "",
   venue_city: null,
   venue_address: null,
+  venue_id: null,
   promoter_contact_id: null,
   day_contact_name: null,
   day_contact_phone: null,
@@ -115,6 +118,7 @@ export function GigForm({
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]);
 
   useEffect(() => {
     if (gig) setState(gigToState(gig));
@@ -131,7 +135,24 @@ export function GigForm({
   useEffect(() => {
     if (!open) return;
     void listContacts().then(setContacts);
+    void listVenues().then(setVenues);
   }, [open]);
+
+  function pickVenue(venueId: number | null) {
+    if (venueId === null) {
+      setState((s) => ({ ...s, venue_id: null }));
+      return;
+    }
+    const v = venues.find((x) => x.id === venueId);
+    if (!v) return;
+    setState((s) => ({
+      ...s,
+      venue_id: v.id,
+      venue_name: v.name,
+      venue_city: v.city,
+      venue_address: v.address,
+    }));
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -276,7 +297,32 @@ export function GigForm({
               </Field>
             </div>
 
-            <Field label="Venue" required error={errors.venue_name}>
+            <Field
+              label="Venue"
+              hint="Escolha um cadastrado pra auto-preencher cidade/endereço, ou digite manualmente."
+            >
+              <Select
+                value={state.venue_id?.toString() ?? "manual"}
+                onValueChange={(v) =>
+                  pickVenue(v === "manual" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Venue cadastrado ou manual" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">— Manual / sem cadastro —</SelectItem>
+                  {venues.map((v) => (
+                    <SelectItem key={v.id} value={v.id.toString()}>
+                      {v.name}
+                      {v.city ? ` · ${v.city}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label="Nome do venue" required error={errors.venue_name}>
               <Input
                 placeholder="Nome do local"
                 value={state.venue_name}

@@ -1,0 +1,294 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Flame, Heart, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { toast } from "@/components/ui/toaster";
+import { LevelBadge } from "./components/LevelBadge";
+import { FanForm } from "./forms/FanForm";
+import { FanDetail } from "./forms/FanDetail";
+import {
+  deleteFan,
+  getFanStats,
+  listFans,
+  type FanFilters,
+  type FanStats,
+} from "./api";
+import { FAN_LEVELS, type Fan, type FanLevel } from "./types";
+import { formatDate } from "@/lib/format";
+import { useNewItemShortcut } from "@/lib/shortcuts";
+
+type LevelFilter = FanLevel | "Todos";
+
+export function FansPage() {
+  const [fans, setFans] = useState<Fan[]>([]);
+  const [stats, setStats] = useState<FanStats | null>(null);
+  const [filters, setFilters] = useState<{
+    level: LevelFilter;
+    city: string;
+    search: string;
+  }>({ level: "Todos", city: "", search: "" });
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Fan | null>(null);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailId, setDetailId] = useState<number | null>(null);
+
+  const queryFilters: FanFilters = useMemo(
+    () => ({
+      level: filters.level,
+      city: filters.city,
+      search: filters.search,
+    }),
+    [filters]
+  );
+
+  const refresh = useCallback(async () => {
+    const [data, s] = await Promise.all([listFans(queryFilters), getFanStats()]);
+    setFans(data);
+    setStats(s);
+  }, [queryFilters]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  function openCreate() {
+    setEditing(null);
+    setFormOpen(true);
+  }
+
+  useNewItemShortcut(openCreate);
+
+  function openEdit(f: Fan) {
+    setEditing(f);
+    setFormOpen(true);
+  }
+
+  function openDetail(f: Fan) {
+    setDetailId(f.id);
+    setDetailOpen(true);
+  }
+
+  async function handleDelete(f: Fan) {
+    const ok = window.confirm(`Excluir "${f.name}"? Interações vinculadas também serão removidas.`);
+    if (!ok) return;
+    try {
+      await deleteFan(f.id);
+      toast.success("Fã excluído");
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard
+          icon={<Flame className="h-4 w-4 text-emerald-500" />}
+          label="Superfãs"
+          value={stats?.superfa ?? 0}
+        />
+        <StatCard
+          icon={<Heart className="h-4 w-4 text-sky-400" />}
+          label="Fãs"
+          value={stats?.fa ?? 0}
+        />
+        <StatCard
+          icon={<Sparkles className="h-4 w-4 text-muted-foreground" />}
+          label="Possíveis fãs"
+          value={stats?.possivelFa ?? 0}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar nome, @, email, telefone…"
+              value={filters.search}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, search: e.target.value }))
+              }
+              className="w-72 pl-8"
+            />
+          </div>
+          <Select
+            value={filters.level}
+            onValueChange={(v) =>
+              setFilters((f) => ({ ...f, level: v as LevelFilter }))
+            }
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todos">Todos os níveis</SelectItem>
+              {FAN_LEVELS.map((l) => (
+                <SelectItem key={l} value={l}>
+                  {l}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            placeholder="Cidade"
+            value={filters.city}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, city: e.target.value }))
+            }
+            className="w-40"
+          />
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4" /> Novo fã
+        </Button>
+      </div>
+
+      {fans.length === 0 ? (
+        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+          <Heart className="mx-auto mb-2 h-8 w-8 opacity-50" />
+          Nenhum fã cadastrado ainda.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-md border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 text-left">Nome</th>
+                <th className="px-3 py-2 text-left">Nível</th>
+                <th className="px-3 py-2 text-left">Cidade</th>
+                <th className="px-3 py-2 text-left">Contato</th>
+                <th className="px-3 py-2 text-left">Último contato</th>
+                <th className="px-3 py-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fans.map((f) => {
+                const last = f.last_interaction_at;
+                const daysAgo = last
+                  ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
+                  : null;
+                return (
+                  <tr
+                    key={f.id}
+                    className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                    onClick={() => openDetail(f)}
+                  >
+                    <td className="px-3 py-2 font-medium">{f.name}</td>
+                    <td className="px-3 py-2">
+                      <LevelBadge level={f.level} />
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {f.city ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {f.instagram ?? f.email ?? f.phone ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {last ? (
+                        <div className="flex flex-col">
+                          <span className="text-sm tabular-nums">
+                            {formatDate(last)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {daysAgo === 0
+                              ? "hoje"
+                              : daysAgo === 1
+                              ? "ontem"
+                              : `há ${daysAgo}d`}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td
+                      className="px-3 py-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => openEdit(f)}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(f)}
+                          aria-label="Excluir"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <FanForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        fan={editing}
+        onSaved={() => void refresh()}
+      />
+
+      <FanDetail
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        fanId={detailId}
+        onEdit={(f) => {
+          setDetailOpen(false);
+          openEdit(f);
+        }}
+      />
+    </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardDescription className="flex items-center gap-2 text-xs">
+          {icon}
+          {label}
+        </CardDescription>
+        <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
+      </CardHeader>
+      <CardContent />
+    </Card>
+  );
+}

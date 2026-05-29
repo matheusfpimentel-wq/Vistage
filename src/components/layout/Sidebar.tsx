@@ -1,7 +1,9 @@
 import { NavLink } from "react-router-dom";
 import {
+  Building2,
   CalendarRange,
   CheckSquare,
+  Heart,
   LayoutDashboard,
   Music2,
   Settings,
@@ -13,7 +15,9 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/gigs", label: "GIGs", icon: CalendarRange },
+  { to: "/venues", label: "Venues", icon: Building2 },
   { to: "/crm", label: "CRM", icon: Users },
+  { to: "/fas", label: "Clube de fãs", icon: Heart },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },
   { to: "/configuracoes", label: "Configurações", icon: Settings },

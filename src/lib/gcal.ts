@@ -426,6 +426,7 @@ export async function syncAll(): Promise<{
       main_goal: null,
       prep_state: null,
       main_goal_task_id: null,
+      venue_id: null,
     });
     pulled += 1;
   }

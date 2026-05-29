@@ -9,6 +9,7 @@ const GIG_COLUMNS = [
   "venue_name",
   "venue_city",
   "venue_address",
+  "venue_id",
   "promoter_contact_id",
   "day_contact_name",
   "day_contact_phone",

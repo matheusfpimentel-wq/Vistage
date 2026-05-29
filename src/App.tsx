@@ -21,6 +21,12 @@ const GigsPage = lazy(() =>
 const CrmPage = lazy(() =>
   import("@/modules/crm/CrmPage").then((m) => ({ default: m.CrmPage }))
 );
+const VenuesPage = lazy(() =>
+  import("@/modules/venues/VenuesPage").then((m) => ({ default: m.VenuesPage }))
+);
+const FansPage = lazy(() =>
+  import("@/modules/fans/FansPage").then((m) => ({ default: m.FansPage }))
+);
 const TasksPage = lazy(() =>
   import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
 );
@@ -139,7 +145,9 @@ function RoutedApp() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="gigs" element={<GigsPage />} />
+            <Route path="venues" element={<VenuesPage />} />
             <Route path="crm" element={<CrmPage />} />
+            <Route path="fas" element={<FansPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />

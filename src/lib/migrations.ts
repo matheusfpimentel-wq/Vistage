@@ -269,6 +269,58 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN main_goal_task_id INTEGER;
     `,
   },
+  {
+    version: 4,
+    description: "Venues e Fãs como módulos próprios; gigs.venue_id FK",
+    sql: `
+      CREATE TABLE IF NOT EXISTS venues (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        city TEXT,
+        state TEXT,
+        country TEXT,
+        address TEXT,
+        founded_year INTEGER,
+        capacity INTEGER,
+        owner_name TEXT,
+        owner_phone TEXT,
+        owner_email TEXT,
+        instagram TEXT,
+        website TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE gigs ADD COLUMN venue_id INTEGER;
+
+      CREATE TABLE IF NOT EXISTS fans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        level TEXT NOT NULL DEFAULT 'Possível fã',
+        instagram TEXT,
+        email TEXT,
+        phone TEXT,
+        city TEXT,
+        tags TEXT,
+        notes TEXT,
+        last_interaction_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS fan_interactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fan_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        note TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (fan_id) REFERENCES fans(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_fans_level ON fans(level);
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
