@@ -140,10 +140,25 @@ npm run tauri:build
 Saída em `src-tauri/target/release/bundle/`. Tauri **não faz cross-compile**:
 só gera `.app` rodando em Mac, só gera `.exe` rodando em Windows.
 
-> **Sobre assinatura:** o binário não é assinado. Mac vai pedir clique direito
-> → Abrir; Windows vai mostrar SmartScreen "Mais informações → Executar
-> mesmo assim". Pra distribuir publicamente, considere certificados (Apple
-> Developer $99/ano, Windows EV ~$400/ano).
+> **Sobre assinatura:** o binário recebe uma assinatura ad-hoc no build
+> (suficiente pra abrir em Apple Silicon sem o erro "danificado"), mas
+> não é assinado com certificado pago. Mac vai pedir clique direito →
+> Abrir na primeira vez; Windows vai mostrar SmartScreen "Mais
+> informações → Executar mesmo assim". Pra distribuir publicamente sem
+> esses avisos, considere certificados (Apple Developer $99/ano,
+> Windows EV ~$400/ano).
+
+> **Já baixou um .dmg do build antigo e diz "danificado"?** É o
+> Gatekeeper barrando porque o build não tinha assinatura ad-hoc.
+> Conserto rápido no Terminal (mude o caminho se instalou em outro lugar):
+>
+> ```bash
+> sudo xattr -rd com.apple.quarantine /Applications/MusicGest.app
+> ```
+>
+> Depois clica com botão direito → Abrir. Builds gerados após este
+> commit (workflow atualizado) já saem com ad-hoc signing e não vão
+> mais mostrar esse erro.
 
 ### Ícones
 
