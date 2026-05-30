@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Target } from "lucide-react";
+import { Loader2, Plus, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,8 +35,9 @@ import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
-import { listVenues } from "@/modules/venues/api";
+import { createVenue, listVenues } from "@/modules/venues/api";
 import type { Venue } from "@/modules/venues/types";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { parsePrepState } from "../prep";
 
@@ -122,8 +123,11 @@ export function GigForm({
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
+    if (!open) return;
     if (gig) setState(gigToState(gig));
     else if (prefillPromoter)
       setState({
@@ -133,6 +137,7 @@ export function GigForm({
       });
     else setState(EMPTY);
     setErrors({});
+    setDirty(false);
   }, [gig, prefillPromoter, open]);
 
   useEffect(() => {
@@ -159,6 +164,7 @@ export function GigForm({
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   function validate(): boolean {
@@ -263,7 +269,7 @@ export function GigForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
@@ -276,6 +282,35 @@ export function GigForm({
         <div className="space-y-4">
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
+            <Field
+              label="Nome da festa / evento"
+              hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
+            >
+              <Input
+                placeholder='Ex: "Festa de aniversário do clube"'
+                value={state.event_name ?? ""}
+                onChange={(e) => set("event_name", e.target.value || null)}
+              />
+            </Field>
+
+            <Field label="Status">
+              <Select
+                value={state.status}
+                onValueChange={(v) => set("status", v as Gig["status"])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GIG_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Data" required error={errors.date}>
                 <Input
@@ -301,33 +336,22 @@ export function GigForm({
             </div>
 
             <Field
-              label="Nome da festa / evento"
-              hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
-            >
-              <Input
-                placeholder='Ex: "Festa de aniversário do clube"'
-                value={state.event_name ?? ""}
-                onChange={(e) => set("event_name", e.target.value || null)}
-              />
-            </Field>
-
-            <Field
               label="Venue"
               required
               error={errors.venue_name}
-              hint="Só venues cadastrados em /venues. Cadastre primeiro se ainda não tiver."
+              hint="Escolha um venue cadastrado, ou clique 'Novo' pra cadastrar rapidamente."
             >
-              {venues.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Cadastre um venue na aba <strong>Venues</strong> primeiro.
-                </p>
-              ) : (
+              <div className="flex gap-2">
                 <Select
                   value={state.venue_id?.toString() ?? ""}
                   onValueChange={(v) => pickVenue(Number(v))}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um venue" />
+                  <SelectTrigger className="flex-1">
+                    <SelectValue
+                      placeholder={
+                        venues.length === 0 ? "Nenhum venue ainda" : "Selecione um venue"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {venues.map((v) => (
@@ -338,7 +362,44 @@ export function GigForm({
                     ))}
                   </SelectContent>
                 </Select>
-              )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    const name = window.prompt(
+                      "Nome do novo venue (você completa o resto depois em /venues):"
+                    );
+                    if (!name?.trim()) return;
+                    try {
+                      const id = await createVenue({
+                        name: name.trim(),
+                        city: null,
+                        state: null,
+                        country: null,
+                        address: null,
+                        founded_year: null,
+                        capacity: null,
+                        owner_name: null,
+                        owner_phone: null,
+                        owner_email: null,
+                        instagram: null,
+                        website: null,
+                        notes: null,
+                        photo_path: null,
+                      });
+                      const fresh = await listVenues();
+                      setVenues(fresh);
+                      const created = fresh.find((x) => x.id === id);
+                      if (created) pickVenue(created.id);
+                      toast.success("Venue criado");
+                    } catch (e) {
+                      toast.error(`Erro: ${String(e)}`);
+                    }
+                  }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo
+                </Button>
+              </div>
               {state.venue_name && state.venue_id && (
                 <p className="text-xs text-muted-foreground">
                   {state.venue_name}
@@ -403,7 +464,7 @@ export function GigForm({
               </Field>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Cachê (R$)">
                 <Input
                   type="number"
@@ -414,23 +475,6 @@ export function GigForm({
                     set("cache_amount", e.target.value ? Number(e.target.value) : null)
                   }
                 />
-              </Field>
-              <Field label="Status">
-                <Select
-                  value={state.status}
-                  onValueChange={(v) => set("status", v as Gig["status"])}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GIG_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </Field>
               <Field
                 label="Pagamento"
@@ -473,6 +517,16 @@ export function GigForm({
               </Field>
             </div>
           </Section>
+
+          {state.status === "Proposta" && (
+            <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              Briefing e Preparação aparecem aqui assim que o status virar
+              <strong className="mx-1">Confirmada</strong>.
+            </div>
+          )}
+
+          {state.status !== "Proposta" && (
+          <>
 
           {/* ============================ CAIXA 2: BRIEFING ============================ */}
           <Section title="Briefing">
@@ -556,22 +610,6 @@ export function GigForm({
             />
 
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Como vou chegar">
-                <Input
-                  value={state.transport ?? ""}
-                  onChange={(e) => set("transport", e.target.value || null)}
-                />
-              </Field>
-              <Field label="Hora de saída de casa">
-                <Input
-                  type="time"
-                  value={state.departure_time ?? ""}
-                  onChange={(e) => set("departure_time", e.target.value || null)}
-                />
-              </Field>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label="Equipamento da casa"
                 hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
@@ -620,6 +658,8 @@ export function GigForm({
               />
             </div>
           </Section>
+          </>
+          )}
         </div>
 
         <DialogFooter className="gap-2">

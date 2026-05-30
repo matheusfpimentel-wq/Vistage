@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { cn } from "@/lib/utils";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { LevelBadge } from "../components/LevelBadge";
 import { createFan, updateFan } from "../api";
 import { FAN_LEVELS, type Fan, type FanCreateInput, type FanLevel } from "../types";
@@ -53,16 +54,25 @@ function fanToState(f: Fan): FanCreateInput {
 }
 
 export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
-  const [state, setState] = useState<FanCreateInput>(EMPTY);
+  const [state, setStateRaw] = useState<FanCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
+
+  const setState: typeof setStateRaw = (v) => {
+    setStateRaw(v);
+    setDirty(true);
+  };
 
   useEffect(() => {
-    if (fan) setState(fanToState(fan));
-    else setState(EMPTY);
+    if (!open) return;
+    if (fan) setStateRaw(fanToState(fan));
+    else setStateRaw(EMPTY);
     setTagInput("");
     setNameError(null);
+    setDirty(false);
   }, [fan, open]);
 
   function addTag() {
@@ -101,7 +111,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{fan ? "Editar fã" : "Novo fã"}</DialogTitle>

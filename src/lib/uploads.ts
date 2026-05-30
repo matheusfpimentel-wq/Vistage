@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   copyFile,
@@ -7,7 +8,6 @@ import {
   remove,
 } from "@tauri-apps/plugin-fs";
 import { open as openShell } from "@tauri-apps/plugin-shell";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useConfigStore } from "./config";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
@@ -63,14 +63,35 @@ export async function saveAttachment(
   return dest;
 }
 
-/** Versão "asset" pra exibir em <img src=...>. */
-export function assetUrl(absolutePath: string | null | undefined): string | null {
-  if (!absolutePath) return null;
-  try {
-    return convertFileSrc(absolutePath);
-  } catch {
-    return null;
-  }
+/**
+ * @deprecated convertFileSrc não funciona com paths arbitrários fora do scope.
+ * Use `useImageUrl(path)` ou `readAsDataUrl(path)` no lugar.
+ * Mantido como string vazia pra não quebrar callers existentes que serão migrados.
+ */
+export function assetUrl(_path: string | null | undefined): string | null {
+  return null;
+}
+
+/**
+ * Hook React que carrega uma imagem como data URL.
+ * Funciona pra qualquer caminho que o app tenha permissão fs:allow-read-file.
+ */
+export function useImageUrl(path: string | null | undefined): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!path) {
+      setUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void readAsDataUrl(path).then((u) => {
+      if (!cancelled) setUrl(u);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+  return url;
 }
 
 /** Lê o arquivo e retorna um data URL — útil quando convertFileSrc não funciona em alguns paths. */

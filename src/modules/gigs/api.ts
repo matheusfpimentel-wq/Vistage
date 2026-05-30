@@ -205,7 +205,6 @@ export async function loadInsights(): Promise<GigInsights> {
   const byStatus: Record<GigStatus, number> = {
     Proposta: 0,
     Confirmada: 0,
-    "A Caminho": 0,
     Concluída: 0,
     Cancelada: 0,
   };

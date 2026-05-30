@@ -467,6 +467,13 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 8,
+    description: "Palette de cores em artist_identity (substitui primary/secondary)",
+    sql: `
+      ALTER TABLE artist_identity ADD COLUMN palette TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

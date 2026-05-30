@@ -10,7 +10,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { RatingStars } from "./components/RatingStars";
 import { TypeBadges } from "./components/TypeBadges";
 import { ContactForm } from "./forms/ContactForm";
 import { ContactDetail } from "./forms/ContactDetail";
@@ -19,11 +18,12 @@ import {
   listContacts,
   type ContactFilters,
 } from "./api";
-import { CONTACT_TYPES, type Contact, type ContactType } from "./types";
+import { CONTACT_TYPES, ratingToPriority, type Contact, type ContactType } from "./types";
+import { Badge } from "@/components/ui/badge";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { formatDate } from "@/lib/format";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type TypeFilter = ContactType | "Todos";
@@ -184,52 +184,9 @@ export function CrmPage() {
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {contacts.map((c) => {
-            const photoUrl = assetUrl(c.photo_path);
-            const last = c.last_interaction_at;
-            const daysAgo = last
-              ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
-              : null;
-            return (
-              <button
-                key={c.id}
-                onClick={() => openDetail(c)}
-                className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
-              >
-                <div className="h-28 w-full bg-muted">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={c.name}
-                      className="h-full w-full object-cover transition group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <User className="h-8 w-8" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5 p-3">
-                  <div className="font-medium leading-tight">{c.name}</div>
-                  <TypeBadges types={c.types} />
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{c.city ?? "—"}</span>
-                    <RatingStars value={c.rating} readOnly size="sm" />
-                  </div>
-                  {last && (
-                    <div className="text-[11px] text-muted-foreground">
-                      Último contato:{" "}
-                      {daysAgo === 0
-                        ? "hoje"
-                        : daysAgo === 1
-                        ? "ontem"
-                        : `há ${daysAgo}d`}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+          {contacts.map((c) => (
+            <ContactCard key={c.id} contact={c} onOpen={() => openDetail(c)} />
+          ))}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
@@ -241,7 +198,7 @@ export function CrmPage() {
                 <th className="px-3 py-2 text-left">Cidade</th>
                 <th className="px-3 py-2 text-left">Contato</th>
                 <th className="px-3 py-2 text-left">Último contato</th>
-                <th className="px-3 py-2 text-left">Avaliação</th>
+                <th className="px-3 py-2 text-left">Prioridade</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
@@ -295,7 +252,7 @@ export function CrmPage() {
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    <RatingStars value={c.rating} readOnly size="sm" />
+                    <PriorityBadge rating={c.rating} />
                   </td>
                   <td
                     className="px-3 py-2"
@@ -357,5 +314,55 @@ export function CrmPage() {
         }}
       />
     </div>
+  );
+}
+
+function PriorityBadge({ rating }: { rating: number | null }) {
+  const p = ratingToPriority(rating);
+  if (!p) return <span className="text-xs text-muted-foreground">—</span>;
+  const variant =
+    p === "Alta" ? "destructive" : p === "Média" ? "warning" : "secondary";
+  return <Badge variant={variant}>{p}</Badge>;
+}
+
+function ContactCard({ contact: c, onOpen }: { contact: Contact; onOpen: () => void }) {
+  const photoUrl = useImageUrl(c.photo_path);
+  const last = c.last_interaction_at;
+  const daysAgo = last
+    ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
+    : null;
+  return (
+    <button
+      onClick={onOpen}
+      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+    >
+      <div className="h-28 w-full bg-muted">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={c.name}
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <User className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5 p-3">
+        <div className="font-medium leading-tight">{c.name}</div>
+        <TypeBadges types={c.types} />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{c.city ?? "—"}</span>
+          <PriorityBadge rating={c.rating} />
+        </div>
+        {last && (
+          <div className="text-[11px] text-muted-foreground">
+            Último contato:{" "}
+            {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
+          </div>
+        )}
+      </div>
+    </button>
   );
 }

@@ -9,7 +9,7 @@ import { VenueDetail } from "./forms/VenueDetail";
 import { deleteVenue, listVenues, type VenueFilters } from "./api";
 import type { Venue } from "./types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "cards" | "list";
@@ -136,47 +136,9 @@ export function VenuesPage() {
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {venues.map((v) => {
-            const photoUrl = assetUrl(v.photo_path);
-            return (
-              <button
-                key={v.id}
-                onClick={() => openDetail(v)}
-                className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
-              >
-                <div className="h-32 w-full bg-muted">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={v.name}
-                      className="h-full w-full object-cover transition group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <Building2 className="h-8 w-8" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5 p-3">
-                  <div className="font-medium leading-tight">{v.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {v.capacity && (
-                      <Badge variant="outline" className="gap-1">
-                        <Users className="h-3 w-3" />
-                        {v.capacity}
-                      </Badge>
-                    )}
-                    {v.founded_year && (
-                      <span className="tabular-nums">desde {v.founded_year}</span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+          {venues.map((v) => (
+            <VenueCard key={v.id} venue={v} onOpen={() => openDetail(v)} />
+          ))}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
@@ -265,5 +227,44 @@ export function VenuesPage() {
         }}
       />
     </div>
+  );
+}
+
+function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
+  const photoUrl = useImageUrl(v.photo_path);
+  return (
+    <button
+      onClick={onOpen}
+      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+    >
+      <div className="h-32 w-full bg-muted">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={v.name}
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <Building2 className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5 p-3">
+        <div className="font-medium leading-tight">{v.name}</div>
+        <div className="text-xs text-muted-foreground">
+          {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {v.capacity && (
+            <Badge variant="outline" className="gap-1">
+              <Users className="h-3 w-3" />
+              {v.capacity}
+            </Badge>
+          )}
+          {v.founded_year && <span className="tabular-nums">desde {v.founded_year}</span>}
+        </div>
+      </div>
+    </button>
   );
 }

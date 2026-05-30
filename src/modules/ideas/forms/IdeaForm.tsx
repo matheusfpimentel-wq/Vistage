@@ -35,7 +35,8 @@ import {
   type IdeaMaturation,
 } from "../types";
 import { createContent } from "@/modules/content/api";
-import { TaskForm } from "@/modules/tasks/forms/TaskForm";
+import { createTask } from "@/modules/tasks/api";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -71,18 +72,25 @@ function ideaToState(i: Idea): IdeaCreateInput {
 }
 
 export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Props) {
-  const [state, setState] = useState<IdeaCreateInput>(EMPTY);
+  const [state, setStateRaw] = useState<IdeaCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
-  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
+  const setState: typeof setStateRaw = (v) => {
+    setStateRaw(v);
+    setDirty(true);
+  };
 
   useEffect(() => {
-    if (idea) setState(ideaToState(idea));
-    else setState(EMPTY);
+    if (!open) return;
+    if (idea) setStateRaw(ideaToState(idea));
+    else setStateRaw(EMPTY);
     setTagInput("");
     setTitleError(null);
+    setDirty(false);
   }, [idea, open]);
 
   function set<K extends keyof IdeaCreateInput>(key: K, value: IdeaCreateInput[K]) {
@@ -124,20 +132,31 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
     }
   }
 
-  function startConvertToTask() {
+  async function convertToTask() {
     if (!idea) return;
-    setTaskFormOpen(true);
-  }
-
-  async function handleTaskCreated(taskId: number) {
-    if (!idea) return;
+    setConverting(true);
     try {
+      const due = new Date();
+      due.setDate(due.getDate() + 60);
+      const taskId = await createTask({
+        title: state.title.trim(),
+        description: null,
+        category: null,
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: due.toISOString().slice(0, 10),
+        tags: ["ideia"],
+      });
       await markIdeaAsConverted(idea.id, "task", taskId);
-      toast.success("Ideia convertida em Tarefa");
+      toast.success("Convertida em Tarefa (prazo: 60 dias)");
       onConverted?.();
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setConverting(false);
     }
   }
 
@@ -176,7 +195,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{idea ? "Editar ideia" : "Nova ideia"}</DialogTitle>
@@ -317,7 +336,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={startConvertToTask}
+                  onClick={convertToTask}
                   disabled={converting}
                 >
                   <CheckSquare className="h-3.5 w-3.5" /> Tarefa
@@ -364,21 +383,6 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
         </DialogFooter>
       </DialogContent>
 
-      {/* TaskForm pré-preenchido — abre quando o usuário clica em "Converter em Tarefa". */}
-      <TaskForm
-        open={taskFormOpen}
-        onOpenChange={setTaskFormOpen}
-        task={null}
-        defaults={{
-          title: state.title.trim(),
-          description: state.body,
-          category: "Pessoal",
-          priority: "Média",
-          status: "A fazer",
-          tags: ["ideia", ...state.tags],
-        }}
-        onSaved={(id) => handleTaskCreated(id)}
-      />
     </Dialog>
   );
 }

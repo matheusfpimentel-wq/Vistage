@@ -26,10 +26,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().setTheme(get().theme === "dark" ? "light" : "dark");
   },
   hydrate() {
+    // Dark é o padrão. Só respeitamos uma escolha explícita do usuário
+    // salva no localStorage; não tentamos adivinhar pelo SO.
     const stored = localStorage.getItem(LS_KEY) as Theme | null;
-    const prefersDark =
-      window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true;
-    const initial: Theme = stored ?? (prefersDark ? "dark" : "light");
+    const initial: Theme = stored === "light" ? "light" : "dark";
     applyToDom(initial);
     set({ theme: initial });
   },

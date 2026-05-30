@@ -22,6 +22,12 @@ export type SocialLink = {
   url: string;
 };
 
+export type PaletteColor = {
+  hex: string;
+  /** Rótulo opcional (ex: "Roxo principal", "Acento", "Texto escuro"). */
+  label?: string;
+};
+
 export type ArtistIdentity = {
   id: 1;
   artist_name: string | null;
@@ -31,8 +37,8 @@ export type ArtistIdentity = {
   logo_path: string | null;
   isotype_path: string | null;
   presskit_path: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
+  /** Paleta livre (qualquer número de cores). Substitui primary/secondary. */
+  palette: PaletteColor[];
   notes: string | null;
   updated_at: string;
 };

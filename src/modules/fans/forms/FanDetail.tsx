@@ -19,7 +19,7 @@ import { FanInteractionList } from "../components/FanInteractionList";
 import { getFan } from "../api";
 import type { Fan } from "../types";
 import { formatDate } from "@/lib/format";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 
 type Props = {
   open: boolean;
@@ -60,13 +60,7 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  {fan.photo_path && assetUrl(fan.photo_path) && (
-                    <img
-                      src={assetUrl(fan.photo_path)!}
-                      alt={fan.name}
-                      className="h-16 w-16 rounded-full object-cover"
-                    />
-                  )}
+                  <FanPhotoCircle fan={fan} />
                   <div className="space-y-1">
                     <DialogTitle>{fan.name}</DialogTitle>
                     <LevelBadge level={fan.level} />
@@ -164,5 +158,17 @@ function Row({
       </span>
       <span className="truncate">{value}</span>
     </div>
+  );
+}
+
+function FanPhotoCircle({ fan }: { fan: Fan }) {
+  const url = useImageUrl(fan.photo_path);
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt={fan.name}
+      className="h-16 w-16 rounded-full object-cover"
+    />
   );
 }

@@ -31,6 +31,7 @@ export const PREP_GROUPS: PrepGroup[] = [
     title: "Marketing",
     items: [
       { id: "flyers-recebidos", label: "Flyers e mídias recebidos" },
+      { id: "stories-publicado", label: "Stories publicado" },
       { id: "fas-acionados", label: "Fãs acionados" },
     ],
   },
@@ -41,6 +42,8 @@ export const PREP_GROUPS: PrepGroup[] = [
       { id: "equip-carregados", label: "Equipamentos carregados (fone, Phase, powerbank)" },
       { id: "backup-separado", label: "Backup separado" },
       { id: "timetable-recebida", label: "Timetable recebida" },
+      { id: "outfit-escolhido", label: "Outfit escolhido" },
+      { id: "check-equipamentos", label: "Check geral de equipamentos" },
     ],
   },
 ];

@@ -41,7 +41,7 @@ import {
 import { FAN_LEVELS, type Fan, type FanLevel } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
@@ -207,51 +207,9 @@ export function FansPage() {
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {fans.map((f) => {
-            const photoUrl = assetUrl(f.photo_path);
-            const last = f.last_interaction_at;
-            const daysAgo = last
-              ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
-              : null;
-            return (
-              <button
-                key={f.id}
-                onClick={() => openDetail(f)}
-                className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
-              >
-                <div className="h-28 w-full bg-muted">
-                  {photoUrl ? (
-                    <img
-                      src={photoUrl}
-                      alt={f.name}
-                      className="h-full w-full object-cover transition group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      <User className="h-8 w-8" />
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-1.5 p-3">
-                  <div className="font-medium leading-tight">{f.name}</div>
-                  <LevelBadge level={f.level} />
-                  <div className="text-xs text-muted-foreground">
-                    {f.city ?? "—"}
-                  </div>
-                  {last && (
-                    <div className="text-[11px] text-muted-foreground">
-                      Último contato:{" "}
-                      {daysAgo === 0
-                        ? "hoje"
-                        : daysAgo === 1
-                        ? "ontem"
-                        : `há ${daysAgo}d`}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
+          {fans.map((f) => (
+            <FanCard key={f.id} fan={f} onOpen={() => openDetail(f)} />
+          ))}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
@@ -377,5 +335,44 @@ function StatCard({
       </CardHeader>
       <CardContent />
     </Card>
+  );
+}
+
+function FanCard({ fan: f, onOpen }: { fan: Fan; onOpen: () => void }) {
+  const photoUrl = useImageUrl(f.photo_path);
+  const last = f.last_interaction_at;
+  const daysAgo = last
+    ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
+    : null;
+  return (
+    <button
+      onClick={onOpen}
+      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+    >
+      <div className="h-28 w-full bg-muted">
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={f.name}
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-muted-foreground">
+            <User className="h-8 w-8" />
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5 p-3">
+        <div className="font-medium leading-tight">{f.name}</div>
+        <LevelBadge level={f.level} />
+        <div className="text-xs text-muted-foreground">{f.city ?? "—"}</div>
+        {last && (
+          <div className="text-[11px] text-muted-foreground">
+            Último contato:{" "}
+            {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
+          </div>
+        )}
+      </div>
+    </button>
   );
 }

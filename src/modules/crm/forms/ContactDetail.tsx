@@ -23,7 +23,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { RatingStars } from "../components/RatingStars";
+import { ratingToPriority } from "../types";
 import { TypeBadges } from "../components/TypeBadges";
 import { InteractionList } from "../components/InteractionList";
 import {
@@ -36,7 +36,7 @@ import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 
 type Props = {
   open: boolean;
@@ -93,13 +93,7 @@ export function ContactDetail({
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  {contact.photo_path && assetUrl(contact.photo_path) && (
-                    <img
-                      src={assetUrl(contact.photo_path)!}
-                      alt={contact.name}
-                      className="h-16 w-16 rounded-full object-cover"
-                    />
-                  )}
+                  <ContactPhotoCircle contact={contact} />
                   <div className="space-y-1">
                     <DialogTitle>{contact.name}</DialogTitle>
                     <div className="flex items-center gap-2">
@@ -169,9 +163,19 @@ export function ContactDetail({
               />
               <div className="flex items-center gap-2">
                 <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Avaliação
+                  Prioridade
                 </span>
-                <RatingStars value={contact.rating} readOnly size="sm" />
+                <Badge
+                  variant={
+                    ratingToPriority(contact.rating) === "Alta"
+                      ? "destructive"
+                      : ratingToPriority(contact.rating) === "Média"
+                      ? "warning"
+                      : "secondary"
+                  }
+                >
+                  {ratingToPriority(contact.rating) ?? "—"}
+                </Badge>
               </div>
               {contact.last_interaction_at && (
                 <Row
@@ -285,5 +289,17 @@ function Row({
       </span>
       <span className="truncate">{value ?? "—"}</span>
     </div>
+  );
+}
+
+function ContactPhotoCircle({ contact }: { contact: Contact }) {
+  const url = useImageUrl(contact.photo_path);
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt={contact.name}
+      className="h-16 w-16 rounded-full object-cover"
+    />
   );
 }

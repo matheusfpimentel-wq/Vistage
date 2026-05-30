@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { createVenue, updateVenue } from "../api";
 import type { Venue, VenueCreateInput } from "../types";
 
@@ -64,17 +65,22 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   const [state, setState] = useState<VenueCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
+    if (!open) return;
     if (venue) setState(venueToState(venue));
     else setState(EMPTY);
     setNameError(null);
+    setDirty(false);
   }, [venue, open]);
 
   function set<K extends keyof VenueCreateInput>(
     key: K,
     value: VenueCreateInput[K]
   ) {
+    setDirty(true);
     setState((s) => ({ ...s, [key]: value }));
   }
 
@@ -100,7 +106,7 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{venue ? "Editar venue" : "Novo venue"}</DialogTitle>

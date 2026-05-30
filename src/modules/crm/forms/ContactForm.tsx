@@ -14,12 +14,23 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
-import { RatingStars } from "../components/RatingStars";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CONTACT_PRIORITIES,
   CONTACT_TYPES,
+  priorityToRating,
+  ratingToPriority,
   type Contact,
   type ContactCreateInput,
+  type ContactPriority,
   type ContactType,
 } from "../types";
 import { createContact, updateContact } from "../api";
@@ -62,16 +73,25 @@ function contactToState(c: Contact): FormState {
 }
 
 export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
-  const [state, setState] = useState<FormState>(EMPTY);
+  const [state, setStateRaw] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
+
+  const setState: typeof setStateRaw = (v) => {
+    setStateRaw(v);
+    setDirty(true);
+  };
 
   useEffect(() => {
-    if (contact) setState(contactToState(contact));
-    else setState(EMPTY);
+    if (!open) return;
+    if (contact) setStateRaw(contactToState(contact));
+    else setStateRaw(EMPTY);
     setTagInput("");
     setNameError(null);
+    setDirty(false);
   }, [contact, open]);
 
   function toggleType(type: ContactType) {
@@ -120,7 +140,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{contact ? "Editar contato" : "Novo contato"}</DialogTitle>
@@ -137,7 +157,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
 
           <div className="space-y-1.5">
             <Label>
-              Nome ou estabelecimento <span className="text-destructive">*</span>
+              Nome <span className="text-destructive">*</span>
             </Label>
             <Input
               value={state.name}
@@ -256,14 +276,29 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           </Field>
 
           <div className="space-y-1.5">
-            <Label>Avaliação interna</Label>
-            <RatingStars
-              value={state.rating}
-              onChange={(v) => setState((s) => ({ ...s, rating: v }))}
-            />
-            <p className="text-xs text-muted-foreground">
-              Clique na nota atual para limpar.
-            </p>
+            <Label>Prioridade</Label>
+            <Select
+              value={ratingToPriority(state.rating) ?? "none"}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  rating:
+                    v === "none" ? null : priorityToRating(v as ContactPriority),
+                }))
+              }
+            >
+              <SelectTrigger className="max-w-xs">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Sem prioridade —</SelectItem>
+                {CONTACT_PRIORITIES.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ExternalLink, ImageIcon, Paperclip, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -6,12 +6,11 @@ import { toast } from "@/components/ui/toaster";
 import {
   DOC_EXTS,
   IMAGE_EXTS,
-  assetUrl,
   deleteAttachment,
   openAttachment,
   pickFile,
-  readAsDataUrl,
   saveAttachment,
+  useImageUrl,
 } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
@@ -37,22 +36,8 @@ export function AttachmentField({
   variant = "image",
   emphasized,
 }: Props) {
-  const [preview, setPreview] = useState<string | null>(null);
+  const preview = useImageUrl(variant === "image" ? value : null);
   const [working, setWorking] = useState(false);
-
-  useEffect(() => {
-    if (!value || variant !== "image") {
-      setPreview(null);
-      return;
-    }
-    // tenta convertFileSrc primeiro, fallback pro data URL
-    const url = assetUrl(value);
-    if (url) {
-      setPreview(url);
-    } else {
-      void readAsDataUrl(value).then(setPreview);
-    }
-  }, [value, variant]);
 
   async function handlePick() {
     setWorking(true);

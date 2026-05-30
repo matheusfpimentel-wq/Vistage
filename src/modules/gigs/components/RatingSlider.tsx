@@ -13,8 +13,8 @@ type Props = {
 };
 
 /**
- * Slider 0..5 com passo 0.5 e bolinhas de estrela.
- * Mostra também um textarea opcional para o motivo da nota.
+ * Avaliação por estrelas clicáveis (1..5).
+ * Clicar na nota atual desmarca (volta a null).
  */
 export function RatingSlider({
   label,
@@ -31,35 +31,33 @@ export function RatingSlider({
           {label}{" "}
           {required && <span className="text-destructive">*</span>}
         </Label>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Star className="h-3.5 w-3.5 text-amber-500" />
-          <span className="tabular-nums font-medium text-foreground">
-            {value === null ? "—" : value.toFixed(1).replace(".", ",")}
-          </span>
-          <span>/ 5,0</span>
-        </div>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {value === null ? "sem nota" : `${value} / 5`}
+        </span>
       </div>
 
-      <input
-        type="range"
-        min={0}
-        max={5}
-        step={0.5}
-        value={value ?? 0}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className={cn(
-          "h-2 w-full cursor-pointer appearance-none rounded-full bg-muted accent-amber-500",
-          value === null && "opacity-60"
-        )}
-      />
-
-      <div className="flex justify-between text-xs text-muted-foreground tabular-nums">
-        <span>0</span>
-        <span>1</span>
-        <span>2</span>
-        <span>3</span>
-        <span>4</span>
-        <span>5</span>
+      <div className="flex items-center gap-1" role="radiogroup">
+        {[1, 2, 3, 4, 5].map((n) => {
+          const filled = value !== null && n <= value;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(value === n ? null : n)}
+              className="rounded p-1 transition hover:scale-110"
+              aria-label={`${n} estrelas`}
+            >
+              <Star
+                className={cn(
+                  "h-7 w-7 transition-colors",
+                  filled
+                    ? "fill-amber-500 text-amber-500"
+                    : "text-muted-foreground"
+                )}
+              />
+            </button>
+          );
+        })}
       </div>
 
       <Textarea

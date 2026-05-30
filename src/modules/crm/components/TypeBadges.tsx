@@ -6,11 +6,12 @@ const VARIANT_BY_TYPE: Record<
   "default" | "secondary" | "outline" | "info" | "success" | "warning"
 > = {
   "Cliente / Contratante": "info",
-  "Casa / Estabelecimento": "success",
   "Agente / Booker": "warning",
   "Produtor de eventos": "default",
+  "DJ parceiro": "success",
   Colaborador: "secondary",
   Fornecedor: "outline",
+  Outros: "outline",
 };
 
 export function TypeBadges({ types }: { types: ContactType[] }) {

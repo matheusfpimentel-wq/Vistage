@@ -24,7 +24,7 @@ import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { formatCurrency, formatDate, formatRating } from "@/lib/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { assetUrl } from "@/lib/uploads";
+import { useImageUrl } from "@/lib/uploads";
 
 type Props = {
   open: boolean;
@@ -89,15 +89,7 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               </div>
             </DialogHeader>
 
-            {venue.photo_path && assetUrl(venue.photo_path) && (
-              <div className="overflow-hidden rounded-md border">
-                <img
-                  src={assetUrl(venue.photo_path)!}
-                  alt={venue.name}
-                  className="max-h-72 w-full object-cover"
-                />
-              </div>
-            )}
+            <VenuePhoto venue={venue} />
 
             <div className="grid gap-3 sm:grid-cols-4">
               <Stat
@@ -263,6 +255,16 @@ function Row({
         {label}
       </span>
       <span className="truncate">{value}</span>
+    </div>
+  );
+}
+
+function VenuePhoto({ venue }: { venue: Venue }) {
+  const url = useImageUrl(venue.photo_path);
+  if (!url) return null;
+  return (
+    <div className="overflow-hidden rounded-md border">
+      <img src={url} alt={venue.name} className="max-h-72 w-full object-cover" />
     </div>
   );
 }

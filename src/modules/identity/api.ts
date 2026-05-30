@@ -7,7 +7,12 @@ import type {
   SocialLink,
 } from "./types";
 
-type IdentityRow = Omit<ArtistIdentity, "socials"> & { socials: string | null };
+type IdentityRow = Omit<ArtistIdentity, "socials" | "palette"> & {
+  socials: string | null;
+  palette: string | null;
+  primary_color?: string | null;
+  secondary_color?: string | null;
+};
 
 function rowToIdentity(r: IdentityRow): ArtistIdentity {
   let socials: SocialLink[] = [];
@@ -18,7 +23,21 @@ function rowToIdentity(r: IdentityRow): ArtistIdentity {
       socials = [];
     }
   }
-  return { ...r, socials };
+  let palette: ArtistIdentity["palette"] = [];
+  if (r.palette) {
+    try {
+      palette = JSON.parse(r.palette) as ArtistIdentity["palette"];
+    } catch {
+      palette = [];
+    }
+  }
+  // migra primary/secondary legados se palette tá vazia
+  if (palette.length === 0 && (r.primary_color || r.secondary_color)) {
+    if (r.primary_color) palette.push({ hex: r.primary_color, label: "Primária" });
+    if (r.secondary_color) palette.push({ hex: r.secondary_color, label: "Secundária" });
+  }
+  const { primary_color: _p, secondary_color: _s, ...rest } = r;
+  return { ...rest, socials, palette };
 }
 
 export async function loadIdentity(): Promise<ArtistIdentity> {
@@ -29,7 +48,7 @@ export async function loadIdentity(): Promise<ArtistIdentity> {
   if (rows[0]) return rowToIdentity(rows[0]);
   // primeira vez: cria registro vazio
   await db.execute(
-    `INSERT OR IGNORE INTO artist_identity (id, socials) VALUES (1, '[]')`
+    `INSERT OR IGNORE INTO artist_identity (id, socials, palette) VALUES (1, '[]', '[]')`
   );
   const after = await db.select<IdentityRow[]>(
     "SELECT * FROM artist_identity WHERE id = 1"
@@ -39,9 +58,13 @@ export async function loadIdentity(): Promise<ArtistIdentity> {
 
 export async function saveIdentity(input: ArtistIdentityInput): Promise<void> {
   const db = getDb();
-  const payload = { ...input, socials: JSON.stringify(input.socials ?? []) };
+  const payload = {
+    ...input,
+    socials: JSON.stringify(input.socials ?? []),
+    palette: JSON.stringify(input.palette ?? []),
+  };
   await db.execute(
-    `INSERT OR IGNORE INTO artist_identity (id, socials) VALUES (1, '[]')`
+    `INSERT OR IGNORE INTO artist_identity (id, socials, palette) VALUES (1, '[]', '[]')`
   );
   const cols = Object.keys(payload);
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
