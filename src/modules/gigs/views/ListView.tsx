@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
+import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate, formatRating } from "@/lib/format";
 
 type Props = {
@@ -51,12 +52,11 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <div className="font-medium">{g.venue_name}</div>
-                  {g.venue_city && (
-                    <div className="text-xs text-muted-foreground">
-                      {g.venue_city}
-                    </div>
-                  )}
+                  <div className="font-medium">{gigDisplayName(g)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {g.venue_name}
+                    {g.venue_city && ` · ${g.venue_city}`}
+                  </div>
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center gap-2">

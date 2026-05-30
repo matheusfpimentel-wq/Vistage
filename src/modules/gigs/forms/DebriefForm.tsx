@@ -20,6 +20,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { RatingSlider } from "../components/RatingSlider";
 import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
+import { FansPresentPicker } from "../components/FansPresentPicker";
 import { averageRating, type Gig } from "../types";
 import {
   clearDebriefDraft,
@@ -99,6 +100,13 @@ export function DebriefForm({
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [tasksToCreate, setTasksToCreate] = useState<PendingDebriefTask[]>([]);
+  const [fansPresent, setFansPresent] = useState<number[]>(() => {
+    try {
+      return gig.fans_present ? (JSON.parse(gig.fans_present) as number[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const draftTimer = useRef<number | null>(null);
   const skipNextSave = useRef(true);
 
@@ -108,6 +116,13 @@ export function DebriefForm({
     if (!open) return;
     skipNextSave.current = true;
     setTasksToCreate([]);
+    try {
+      setFansPresent(
+        gig.fans_present ? (JSON.parse(gig.fans_present) as number[]) : []
+      );
+    } catch {
+      setFansPresent([]);
+    }
     (async () => {
       const draft = await loadDebriefDraft(gig.id);
       if (draft) setState({ ...gigToDebrief(gig), ...(draft as DebriefState) });
@@ -172,6 +187,7 @@ export function DebriefForm({
       await updateGig({
         id: gig.id,
         ...state,
+        fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
         debrief_pending: 1,
       });
       await flushDebriefTasks();
@@ -199,6 +215,7 @@ export function DebriefForm({
       await updateGig({
         id: gig.id,
         ...state,
+        fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
         debrief_pending: 0,
         debrief_completed_at: completedAt,
       });
@@ -374,6 +391,8 @@ export function DebriefForm({
               value={state.debrief_media_content}
               onChange={(v) => set("debrief_media_content", v)}
             />
+
+            <FansPresentPicker value={fansPresent} onChange={setFansPresent} />
           </TabsContent>
 
           {/* ============ TAREFAS A PARTIR DISSO ============ */}

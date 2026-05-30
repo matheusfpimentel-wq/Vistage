@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
+import { AttachmentField } from "@/components/shared/AttachmentField";
 import {
   GIG_STATUSES,
   PAYMENT_STATUSES,
@@ -54,10 +55,12 @@ const EMPTY: FormState = {
   date: todayISO(),
   start_time: null,
   end_time: null,
+  event_name: null,
   venue_name: "",
   venue_city: null,
   venue_address: null,
   venue_id: null,
+  fans_present: null,
   promoter_contact_id: null,
   day_contact_name: null,
   day_contact_phone: null,
@@ -298,52 +301,51 @@ export function GigForm({
             </div>
 
             <Field
-              label="Venue"
-              hint="Escolha um cadastrado pra auto-preencher cidade/endereço, ou digite manualmente."
+              label="Nome da festa / evento"
+              hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
             >
-              <Select
-                value={state.venue_id?.toString() ?? "manual"}
-                onValueChange={(v) =>
-                  pickVenue(v === "manual" ? null : Number(v))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Venue cadastrado ou manual" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">— Manual / sem cadastro —</SelectItem>
-                  {venues.map((v) => (
-                    <SelectItem key={v.id} value={v.id.toString()}>
-                      {v.name}
-                      {v.city ? ` · ${v.city}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-
-            <Field label="Nome do venue" required error={errors.venue_name}>
               <Input
-                placeholder="Nome do local"
-                value={state.venue_name}
-                onChange={(e) => set("venue_name", e.target.value)}
+                placeholder='Ex: "Festa de aniversário do clube"'
+                value={state.event_name ?? ""}
+                onChange={(e) => set("event_name", e.target.value || null)}
               />
             </Field>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Cidade">
-                <Input
-                  value={state.venue_city ?? ""}
-                  onChange={(e) => set("venue_city", e.target.value || null)}
-                />
-              </Field>
-              <Field label="Endereço">
-                <Input
-                  value={state.venue_address ?? ""}
-                  onChange={(e) => set("venue_address", e.target.value || null)}
-                />
-              </Field>
-            </div>
+            <Field
+              label="Venue"
+              required
+              error={errors.venue_name}
+              hint="Só venues cadastrados em /venues. Cadastre primeiro se ainda não tiver."
+            >
+              {venues.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Cadastre um venue na aba <strong>Venues</strong> primeiro.
+                </p>
+              ) : (
+                <Select
+                  value={state.venue_id?.toString() ?? ""}
+                  onValueChange={(v) => pickVenue(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um venue" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {venues.map((v) => (
+                      <SelectItem key={v.id} value={v.id.toString()}>
+                        {v.name}
+                        {v.city ? ` · ${v.city}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {state.venue_name && state.venue_id && (
+                <p className="text-xs text-muted-foreground">
+                  {state.venue_name}
+                  {state.venue_city ? ` · ${state.venue_city}` : ""}
+                </p>
+              )}
+            </Field>
 
             <Field
               label="Promoter"
@@ -600,6 +602,23 @@ export function GigForm({
                 onChange={(e) => set("general_notes", e.target.value || null)}
               />
             </Field>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <AttachmentField
+                label="Flyer / arte"
+                value={state.banner_file_path}
+                onChange={(v) => set("banner_file_path", v)}
+                subdir="gigs/flyers"
+                variant="image"
+              />
+              <AttachmentField
+                label="Roteiro / setlist"
+                value={state.script_file_path}
+                onChange={(v) => set("script_file_path", v)}
+                subdir="gigs/scripts"
+                variant="document"
+              />
+            </div>
           </Section>
         </div>
 

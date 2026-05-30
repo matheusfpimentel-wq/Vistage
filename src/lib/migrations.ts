@@ -430,6 +430,43 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_classes_student ON classes(student_id);
     `,
   },
+  {
+    version: 7,
+    description: "Fotos, event_name, fans_present, ementa, Identidade Artística",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN event_name TEXT;
+      ALTER TABLE gigs ADD COLUMN fans_present TEXT;
+      ALTER TABLE venues ADD COLUMN photo_path TEXT;
+      ALTER TABLE contacts ADD COLUMN photo_path TEXT;
+      ALTER TABLE fans ADD COLUMN photo_path TEXT;
+      ALTER TABLE class_packages ADD COLUMN syllabus TEXT;
+
+      CREATE TABLE IF NOT EXISTS artist_identity (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        artist_name TEXT,
+        bio_short TEXT,
+        bio_long TEXT,
+        socials TEXT,
+        logo_path TEXT,
+        isotype_path TEXT,
+        presskit_path TEXT,
+        primary_color TEXT,
+        secondary_color TEXT,
+        notes TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS artist_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT,
+        file_path TEXT,
+        thumbnail_path TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

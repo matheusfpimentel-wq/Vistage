@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { LayoutGrid, List, Pencil, Plus, Search, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,8 +23,11 @@ import { CONTACT_TYPES, type Contact, type ContactType } from "./types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { formatDate } from "@/lib/format";
+import { assetUrl } from "@/lib/uploads";
+import { cn } from "@/lib/utils";
 
 type TypeFilter = ContactType | "Todos";
+type ViewMode = "cards" | "list";
 
 export function CrmPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -42,6 +45,7 @@ export function CrmPage() {
 
   const [gigFormOpen, setGigFormOpen] = useState(false);
   const [gigPromoter, setGigPromoter] = useState<Contact | null>(null);
+  const [view, setView] = useState<ViewMode>("cards");
 
   const queryFilters: ContactFilters = useMemo(
     () => ({
@@ -140,15 +144,92 @@ export function CrmPage() {
             className="w-40"
           />
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Novo contato
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+            <button
+              onClick={() => setView("cards")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
+                view === "cards"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Cards
+            </button>
+            <button
+              onClick={() => setView("list")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
+                view === "list"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista
+            </button>
+          </div>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo contato
+          </Button>
+        </div>
       </div>
 
       {contacts.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Users className="mx-auto mb-2 h-8 w-8 opacity-50" />
           Nenhum contato encontrado.
+        </div>
+      ) : view === "cards" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {contacts.map((c) => {
+            const photoUrl = assetUrl(c.photo_path);
+            const last = c.last_interaction_at;
+            const daysAgo = last
+              ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
+              : null;
+            return (
+              <button
+                key={c.id}
+                onClick={() => openDetail(c)}
+                className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+              >
+                <div className="h-28 w-full bg-muted">
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={c.name}
+                      className="h-full w-full object-cover transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <User className="h-8 w-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5 p-3">
+                  <div className="font-medium leading-tight">{c.name}</div>
+                  <TypeBadges types={c.types} />
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{c.city ?? "—"}</span>
+                    <RatingStars value={c.rating} readOnly size="sm" />
+                  </div>
+                  {last && (
+                    <div className="text-[11px] text-muted-foreground">
+                      Último contato:{" "}
+                      {daysAgo === 0
+                        ? "hoje"
+                        : daysAgo === 1
+                        ? "ontem"
+                        : `há ${daysAgo}d`}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">

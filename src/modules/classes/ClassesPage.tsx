@@ -460,6 +460,16 @@ export function ClassesPage() {
                         {p.description}
                       </p>
                     )}
+                    {p.syllabus && (
+                      <details className="rounded-md border bg-muted/30 p-2">
+                        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Ementa
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap font-sans text-xs">
+                          {p.syllabus}
+                        </pre>
+                      </details>
+                    )}
                     <div className="flex justify-end gap-1">
                       <Button
                         size="icon"

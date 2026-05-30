@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
+import { AttachmentField } from "@/components/shared/AttachmentField";
 import { createVenue, updateVenue } from "../api";
 import type { Venue, VenueCreateInput } from "../types";
 
@@ -37,6 +38,7 @@ const EMPTY: VenueCreateInput = {
   instagram: null,
   website: null,
   notes: null,
+  photo_path: null,
 };
 
 function venueToState(v: Venue): VenueCreateInput {
@@ -54,6 +56,7 @@ function venueToState(v: Venue): VenueCreateInput {
     instagram: v.instagram,
     website: v.website,
     notes: v.notes,
+    photo_path: v.photo_path,
   };
 }
 
@@ -108,6 +111,14 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
+          <AttachmentField
+            label="Foto de apresentação"
+            value={state.photo_path}
+            onChange={(v) => set("photo_path", v)}
+            subdir="venues"
+            variant="image"
+          />
+
           <Field label="Nome" required error={nameError ?? undefined}>
             <Input
               value={state.name}

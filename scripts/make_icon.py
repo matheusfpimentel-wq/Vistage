@@ -1,78 +1,115 @@
 """Gera o ícone do MusicGest (1024x1024 PNG).
-Visual minimalista: degradê roxo + monograma 'M' em branco.
+Design: M chunky com serif suave em degradê roxo, com brilho de fundo
+e um ponto laranja discreto (acento de identidade).
 
-Depois de rodar, regenere todos os tamanhos com:
+Regere todos os tamanhos com:
     npm run tauri icon scripts/musicgest-icon.png
 """
-from PIL import Image, ImageDraw
+import math
+from PIL import Image, ImageDraw, ImageFilter
 
 SIZE = 1024
-RADIUS = 220   # cantos arredondados (macOS aplica máscara própria, mas faz bem)
+RADIUS = 200
 
-# paleta — mesma do app (--primary e --primary-glow no tema dark)
-TOP = (118, 71, 233)       # roxo principal
-BOTTOM = (172, 102, 245)   # roxo glow
+# Paleta
+TOP = (124, 58, 237)      # violet-600
+MID = (147, 51, 234)      # purple-600
+BOT = (192, 132, 252)     # purple-400 (glow)
 WHITE = (255, 255, 255)
+ACCENT = (251, 146, 60)   # orange-400 — pingo discreto
 
 img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
 d = ImageDraw.Draw(img)
 
-# Fundo em degradê vertical (top -> bottom)
+# Fundo em degradê diagonal (canto sup-esq escuro → canto inf-dir claro)
 for y in range(SIZE):
-    t = y / SIZE
-    r = int(TOP[0] * (1 - t) + BOTTOM[0] * t)
-    g = int(TOP[1] * (1 - t) + BOTTOM[1] * t)
-    b = int(TOP[2] * (1 - t) + BOTTOM[2] * t)
+    for_band = y / SIZE
+    # interpolação de 3 cores: TOP → MID → BOT
+    if for_band < 0.5:
+        t = for_band / 0.5
+        r = int(TOP[0] * (1 - t) + MID[0] * t)
+        g = int(TOP[1] * (1 - t) + MID[1] * t)
+        b = int(TOP[2] * (1 - t) + MID[2] * t)
+    else:
+        t = (for_band - 0.5) / 0.5
+        r = int(MID[0] * (1 - t) + BOT[0] * t)
+        g = int(MID[1] * (1 - t) + BOT[1] * t)
+        b = int(MID[2] * (1 - t) + BOT[2] * t)
     d.line([(0, y), (SIZE, y)], fill=(r, g, b))
 
-# máscara de cantos arredondados — opcional já que o macOS arredonda por cima
+# Brilho radial sutil no canto sup-esq (luz)
+glow = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+gd = ImageDraw.Draw(glow)
+for r in range(SIZE // 2, 0, -8):
+    alpha = max(0, int(30 * (1 - r / (SIZE // 2))))
+    gd.ellipse(
+        [SIZE * 0.15 - r, SIZE * 0.15 - r, SIZE * 0.15 + r, SIZE * 0.15 + r],
+        fill=(255, 255, 255, alpha),
+    )
+glow = glow.filter(ImageFilter.GaussianBlur(40))
+img = Image.alpha_composite(img, glow)
+d = ImageDraw.Draw(img)
+
+# Máscara de cantos arredondados
 mask = Image.new("L", (SIZE, SIZE), 0)
 ImageDraw.Draw(mask).rounded_rectangle(
-    [(0, 0), (SIZE - 1, SIZE - 1)],
-    radius=RADIUS,
-    fill=255,
+    [(0, 0), (SIZE - 1, SIZE - 1)], radius=RADIUS, fill=255
 )
 img.putalpha(mask)
+d = ImageDraw.Draw(img)
 
-# Monograma M — desenhado com retângulos pra garantir traço uniforme.
-# Estrutura:
-#   - duas pernas verticais
-#   - duas diagonais que se encontram no centro-superior
-d2 = ImageDraw.Draw(img)
 
-# proporções relativas ao quadrado
-m_left   = int(SIZE * 0.24)
-m_right  = int(SIZE * 0.76)
-m_top    = int(SIZE * 0.26)
-m_bottom = int(SIZE * 0.74)
-stroke   = int(SIZE * 0.075)
-center_x = SIZE // 2
+# ============================================================
+# Letra M chunky — desenhada como polígono único
+# ============================================================
+# Pernas mais grossas, diagonais mais retas, base levemente alargada
+left_x = SIZE * 0.22
+right_x = SIZE * 0.78
+top_y = SIZE * 0.24
+bot_y = SIZE * 0.78
+stroke = SIZE * 0.10
+center_x = SIZE / 2
+apex_y = SIZE * 0.52   # quão fundo a "V" desce no meio
+inner_top_y = top_y + stroke * 0.6
 
-# pernas
-d2.rectangle([m_left, m_top, m_left + stroke, m_bottom], fill=WHITE)
-d2.rectangle([m_right - stroke, m_top, m_right, m_bottom], fill=WHITE)
+# Polígono que descreve o M (vai por fora, depois pela "V" interna)
+m_poly = [
+    (left_x, bot_y),                                 # canto inf esquerdo
+    (left_x, top_y),                                 # canto sup esquerdo
+    (left_x + stroke * 1.2, top_y),                  # topo perna esq (entrada da diagonal)
+    (center_x, apex_y),                              # vértice da "V" interna (esq → centro)
+    (right_x - stroke * 1.2, top_y),                 # topo perna dir
+    (right_x, top_y),                                # canto sup direito
+    (right_x, bot_y),                                # canto inf direito
+    (right_x - stroke, bot_y),                       # interno inf direito
+    (right_x - stroke, inner_top_y + stroke * 0.8),  # subida interna direita
+    (center_x, apex_y + stroke * 1.05),              # base interna do V
+    (left_x + stroke, inner_top_y + stroke * 0.8),   # subida interna esquerda
+    (left_x + stroke, bot_y),                        # interno inf esquerdo
+]
 
-# diagonais (polígonos espessos)
-def thick_line(p1, p2, width):
-    # vetor perpendicular
-    import math
-    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
-    length = math.hypot(dx, dy)
-    if length == 0:
-        return
-    nx = -dy / length * width / 2
-    ny = dx / length * width / 2
-    d2.polygon([
-        (p1[0] + nx, p1[1] + ny),
-        (p1[0] - nx, p1[1] - ny),
-        (p2[0] - nx, p2[1] - ny),
-        (p2[0] + nx, p2[1] + ny),
-    ], fill=WHITE)
+# leve sombra abaixo do M
+shadow = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
+sd = ImageDraw.Draw(shadow)
+shadow_poly = [(x, y + SIZE * 0.012) for (x, y) in m_poly]
+sd.polygon(shadow_poly, fill=(0, 0, 0, 60))
+shadow = shadow.filter(ImageFilter.GaussianBlur(8))
+img = Image.alpha_composite(img, shadow)
+d = ImageDraw.Draw(img)
 
-apex_y = int(SIZE * 0.50)
-thick_line((m_left + stroke // 2, m_top),  (center_x, apex_y), stroke)
-thick_line((m_right - stroke // 2, m_top), (center_x, apex_y), stroke)
+# M em branco
+d.polygon(m_poly, fill=WHITE)
+
+# Pinguinho laranja discreto (acento) no ponto baixo da pata direita —
+# evoca um pin/LED de equipamento
+pin_x = right_x + SIZE * 0.02
+pin_y = bot_y - SIZE * 0.015
+pin_r = SIZE * 0.022
+d.ellipse(
+    [pin_x - pin_r, pin_y - pin_r, pin_x + pin_r, pin_y + pin_r],
+    fill=ACCENT,
+)
 
 out = "/home/user/GM-/scripts/musicgest-icon.png"
 img.save(out)
-print(f"ícone gerado: {out}")
+print(f"icone gerado: {out}")

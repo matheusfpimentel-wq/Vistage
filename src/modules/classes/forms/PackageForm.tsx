@@ -28,6 +28,7 @@ const EMPTY: ClassPackageCreateInput = {
   total_classes: 4,
   price: null,
   description: null,
+  syllabus: null,
   active: 1,
 };
 
@@ -42,6 +43,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
         total_classes: pkg.total_classes,
         price: pkg.price,
         description: pkg.description,
+        syllabus: pkg.syllabus,
         active: pkg.active,
       });
     else setState(EMPTY);
@@ -122,12 +124,24 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Descrição</Label>
+            <Label>Descrição (resumo curto)</Label>
             <Textarea
-              rows={3}
+              rows={2}
               value={state.description ?? ""}
               onChange={(e) =>
                 setState((s) => ({ ...s, description: e.target.value || null }))
+              }
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Ementa (conteúdo programático)</Label>
+            <Textarea
+              rows={5}
+              placeholder="Aula 1: ...&#10;Aula 2: ...&#10;Aula 3: ..."
+              value={state.syllabus ?? ""}
+              onChange={(e) =>
+                setState((s) => ({ ...s, syllabus: e.target.value || null }))
               }
             />
           </div>

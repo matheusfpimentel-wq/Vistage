@@ -8,8 +8,8 @@ import {
   Heart,
   LayoutDashboard,
   Lightbulb,
-  Music2,
   Settings,
+  Sparkles,
   Users,
   Wallet,
 } from "lucide-react";
@@ -24,6 +24,7 @@ const NAV = [
   { to: "/aulas", label: "Aulas", icon: GraduationCap },
   { to: "/conteudo", label: "Conteúdo", icon: Film },
   { to: "/ideias", label: "Ideias", icon: Lightbulb },
+  { to: "/identidade", label: "Identidade", icon: Sparkles },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
@@ -33,8 +34,12 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        <div className="bg-primary-gradient flex h-7 w-7 items-center justify-center rounded-md text-primary-foreground shadow-sm">
-          <Music2 className="h-4 w-4" />
+        <div className="bg-primary-gradient relative flex h-8 w-8 items-center justify-center rounded-lg text-primary-foreground shadow-md shadow-primary/30">
+          <span className="text-base font-black leading-none tracking-tighter">M</span>
+          <span
+            aria-hidden
+            className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-orange-400 shadow-sm"
+          />
         </div>
         <div className="text-primary-gradient font-semibold tracking-tight">
           MusicGest

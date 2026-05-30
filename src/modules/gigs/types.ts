@@ -22,10 +22,13 @@ export type Gig = {
   date: string;
   start_time: string | null;
   end_time: string | null;
-  venue_name: string;
+  event_name: string | null;       // nome da festa/evento (campo principal)
+  venue_name: string;              // mantido pra resiliência se o venue for excluído
   venue_city: string | null;
   venue_address: string | null;
   venue_id: number | null;
+  /** JSON array com IDs de fãs presentes (preenchido no debrief). */
+  fans_present: string | null;
   promoter_contact_id: number | null;
   day_contact_name: string | null;
   day_contact_phone: string | null;

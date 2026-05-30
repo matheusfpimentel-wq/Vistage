@@ -21,6 +21,8 @@ const TABLES = [
   "class_packages",
   "student_packages",
   "classes",
+  "artist_identity",
+  "artist_templates",
   "finance_categories",
   "finance_transactions",
   "finance_recurring",

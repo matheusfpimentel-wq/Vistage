@@ -1,0 +1,62 @@
+export const SOCIAL_NETWORKS = [
+  "Instagram",
+  "TikTok",
+  "YouTube",
+  "X (Twitter)",
+  "LinkedIn",
+  "Threads",
+  "Spotify",
+  "SoundCloud",
+  "Beatport",
+  "Bandcamp",
+  "Mixcloud",
+  "Apple Music",
+  "Website",
+  "Outro",
+] as const;
+export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
+
+export type SocialLink = {
+  network: SocialNetwork;
+  handle: string;
+  url: string;
+};
+
+export type ArtistIdentity = {
+  id: 1;
+  artist_name: string | null;
+  bio_short: string | null;
+  bio_long: string | null;
+  socials: SocialLink[];
+  logo_path: string | null;
+  isotype_path: string | null;
+  presskit_path: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  notes: string | null;
+  updated_at: string;
+};
+
+export type ArtistIdentityInput = Omit<ArtistIdentity, "id" | "updated_at">;
+
+export const TEMPLATE_CATEGORIES = [
+  "Story",
+  "Carrossel",
+  "Agenda",
+  "Banner",
+  "Capa",
+  "Outro",
+] as const;
+export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
+
+export type ArtistTemplate = {
+  id: number;
+  name: string;
+  category: TemplateCategory | null;
+  file_path: string | null;
+  thumbnail_path: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type ArtistTemplateCreateInput = Omit<ArtistTemplate, "id" | "created_at">;

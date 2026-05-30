@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "../components/StatusBadge";
 import { type Gig } from "../types";
+import { gigDisplayName } from "../displayName";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -121,13 +122,13 @@ export function CalendarView({ gigs, onEdit }: Props) {
                     key={g.id}
                     onClick={() => onEdit(g)}
                     className="w-full truncate rounded bg-muted px-1.5 py-1 text-left text-xs transition hover:bg-accent"
-                    title={`${g.venue_name} · ${g.status}`}
+                    title={`${gigDisplayName(g)} · ${g.venue_name} · ${g.status}`}
                   >
                     <div className="flex items-center gap-1">
                       <StatusBadge status={g.status} />
                     </div>
                     <div className="mt-0.5 truncate font-medium">
-                      {g.venue_name}
+                      {gigDisplayName(g)}
                     </div>
                   </button>
                 ))}

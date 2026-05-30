@@ -4,7 +4,6 @@ import {
   CalendarClock,
   CalendarRange,
   CheckSquare,
-  DollarSign,
   Star,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -22,30 +21,27 @@ import { type Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { PrepProgressMini } from "@/modules/gigs/components/PrepChecklist";
 import { parsePrepState, prepProgress } from "@/modules/gigs/prep";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 import { listUpcoming } from "@/modules/tasks/api";
 import { PriorityBadge } from "@/modules/tasks/components/PriorityBadge";
 import type { Task } from "@/modules/tasks/types";
-import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api";
-import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { formatDate, formatRating, todayISO } from "@/lib/format";
 
 export function DashboardPage() {
   const [insights, setInsights] = useState<GigInsights | null>(null);
   const [upcoming, setUpcoming] = useState<Gig[]>([]);
   const [pending, setPending] = useState<Gig[]>([]);
   const [upcomingTasks, setUpcomingTasks] = useState<Task[]>([]);
-  const [finance, setFinance] = useState<FinanceInsights | null>(null);
 
   useEffect(() => {
     void (async () => {
       const today = todayISO();
-      const [ins, all, tasks, fin] = await Promise.all([
+      const [ins, all, tasks] = await Promise.all([
         loadInsights(),
         listGigs(),
         listUpcoming(5),
-        loadFinanceInsights(),
       ]);
       setInsights(ins);
-      setFinance(fin);
       setUpcoming(
         all
           .filter(
@@ -103,12 +99,7 @@ export function DashboardPage() {
         </Card>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          icon={<DollarSign className="h-4 w-4 text-emerald-500" />}
-          label="Saldo do mês"
-          value={finance ? formatCurrency(finance.monthBalance) : "—"}
-        />
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatCard
           icon={<CalendarRange className="h-4 w-4" />}
           label="GIGs totais"
@@ -142,7 +133,7 @@ export function DashboardPage() {
             {upcoming.length === 0 ? (
               <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
                 Sem GIGs futuras agendadas.{" "}
-                <Button asChild variant="link" className="px-1">
+                <Button asChild variant="dark" size="sm" className="ml-2">
                   <Link to="/gigs">Criar uma</Link>
                 </Button>
               </div>
@@ -152,16 +143,16 @@ export function DashboardPage() {
                   const prep = parsePrepState(g.prep_state);
                   const { done, total } = prepProgress(prep);
                   return (
-                    <div
+                    <Link
                       key={g.id}
-                      className="rounded-md border p-3 space-y-2"
+                      to="/gigs"
+                      className="block rounded-md border p-3 space-y-2 transition hover:border-primary hover:shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="font-medium">{g.venue_name}</div>
+                          <div className="font-medium">{gigDisplayName(g)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDate(g.date)}
-                            {g.venue_city && ` · ${g.venue_city}`}
+                            {g.venue_name} · {formatDate(g.date)}
                             {g.main_goal && ` · 🎯 ${g.main_goal}`}
                           </div>
                         </div>
@@ -173,7 +164,7 @@ export function DashboardPage() {
                         </div>
                       </div>
                       <PrepProgressMini state={prep} />
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -195,7 +186,7 @@ export function DashboardPage() {
             {upcomingTasks.length === 0 ? (
               <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
                 Sem tarefas vencendo essa semana.{" "}
-                <Button asChild variant="link" className="px-1">
+                <Button asChild variant="dark" size="sm" className="ml-2">
                   <Link to="/tarefas">Criar uma</Link>
                 </Button>
               </div>

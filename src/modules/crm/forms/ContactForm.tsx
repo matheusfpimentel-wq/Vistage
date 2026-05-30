@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
+import { AttachmentField } from "@/components/shared/AttachmentField";
 import { cn } from "@/lib/utils";
 import { RatingStars } from "../components/RatingStars";
 import {
@@ -42,6 +43,7 @@ const EMPTY: FormState = {
   tags: [],
   notes: null,
   rating: null,
+  photo_path: null,
 };
 
 function contactToState(c: Contact): FormState {
@@ -55,6 +57,7 @@ function contactToState(c: Contact): FormState {
     tags: c.tags,
     notes: c.notes,
     rating: c.rating,
+    photo_path: c.photo_path,
   };
 }
 
@@ -124,6 +127,14 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
+          <AttachmentField
+            label="Foto"
+            value={state.photo_path}
+            onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
+            subdir="contacts"
+            variant="image"
+          />
+
           <div className="space-y-1.5">
             <Label>
               Nome ou estabelecimento <span className="text-destructive">*</span>

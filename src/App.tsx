@@ -44,6 +44,9 @@ const IdeasPage = lazy(() =>
 const ClassesPage = lazy(() =>
   import("@/modules/classes/ClassesPage").then((m) => ({ default: m.ClassesPage }))
 );
+const IdentityPage = lazy(() =>
+  import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
+);
 const TasksPage = lazy(() =>
   import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
 );
@@ -179,6 +182,7 @@ function RoutedApp() {
             <Route path="aulas" element={<ClassesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
+            <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />

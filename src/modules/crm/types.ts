@@ -21,6 +21,7 @@ export type Contact = {
   notes: string | null;
   rating: number | null; // 1..5
   last_interaction_at: string | null;
+  photo_path: string | null;
   created_at: string;
   updated_at: string;
 };

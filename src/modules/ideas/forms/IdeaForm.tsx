@@ -34,9 +34,8 @@ import {
   type IdeaHeat,
   type IdeaMaturation,
 } from "../types";
-import { createTask } from "@/modules/tasks/api";
 import { createContent } from "@/modules/content/api";
-import { todayISO } from "@/lib/format";
+import { TaskForm } from "@/modules/tasks/forms/TaskForm";
 
 type Props = {
   open: boolean;
@@ -75,6 +74,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
   const [state, setState] = useState<IdeaCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
 
@@ -124,29 +124,20 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
     }
   }
 
-  async function convertToTask() {
+  function startConvertToTask() {
     if (!idea) return;
-    setConverting(true);
+    setTaskFormOpen(true);
+  }
+
+  async function handleTaskCreated(taskId: number) {
+    if (!idea) return;
     try {
-      const taskId = await createTask({
-        title: state.title.trim(),
-        description: state.body ?? null,
-        category: "Pessoal",
-        gig_id: null,
-        contact_id: null,
-        priority: "Média",
-        status: "A fazer",
-        due_date: todayISO(),
-        tags: ["ideia"],
-      });
       await markIdeaAsConverted(idea.id, "task", taskId);
       toast.success("Ideia convertida em Tarefa");
       onConverted?.();
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setConverting(false);
     }
   }
 
@@ -326,7 +317,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={convertToTask}
+                  onClick={startConvertToTask}
                   disabled={converting}
                 >
                   <CheckSquare className="h-3.5 w-3.5" /> Tarefa
@@ -372,6 +363,22 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* TaskForm pré-preenchido — abre quando o usuário clica em "Converter em Tarefa". */}
+      <TaskForm
+        open={taskFormOpen}
+        onOpenChange={setTaskFormOpen}
+        task={null}
+        defaults={{
+          title: state.title.trim(),
+          description: state.body,
+          category: "Pessoal",
+          priority: "Média",
+          status: "A fazer",
+          tags: ["ideia", ...state.tags],
+        }}
+        onSaved={(id) => handleTaskCreated(id)}
+      />
     </Dialog>
   );
 }

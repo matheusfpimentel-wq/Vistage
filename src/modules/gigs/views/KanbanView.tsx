@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { GIG_STATUSES, type Gig, type GigStatus } from "../types";
+import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
 
 type Props = {
@@ -55,9 +56,9 @@ function KanbanColumn({
             onClick={() => onEdit(g)}
             className="w-full rounded-md border bg-background p-2 text-left text-sm transition hover:border-primary"
           >
-            <div className="font-medium">{g.venue_name}</div>
+            <div className="font-medium">{gigDisplayName(g)}</div>
             <div className="mt-0.5 text-xs text-muted-foreground">
-              {formatDate(g.date)}
+              {g.venue_name} · {formatDate(g.date)}
               {g.start_time && ` · ${g.start_time}`}
             </div>
             <div className="mt-1 flex items-center justify-between gap-1">

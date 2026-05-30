@@ -13,6 +13,7 @@ export type Venue = {
   instagram: string | null;
   website: string | null;
   notes: string | null;
+  photo_path: string | null;
   created_at: string;
   updated_at: string;
 };

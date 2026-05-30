@@ -31,6 +31,7 @@ export type ClassPackage = {
   total_classes: number;
   price: number | null;
   description: string | null;
+  syllabus: string | null;
   active: number;
   created_at: string;
 };

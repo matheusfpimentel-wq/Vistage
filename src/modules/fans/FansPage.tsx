@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Flame, Heart, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
+import {
+  Flame,
+  Heart,
+  LayoutGrid,
+  List,
+  Pencil,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,8 +41,11 @@ import {
 import { FAN_LEVELS, type Fan, type FanLevel } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { assetUrl } from "@/lib/uploads";
+import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
+type ViewMode = "cards" | "list";
 
 export function FansPage() {
   const [fans, setFans] = useState<Fan[]>([]);
@@ -47,6 +61,7 @@ export function FansPage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [view, setView] = useState<ViewMode>("cards");
 
   const queryFilters: FanFilters = useMemo(
     () => ({
@@ -156,15 +171,87 @@ export function FansPage() {
             className="w-40"
           />
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Novo fã
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+            <button
+              onClick={() => setView("cards")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
+                view === "cards" ? "bg-background shadow-sm" : "text-muted-foreground"
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Cards
+            </button>
+            <button
+              onClick={() => setView("list")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
+                view === "list" ? "bg-background shadow-sm" : "text-muted-foreground"
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista
+            </button>
+          </div>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo fã
+          </Button>
+        </div>
       </div>
 
       {fans.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Heart className="mx-auto mb-2 h-8 w-8 opacity-50" />
           Nenhum fã cadastrado ainda.
+        </div>
+      ) : view === "cards" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {fans.map((f) => {
+            const photoUrl = assetUrl(f.photo_path);
+            const last = f.last_interaction_at;
+            const daysAgo = last
+              ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
+              : null;
+            return (
+              <button
+                key={f.id}
+                onClick={() => openDetail(f)}
+                className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+              >
+                <div className="h-28 w-full bg-muted">
+                  {photoUrl ? (
+                    <img
+                      src={photoUrl}
+                      alt={f.name}
+                      className="h-full w-full object-cover transition group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-muted-foreground">
+                      <User className="h-8 w-8" />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1.5 p-3">
+                  <div className="font-medium leading-tight">{f.name}</div>
+                  <LevelBadge level={f.level} />
+                  <div className="text-xs text-muted-foreground">
+                    {f.city ?? "—"}
+                  </div>
+                  {last && (
+                    <div className="text-[11px] text-muted-foreground">
+                      Último contato:{" "}
+                      {daysAgo === 0
+                        ? "hoje"
+                        : daysAgo === 1
+                        ? "ontem"
+                        : `há ${daysAgo}d`}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">

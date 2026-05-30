@@ -34,7 +34,9 @@ import {
 import type { Contact, ContactStats } from "../types";
 import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { assetUrl } from "@/lib/uploads";
 
 type Props = {
   open: boolean;
@@ -90,10 +92,19 @@ export function ContactDetail({
           <>
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <DialogTitle>{contact.name}</DialogTitle>
-                  <div className="flex items-center gap-2">
-                    <TypeBadges types={contact.types} />
+                <div className="flex items-start gap-3">
+                  {contact.photo_path && assetUrl(contact.photo_path) && (
+                    <img
+                      src={assetUrl(contact.photo_path)!}
+                      alt={contact.name}
+                      className="h-16 w-16 rounded-full object-cover"
+                    />
+                  )}
+                  <div className="space-y-1">
+                    <DialogTitle>{contact.name}</DialogTitle>
+                    <div className="flex items-center gap-2">
+                      <TypeBadges types={contact.types} />
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -206,10 +217,9 @@ export function ContactDetail({
                         className="flex items-center justify-between rounded-md border p-2.5 text-sm"
                       >
                         <div>
-                          <div className="font-medium">{g.venue_name}</div>
+                          <div className="font-medium">{gigDisplayName(g)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {formatDate(g.date)}
-                            {g.venue_city && ` · ${g.venue_city}`}
+                            {g.venue_name} · {formatDate(g.date)}
                           </div>
                         </div>
                         <div className="flex items-center gap-3">

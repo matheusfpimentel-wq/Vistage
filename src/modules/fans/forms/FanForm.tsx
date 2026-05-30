@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
+import { AttachmentField } from "@/components/shared/AttachmentField";
 import { cn } from "@/lib/utils";
 import { LevelBadge } from "../components/LevelBadge";
 import { createFan, updateFan } from "../api";
@@ -34,6 +35,7 @@ const EMPTY: FanCreateInput = {
   city: null,
   tags: [],
   notes: null,
+  photo_path: null,
 };
 
 function fanToState(f: Fan): FanCreateInput {
@@ -46,6 +48,7 @@ function fanToState(f: Fan): FanCreateInput {
     city: f.city,
     tags: f.tags,
     notes: f.notes,
+    photo_path: f.photo_path,
   };
 }
 
@@ -105,6 +108,14 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
+          <AttachmentField
+            label="Foto"
+            value={state.photo_path}
+            onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
+            subdir="fans"
+            variant="image"
+          />
+
           <div className="space-y-1.5">
             <Label>
               Nome <span className="text-destructive">*</span>

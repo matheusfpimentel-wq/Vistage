@@ -19,6 +19,7 @@ import { FanInteractionList } from "../components/FanInteractionList";
 import { getFan } from "../api";
 import type { Fan } from "../types";
 import { formatDate } from "@/lib/format";
+import { assetUrl } from "@/lib/uploads";
 
 type Props = {
   open: boolean;
@@ -58,9 +59,18 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
           <>
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <DialogTitle>{fan.name}</DialogTitle>
-                  <LevelBadge level={fan.level} />
+                <div className="flex items-start gap-3">
+                  {fan.photo_path && assetUrl(fan.photo_path) && (
+                    <img
+                      src={assetUrl(fan.photo_path)!}
+                      alt={fan.name}
+                      className="h-16 w-16 rounded-full object-cover"
+                    />
+                  )}
+                  <div className="space-y-1">
+                    <DialogTitle>{fan.name}</DialogTitle>
+                    <LevelBadge level={fan.level} />
+                  </div>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => onEdit(fan)}>
                   <Pencil className="h-3.5 w-3.5" /> Editar
