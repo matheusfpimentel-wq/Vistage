@@ -170,10 +170,7 @@ export function IdentityPage() {
                 <Sparkles className="h-4 w-4 text-primary" />
                 Quem você é
               </CardTitle>
-              <CardDescription>
-                Seu kit de identidade — preencha uma vez e reaproveite no
-                presskit, contratos, redes, etc.
-              </CardDescription>
+              <CardDescription>Seu kit de marca.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -211,9 +208,6 @@ export function IdentityPage() {
                   <Palette className="h-3.5 w-3.5" />
                   Paleta de cores
                 </Label>
-                <p className="text-xs text-muted-foreground">
-                  Quantas quiser. Útil pra padronizar suas artes, posts e site.
-                </p>
                 <div className="flex flex-wrap gap-2">
                   {identity.palette.map((color, idx) => (
                     <div
@@ -326,9 +320,6 @@ export function IdentityPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Redes sociais</CardTitle>
-              <CardDescription>
-                Apenas as que você de fato usa. Adicione uma a uma.
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-1.5">
@@ -399,10 +390,6 @@ export function IdentityPage() {
         {/* ====================== TEMPLATES ====================== */}
         {/* ====================== FLYERS (coleção) ====================== */}
         <TabsContent value="flyers" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Coleção de todos os flyers das suas GIGs. Pegamos automaticamente
-            de cada GIG que tem flyer anexado.
-          </p>
           {flyerGigs.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
               Nenhum flyer ainda. Anexe artes nas GIGs em <strong>/gigs</strong>{" "}
@@ -418,12 +405,7 @@ export function IdentityPage() {
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">
-          <div className="flex items-end justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Suas artes-base reutilizáveis: fundos de Story, modelos de
-              carrossel, banners de agenda, etc. Anexe o arquivo e dê um nome
-              memorável.
-            </p>
+          <div className="flex items-end justify-end gap-2">
             <Button onClick={() => setTplFormOpen(true)}>
               <Plus className="h-4 w-4" /> Novo template
             </Button>

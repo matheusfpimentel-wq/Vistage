@@ -35,7 +35,9 @@ import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
-import { createVenue, listVenues } from "@/modules/venues/api";
+import { listVenues } from "@/modules/venues/api";
+import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
+import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { PrepChecklist } from "../components/PrepChecklist";
@@ -125,6 +127,8 @@ export function GigForm({
   const [venues, setVenues] = useState<Venue[]>([]);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
+  const [quickVenueOpen, setQuickVenueOpen] = useState(false);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -274,8 +278,7 @@ export function GigForm({
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
           <DialogDescription>
-            Preencha o que souber agora — pode voltar a editar a qualquer momento.
-            O Debrief abre automaticamente quando o status vira Concluída.
+            Debrief abre automaticamente ao mudar pra Concluída.
           </DialogDescription>
         </DialogHeader>
 
@@ -365,37 +368,7 @@ export function GigForm({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={async () => {
-                    const name = window.prompt(
-                      "Nome do novo venue (você completa o resto depois em /venues):"
-                    );
-                    if (!name?.trim()) return;
-                    try {
-                      const id = await createVenue({
-                        name: name.trim(),
-                        city: null,
-                        state: null,
-                        country: null,
-                        address: null,
-                        founded_year: null,
-                        capacity: null,
-                        owner_name: null,
-                        owner_phone: null,
-                        owner_email: null,
-                        instagram: null,
-                        website: null,
-                        notes: null,
-                        photo_path: null,
-                      });
-                      const fresh = await listVenues();
-                      setVenues(fresh);
-                      const created = fresh.find((x) => x.id === id);
-                      if (created) pickVenue(created.id);
-                      toast.success("Venue criado");
-                    } catch (e) {
-                      toast.error(`Erro: ${String(e)}`);
-                    }
-                  }}
+                  onClick={() => setQuickVenueOpen(true)}
                 >
                   <Plus className="h-3.5 w-3.5" /> Novo
                 </Button>
@@ -408,29 +381,35 @@ export function GigForm({
               )}
             </Field>
 
-            <Field
-              label="Promoter"
-              hint="Contratante principal — vincule a um contato do CRM para gerar histórico."
-            >
-              <Select
-                value={state.promoter_contact_id?.toString() ?? "none"}
-                onValueChange={(v) =>
-                  set("promoter_contact_id", v === "none" ? null : Number(v))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um contato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      {c.name}
-                      {c.city ? ` · ${c.city}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Contratante">
+              <div className="flex gap-2">
+                <Select
+                  value={state.promoter_contact_id?.toString() ?? "none"}
+                  onValueChange={(v) =>
+                    set("promoter_contact_id", v === "none" ? null : Number(v))
+                  }
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="Selecione um contato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sem vínculo —</SelectItem>
+                    {contacts.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.name}
+                        {c.city ? ` · ${c.city}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setQuickContactOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo
+                </Button>
+              </div>
             </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -676,6 +655,27 @@ export function GigForm({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <QuickVenueForm
+        open={quickVenueOpen}
+        onOpenChange={setQuickVenueOpen}
+        onCreated={async (id) => {
+          const fresh = await listVenues();
+          setVenues(fresh);
+          pickVenue(id);
+        }}
+      />
+
+      <QuickContactForm
+        open={quickContactOpen}
+        onOpenChange={setQuickContactOpen}
+        defaultType="Cliente / Contratante"
+        onCreated={async (id) => {
+          const fresh = await listContacts();
+          setContacts(fresh);
+          set("promoter_contact_id", id);
+        }}
+      />
     </Dialog>
   );
 }

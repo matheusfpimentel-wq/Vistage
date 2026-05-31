@@ -273,8 +273,7 @@ export function DebriefForm({
             )}
           </DialogTitle>
           <DialogDescription>
-            Coração do sistema. Registre os aprendizados e avaliações dessa
-            apresentação. Seu rascunho é salvo automaticamente.
+            Rascunho salvo automaticamente.
             {lastSavedAt && (
               <span className="ml-2 text-xs">
                 · salvo às {lastSavedAt.toLocaleTimeString("pt-BR")}

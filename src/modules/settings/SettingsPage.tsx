@@ -13,6 +13,7 @@ import {
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
+import { CsvImportExport } from "./CsvImportExport";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
@@ -185,6 +186,8 @@ export function SettingsPage() {
           </p>
         </CardContent>
       </Card>
+
+      <CsvImportExport />
 
       <ShortcutSettings />
 
