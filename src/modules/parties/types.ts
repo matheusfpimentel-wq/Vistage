@@ -96,8 +96,10 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"> & {
   lineup: number[]; sponsors: { name: string; amount_cents: number }[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"lineup"|"sponsors"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"> & {
   stage_current?: number|null;
+  ticket_price_regular?: number|null;
+  ticket_price_vip?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
 };

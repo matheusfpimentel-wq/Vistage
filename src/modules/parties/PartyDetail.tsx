@@ -73,9 +73,10 @@ type Props = {
   party: PartyDeserialized;
   onEdit: () => void;
   onRefresh: () => void;
+  onDelete: () => void;
 };
 
-export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh }: Props) {
+export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh, onDelete }: Props) {
   const navigate = useNavigate();
 
   const [stages, setStages] = useState<PartyStage[]>([]);
@@ -109,6 +110,15 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh }: Pr
           <div className="flex items-center gap-3">
             <DialogTitle>{party.title}</DialogTitle>
             <Badge className={partyStatusColor(party.status)}>{party.status}</Badge>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto text-destructive hover:text-destructive"
+              onClick={() => { onDelete(); onOpenChange(false); }}
+              aria-label="Excluir festa"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </DialogHeader>
 
@@ -135,6 +145,7 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh }: Pr
               items={budgetItems}
               tickets={tickets}
               onReload={async () => { await loadAll(); onRefresh(); }}
+              navigate={navigate}
             />
           </TabsContent>
 
@@ -425,11 +436,13 @@ function OrcamentoTab({
   items,
   tickets,
   onReload,
+  navigate,
 }: {
   party: PartyDeserialized;
   items: PartyBudgetItem[];
   tickets: PartyTicket[];
   onReload: () => Promise<void>;
+  navigate: ReturnType<typeof useNavigate>;
 }) {
   const summary = budgetSummary(items);
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
@@ -498,7 +511,7 @@ function OrcamentoTab({
     try {
       await syncPartyToFinanceiro(party, tickets, items);
       await onReload();
-      toast.success("Sincronizado com o Financeiro");
+      toast.success("Sincronizado com Financeiro - veja em /financeiro");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -550,6 +563,19 @@ function OrcamentoTab({
             {syncing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Sincronizar com Financeiro
           </Button>
+        </div>
+      )}
+
+      {party.financial_synced !== 0 && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Sincronizado com Financeiro.</span>
+          <button
+            type="button"
+            className="text-primary hover:underline"
+            onClick={() => navigate("/financeiro")}
+          >
+            Ver no Financeiro →
+          </button>
         </div>
       )}
 
@@ -904,6 +930,7 @@ function TarefasTab({
   onReload: () => Promise<void>;
 }) {
   const [newTitle, setNewTitle] = useState("");
+  const [newStageId, setNewStageId] = useState<string>("none");
   const [generating, setGenerating] = useState(false);
 
   async function handleToggle(task: PartyTask) {
@@ -930,7 +957,7 @@ function TarefasTab({
     try {
       await createPartyTask({
         party_id: partyId,
-        stage_id: null,
+        stage_id: newStageId !== "none" ? Number(newStageId) : null,
         title,
         status: "pendente",
         priority: "Normal",
@@ -1022,6 +1049,17 @@ function TarefasTab({
           }}
           className="flex-1"
         />
+        <Select value={newStageId} onValueChange={setNewStageId}>
+          <SelectTrigger className="h-9 w-36 text-xs">
+            <SelectValue placeholder="Etapa" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Sem etapa</SelectItem>
+            {stages.map((s) => (
+              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button size="sm" variant="outline" onClick={() => void handleAdd()}>
           <Plus className="h-3.5 w-3.5" />
         </Button>

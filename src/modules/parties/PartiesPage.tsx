@@ -162,7 +162,7 @@ export function PartiesPage() {
             <TabsTrigger value="lista">Lista</TabsTrigger>
           </TabsList>
           <TabsContent value="cards" className="pt-2">
-            <PartyCards parties={filtered} onEdit={openDetail} />
+            <PartyCards parties={filtered} onEdit={openDetail} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="lista" className="pt-2">
             <PartyList
@@ -188,6 +188,7 @@ export function PartiesPage() {
           party={detailParty}
           onEdit={() => openEdit(detailParty)}
           onRefresh={() => void refresh()}
+          onDelete={() => handleDelete(detailParty!)}
         />
       )}
     </div>

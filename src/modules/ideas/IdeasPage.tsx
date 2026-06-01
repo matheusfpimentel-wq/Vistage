@@ -194,11 +194,11 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} />
           </TabsContent>
 
           <TabsContent value="kanban">
-            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} />
+            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} onRefresh={() => void refresh()} />
           </TabsContent>
 
           <TabsContent value="list">
@@ -213,6 +213,7 @@ export function IdeasPage() {
         idea={editing}
         onSaved={() => void refresh()}
         onConverted={() => void refresh()}
+        onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }}
       />
 
       <QuickCapture

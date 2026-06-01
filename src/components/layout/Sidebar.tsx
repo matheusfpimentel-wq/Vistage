@@ -97,8 +97,8 @@ function applyOrder(items: NavItem[], order: string[]): NavItem[] {
 
 export function Sidebar() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
-  const dragIdx = useRef<number | null>(null);
-  const dragOverIdx = useRef<number | null>(null);
+  const dragKey = useRef<string | null>(null);
+  const dragOverKey = useRef<string | null>(null);
 
   useEffect(() => {
     loadOrder().then((order) => {
@@ -111,34 +111,30 @@ export function Sidebar() {
     void saveOrder(order);
   }, []);
 
-  function onDragStart(idx: number) {
-    dragIdx.current = idx;
+  function onDragStart(to: string) {
+    dragKey.current = to;
   }
 
-  function onDragEnter(idx: number) {
-    dragOverIdx.current = idx;
+  function onDragOver(e: React.DragEvent, to: string) {
+    e.preventDefault();
+    dragOverKey.current = to;
   }
 
-  function onDragEnd() {
-    const from = dragIdx.current;
-    const to = dragOverIdx.current;
-    dragIdx.current = null;
-    dragOverIdx.current = null;
-    if (from === null || to === null || from === to) return;
+  function onDrop() {
+    const from = dragKey.current;
+    const to = dragOverKey.current;
+    dragKey.current = null;
+    dragOverKey.current = null;
+    if (!from || !to || from === to) return;
 
     setNav((prev) => {
-      // Only reorder non-fixed items; fixed items keep their position
       const reorderable = prev.filter((i) => !i.fixed);
-      const reorderableFrom = reorderable.findIndex(
-        (_, ri) => prev.indexOf(prev.filter((i) => !i.fixed)[ri]) === from
-      );
-      const reorderableTo = reorderable.findIndex(
-        (_, ri) => prev.indexOf(prev.filter((i) => !i.fixed)[ri]) === to
-      );
-      if (reorderableFrom < 0 || reorderableTo < 0) return prev;
+      const fromIdx = reorderable.findIndex((i) => i.to === from);
+      const toIdx = reorderable.findIndex((i) => i.to === to);
+      if (fromIdx < 0 || toIdx < 0) return prev;
       const next = [...reorderable];
-      const [moved] = next.splice(reorderableFrom, 1);
-      next.splice(reorderableTo, 0, moved);
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
       const fixed_head = prev.filter((i) => i.fixed && i.to === "/");
       const fixed_tail = prev.filter((i) => i.fixed && i.to !== "/");
       const result = [...fixed_head, ...next, ...fixed_tail];
@@ -163,17 +159,17 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto space-y-0.5 p-3">
-        {nav.map(({ to, label, icon: Icon, end, fixed }, idx) => (
+        {nav.map(({ to, label, icon: Icon, end, fixed }) => (
           <div
             key={to}
             draggable={!fixed}
-            onDragStart={() => onDragStart(idx)}
-            onDragEnter={() => onDragEnter(idx)}
-            onDragEnd={onDragEnd}
-            onDragOver={(e) => e.preventDefault()}
+            onDragStart={() => onDragStart(to)}
+            onDragOver={(e) => onDragOver(e, to)}
+            onDrop={onDrop}
             className="group/row flex items-center"
           >
             <NavLink
+              draggable={false}
               to={to}
               end={end}
               className={({ isActive }) =>

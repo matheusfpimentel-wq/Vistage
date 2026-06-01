@@ -63,8 +63,6 @@ type FormState = {
   description: string | null;
   expected_capacity: number | null;
   actual_attendance: number | null;
-  ticket_price_regular: number | null;
-  ticket_price_vip: number | null;
   lineup: number[];
   sponsors: { name: string; amount_cents: number }[];
   notes: string | null;
@@ -78,8 +76,6 @@ const EMPTY: FormState = {
   description: null,
   expected_capacity: null,
   actual_attendance: null,
-  ticket_price_regular: null,
-  ticket_price_vip: null,
   lineup: [],
   sponsors: [],
   notes: null,
@@ -147,8 +143,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         description: party.description,
         expected_capacity: party.expected_capacity,
         actual_attendance: party.actual_attendance,
-        ticket_price_regular: party.ticket_price_regular,
-        ticket_price_vip: party.ticket_price_vip,
         lineup: party.lineup,
         sponsors: party.sponsors,
         notes: party.notes,
@@ -240,6 +234,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       const payload = {
         ...state,
         venue_id: null,
+        ticket_price_regular: null,
+        ticket_price_vip: null,
         lineup: state.lineup,
         sponsors: state.sponsors,
       };
@@ -387,36 +383,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Ingresso regular (R$)">
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={state.ticket_price_regular ?? ""}
-                  onChange={(e) =>
-                    set(
-                      "ticket_price_regular",
-                      e.target.value ? Number(e.target.value) : null
-                    )
-                  }
-                />
-              </Field>
-              <Field label="Ingresso VIP (R$)">
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={state.ticket_price_vip ?? ""}
-                  onChange={(e) =>
-                    set(
-                      "ticket_price_vip",
-                      e.target.value ? Number(e.target.value) : null
-                    )
-                  }
-                />
-              </Field>
-            </div>
           </TabsContent>
 
           {/* ===== LINEUP ===== */}

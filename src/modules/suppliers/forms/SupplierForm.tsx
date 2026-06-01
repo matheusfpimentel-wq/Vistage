@@ -49,7 +49,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
   const isEdit = !!supplier;
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<string>("");
+  const [category, setCategory] = useState<string>("_none");
   const [contactName, setContactName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -63,7 +63,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
   useEffect(() => {
     if (open && supplier) {
       setName(supplier.name);
-      setCategory(supplier.category ?? "");
+      setCategory(supplier.category ?? "_none");
       setContactName(supplier.contact_name ?? "");
       setPhone(supplier.phone ?? "");
       setEmail(supplier.email ?? "");
@@ -124,7 +124,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
     try {
       const payload = {
         name: name.trim(),
-        category: (category || null) as Supplier["category"],
+        category: (category === "_none" ? null : category) as Supplier["category"],
         contact_name: contactName.trim() || null,
         phone: phone.trim() || null,
         email: email.trim() || null,
@@ -201,7 +201,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem categoria</SelectItem>
+                  <SelectItem value="_none">Sem categoria</SelectItem>
                   {SUPPLIER_CATEGORIES.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}

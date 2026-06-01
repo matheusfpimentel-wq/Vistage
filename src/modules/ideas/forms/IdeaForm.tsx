@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckSquare, Film, Loader2, Music2, X } from "lucide-react";
+import { Loader2, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +45,7 @@ type Props = {
   onSaved: (id: number) => void;
   /** Callback chamado quando o usuário converte a ideia em outra entidade. */
   onConverted?: () => void;
+  onDelete?: (id: number) => void;
 };
 
 const EMPTY: IdeaCreateInput = {
@@ -71,13 +72,25 @@ function ideaToState(i: Idea): IdeaCreateInput {
   };
 }
 
-export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Props) {
+const CONVERSION_OPTIONS = [
+  { label: "Novo set", converted_to: "task" as const, description: "Set novo" },
+  { label: "GIG", converted_to: "gig" as const, description: null },
+  { label: "Investimento", converted_to: "task" as const, description: "Investimento" },
+  { label: "Produção de festa", converted_to: "task" as const, description: "Produção de festa" },
+  { label: "Produção musical", converted_to: "track" as const, description: null },
+  { label: "Conteúdo", converted_to: "content" as const, description: null },
+  { label: "Aula", converted_to: "task" as const, description: "Aula" },
+];
+
+export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDelete }: Props) {
   const [state, setStateRaw] = useState<IdeaCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [creatingTask, setCreatingTask] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
   const setState: typeof setStateRaw = (v) => {
     setStateRaw(v);
@@ -86,8 +99,13 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
 
   useEffect(() => {
     if (!open) return;
-    if (idea) setStateRaw(ideaToState(idea));
-    else setStateRaw(EMPTY);
+    if (idea) {
+      setStateRaw(ideaToState(idea));
+      setTaskTitle(idea.title);
+    } else {
+      setStateRaw(EMPTY);
+      setTaskTitle("");
+    }
     setTagInput("");
     setTitleError(null);
     setDirty(false);
@@ -132,14 +150,14 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
     }
   }
 
-  async function convertToTask() {
+  async function handleCreateTask() {
     if (!idea) return;
-    setConverting(true);
+    setCreatingTask(true);
     try {
       const due = new Date();
       due.setDate(due.getDate() + 60);
-      const taskId = await createTask({
-        title: state.title.trim(),
+      await createTask({
+        title: taskTitle.trim() || state.title.trim(),
         description: null,
         category: null,
         gig_id: null,
@@ -149,42 +167,65 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
         due_date: due.toISOString().slice(0, 10),
         tags: ["ideia"],
       });
-      await markIdeaAsConverted(idea.id, "task", taskId);
-      toast.success("Convertida em Tarefa (prazo: 60 dias)");
-      onConverted?.();
-      onOpenChange(false);
+      toast.success("Tarefa criada!");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
-      setConverting(false);
+      setCreatingTask(false);
     }
   }
 
-  async function convertToContent() {
+  async function handleConvert(option: typeof CONVERSION_OPTIONS[number]) {
     if (!idea) return;
     setConverting(true);
     try {
-      const contentId = await createContent({
-        title: state.title.trim(),
-        script: state.body ?? null,
-        networks: [],
-        format: null,
-        purpose: null,
-        status: "Ideia",
-        due_date: null,
-        publish_date: null,
-        published_at: null,
-        post_url: null,
-        metric_views: null,
-        metric_likes: null,
-        metric_comments: null,
-        metric_shares: null,
-        metric_saves: null,
-        notes: null,
-        task_id: null,
-      });
-      await markIdeaAsConverted(idea.id, "content", contentId);
-      toast.success("Ideia convertida em Conteúdo");
+      if (option.converted_to === "content") {
+        const contentId = await createContent({
+          title: state.title.trim(),
+          script: state.body ?? null,
+          networks: [],
+          format: null,
+          purpose: null,
+          status: "Ideia",
+          due_date: null,
+          publish_date: null,
+          published_at: null,
+          post_url: null,
+          metric_views: null,
+          metric_likes: null,
+          metric_comments: null,
+          metric_shares: null,
+          metric_saves: null,
+          notes: null,
+          task_id: null,
+        });
+        await markIdeaAsConverted(idea.id, "content", contentId);
+        toast.success("Convertida em Conteúdo");
+      } else if (option.converted_to === "task") {
+        const due = new Date();
+        due.setDate(due.getDate() + 60);
+        const taskId = await createTask({
+          title: option.description
+            ? `${option.description}: ${state.title.trim()}`
+            : state.title.trim(),
+          description: null,
+          category: null,
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: due.toISOString().slice(0, 10),
+          tags: ["ideia"],
+        });
+        await markIdeaAsConverted(idea.id, "task", taskId);
+        toast.success(`Convertida em Tarefa — ${option.label}`);
+      } else if (option.converted_to === "gig") {
+        await markIdeaAsConverted(idea.id, "gig", 0);
+        toast.success("Marcada como convertida em GIG");
+      } else if (option.converted_to === "track") {
+        await markIdeaAsConverted(idea.id, "track", 0);
+        toast.success("Marcada como convertida em Produção musical");
+      }
       onConverted?.();
       onOpenChange(false);
     } catch (e) {
@@ -269,6 +310,54 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
             </div>
           </div>
 
+          {/* Desenvolvendo — criar tarefa inline */}
+          {idea && state.maturation === "Desenvolvendo" && (
+            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Crie uma tarefa para começar:
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  placeholder={state.title || "Título da tarefa"}
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCreateTask}
+                  disabled={creatingTask}
+                >
+                  {creatingTask && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Criar tarefa
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Pronta — Em que se converteu? */}
+          {idea && state.maturation === "Pronta" && idea.maturation !== "Convertida" && (
+            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Em que se converteu?
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {CONVERSION_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.label}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConvert(opt)}
+                    disabled={converting}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label>Calor</Label>
             <div className="flex gap-1.5">
@@ -327,40 +416,6 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
             </div>
           </div>
 
-          {idea && idea.maturation !== "Convertida" && (
-            <div className="rounded-md border bg-muted/40 p-3 space-y-2">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Converter em
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={convertToTask}
-                  disabled={converting}
-                >
-                  <CheckSquare className="h-3.5 w-3.5" /> Tarefa
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={convertToContent}
-                  disabled={converting}
-                >
-                  <Film className="h-3.5 w-3.5" /> Conteúdo
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  title="Crie a GIG manualmente em /gigs (será integrado em breve)"
-                >
-                  <Music2 className="h-3.5 w-3.5" /> GIG (em breve)
-                </Button>
-              </div>
-            </div>
-          )}
-
           {idea?.converted_to && (
             <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-600">
               Convertida em {idea.converted_to} #{idea.converted_id}
@@ -369,6 +424,18 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted }: Pro
         </div>
 
         <DialogFooter className="gap-2">
+          <div className="flex flex-1">
+            {idea && onDelete && (
+              <Button
+                variant="ghost"
+                className="text-destructive"
+                onClick={() => { onDelete(idea.id); onOpenChange(false); }}
+                type="button"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
