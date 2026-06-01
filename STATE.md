@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch K (Festas — módulo completo de produção de eventos).
+Última atualização: Batch L (Insights — pool unificado de aprendizados).
 
 ---
 
@@ -60,6 +60,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Produção Musical | `/musica` | **(Batch I+J)** CRUD de projetos + tracks. Pipeline Stage-Gate (8 stages: Ideação→…→Pós-lançamento) com 4 gates decisórios; reprovar num gate → **Stand-by** (reativável, não "Cancelada"). Gate 1 mostra paleta/briefing da Identidade. Sub-bloco Criatividade (Flow Sessions + heatmap período×dia). Colaboradores N:N com CRM. `constraints` obrigatório (dica de Stokes). Views Kanban, Lista, **Roadmap** (12 meses) e **Portfolio** (analytics). **Sub-bloco Marketing** (release_strategy, presave_link, marketing_dates, lista mídia alvo N:N). **Sub-bloco Financeiro** (custos por projeto, ROI calculado). **Sub-bloco Performance** (snapshots mensais manuais, barras CSS). Auto-criação de 4 conteúdos ao entrar em Pré-lançamento + tarefa de métricas ao entrar em Lançamento (ambos com confirmação). **Converter Ideia em Track** no módulo Ideias |
 | Aulas | `/aulas` | 3 abas (Aulas/Alunos/Pacotes), pacote-template com ementa, instância por aluno com saldo, auto-recalc do pacote quando aula vira "Realizada" |
 | Conteúdo | `/conteudo` | CRUD + 3 visualizações (lista/calendário editorial/kanban), métricas manuais, tarefa-prazo automática |
+| Insights | `/insights` | **(Batch L)** Pool unificado de aprendizados (v_insights VIEW). Feed cronológico com filtro por fonte (GIG/Track/Festa/Ideia), busca full-text com highlight, expand/colapso de conteúdo longo, KPI chips por fonte, exportar TXT |
 | Festas | `/festas` | **(Batch K)** Produção de eventos próprios. CRUD de festas com status (Planejando/Confirmada/Realizada/Cancelada). Tabs: Info (título, data, venue, capacidade, preços), Lineup (DJs escalados N:N com CRM + patrocinadores), Custos (inline), Notas. Auto-gera 4 tarefas ao confirmar festa. KPIs: próximas, realizadas, receita estimada. Views cards e lista. Integrado em busca Ctrl+K e backup/CSV |
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
 | Identidade Artística | `/identidade` | Nome, biografia, **paleta livre de cores**, redes sociais (14 opções), logo/isótipo/presskit, abas Flyers (auto das GIGs) e Templates |

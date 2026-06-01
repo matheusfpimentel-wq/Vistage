@@ -50,6 +50,9 @@ const MusicPage = lazy(() =>
 const PartiesPage = lazy(() =>
   import("@/modules/parties/PartiesPage").then((m) => ({ default: m.PartiesPage }))
 );
+const InsightsPage = lazy(() =>
+  import("@/modules/insights/InsightsPage").then((m) => ({ default: m.InsightsPage }))
+);
 const IdentityPage = lazy(() =>
   import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
 );
@@ -190,6 +193,7 @@ function RoutedApp() {
             <Route path="festas" element={<PartiesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
+            <Route path="insights" element={<InsightsPage />} />
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
