@@ -36,3 +36,4 @@ uploads/
 *.sqlite
 *.sqlite-journal
 musicgest.config.json
+.claude/
