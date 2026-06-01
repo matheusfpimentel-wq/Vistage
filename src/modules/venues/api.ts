@@ -117,3 +117,33 @@ export async function listGigsByVenue(venueId: number): Promise<Gig[]> {
     [venueId]
   );
 }
+
+export async function geocodeVenue(
+  venue: Pick<Venue, "id" | "name" | "city" | "state" | "country">
+): Promise<{ lat: number; lng: number } | null> {
+  const parts = [venue.name, venue.city, venue.state, venue.country].filter(Boolean);
+  const q = encodeURIComponent(parts.join(", "));
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`,
+      { headers: { "User-Agent": "MusicGest/1.0" } }
+    );
+    const data = await resp.json() as { lat: string; lon: string }[];
+    if (!data[0]) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveVenueCoords(
+  id: number,
+  lat: number,
+  lng: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE venues SET lat = $1, lng = $2, geocoded_at = CURRENT_TIMESTAMP WHERE id = $3",
+    [lat, lng, id]
+  );
+}

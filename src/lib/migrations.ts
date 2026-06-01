@@ -804,6 +804,15 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 19,
+    description: "venues — coordenadas para mapa (geocoding)",
+    sql: `
+      ALTER TABLE venues ADD COLUMN lat REAL;
+      ALTER TABLE venues ADD COLUMN lng REAL;
+      ALTER TABLE venues ADD COLUMN geocoded_at TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, LayoutGrid, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+
+const VenueMap = lazy(() =>
+  import("./VenueMap").then((m) => ({ default: m.VenueMap }))
+);
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +16,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
-type ViewMode = "cards" | "list";
+type ViewMode = "cards" | "list" | "map";
 
 export function VenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -122,6 +126,19 @@ export function VenuesPage() {
               <List className="h-3.5 w-3.5" />
               Lista
             </button>
+            <button
+              onClick={() => setView("map")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
+                view === "map"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              aria-label="Visualização em mapa"
+            >
+              <Map className="h-3.5 w-3.5" />
+              Mapa
+            </button>
           </div>
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo venue
@@ -129,7 +146,21 @@ export function VenuesPage() {
         </div>
       </div>
 
-      {venues.length === 0 ? (
+      {view === "map" ? (
+        <Suspense
+          fallback={
+            <div className="flex h-64 items-center justify-center text-muted-foreground gap-2">
+              <Loader2 className="h-5 w-5 animate-spin" /> Carregando mapa…
+            </div>
+          }
+        >
+          <VenueMap
+            venues={venues}
+            onOpenDetail={openDetail}
+            onRefresh={() => void refresh()}
+          />
+        </Suspense>
+      ) : venues.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Building2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
           Nenhum venue cadastrado ainda.

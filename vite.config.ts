@@ -18,6 +18,7 @@ export default defineConfig(async () => ({
         manualChunks: {
           "react-vendor": ["react", "react-dom", "react-router-dom"],
           "date-vendor": ["date-fns"],
+          "map-vendor": ["leaflet", "react-leaflet"],
           "ui-vendor": [
             "@radix-ui/react-dialog",
             "@radix-ui/react-select",

@@ -14,11 +14,18 @@ export type Venue = {
   website: string | null;
   notes: string | null;
   photo_path: string | null;
+  lat: number | null;
+  lng: number | null;
+  geocoded_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type VenueCreateInput = Omit<Venue, "id" | "created_at" | "updated_at">;
+export type VenueCreateInput = Omit<Venue, "id" | "created_at" | "updated_at" | "lat" | "lng" | "geocoded_at"> & {
+  lat?: number | null;
+  lng?: number | null;
+  geocoded_at?: string | null;
+};
 export type VenueUpdateInput = Partial<VenueCreateInput> & { id: number };
 
 export type VenueStats = {
