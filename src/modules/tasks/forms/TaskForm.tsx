@@ -24,9 +24,12 @@ import { SubtaskList } from "../components/SubtaskList";
 import {
   TASK_CATEGORIES,
   TASK_PRIORITIES,
+  TASK_RECURRENCES,
+  TASK_RECURRENCE_LABEL,
   TASK_STATUSES,
   type Task,
   type TaskCreateInput,
+  type TaskRecurrence,
 } from "../types";
 import { createTask, updateTask } from "../api";
 import { listContacts } from "@/modules/crm/api";
@@ -54,6 +57,7 @@ const EMPTY: TaskCreateInput = {
   status: "A fazer",
   due_date: null,
   tags: [],
+  recurrence: null,
 };
 
 function taskToInput(t: Task): TaskCreateInput {
@@ -67,6 +71,7 @@ function taskToInput(t: Task): TaskCreateInput {
     status: t.status,
     due_date: t.due_date,
     tags: t.tags,
+    recurrence: t.recurrence,
   };
 }
 
@@ -236,6 +241,26 @@ export function TaskForm({
                 value={state.due_date ?? ""}
                 onChange={(e) => set("due_date", e.target.value || null)}
               />
+            </Field>
+            <Field label="Recorrência">
+              <Select
+                value={state.recurrence ?? "none"}
+                onValueChange={(v) =>
+                  set("recurrence", v === "none" ? null : (v as TaskRecurrence))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sem recorrência —</SelectItem>
+                  {TASK_RECURRENCES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {TASK_RECURRENCE_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="Vincular a uma GIG">
               <Select

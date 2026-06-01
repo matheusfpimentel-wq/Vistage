@@ -757,13 +757,13 @@ function FestasCard({ data }: { data: DashData }) {
 // ============================================================
 
 type TimelineItem = {
-  kind: "gig" | "task" | "content";
+  kind: "gig" | "task" | "content" | "party";
   label: string;
   to: string;
 };
 
 function WeekTimeline({ data }: { data: DashData }) {
-  const { gigs, weekTasks, content } = data;
+  const { gigs, weekTasks, content, parties } = data;
   const days = useMemo(() => nextNDays(7), []);
 
   const byDay = useMemo(() => {
@@ -785,8 +785,12 @@ function WeekTimeline({ data }: { data: DashData }) {
       if (c.status === "Publicado" || c.status === "Arquivado") continue;
       push(c.publish_date, { kind: "content", label: c.title, to: "/conteudo" });
     }
+    for (const p of parties) {
+      if (p.status === "Cancelada" || p.status === "Realizada") continue;
+      push(p.date, { kind: "party", label: p.title, to: "/festas" });
+    }
     return map;
-  }, [days, gigs, weekTasks, content]);
+  }, [days, gigs, weekTasks, content, parties]);
 
   const totalItems = days.reduce((s, d) => s + (byDay.get(d)?.length ?? 0), 0);
 
@@ -847,6 +851,7 @@ function WeekTimeline({ data }: { data: DashData }) {
           <LegendDot className="bg-primary/20" label="GIG" />
           <LegendDot className="bg-sky-500/20" label="Tarefa" />
           <LegendDot className="bg-emerald-500/20" label="Post" />
+          <LegendDot className="bg-pink-500/20" label="Festa" />
         </div>
       </CardContent>
     </Card>
@@ -857,6 +862,7 @@ const TIMELINE_STYLES: Record<TimelineItem["kind"], string> = {
   gig: "bg-primary/20 text-primary",
   task: "bg-sky-500/20 text-sky-700 dark:text-sky-300",
   content: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
+  party: "bg-pink-500/20 text-pink-700 dark:text-pink-300",
 };
 
 function LegendDot({ className, label }: { className: string; label: string }) {

@@ -20,6 +20,7 @@ import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
 import {
+  completeAndRecur,
   deleteTask,
   listTasks,
   updateTask,
@@ -102,9 +103,14 @@ export function TasksPage() {
   }
 
   async function handleToggleDone(task: Task) {
-    const next: TaskStatus =
-      task.status === "Concluída" ? "A fazer" : "Concluída";
-    await updateTask({ id: task.id, status: next });
+    if (task.status !== "Concluída" && task.recurrence) {
+      const newId = await completeAndRecur(task);
+      if (newId) toast.success("Concluída — próxima recorrência criada");
+    } else {
+      const next: TaskStatus =
+        task.status === "Concluída" ? "A fazer" : "Concluída";
+      await updateTask({ id: task.id, status: next });
+    }
     await refresh();
   }
 

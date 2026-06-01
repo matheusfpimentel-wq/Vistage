@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch M (Cross-pollination — conexões entre módulos).
+Última atualização: Batch N (Camada de produtividade — recorrência de tarefas + Revisão Semanal + festas na timeline).
 
 ---
 
@@ -64,7 +64,8 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Festas | `/festas` | **(Batch K)** Produção de eventos próprios. CRUD de festas com status (Planejando/Confirmada/Realizada/Cancelada). Tabs: Info (título, data, venue, capacidade, preços), Lineup (DJs escalados N:N com CRM + patrocinadores), Custos (inline), Notas. Auto-gera 4 tarefas ao confirmar festa. KPIs: próximas, realizadas, receita estimada. Views cards e lista. Integrado em busca Ctrl+K e backup/CSV |
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
 | Identidade Artística | `/identidade` | Nome, biografia, **paleta livre de cores**, redes sociais (14 opções), logo/isótipo/presskit, abas Flyers (auto das GIGs) e Templates |
-| Tarefas | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros chip (Hoje/Semana/Atrasadas) |
+| Tarefas | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros chip (Hoje/Semana/Atrasadas). **(Batch N)** Recorrência Semanal/Mensal — ao concluir, duplica tarefa com due_date deslocada |
+| Revisão Semanal | `/revisao` | **(Batch N)** KPIs da semana corrente (GIGs, tarefas, conteúdos, tracks), lista de foco (alta prioridade + vencendo em 7d), alertas de ação, 5 perguntas de reflexão |
 | Financeiro | `/financeiro` | 4 abas (Dashboard com Recharts/Transações/Recorrentes/Patrimônio), categorias customizáveis, auto-receita ao marcar GIG paga, patrimônio derivado de "Equipamentos" |
 | Configurações | `/configuracoes` | Path do banco, Google Calendar, **CSV por entidade + JSON completo**, atalhos customizáveis, dados de exemplo, ícone de Apple seguro |
 
@@ -137,6 +138,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v11 | `track_media_targets` — N:N tracks × contacts para lista de mídia alvo (role: Imprensa/Curador/Influencer) |
 | v12 | Festas: `parties`, `party_costs`; recria `v_insights` adicionando fonte `party` (notes) |
 | v13 | `gig_tracks` — set list N:N entre gigs e tracks |
+| v14 | `ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL` |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.

@@ -1,4 +1,4 @@
-import { CalendarClock, Pencil, Trash2 } from "lucide-react";
+import { CalendarClock, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "../components/PriorityBadge";
@@ -96,6 +96,12 @@ export function TaskListView({
                   </span>
                 )}
                 {t.category && <Badge variant="outline">{t.category}</Badge>}
+                {t.recurrence && (
+                  <span className="inline-flex items-center gap-0.5 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-sky-400">
+                    <RotateCcw className="h-2.5 w-2.5" />
+                    {t.recurrence === "weekly" ? "Semanal" : "Mensal"}
+                  </span>
+                )}
                 {t.tags.map((tag) => (
                   <Badge key={tag} variant="outline" className="opacity-70">
                     #{tag}

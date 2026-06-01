@@ -239,3 +239,44 @@ export async function listUpcoming(limit = 5): Promise<Task[]> {
   return rows.map(rowToTask);
 }
 
+
+// ============================================================
+// Tarefas recorrentes
+// ============================================================
+
+/**
+ * Marca a task como Concluída. Se tiver recurrence, cria automaticamente
+ * uma cópia com due_date adiantada (+7d weekly / +30d monthly).
+ * Retorna o id da nova task criada, ou null se não houve recorrência.
+ */
+export async function completeAndRecur(task: Task): Promise<number | null> {
+  await updateTask({ id: task.id, status: "Concluída" });
+  if (!task.recurrence) return null;
+
+  const days = task.recurrence === "weekly" ? 7 : 30;
+  const base = task.due_date ?? new Date().toISOString().slice(0, 10);
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  const newDue = d.toISOString().slice(0, 10);
+
+  const db = getDb();
+  const now = new Date().toISOString();
+  const res = await db.execute(
+    `INSERT INTO tasks (title, description, category, gig_id, contact_id, priority, status, due_date, tags, recurrence, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'A fazer', $7, $8, $9, $10, $11)`,
+    [
+      task.title,
+      task.description,
+      task.category,
+      task.gig_id,
+      task.contact_id,
+      task.priority,
+      newDue,
+      JSON.stringify(task.tags),
+      task.recurrence,
+      now,
+      now,
+    ]
+  );
+  return Number(res.lastInsertId);
+}

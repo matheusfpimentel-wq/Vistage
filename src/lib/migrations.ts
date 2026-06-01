@@ -735,6 +735,13 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 14,
+    description: "tasks.recurrence — suporte a tarefas recorrentes (weekly | monthly)",
+    sql: `
+      ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
