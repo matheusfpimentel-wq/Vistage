@@ -12,6 +12,7 @@ import {
 } from "@/lib/backup";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
+import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 
@@ -120,6 +121,8 @@ export function SettingsPage() {
       </Card>
 
       <GoogleCalendarSettings />
+
+      <GoogleDriveSettings />
 
       {canSeed && (
         <Card className="border-primary/30">

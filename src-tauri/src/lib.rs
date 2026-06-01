@@ -3,8 +3,10 @@
 // Aqui registramos os plugins e os comandos do módulo Google Calendar.
 
 mod gcal;
+mod gdrive;
 
 use gcal::GcalState;
+use gdrive::GdriveState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_sql::Builder::new().build())
         .manage(GcalState::default())
+        .manage(GdriveState::default())
         .invoke_handler(tauri::generate_handler![
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,
@@ -24,6 +27,15 @@ pub fn run() {
             gcal::gcal_update_event,
             gcal::gcal_delete_event,
             gcal::gcal_list_events,
+            gdrive::gdrive_start_oauth,
+            gdrive::gdrive_wait_callback,
+            gdrive::gdrive_exchange_code,
+            gdrive::gdrive_refresh_token,
+            gdrive::gdrive_ensure_folder,
+            gdrive::gdrive_upload_backup,
+            gdrive::gdrive_list_backups,
+            gdrive::gdrive_download_backup,
+            gdrive::gdrive_delete_backup,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");
