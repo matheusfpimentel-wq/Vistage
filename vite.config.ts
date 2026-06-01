@@ -12,6 +12,23 @@ export default defineConfig(async () => ({
     },
   },
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-router-dom"],
+          "date-vendor": ["date-fns"],
+          "ui-vendor": [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-tooltip",
+          ],
+        },
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

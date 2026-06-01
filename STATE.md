@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch O (Camada de produtividade — Energy & Focus Tracking, Modo Foco Profundo, Weekly Review aprimorado, OKRs, Decision Log, Highlights).
+Última atualização: Batch P (Limpeza, code splitting, documentação — README reescrito, vite.config.ts manualChunks, build limpo, tsc limpo).
 
 ---
 
@@ -22,7 +22,7 @@ desenvolvedor. Lê código vagamente. Pede mudanças de UX e features.
 - **Frontend**: React 18, Vite, TypeScript estrito, Tailwind, shadcn-style components
 - **Banco**: SQLite via `@tauri-apps/plugin-sql`, **path escolhido pelo usuário**
   (configurável, fica no HD externo). Migrations versionadas em
-  `src/lib/migrations.ts` (v1 → v10)
+  `src/lib/migrations.ts` (v1 → v18)
 - **Estado**: Zustand (theme, config)
 - **Charts**: Recharts (lazy-loaded só no /financeiro)
 - **OAuth Google Calendar**: PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`),

@@ -1,109 +1,63 @@
 # MusicGest
 
-Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador
-de conteúdo). Banco SQLite portátil em HD externo, app desktop nativo
-(Tauri 2) que roda em Mac e Windows. Todas as 7 fases funcionais
-implementadas.
+Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador de conteúdo). Banco SQLite portátil em HD externo, app desktop nativo (Tauri 2) que roda em Mac e Windows.
 
-## Funcionalidades
+---
 
-### Dashboard
-- KPIs: saldo do mês, total de GIGs, avaliação média, debriefs pendentes
-- Alerta destacado quando há GIGs com debrief pendente (linkado pro módulo)
-- Próximas 3 GIGs e tarefas vencendo nos próximos 7 dias
-- Atualização automática ao trocar entre módulos
+## Funcionalidades (visão geral)
 
-### Gestor de GIGs
-- CRUD completo com formulário em abas (Pré-evento · Logística/Financeiro)
-- 4 visualizações: Lista (filtros), Calendário (mês), Kanban (por status),
-  Insights (KPIs, top venues, evolução por mês)
-- Status: Proposta · Confirmada · A Caminho · Concluída · Cancelada
-- Vínculo com promoter do CRM
-- **Modal automático de Debrief** ao mudar status pra Concluída:
-  - 3 abas: Aprendizados · Avaliações · Outros
-  - Validação rigorosa: não fecha sem pontos fortes/fracos/aprendizados +
-    avaliações de carisma, técnica e repertório (0–5 com passo 0.5 + nota)
-  - Autosave de rascunho a cada 1.5s (não perde texto se fechar sem querer)
-  - Opção "salvar como pendente" pra terminar depois
-  - Tag "Debrief pendente" no dashboard e na lista
-- Sugestão automática de tarefas-padrão pra GIGs futuras (6 templates com
-  offsets em relação à data da GIG)
-- Auto-vínculo financeiro: marcar GIG como "Pago integralmente" cria
-  receita na categoria DJ vinculada (idempotente)
+| Módulo | Rota | Resumo |
+|---|---|---|
+| **Dashboard** | `/` | KPIs estratégicos, cards de domínio, timeline semanal integrada (GIGs + tarefas + posts + festas no mesmo eixo) |
+| **GIGs** | `/gigs` | CRUD + 4 views (lista/calendário/kanban/insights), debrief automático com avaliação, checklist de preparação, set list N:N com tracks |
+| **Venues** | `/venues` | CRUD, foto, KPIs por venue |
+| **CRM** | `/crm` | Contatos (pessoas), foto, histórico de interações, vínculo com GIGs/tarefas |
+| **Clube de fãs** | `/fas` | 3 níveis (Superfã/Fã/Possível), presença em GIGs |
+| **Produção Musical** | `/musica` | Stage-Gate 8 etapas + 4 gates decisórios, Stand-by, Flow Sessions, heatmap criativo, Roadmap 12 meses, Portfolio analytics, sub-blocos Marketing/Financeiro/Performance |
+| **Aulas** | `/aulas` | Alunos, pacotes com ementa, sessões com controle de saldo |
+| **Gestão de Conteúdo** | `/conteudo` | Pipeline editorial (lista/calendário/kanban), métricas manuais |
+| **Banco de Ideias** | `/ideias` | Captura rápida Ctrl+I, Brain Dump, 3 views, conversão pra Track ou Tarefa |
+| **Produção de Festas** | `/festas` | CRUD de festas, lineup N:N com CRM, custos inline, auto-tarefas ao confirmar, KPIs |
+| **Insights** | `/insights` | Pool unificada `v_insights` (GIGs + tracks + festas + ideias), busca full-text com highlight, exportar TXT |
+| **Revisão Semanal** | `/revisao` | KPIs da semana, checklist interativo persistido (6 itens), lista de foco, alertas, mini-OKRs, highlights |
+| **Energia & Foco** | `/foco` | Sessões de trabalho com cronômetro, heatmap energia×dia/hora, distribuição por atividade, highlights cumulativos |
+| **OKRs** | `/objetivos` | Objetivos trimestrais com key results — 5 fontes de auto-pull (GIGs, tracks, festas, conteúdos, receita) |
+| **Decision Log** | `/decisoes` | Registro de decisões com contexto/opções/raciocínio, revisão posterior com outcome + avaliação |
+| **Identidade Artística** | `/identidade` | Nome, bio, paleta livre de cores, redes sociais, logo/presskit, flyers das GIGs |
+| **Tarefas** | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros, recorrência semanal/mensal |
+| **Financeiro** | `/financeiro` | Dashboard Recharts, transações, recorrentes, patrimônio derivado de equipamentos |
+| **Configurações** | `/configuracoes` | Path do banco, Google Calendar, CSV por entidade + JSON completo, atalhos, seed |
 
-### CRM (Contatos)
-- 6 tipos pré-definidos (Cliente, Casa, Booker, Produtor, Colaborador,
-  Fornecedor) — multi-select
-- Tags livres adicionáveis em runtime
-- Avaliação interna em estrelas (1–5)
-- Painel de detalhe com estatísticas computadas (# GIGs, R$ já gerado,
-  última GIG) + abas com GIGs vinculadas e histórico de interações
-- Adicionar/remover interações datadas; `last_interaction_at` atualiza
-  automaticamente
-- Botão "Nova GIG com este contato" pré-preenche o GigForm
-
-### Tarefas
-- Categorias (GIG · Produção Musical · Conteúdo · Administrativo · Pessoal)
-- Prioridade (Baixa/Média/Alta/Urgente), status, vencimento
-- Vínculo opcional com GIG ou contato
-- Subtarefas com checklist (checkbox + rename inline)
-- Filtros chip: Todas · Hoje · Esta semana · Atrasadas · Sem data
-- Tarefas atrasadas destacadas em vermelho
-- Lista e Kanban
-- **Sugestão automática ao criar GIG futura**: 6 templates com offsets
-  (dados bancários −7d, setlist −5d, confirmar contato −3d, equipamento
-  −1d, agradecimento +1d, mídia +2d)
-
-### Financeiro
-- CRUD de entradas e saídas com status (Previsto/Pago), forma de pagamento,
-  tipo Fixa/Variável, marcador "imposto", vínculo opcional com GIG ou contato
-- **Categorias customizáveis** (20 padrão pré-cadastradas) com gerenciador
-  que renomeia/exclui (aviso quando em uso); "+ Nova categoria" inline no
-  select também
-- Dashboard com Recharts: KPIs mês/ano, gráfico de barras receitas vs
-  despesas 12 meses, pizzas por categoria, top 5 GIGs mais lucrativas,
-  projeção 30 dias, despesas fixas mensais
-- **Patrimônio** auto-derivado das despesas com categoria "Equipamentos"
-  (Em uso/Vendido/Quebrado/Estoque)
-- **Recorrentes**: modelos mensais + botão "Gerar do mês" (idempotente)
-
-### Google Calendar (Fase 6)
-- OAuth 2.0 com PKCE via servidor loopback temporário no Rust
-- Sincronização bidirecional manual
-- Auto-push ao salvar/editar GIG, auto-delete ao excluir
-- Eventos novos do calendário viram GIGs em "Proposta" no pull
-- Refresh token automático
-- Setup guiado com passo a passo do Google Cloud Console (ver mais abaixo)
-
-### Polimento (Fase 7)
-- **Busca global Ctrl/Cmd + K**: pesquisa em paralelo em GIGs, contatos,
-  tarefas e financeiro; resultados agrupados; setas + Enter pra navegar
-- **Atalho Ctrl/Cmd + N**: cria item novo no módulo ativo
-- **Backup completo**: export JSON com todas as 12 tabelas; import com
-  confirmação dupla e transação atômica
+---
 
 ## Stack
 
-- **Desktop:** Tauri 2 (Rust, ~10MB binário)
-- **Frontend:** React 18, Vite, TypeScript, Tailwind, shadcn-style primitives
-- **Charts:** Recharts (lazy-loaded — só carrega no módulo Financeiro)
-- **Banco:** SQLite via `@tauri-apps/plugin-sql`
-- **Estado:** Zustand
-- **Datas:** date-fns + locale ptBR
-- **Toasts:** sonner
-- **OAuth:** PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`)
+| Camada | Tecnologia |
+|---|---|
+| Desktop | Tauri 2 (Rust, ~10 MB binário) |
+| Frontend | React 18 + Vite + TypeScript strict + Tailwind |
+| Componentes | shadcn/ui style (Radix primitives) |
+| Charts | Recharts (lazy-loaded — só no módulo Financeiro) |
+| Banco | SQLite via `@tauri-apps/plugin-sql` |
+| Estado | Zustand |
+| Datas | date-fns + locale ptBR |
+| OAuth | PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`) |
+
+---
 
 ## Pré-requisitos
 
 1. **Node.js** 18+ (recomendo 20+)
-2. **Rust** estável (<https://rustup.rs>)
+2. **Rust** estável — <https://rustup.rs>
 3. Toolchain nativo do OS:
-   - **macOS:** Xcode CLI (`xcode-select --install`)
+   - **macOS:** `xcode-select --install`
    - **Windows:** Microsoft C++ Build Tools + WebView2 (já vem no Win 11)
 
 ```bash
 npm install
 ```
+
+---
 
 ## Desenvolvimento
 
@@ -111,163 +65,214 @@ npm install
 npm run tauri:dev
 ```
 
-Na primeira execução, a tela de Setup pede para você escolher uma pasta no HD
-externo (ex: `/Volumes/HD/musicgest` no Mac, `E:\musicgest` no Windows).
-O app cria `musicgest.db`, `uploads/` e `musicgest.config.json` lá.
+Na primeira execução a tela de Setup pede uma pasta no HD externo (ex: `/Volumes/HD/musicgest` no Mac ou `E:\musicgest` no Windows). O app cria `musicgest.db`, `uploads/` e `musicgest.config.json` lá.
 
-Depois, em **Configurações** vai aparecer um botão **"Popular com exemplos"**
-oferecendo dados de exemplo (4 GIGs em estados diferentes, contatos, tarefas
-e transações) — útil pra você ver o sistema funcionando rápido.
+Em **Configurações → Popular com exemplos** você gera dados de demo (GIGs, contatos, tarefas, transações) para ver o sistema funcionando rápido.
+
+---
 
 ## Build dos instaladores
 
-### Opção A (recomendada): GitHub Actions builda pra você
+### Opção A (recomendada): GitHub Actions
 
-A cada push, `.github/workflows/build.yml` builda Mac e Windows nos servidores
-do GitHub. Para baixar:
+A cada push, `.github/workflows/build.yml` builda Mac e Windows. Para baixar:
 
 1. Abra <https://github.com/matheusfpimentel-wq/GM-/actions>
 2. Clique no workflow mais recente (verde)
-3. Role até **Artifacts** e baixe `musicgest-macos-latest` (`.dmg`) e/ou
-   `musicgest-windows-latest` (`.msi` e `.exe`)
+3. Baixe `musicgest-macos-latest` (`.dmg`) e/ou `musicgest-windows-latest` (`.msi`/`.exe`) em **Artifacts**
 
-### Opção B: buildar localmente
+### Opção B: local
 
 ```bash
 npm run tauri:build
 ```
 
-Saída em `src-tauri/target/release/bundle/`. Tauri **não faz cross-compile**:
-só gera `.app` rodando em Mac, só gera `.exe` rodando em Windows.
+Saída em `src-tauri/target/release/bundle/`. Tauri não faz cross-compile: Mac produz `.app`, Windows produz `.exe`.
 
-> **Sobre assinatura:** o binário recebe uma assinatura ad-hoc no build
-> (suficiente pra abrir em Apple Silicon sem o erro "danificado"), mas
-> não é assinado com certificado pago. Mac vai pedir clique direito →
-> Abrir na primeira vez; Windows vai mostrar SmartScreen "Mais
-> informações → Executar mesmo assim". Pra distribuir publicamente sem
-> esses avisos, considere certificados (Apple Developer $99/ano,
-> Windows EV ~$400/ano).
+> **Assinatura ad-hoc:** o binário macOS recebe assinatura ad-hoc automática (abre sem o erro "danificado" em Apple Silicon). Não é certificado pago — na primeira abertura o Mac pede clique direito → Abrir; Windows mostra SmartScreen → "Mais informações → Executar mesmo assim".
 
-> **Já baixou um .dmg do build antigo e diz "danificado"?** É o
-> Gatekeeper barrando porque o build não tinha assinatura ad-hoc.
-> Conserto rápido no Terminal (mude o caminho se instalou em outro lugar):
->
+> **Se um `.dmg` antigo disser "danificado":**
 > ```bash
 > sudo xattr -rd com.apple.quarantine /Applications/MusicGest.app
 > ```
->
-> Depois clica com botão direito → Abrir. Builds gerados após este
-> commit (workflow atualizado) já saem com ad-hoc signing e não vão
-> mais mostrar esse erro.
 
-### Ícones
-
-Já tem um ícone placeholder (nota musical em fundo roxo). Pra trocar:
-
-```bash
-npm run tauri icon scripts/musicgest-icon.png
-```
+---
 
 ## Portabilidade no HD externo
 
 ```
 /Volumes/HD/musicgest/
-├── musicgest.db              # banco SQLite
-├── musicgest.config.json     # caminho do db + uploads + meta
-└── uploads/                  # anexos (vazia por enquanto)
+├── musicgest.db              # banco SQLite (todo o histórico)
+├── musicgest.config.json     # aponta para o db + uploads
+└── uploads/                  # anexos (fotos, documentos)
 ```
 
-Plugue o HD em qualquer máquina, abra o executável correspondente
-(`.app` no Mac, `.exe` no Windows), e o app encontra os dados sozinho via
-último `musicgest.config.json` carregado. Se for HD novo numa máquina nova,
-use "Abrir banco existente" no setup e aponte para o `musicgest.config.json`.
+Plugue o HD em qualquer Mac ou Windows com o executável correspondente e o app encontra os dados automaticamente. Para HD novo em máquina nova: "Abrir banco existente" no setup, aponte para `musicgest.config.json`.
+
+---
 
 ## Integração com Google Calendar
 
-A app sincroniza suas GIGs com um calendário do Google. Para configurar:
+Sincroniza GIGs com um calendário Google (opcional).
 
-1. Acesse o **Google Cloud Console**:
-   <https://console.cloud.google.com/apis/credentials>
-2. Crie um projeto novo (ou use um existente).
-3. Em **APIs &amp; Services → Library**, ative a **Google Calendar API**.
-4. Em **APIs &amp; Services → OAuth consent screen**:
-   - Tipo de usuário: **External**
-   - Preencha nome do app, e-mail de contato, e adicione o seu próprio
-     e-mail como **Test user** (enquanto o projeto está em modo Testing,
-     só Test users podem autorizar)
-5. Em **APIs &amp; Services → Credentials → Create credentials → OAuth client ID**:
-   - Tipo: **Desktop app**
-   - Copie o **Client ID** e o **Client secret** que aparecem
-6. No MusicGest → **Configurações** → cole esses dois valores no card
-   "Google Calendar", clique em **Salvar credenciais** e depois em
-   **Conectar Google Calendar**.
-7. Uma janela do navegador abre — autorize o acesso. O app recebe
-   o callback automaticamente em `127.0.0.1:<porta-aleatória>`.
-8. Escolha qual calendário receberá as GIGs (recomendado criar um
-   calendário dedicado tipo "GIGs" no Google Calendar antes).
-9. Use **Sincronizar agora** para fazer um sync manual. A partir daí,
-   toda criação/edição de GIG empurra automaticamente o evento.
+1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → crie um projeto
+2. **APIs & Services → Library** → ative **Google Calendar API**
+3. **OAuth consent screen** → External, adicione seu e-mail como Test User
+4. **Credentials → Create → OAuth client ID** → tipo **Desktop app** → copie Client ID e Client secret
+5. No MusicGest → **Configurações** → cole os valores → **Salvar → Conectar**
+6. Autorize no navegador que abrir
+7. Escolha o calendário de destino → **Sincronizar agora**
 
-> Os tokens ficam salvos só no `musicgest.db` no seu HD — nada vai pra
-> servidor nenhum nosso. O `Client secret` de Desktop app não é realmente
-> secreto (modelo do Google pra apps instalados).
+A partir daí, toda criação/edição de GIG empurra automaticamente o evento. Tokens ficam só no `musicgest.db` local.
+
+---
+
+## Atalhos de teclado
+
+| Atalho | Ação |
+|---|---|
+| `Ctrl/Cmd + K` | Busca global (GIGs, contatos, tarefas, tracks, festas, decisões…) |
+| `Ctrl/Cmd + N` | Novo item no módulo ativo |
+| `Ctrl + I` | Captura rápida de ideia |
+| `Ctrl + Shift + F` | Modo Foco Profundo (oculta sidebar) |
+
+Todos os atalhos são customizáveis em **Configurações → Atalhos**.
+
+---
+
+## Decision Log
+
+Registre decisões importantes enquanto toma (contexto + opções consideradas + raciocínio). Meses depois, volte e preencha o **outcome** e a **avaliação** (Acertou / Errou / Inconclusivo). A Revisão Semanal alerta quando há decisions com outcome mas sem avaliação.
+
+Base empírica: Kahneman — explicitar critérios e revisitar reduz vieses sistemáticos.
+
+---
+
+## OKRs
+
+Objetivos trimestrais (ex: `2026-Q3`) com Key Results mensuráveis. Cada KR pode ter `metric_source` automático:
+
+| Fonte | O que puxa |
+|---|---|
+| `gigs_completed` | GIGs concluídas no trimestre |
+| `tracks_released` | Tracks em Lançamento/Pós-lançamento |
+| `parties_executed` | Festas com status Realizada |
+| `content_published` | Conteúdos publicados |
+| `finance_revenue` | Receita total (R$) |
+| `manual` | Você atualiza manualmente |
+
+Base: Andy Grove (Intel) / John Doerr, *Measure What Matters*. 3–5 objetivos por trimestre, 2–4 KRs cada.
+
+---
+
+## Energia & Foco
+
+Widget no header para registrar sessões de trabalho com tipo de atividade. Ao encerrar, avalie energia (1–5) e foco (1–5). Após algumas semanas, `/foco` mostra:
+
+- **Heatmap** de energia média por dia da semana × horário
+- **Distribuição** de tempo por tipo de atividade
+- **Highlights cumulativos** — momentos marcantes da carreira
+
+Base: Schwartz & McCarthy, *Manage Your Energy, Not Your Time* (HBR 2007).
+
+---
+
+## Revisão Semanal
+
+Checklist interativo com 6 itens, estado persistido por semana:
+
+1. Banco de Ideias revisado
+2. Tarefas da semana revisadas
+3. OKRs em dia
+4. Financeiro conferido
+5. Decision Log atualizado
+6. Insights consolidados
+
+Cada item linka direto para o módulo correspondente. Toast de conclusão ao marcar tudo.
+
+---
+
+## Backup e exportação
+
+- **JSON completo** (`Configurações → Exportar backup`): snapshot de todas as tabelas, importável com transação atômica
+- **CSV por entidade**: cada tabela individualmente, modo append (preserva IDs) ou replace
+- Anexos físicos (`uploads/`) **não entram** no JSON — copie a pasta manualmente junto com o `.db`
+
+---
 
 ## Estrutura do código
 
 ```
-GM-/
-├── src/
-│   ├── App.tsx               # roteador + atalhos globais + suspense
-│   ├── main.tsx
-│   ├── index.css
-│   ├── lib/
-│   │   ├── db.ts             # carga do SQLite
-│   │   ├── migrations.ts     # schema completo (12 tabelas)
-│   │   ├── config.ts         # caminho do HD
-│   │   ├── theme.ts          # light/dark
-│   │   ├── format.ts         # datas, moeda, ratings em pt-BR
-│   │   ├── gcal.ts           # wrapper TS dos commands Rust
-│   │   ├── backup.ts         # export/import JSON
-│   │   ├── search.ts         # busca global
-│   │   ├── seed.ts           # dados de exemplo
-│   │   ├── shortcuts.ts      # event bus Ctrl+N
-│   │   └── utils.ts
-│   ├── components/
-│   │   ├── ui/               # primitivos (Button, Card, Dialog, ...)
-│   │   ├── shared/           # ThemeToggle, CommandPalette
-│   │   └── layout/           # Sidebar, AppLayout
-│   ├── pages/
-│   │   └── Setup.tsx
-│   └── modules/              # cada módulo isolado
-│       ├── dashboard/
-│       ├── gigs/             # tipos, api, forms, views, components
-│       ├── crm/
-│       ├── tasks/
-│       ├── finance/
-│       └── settings/         # config, Google Calendar, backup, seed
-├── src-tauri/
-│   ├── Cargo.toml
-│   ├── tauri.conf.json
-│   ├── capabilities/default.json
-│   └── src/
-│       ├── main.rs
-│       ├── lib.rs            # registra plugins + commands
-│       ├── gcal.rs           # OAuth + Calendar API
-│       └── oauth_success.html
-├── .github/workflows/build.yml
-├── scripts/
-│   ├── make_icon.py
-│   └── musicgest-icon.png
-└── package.json
+src/
+├── App.tsx                    # roteador lazy + suspense + atalhos globais
+├── lib/
+│   ├── db.ts                  # carga do SQLite + singleton getDb()
+│   ├── migrations.ts          # 18 migrations versionadas (v1→v18)
+│   ├── backup.ts              # JSON export/import
+│   ├── csv.ts                 # CSV por entidade
+│   ├── search.ts              # busca global (12 tipos de entidade)
+│   ├── format.ts              # datas, moeda, ratings (pt-BR)
+│   ├── config.ts              # caminho do HD externo
+│   ├── gcal.ts                # wrapper TS dos commands Rust (Google Calendar)
+│   └── shortcuts.ts           # event bus Ctrl+N
+├── components/
+│   ├── ui/                    # primitivos (Button, Card, Dialog, Badge…)
+│   ├── shared/                # ThemeToggle, CommandPalette
+│   └── layout/                # Sidebar, AppLayout (+ WorkSessionWidget)
+└── modules/
+    ├── dashboard/             # DashboardPage
+    ├── gigs/                  # GigsPage + forms + views + components
+    ├── venues/
+    ├── crm/
+    ├── fans/
+    ├── music/                 # MusicPage — Stage-Gate, Flow Sessions
+    ├── classes/
+    ├── content/
+    ├── ideas/
+    ├── parties/               # PartiesPage — produção de festas
+    ├── insights/              # InsightsPage — v_insights VIEW
+    ├── revisao/               # RevisaoPage — weekly review
+    ├── foco/                  # FocoPage + WorkSessionWidget
+    ├── objetivos/             # ObjetivosPage — OKRs
+    ├── decisoes/              # DecisoesPage — Decision Log
+    ├── identity/
+    ├── tasks/
+    ├── finance/               # FinancePage — único chunk com Recharts
+    └── settings/
+
+src-tauri/
+├── Cargo.toml
+├── tauri.conf.json
+├── capabilities/default.json
+└── src/
+    ├── main.rs
+    ├── lib.rs                 # plugins + commands Tauri
+    ├── gcal.rs                # OAuth PKCE + Calendar API
+    └── oauth_success.html
 ```
 
-## Próximos passos possíveis (futuro)
+---
 
-Coisas que não foram entregues nas 7 fases mas que valeria no futuro:
+## Schema do banco (v18)
 
-- Upload de roteiros, banners e comprovantes (preparado no schema, falta UI)
-- Sync periódico automático com Google Calendar em background
-- Resolução interativa de conflitos (diff side-by-side)
-- Meta mensal de receita com indicador visual
-- Export de relatório financeiro em CSV pro contador
-- Análise agregada de aprendizados (NLP simples nos campos do debrief)
+18 migrations versionadas, sempre aditivas, nunca destrutivas.
+
+Tabelas principais: `contacts`, `venues`, `gigs`, `gig_debrief_drafts`, `tasks`, `subtasks`, `content`, `ideas`, `students`, `class_packages`, `student_packages`, `classes`, `artist_identity`, `artist_templates`, `parties`, `party_costs`, `music_projects`, `tracks`, `track_collaborators`, `track_flow_sessions`, `track_media_targets`, `music_project_costs`, `track_performance_snapshots`, `gig_tracks`, `finance_categories`, `finance_transactions`, `finance_recurring`, `equipment`, `work_sessions`, `highlights`, `okrs`, `decisions`, `app_settings`, `gcal_auth`
+
+Views: `v_insights` (pool unificada de aprendizados de GIGs + tracks + festas + ideias)
+
+---
+
+## Princípios de design
+
+O sistema aplica referenciais com base empírica, não modismos de produtividade:
+
+- **Stage-Gate** (Cooper, 1986) — pipeline de inovação com gates decisórios objetivos
+- **Constraint-based Creativity** (Stokes) — restrições explícitas aumentam produção criativa
+- **Flow Theory** (Csikszentmihalyi) — equilíbrio desafio × habilidade
+- **After-Action Review** (US Army) — debrief estruturado pós-evento
+- **Energy Management** (Schwartz & McCarthy, HBR 2007) — gerenciar energia, não só tempo
+- **Progress Principle** (Teresa Amabile, HBS) — visualizar progresso prediz motivação criativa
+- **OKRs** (Andy Grove / John Doerr) — objetivos com key results mensuráveis
+- **Decision Log** (Kahneman) — explicitar critérios de decisão reduz vieses sistemáticos
+- **Lei de Goodhart** — métricas são bússolas, não termômetros
