@@ -53,10 +53,11 @@ export function VenueMap({ venues, onOpenDetail, onRefresh }: Props) {
       const marker = L.marker([v.lat!, v.lng!])
         .addTo(leafletMap.current!)
         .bindPopup(buildPopup(v));
-      marker.on("popupopen", () => {
+      const handlePopupOpen = () => {
         const btn = document.getElementById(`venue-detail-${v.id}`);
-        btn?.addEventListener("click", () => onOpenDetail(v));
-      });
+        if (btn) btn.onclick = () => onOpenDetail(v);
+      };
+      marker.on("popupopen", handlePopupOpen);
       markersRef.current.push(marker);
     }
 

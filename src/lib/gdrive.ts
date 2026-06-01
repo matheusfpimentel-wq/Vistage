@@ -131,22 +131,26 @@ async function saveTokens(tokens: DriveTokens): Promise<void> {
 // Token management
 // ============================================================
 
-async function ensureValidToken(): Promise<string> {
+async function ensureValidToken(): Promise<{ accessToken: string; auth: DriveAuth }> {
   const auth = await loadAuth();
   if (!auth) throw new Error("Google Drive não conectado");
 
   const expiry = new Date(auth.tokenExpiry);
-  if (expiry > new Date()) return auth.accessToken;
+  if (expiry > new Date()) return { accessToken: auth.accessToken, auth };
 
   // Token expirado — refreshar
   const cfg = await loadDriveConfig();
+  if (!cfg.clientId || !cfg.clientSecret) {
+    throw new Error("Credenciais do Google Drive ausentes. Reconecte nas configurações.");
+  }
   const tokens: DriveTokens = await invoke("gdrive_refresh_token", {
     clientId: cfg.clientId,
     clientSecret: cfg.clientSecret,
     refreshToken: auth.refreshToken,
   });
   await saveTokens(tokens);
-  return tokens.access_token;
+  const refreshedAuth = await loadAuth();
+  return { accessToken: tokens.access_token, auth: refreshedAuth! };
 }
 
 // ============================================================
@@ -209,9 +213,8 @@ export async function disconnect(): Promise<void> {
 // ============================================================
 
 export async function uploadBackup(): Promise<DriveFile> {
-  const accessToken = await ensureValidToken();
-  const auth = await loadAuth();
-  if (!auth?.folderId) throw new Error("Pasta de backup não configurada. Reconecte o Drive.");
+  const { accessToken, auth } = await ensureValidToken();
+  if (!auth.folderId) throw new Error("Pasta de backup não configurada. Reconecte o Drive.");
 
   const backup = await buildBackup();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
@@ -230,9 +233,8 @@ export async function uploadBackup(): Promise<DriveFile> {
 }
 
 export async function listBackups(): Promise<DriveFile[]> {
-  const accessToken = await ensureValidToken();
-  const auth = await loadAuth();
-  if (!auth?.folderId) return [];
+  const { accessToken, auth } = await ensureValidToken();
+  if (!auth.folderId) return [];
   return invoke("gdrive_list_backups", {
     accessToken,
     folderId: auth.folderId,
@@ -240,7 +242,7 @@ export async function listBackups(): Promise<DriveFile[]> {
 }
 
 export async function downloadAndRestoreBackup(fileId: string): Promise<{ restoredRows: number; restoredTables: number }> {
-  const accessToken = await ensureValidToken();
+  const { accessToken } = await ensureValidToken();
   const raw: string = await invoke("gdrive_download_backup", {
     accessToken,
     fileId,
@@ -250,7 +252,7 @@ export async function downloadAndRestoreBackup(fileId: string): Promise<{ restor
 }
 
 export async function deleteBackupFile(fileId: string): Promise<void> {
-  const accessToken = await ensureValidToken();
+  const { accessToken } = await ensureValidToken();
   await invoke("gdrive_delete_backup", { accessToken, fileId });
 }
 

@@ -833,9 +833,8 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
 
   for (const m of MIGRATIONS) {
     if (already.has(m.version)) continue;
-    // execute() roda só uma statement em alguns drivers; split em ; é suficiente aqui.
     const statements = m.sql
-      .split(/;\s*(?=\n)/)
+      .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     for (const stmt of statements) {
