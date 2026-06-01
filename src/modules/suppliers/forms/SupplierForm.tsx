@@ -27,7 +27,7 @@ import {
   updateSupplier,
 } from "../api";
 import { SUPPLIER_CATEGORIES } from "../types";
-import type { Supplier, SupplierService } from "../types";
+import type { Supplier } from "../types";
 
 type ServiceRow = {
   id?: number;
