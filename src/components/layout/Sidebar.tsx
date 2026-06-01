@@ -89,16 +89,23 @@ function applyOrder(items: NavItem[], order: string[]): NavItem[] {
   const reorderable = order
     .map((to) => map.get(to))
     .filter((i): i is NavItem => !!i && !i.fixed);
-  const missing = items.filter(
-    (i) => !i.fixed && !order.includes(i.to)
-  );
+  const missing = items.filter((i) => !i.fixed && !order.includes(i.to));
   return [...fixed_head, ...reorderable, ...missing, ...fixed_tail];
 }
 
+const ITEM_HEIGHT = 36; // approximate height of each nav item in px
+
 export function Sidebar() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
-  const dragKey = useRef<string | null>(null);
-  const dragOverKey = useRef<string | null>(null);
+  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
+  // pointer drag state
+  const dragState = useRef<{
+    startY: number;
+    currentY: number;
+    idx: number;
+  } | null>(null);
 
   useEffect(() => {
     loadOrder().then((order) => {
@@ -111,36 +118,63 @@ export function Sidebar() {
     void saveOrder(order);
   }, []);
 
-  function onDragStart(to: string) {
-    dragKey.current = to;
+  function reorderableIdx(navIdx: number, items: NavItem[]): number {
+    return items.filter((i) => !i.fixed).findIndex(
+      (_, ri) => items.indexOf(items.filter((i2) => !i2.fixed)[ri]) === navIdx
+    );
   }
 
-  function onDragOver(e: React.DragEvent, to: string) {
+  function onGripPointerDown(e: React.PointerEvent, navIdx: number) {
     e.preventDefault();
-    dragOverKey.current = to;
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    dragState.current = { startY: e.clientY, currentY: e.clientY, idx: navIdx };
+    setDraggingIdx(navIdx);
+    setOverIdx(navIdx);
   }
 
-  function onDrop() {
-    const from = dragKey.current;
-    const to = dragOverKey.current;
-    dragKey.current = null;
-    dragOverKey.current = null;
-    if (!from || !to || from === to) return;
+  function onGripPointerMove(e: React.PointerEvent) {
+    if (!dragState.current) return;
+    dragState.current.currentY = e.clientY;
+    const dy = e.clientY - dragState.current.startY;
+    const steps = Math.round(dy / ITEM_HEIGHT);
+    const srcNavIdx = dragState.current.idx;
 
     setNav((prev) => {
       const reorderable = prev.filter((i) => !i.fixed);
-      const fromIdx = reorderable.findIndex((i) => i.to === from);
-      const toIdx = reorderable.findIndex((i) => i.to === to);
-      if (fromIdx < 0 || toIdx < 0) return prev;
+      const srcReIdx = reorderableIdx(srcNavIdx, prev);
+      if (srcReIdx < 0) return prev;
+      const targetReIdx = Math.max(0, Math.min(reorderable.length - 1, srcReIdx + steps));
+      const targetNavIdx = prev.indexOf(reorderable[targetReIdx]);
+      setOverIdx(targetNavIdx);
+      return prev;
+    });
+  }
+
+  function onGripPointerUp(e: React.PointerEvent) {
+    if (!dragState.current) return;
+    const dy = e.clientY - dragState.current.startY;
+    const steps = Math.round(dy / ITEM_HEIGHT);
+    const srcNavIdx = dragState.current.idx;
+    dragState.current = null;
+
+    setNav((prev) => {
+      const reorderable = prev.filter((i) => !i.fixed);
+      const srcReIdx = reorderableIdx(srcNavIdx, prev);
+      if (srcReIdx < 0) return prev;
+      const targetReIdx = Math.max(0, Math.min(reorderable.length - 1, srcReIdx + steps));
+      if (srcReIdx === targetReIdx) return prev;
       const next = [...reorderable];
-      const [moved] = next.splice(fromIdx, 1);
-      next.splice(toIdx, 0, moved);
+      const [moved] = next.splice(srcReIdx, 1);
+      next.splice(targetReIdx, 0, moved);
       const fixed_head = prev.filter((i) => i.fixed && i.to === "/");
       const fixed_tail = prev.filter((i) => i.fixed && i.to !== "/");
       const result = [...fixed_head, ...next, ...fixed_tail];
       persistOrder(result);
       return result;
     });
+
+    setDraggingIdx(null);
+    setOverIdx(null);
   }
 
   return (
@@ -159,36 +193,44 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto space-y-0.5 p-3">
-        {nav.map(({ to, label, icon: Icon, end, fixed }) => (
-          <div
-            key={to}
-            draggable={!fixed}
-            onDragStart={() => onDragStart(to)}
-            onDragOver={(e) => onDragOver(e, to)}
-            onDrop={onDrop}
-            className="group/row flex items-center"
-          >
-            <NavLink
-              draggable={false}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                cn(
-                  "flex flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-                )
-              }
+        {nav.map(({ to, label, icon: Icon, end, fixed }, idx) => {
+          const isDragging = draggingIdx === idx;
+          const isOver = overIdx === idx && draggingIdx !== null && draggingIdx !== idx;
+          return (
+            <div
+              key={to}
+              className={cn(
+                "group/row flex items-center rounded-md transition-all",
+                isDragging && "opacity-50 scale-95",
+                isOver && "border-t-2 border-primary"
+              )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </NavLink>
-            {!fixed && (
-              <GripVertical className="mr-1 h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/30 opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing" />
-            )}
-          </div>
-        ))}
+              <NavLink
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
+                    isActive
+                      ? "bg-accent text-accent-foreground font-medium"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                  )
+                }
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {label}
+              </NavLink>
+              {!fixed && (
+                <GripVertical
+                  className="mr-1 h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/30 opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
+                  onPointerDown={(e) => onGripPointerDown(e, idx)}
+                  onPointerMove={(e) => draggingIdx !== null && onGripPointerMove(e)}
+                  onPointerUp={(e) => onGripPointerUp(e)}
+                />
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="border-t p-4 text-xs text-muted-foreground">
