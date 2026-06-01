@@ -22,6 +22,7 @@ import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
+import { PartyDetail } from "./PartyDetail";
 
 type StatusFilter = PartyStatus | "Todas";
 
@@ -36,6 +37,9 @@ export function PartiesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PartyDeserialized | null>(null);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailParty, setDetailParty] = useState<PartyDeserialized | null>(null);
 
   const refresh = useCallback(async () => {
     const rows = await listParties();
@@ -54,15 +58,21 @@ export function PartiesPage() {
 
   useNewItemShortcut(openCreate);
 
+  function openDetail(p: PartyDeserialized) {
+    setDetailParty(p);
+    setDetailOpen(true);
+  }
+
   function openEdit(p: PartyDeserialized) {
+    setDetailOpen(false);
     setEditing(p);
     setFormOpen(true);
   }
 
   async function handleDelete(p: PartyDeserialized) {
-    if (!window.confirm(`Excluir a festa "${p.title}"?`)) return;
+    if (!window.confirm(`Excluir a produção "${p.title}"?`)) return;
     await deleteParty(p.id);
-    toast.success("Festa excluída");
+    toast.success("Produção excluída");
     await refresh();
   }
 
@@ -92,13 +102,13 @@ export function PartiesPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Festas</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Produção de Festas</h2>
           <p className="text-sm text-muted-foreground">
             Produção e gestão de eventos próprios.
           </p>
         </div>
         <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova festa
+          <Plus className="h-4 w-4" /> Nova produção
         </Button>
       </div>
 
@@ -143,7 +153,7 @@ export function PartiesPage() {
       ) : parties.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <PartyPopper className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhuma festa cadastrada. Clique em "Nova festa" para começar.
+          Nenhuma produção cadastrada. Clique em "Nova produção" para começar.
         </div>
       ) : (
         <Tabs defaultValue="cards">
@@ -152,12 +162,12 @@ export function PartiesPage() {
             <TabsTrigger value="lista">Lista</TabsTrigger>
           </TabsList>
           <TabsContent value="cards" className="pt-2">
-            <PartyCards parties={filtered} onEdit={openEdit} />
+            <PartyCards parties={filtered} onEdit={openDetail} />
           </TabsContent>
           <TabsContent value="lista" className="pt-2">
             <PartyList
               parties={filtered}
-              onEdit={openEdit}
+              onEdit={openDetail}
               onDelete={handleDelete}
             />
           </TabsContent>
@@ -170,6 +180,16 @@ export function PartiesPage() {
         party={editing}
         onSaved={() => void refresh()}
       />
+
+      {detailParty && (
+        <PartyDetail
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          party={detailParty}
+          onEdit={() => openEdit(detailParty)}
+          onRefresh={() => void refresh()}
+        />
+      )}
     </div>
   );
 }
