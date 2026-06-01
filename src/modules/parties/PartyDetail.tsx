@@ -1005,22 +1005,37 @@ function TarefasTab({
 
   return (
     <div className="space-y-4">
-      {byStage.map(({ stage, tasks: stageTasks }) => (
-        <div key={stage.id}>
-          <div className="mb-1 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            {stage.name}
-          </div>
-          {stageTasks.length === 0 ? (
-            <p className="text-xs text-muted-foreground pl-2">Sem tarefas nesta etapa.</p>
-          ) : (
-            <div className="space-y-1">
-              {stageTasks.map((task) => (
-                <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete} />
-              ))}
+      {byStage.map(({ stage, tasks: stageTasks }) => {
+        const done = stageTasks.filter((t) => t.status === "concluida").length;
+        const total = stageTasks.length;
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        return (
+          <div key={stage.id}>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                {stage.name}{total > 0 ? ` — ${done}/${total}` : ""}
+              </span>
             </div>
-          )}
-        </div>
-      ))}
+            {total > 0 && (
+              <div className="mb-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            )}
+            {stageTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground pl-2">Sem tarefas nesta etapa.</p>
+            ) : (
+              <div className="space-y-1">
+                {stageTasks.map((task) => (
+                  <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {noStage.length > 0 && (
         <div>
@@ -1065,12 +1080,14 @@ function TarefasTab({
         </Button>
       </div>
 
-      <div className="flex justify-end">
-        <Button size="sm" variant="ghost" onClick={() => void handleGenerateDefaults()} disabled={generating}>
-          {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Gerar tarefas padrão
-        </Button>
-      </div>
+      {tasks.length === 0 && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => void handleGenerateDefaults()} disabled={generating}>
+            {generating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Gerar checklist padrão
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1090,17 +1107,25 @@ function TaskRow({
         type="button"
         onClick={() => void onToggle(task)}
         className={cn(
-          "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition",
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors",
           task.status === "concluida"
             ? "border-emerald-500 bg-emerald-500 text-white"
             : task.status === "em_andamento"
-            ? "border-amber-500 bg-amber-500/20"
-            : "border-input"
+            ? "border-amber-500 bg-amber-500/30"
+            : "border-input bg-background"
         )}
-        title={`Status: ${task.status}`}
+        title={
+          task.status === "pendente"
+            ? "Iniciar tarefa"
+            : task.status === "em_andamento"
+            ? "Concluir tarefa"
+            : "Reabrir tarefa"
+        }
       >
-        {task.status === "concluida" && <Check className="h-2.5 w-2.5" />}
-        {task.status === "em_andamento" && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+        {task.status === "concluida" && <Check className="h-3 w-3" />}
+        {task.status === "em_andamento" && (
+          <div className="h-2 w-2 rounded-sm bg-amber-500" />
+        )}
       </button>
       <span className={cn("flex-1 text-sm", taskStatusColor(task.status))}>
         {task.title}

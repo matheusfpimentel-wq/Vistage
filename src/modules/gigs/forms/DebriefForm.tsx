@@ -29,6 +29,7 @@ import {
   updateGig,
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
+import { createIdea } from "@/modules/ideas/api";
 import { formatRating } from "@/lib/format";
 import { GigSetlist } from "./GigSetlist";
 
@@ -179,6 +180,78 @@ export function DebriefForm({
     setTasksToCreate([]);
   }
 
+  async function flushDebriefInsights(gig: Gig, state: DebriefState): Promise<number> {
+    let count = 0;
+    const gigDate = gig.date
+      ? new Date(gig.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+      : "";
+
+    // One idea per "pontos fracos" line
+    if (state.debrief_weaknesses) {
+      const lines = state.debrief_weaknesses
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+      for (const line of lines) {
+        try {
+          await createIdea({
+            title: `Dificuldade GIG: ${gig.venue_name} — ${line.slice(0, 60)}`,
+            body: line,
+            category: "GIG",
+            maturation: "Embrião",
+            heat: 2,
+            tags: ["debrief", "ponto-fraco"],
+            converted_to: null,
+            converted_id: null,
+          });
+          count++;
+        } catch {
+          /* não interrompe */
+        }
+      }
+    }
+
+    // Overall learnings
+    if (state.debrief_learnings && state.debrief_learnings.trim()) {
+      try {
+        await createIdea({
+          title: `Insight GIG: ${gig.venue_name}${gigDate ? ` (${gigDate})` : ""}`,
+          body: state.debrief_learnings,
+          category: "GIG",
+          maturation: "Embrião",
+          heat: 2,
+          tags: ["debrief", "insight"],
+          converted_to: null,
+          converted_id: null,
+        });
+        count++;
+      } catch {
+        /* não interrompe */
+      }
+    }
+
+    // Future opportunities
+    if (state.debrief_future_opportunities && state.debrief_future_opportunities.trim()) {
+      try {
+        await createIdea({
+          title: `Oportunidade: ${state.debrief_future_opportunities.slice(0, 60)}`,
+          body: state.debrief_future_opportunities,
+          category: "GIG",
+          maturation: "Embrião",
+          heat: 3,
+          tags: ["debrief", "oportunidade"],
+          converted_to: null,
+          converted_id: null,
+        });
+        count++;
+      } catch {
+        /* não interrompe */
+      }
+    }
+
+    return count;
+  }
+
   const complete = useMemo(() => isComplete(state), [state]);
   const avg = useMemo(() => averageRating(state), [state]);
 
@@ -222,7 +295,8 @@ export function DebriefForm({
       });
       await clearDebriefDraft(gig.id);
       await flushDebriefTasks();
-      toast.success("Debrief finalizado!");
+      const insightCount = await flushDebriefInsights(gig, state);
+      toast.success(`Debrief finalizado! ${insightCount} insight${insightCount !== 1 ? "s" : ""} criado${insightCount !== 1 ? "s" : ""} em Ideias.`);
       onCompleted();
       onOpenChange(false);
     } catch (e) {
