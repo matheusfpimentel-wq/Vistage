@@ -643,6 +643,85 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 12,
+    description:
+      "Festas: tabelas parties e party_costs; v_insights inclui parties.notes",
+    sql: `
+      CREATE TABLE IF NOT EXISTS parties (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT,
+        venue_id INTEGER,
+        venue_name TEXT,
+        status TEXT NOT NULL DEFAULT 'Planejando',
+        description TEXT,
+        expected_capacity INTEGER,
+        actual_attendance INTEGER,
+        ticket_price_regular REAL,
+        ticket_price_vip REAL,
+        lineup TEXT,             -- JSON array de contact_ids
+        sponsors TEXT,           -- JSON array de { name, amount_cents }
+        tasks_generated INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_parties_date ON parties(date);
+      CREATE INDEX IF NOT EXISTS idx_parties_status ON parties(status);
+
+      CREATE TABLE IF NOT EXISTS party_costs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        category TEXT,
+        description TEXT,
+        amount REAL NOT NULL DEFAULT 0,
+        date TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+
+      DROP VIEW IF EXISTS v_insights;
+      CREATE VIEW v_insights AS
+        SELECT
+          'gig' AS source_type,
+          g.id AS source_id,
+          COALESCE(NULLIF(g.event_name, ''), g.venue_name) AS source_title,
+          g.debrief_learnings AS content,
+          g.date AS occurred_at
+        FROM gigs g
+        WHERE g.debrief_learnings IS NOT NULL AND g.debrief_learnings != ''
+        UNION ALL
+        SELECT
+          'track' AS source_type,
+          t.id AS source_id,
+          COALESCE(NULLIF(t.title_final, ''), t.title_working) AS source_title,
+          t.creative_block_notes AS content,
+          t.updated_at AS occurred_at
+        FROM tracks t
+        WHERE t.creative_block_notes IS NOT NULL AND t.creative_block_notes != ''
+        UNION ALL
+        SELECT
+          'party' AS source_type,
+          p.id AS source_id,
+          p.title AS source_title,
+          p.notes AS content,
+          p.updated_at AS occurred_at
+        FROM parties p
+        WHERE p.notes IS NOT NULL AND p.notes != ''
+        UNION ALL
+        SELECT
+          'idea' AS source_type,
+          i.id AS source_id,
+          i.title AS source_title,
+          i.body AS content,
+          i.created_at AS occurred_at
+        FROM ideas i
+        WHERE i.body IS NOT NULL AND i.body != '';
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

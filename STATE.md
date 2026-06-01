@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch J (Produção Musical — marketing, financeiro, performance & integrações).
+Última atualização: Batch K (Festas — módulo completo de produção de eventos).
 
 ---
 
@@ -60,6 +60,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Produção Musical | `/musica` | **(Batch I+J)** CRUD de projetos + tracks. Pipeline Stage-Gate (8 stages: Ideação→…→Pós-lançamento) com 4 gates decisórios; reprovar num gate → **Stand-by** (reativável, não "Cancelada"). Gate 1 mostra paleta/briefing da Identidade. Sub-bloco Criatividade (Flow Sessions + heatmap período×dia). Colaboradores N:N com CRM. `constraints` obrigatório (dica de Stokes). Views Kanban, Lista, **Roadmap** (12 meses) e **Portfolio** (analytics). **Sub-bloco Marketing** (release_strategy, presave_link, marketing_dates, lista mídia alvo N:N). **Sub-bloco Financeiro** (custos por projeto, ROI calculado). **Sub-bloco Performance** (snapshots mensais manuais, barras CSS). Auto-criação de 4 conteúdos ao entrar em Pré-lançamento + tarefa de métricas ao entrar em Lançamento (ambos com confirmação). **Converter Ideia em Track** no módulo Ideias |
 | Aulas | `/aulas` | 3 abas (Aulas/Alunos/Pacotes), pacote-template com ementa, instância por aluno com saldo, auto-recalc do pacote quando aula vira "Realizada" |
 | Conteúdo | `/conteudo` | CRUD + 3 visualizações (lista/calendário editorial/kanban), métricas manuais, tarefa-prazo automática |
+| Festas | `/festas` | **(Batch K)** Produção de eventos próprios. CRUD de festas com status (Planejando/Confirmada/Realizada/Cancelada). Tabs: Info (título, data, venue, capacidade, preços), Lineup (DJs escalados N:N com CRM + patrocinadores), Custos (inline), Notas. Auto-gera 4 tarefas ao confirmar festa. KPIs: próximas, realizadas, receita estimada. Views cards e lista. Integrado em busca Ctrl+K e backup/CSV |
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
 | Identidade Artística | `/identidade` | Nome, biografia, **paleta livre de cores**, redes sociais (14 opções), logo/isótipo/presskit, abas Flyers (auto das GIGs) e Templates |
 | Tarefas | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros chip (Hoje/Semana/Atrasadas) |
@@ -133,6 +134,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v9 | View `v_insights` — pool unificada de insights (gigs.debrief_learnings + ideas.body; tracks/festas entram nos batches I/L). Não-destrutiva: `DROP VIEW IF EXISTS` + `CREATE VIEW` |
 | v10 | Produção Musical: `music_projects`, `tracks`, `track_collaborators`, `track_flow_sessions`, `music_project_costs`, `track_performance_snapshots`; `ALTER finance_transactions ADD track_id`; recria `v_insights` incluindo a fonte `track` (creative_block_notes). Obs: a coluna de anexos da track chama-se `reference_files` (não `references`, palavra reservada no SQLite) — a propriedade TS é `references`, mapeada na api |
 | v11 | `track_media_targets` — N:N tracks × contacts para lista de mídia alvo (role: Imprensa/Curador/Influencer) |
+| v12 | Festas: `parties`, `party_costs`; recria `v_insights` adicionando fonte `party` (notes) |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.

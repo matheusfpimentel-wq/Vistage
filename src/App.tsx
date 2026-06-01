@@ -47,6 +47,9 @@ const ClassesPage = lazy(() =>
 const MusicPage = lazy(() =>
   import("@/modules/music/MusicPage").then((m) => ({ default: m.MusicPage }))
 );
+const PartiesPage = lazy(() =>
+  import("@/modules/parties/PartiesPage").then((m) => ({ default: m.PartiesPage }))
+);
 const IdentityPage = lazy(() =>
   import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
 );
@@ -184,6 +187,7 @@ function RoutedApp() {
             <Route path="fas" element={<FansPage />} />
             <Route path="aulas" element={<ClassesPage />} />
             <Route path="musica" element={<MusicPage />} />
+            <Route path="festas" element={<PartiesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
             <Route path="identidade" element={<IdentityPage />} />

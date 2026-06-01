@@ -11,7 +11,8 @@ export type SearchHit = {
     | "content"
     | "idea"
     | "student"
-    | "track";
+    | "track"
+    | "party";
   id: number;
   title: string;
   subtitle: string;
@@ -30,7 +31,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks, parties] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -119,6 +120,14 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
         WHERE title_working LIKE $1 OR title_final LIKE $1
            OR genre_primary LIKE $1 OR concept_narrative LIKE $1
         ORDER BY updated_at DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; title: string; status: string; date: string | null }[]
+    >(
+      `SELECT id, title, status, date FROM parties
+        WHERE title LIKE $1 OR venue_name LIKE $1 OR description LIKE $1
+        ORDER BY date IS NULL, date DESC LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -224,6 +233,15 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/musica",
     });
   }
+  for (const p of parties) {
+    hits.push({
+      kind: "party",
+      id: p.id,
+      title: p.title,
+      subtitle: [p.status, p.date].filter(Boolean).join(" · "),
+      route: "/festas",
+    });
+  }
 
   return hits;
 }
@@ -239,4 +257,5 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   idea: "Ideia",
   student: "Aluno",
   track: "Track",
+  party: "Festa",
 };

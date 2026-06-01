@@ -23,6 +23,8 @@ const TABLES = [
   "classes",
   "artist_identity",
   "artist_templates",
+  "parties",
+  "party_costs",
   "music_projects",
   "tracks",
   "track_collaborators",

@@ -11,6 +11,8 @@ export const CSV_ENTITIES = [
   { key: "content", label: "Conteúdos", table: "content" },
   { key: "ideas", label: "Ideias", table: "ideas" },
   { key: "students", label: "Alunos", table: "students" },
+  { key: "parties", label: "Festas", table: "parties" },
+  { key: "party_costs", label: "Custos de festas", table: "party_costs" },
   { key: "music_projects", label: "Projetos musicais", table: "music_projects" },
   { key: "tracks", label: "Tracks", table: "tracks" },
   { key: "track_media_targets", label: "Tracks — mídia alvo", table: "track_media_targets" },
