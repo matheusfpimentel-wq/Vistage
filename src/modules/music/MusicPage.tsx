@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderPlus, Music, Plus, Search } from "lucide-react";
+import type { MusicProject } from "./types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,18 +19,21 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { STAGES, TRACK_KINDS, TRACK_KIND_LABEL, type Stage, type TrackKind } from "./stages";
-import { daysInStage, deleteTrack, getTrack, listTracks } from "./api";
+import { daysInStage, deleteTrack, getTrack, listProjects, listTracks } from "./api";
 import type { Track, TrackWithProject } from "./types";
 import { TrackForm } from "./forms/TrackForm";
 import { ProjectForm } from "./forms/ProjectForm";
 import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
+import { RoadmapView } from "./views/RoadmapView";
+import { PortfolioView } from "./views/PortfolioView";
 
 type StageFilter = Stage | "Todos";
 type KindFilter = TrackKind | "Todos";
 
 export function MusicPage() {
   const [tracks, setTracks] = useState<TrackWithProject[]>([]);
+  const [projects, setProjects] = useState<MusicProject[]>([]);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<StageFilter>("Todos");
   const [kindFilter, setKindFilter] = useState<KindFilter>("Todos");
@@ -39,7 +43,9 @@ export function MusicPage() {
   const [projectFormOpen, setProjectFormOpen] = useState(false);
 
   const refresh = useCallback(async () => {
-    setTracks(await listTracks());
+    const [t, p] = await Promise.all([listTracks(), listProjects()]);
+    setTracks(t);
+    setProjects(p);
   }, []);
 
   useEffect(() => {
@@ -172,6 +178,8 @@ export function MusicPage() {
           <TabsList>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
           </TabsList>
           <TabsContent value="kanban">
             <KanbanView tracks={filtered} onEdit={openEdit} />
@@ -182,6 +190,12 @@ export function MusicPage() {
               onEdit={openEdit}
               onDelete={handleDelete}
             />
+          </TabsContent>
+          <TabsContent value="roadmap">
+            <RoadmapView tracks={tracks} projects={projects} />
+          </TabsContent>
+          <TabsContent value="portfolio">
+            <PortfolioView tracks={tracks} />
           </TabsContent>
         </Tabs>
       )}

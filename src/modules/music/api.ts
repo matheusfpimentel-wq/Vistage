@@ -6,14 +6,19 @@ import {
   type Stage,
 } from "./stages";
 import type { GateDecisionRecord } from "./gates";
+import { trackDisplayName } from "./types";
 import type {
   FlowSession,
   MusicProject,
+  MusicProjectCost,
+  MusicProjectCostCreateInput,
   MusicProjectCreateInput,
   MusicProjectUpdateInput,
+  SnapshotData,
   StageHistoryEntry,
   Track,
   TrackCreateInput,
+  TrackPerformanceSnapshot,
   TrackRow,
   TrackUpdateInput,
   TrackWithProject,
@@ -412,4 +417,131 @@ export async function endFlowSession(
 export async function deleteFlowSession(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM track_flow_sessions WHERE id = $1", [id]);
+}
+
+// ============================================================
+// Custos do projeto
+// ============================================================
+
+export async function listProjectCosts(projectId: number): Promise<MusicProjectCost[]> {
+  const db = getDb();
+  return db.select<MusicProjectCost[]>(
+    "SELECT * FROM music_project_costs WHERE project_id = $1 ORDER BY date DESC, created_at DESC",
+    [projectId]
+  );
+}
+
+export async function createCost(input: MusicProjectCostCreateInput): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO music_project_costs (project_id, track_id, category, description, amount, date)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [input.project_id, input.track_id, input.category, input.description, input.amount, input.date]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function deleteCost(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM music_project_costs WHERE id = $1", [id]);
+}
+
+// ============================================================
+// Performance snapshots
+// ============================================================
+
+export async function listTrackSnapshots(trackId: number): Promise<TrackPerformanceSnapshot[]> {
+  const db = getDb();
+  return db.select<TrackPerformanceSnapshot[]>(
+    "SELECT * FROM track_performance_snapshots WHERE track_id = $1 ORDER BY period_yyyymm DESC",
+    [trackId]
+  );
+}
+
+export async function upsertSnapshot(
+  trackId: number,
+  period: string,
+  data: SnapshotData
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `INSERT INTO track_performance_snapshots (track_id, period_yyyymm, data)
+     VALUES ($1, $2, $3)
+     ON CONFLICT(track_id, period_yyyymm) DO UPDATE SET data = excluded.data`,
+    [trackId, period, JSON.stringify(data)]
+  );
+}
+
+export async function deleteSnapshot(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM track_performance_snapshots WHERE id = $1", [id]);
+}
+
+// ============================================================
+// Media targets (N:N tracks × contacts)
+// ============================================================
+
+export async function listTrackMediaTargets(trackId: number): Promise<{ contact_id: number; role: string | null }[]> {
+  const db = getDb();
+  return db.select(
+    "SELECT contact_id, role FROM track_media_targets WHERE track_id = $1",
+    [trackId]
+  );
+}
+
+export async function setTrackMediaTargets(
+  trackId: number,
+  targets: { contact_id: number; role: string | null }[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM track_media_targets WHERE track_id = $1", [trackId]);
+  for (const t of targets) {
+    await db.execute(
+      "INSERT OR IGNORE INTO track_media_targets (track_id, contact_id, role) VALUES ($1, $2, $3)",
+      [trackId, t.contact_id, t.role]
+    );
+  }
+}
+
+// ============================================================
+// Auto-criação ao entrar em Pré-lançamento / Lançamento
+// ============================================================
+
+export async function autoCreatePreLaunchContent(
+  track: Track,
+  titles: string[]
+): Promise<void> {
+  const db = getDb();
+  const now = nowISO();
+  const trackName = trackDisplayName(track);
+  for (const t of titles) {
+    await db.execute(
+      `INSERT INTO content (title, status, created_at, updated_at) VALUES ($1, $2, $3, $4)`,
+      [`[${t}] ${trackName}`, "Ideia", now, now]
+    );
+  }
+}
+
+export async function autoCreateLaunchTask(track: Track): Promise<void> {
+  const db = getDb();
+  const now = nowISO();
+  const trackName = trackDisplayName(track);
+  // próximo dia 1 do mês após hoje
+  const d = new Date();
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(1);
+  const due = d.toISOString().slice(0, 10);
+  await db.execute(
+    `INSERT INTO tasks (title, category, priority, status, due_date, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      `Atualizar métricas de ${trackName}`,
+      "Produção Musical",
+      "Média",
+      "A fazer",
+      due,
+      now,
+      now,
+    ]
+  );
 }

@@ -11,6 +11,7 @@ import {
 type Props = {
   items: Idea[];
   onEdit: (i: Idea) => void;
+  onConvertToTrack?: (i: Idea) => void;
 };
 
 export function IdeaKanban({ items, onEdit }: Props) {

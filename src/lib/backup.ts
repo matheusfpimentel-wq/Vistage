@@ -27,6 +27,7 @@ const TABLES = [
   "tracks",
   "track_collaborators",
   "track_flow_sessions",
+  "track_media_targets",
   "music_project_costs",
   "track_performance_snapshots",
   "finance_categories",

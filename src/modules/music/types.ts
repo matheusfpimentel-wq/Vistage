@@ -125,6 +125,36 @@ export const MOOD_SUGGESTIONS = [
   "épico",
 ] as const;
 
+export type MusicProjectCost = {
+  id: number;
+  project_id: number | null;
+  track_id: number | null;
+  category: string | null;
+  description: string | null;
+  amount: number;
+  date: string | null;
+  created_at: string;
+};
+
+export type MusicProjectCostCreateInput = Omit<MusicProjectCost, "id" | "created_at">;
+
+export type TrackPerformanceSnapshot = {
+  id: number;
+  track_id: number;
+  period_yyyymm: string;
+  data: string | null;
+  created_at: string;
+};
+
+export type SnapshotData = {
+  streams?: number;
+  saves?: number;
+  shares?: number;
+  playlist_adds?: number;
+  revenue_cents?: number;
+  notes?: string;
+};
+
 export function trackDisplayName(t: {
   title_final: string | null;
   title_working: string;

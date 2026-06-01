@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Music, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -9,9 +9,10 @@ type Props = {
   items: Idea[];
   onEdit: (i: Idea) => void;
   onDelete: (i: Idea) => void;
+  onConvertToTrack?: (i: Idea) => void;
 };
 
-export function IdeaList({ items, onEdit, onDelete }: Props) {
+export function IdeaList({ items, onEdit, onDelete, onConvertToTrack }: Props) {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -66,6 +67,17 @@ export function IdeaList({ items, onEdit, onDelete }: Props) {
             </div>
           </div>
           <div className="flex gap-0.5">
+            {onConvertToTrack && i.maturation !== "Convertida" && (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => onConvertToTrack(i)}
+                aria-label="Converter em track"
+                title="Converter em track"
+              >
+                <Music className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               size="icon"
               variant="ghost"

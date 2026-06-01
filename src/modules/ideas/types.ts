@@ -22,7 +22,7 @@ export type IdeaMaturation = (typeof IDEA_MATURATIONS)[number];
 export const IDEA_HEATS = [1, 2, 3] as const;
 export type IdeaHeat = (typeof IDEA_HEATS)[number];
 
-export type IdeaConversion = "task" | "content" | "gig";
+export type IdeaConversion = "task" | "content" | "gig" | "track";
 
 export type Idea = {
   id: number;

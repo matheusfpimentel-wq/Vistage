@@ -5,6 +5,7 @@ import { STICKY_COLORS, heatColor, heatLabel, type Idea } from "../types";
 type Props = {
   items: Idea[];
   onEdit: (i: Idea) => void;
+  onConvertToTrack?: (i: Idea) => void;
 };
 
 /**

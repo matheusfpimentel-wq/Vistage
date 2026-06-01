@@ -59,9 +59,14 @@ import { MOOD_SUGGESTIONS, type Track, type TrackCreateInput } from "../types";
 import { gateAfter, GATES, type GateDecisionRecord } from "../gates";
 import { StageBadge } from "../components/StageBadge";
 import { FlowSessionPanel } from "../components/FlowSessionPanel";
+import { MarketingPanel } from "../components/MarketingPanel";
+import { FinancePanel } from "../components/FinancePanel";
+import { PerformancePanel } from "../components/PerformancePanel";
 import { GateDialog } from "./GateDialog";
 import {
   advanceStage,
+  autoCreateLaunchTask,
+  autoCreatePreLaunchContent,
   createTrack,
   getTrack,
   listTrackCollaborators,
@@ -120,6 +125,7 @@ export function TrackForm({
   const [dirty, setDirty] = useState(false);
   const [moodInput, setMoodInput] = useState("");
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
+  const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!track;
@@ -255,8 +261,11 @@ export function TrackForm({
       setGateOpen({ gateId: gate.id, mode: "advance" });
       return;
     }
+    const next = nextStage(loaded.current_stage);
     await persistThen(() => advanceStage(loaded));
-    toast.success(`Avançou para ${nextStage(loaded.current_stage)}`);
+    toast.success(`Avançou para ${next}`);
+    if (next === "Pré-lançamento") setAutoCreateOpen("pre_launch");
+    if (next === "Lançamento") setAutoCreateOpen("launch");
   }
 
   async function handleRegress() {
@@ -275,8 +284,11 @@ export function TrackForm({
     if (gateOpen.mode === "review") {
       await persistThen(() => recordGate4(loaded, record));
     } else if (record.decision === "approved") {
+      const next = nextStage(loaded.current_stage);
       await persistThen(() => advanceStage(loaded, record));
-      toast.success(`Aprovado — avançou para ${nextStage(loaded.current_stage)}`);
+      toast.success(`Aprovado — avançou para ${next}`);
+      if (next === "Pré-lançamento") setAutoCreateOpen("pre_launch");
+      if (next === "Lançamento") setAutoCreateOpen("launch");
     } else {
       await persistThen(() => rejectAtGate(loaded, record));
       toast.warning("Reprovado — track em Stand-by (reativável)");
@@ -315,6 +327,9 @@ export function TrackForm({
             <TabsTrigger value="concept">Conceito</TabsTrigger>
             {isEdit && <TabsTrigger value="exec">Execução</TabsTrigger>}
             {isEdit && <TabsTrigger value="flow">Criatividade</TabsTrigger>}
+            {isEdit && <TabsTrigger value="marketing">Marketing</TabsTrigger>}
+            {isEdit && <TabsTrigger value="finance">Financeiro</TabsTrigger>}
+            {isEdit && <TabsTrigger value="perf">Performance</TabsTrigger>}
           </TabsList>
 
           {/* ===== IDENTIFICAÇÃO ===== */}
@@ -662,6 +677,27 @@ export function TrackForm({
               <FlowSessionPanel trackId={loaded.id} />
             </TabsContent>
           )}
+
+          {/* ===== MARKETING ===== */}
+          {isEdit && loaded && (
+            <TabsContent value="marketing">
+              <MarketingPanel projectId={loaded.project_id} trackId={loaded.id} />
+            </TabsContent>
+          )}
+
+          {/* ===== FINANCEIRO ===== */}
+          {isEdit && loaded && (
+            <TabsContent value="finance">
+              <FinancePanel projectId={loaded.project_id} trackId={loaded.id} />
+            </TabsContent>
+          )}
+
+          {/* ===== PERFORMANCE ===== */}
+          {isEdit && loaded && (
+            <TabsContent value="perf">
+              <PerformancePanel trackId={loaded.id} />
+            </TabsContent>
+          )}
         </Tabs>
 
         <div className="flex justify-end gap-2 border-t pt-4">
@@ -687,6 +723,13 @@ export function TrackForm({
           onDecide={onGateDecide}
         />
       )}
+
+      <AutoCreateDialog
+        open={!!autoCreateOpen}
+        mode={autoCreateOpen}
+        track={loaded}
+        onClose={() => setAutoCreateOpen(null)}
+      />
     </Dialog>
   );
 }
@@ -703,5 +746,105 @@ function Field({
       <Label>{label}</Label>
       {children}
     </div>
+  );
+}
+
+const PRE_LAUNCH_TITLES = [
+  "Anúncio",
+  "Behind the scenes",
+  "Teaser visual",
+  "Post de lançamento",
+];
+
+function AutoCreateDialog({
+  open,
+  mode,
+  track,
+  onClose,
+}: {
+  open: boolean;
+  mode: "pre_launch" | "launch" | null;
+  track: Track | null;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>(PRE_LAUNCH_TITLES);
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    if (open) setSelected(PRE_LAUNCH_TITLES);
+  }, [open]);
+
+  if (!open || !track || !mode) return null;
+
+  async function handleConfirm() {
+    if (!track) return;
+    setCreating(true);
+    try {
+      if (mode === "pre_launch" && selected.length > 0) {
+        await autoCreatePreLaunchContent(track, selected);
+        toast.success(`${selected.length} conteúdo(s) criado(s) em Conteúdo`);
+      }
+      if (mode === "launch") {
+        await autoCreateLaunchTask(track);
+        toast.success("Tarefa de métricas criada para o próximo dia 1");
+      }
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setCreating(false);
+      onClose();
+    }
+  }
+
+  function toggleContent(title: string) {
+    setSelected((s) =>
+      s.includes(title) ? s.filter((x) => x !== title) : [...s, title]
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "pre_launch"
+              ? "Criar conteúdos de lançamento?"
+              : "Criar tarefa de métricas?"}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "pre_launch"
+              ? "Selecione os conteúdos a criar automaticamente no módulo Conteúdo."
+              : "Será criada uma tarefa 'Atualizar métricas' com prazo no próximo dia 1."}
+          </DialogDescription>
+        </DialogHeader>
+        {mode === "pre_launch" && (
+          <div className="space-y-2">
+            {PRE_LAUNCH_TITLES.map((t) => (
+              <label
+                key={t}
+                className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(t)}
+                  onChange={() => toggleContent(t)}
+                  className="h-4 w-4 accent-primary"
+                />
+                {t}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} disabled={creating}>
+            Pular
+          </Button>
+          <Button onClick={handleConfirm} disabled={creating}>
+            {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+            Criar
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

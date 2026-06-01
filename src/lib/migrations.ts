@@ -628,6 +628,21 @@ const MIGRATIONS: Migration[] = [
         WHERE i.body IS NOT NULL AND i.body != '';
     `,
   },
+  {
+    version: 11,
+    description:
+      "track_media_targets (N:N tracks×contacts para lista de mídia)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS track_media_targets (
+        track_id INTEGER NOT NULL,
+        contact_id INTEGER NOT NULL,
+        role TEXT,
+        PRIMARY KEY (track_id, contact_id),
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

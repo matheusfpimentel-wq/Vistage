@@ -21,7 +21,8 @@ import { QuickCapture } from "./forms/QuickCapture";
 import { IdeaList } from "./views/IdeaList";
 import { IdeaKanban } from "./views/IdeaKanban";
 import { IdeaBoard } from "./views/IdeaBoard";
-import { deleteIdea, listIdeas, type IdeaFilters } from "./api";
+import { deleteIdea, listIdeas, markIdeaAsConverted, type IdeaFilters } from "./api";
+import { TrackForm } from "@/modules/music/forms/TrackForm";
 import {
   IDEA_CATEGORIES,
   IDEA_MATURATIONS,
@@ -48,6 +49,8 @@ export function IdeasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Idea | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [convertingIdea, setConvertingIdea] = useState<Idea | null>(null);
+  const [trackFormOpen, setTrackFormOpen] = useState(false);
 
   const queryFilters: IdeaFilters = useMemo(
     () => ({
@@ -74,6 +77,11 @@ export function IdeasPage() {
   }
 
   useNewItemShortcut(openCreate);
+
+  function openConvertToTrack(i: Idea) {
+    setConvertingIdea(i);
+    setTrackFormOpen(true);
+  }
 
   function openEdit(i: Idea) {
     setEditing(i);
@@ -186,15 +194,15 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} />
           </TabsContent>
 
           <TabsContent value="kanban">
-            <IdeaKanban items={items} onEdit={openEdit} />
+            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} />
           </TabsContent>
 
           <TabsContent value="list">
-            <IdeaList items={items} onEdit={openEdit} onDelete={handleDelete} />
+            <IdeaList items={items} onEdit={openEdit} onDelete={handleDelete} onConvertToTrack={openConvertToTrack} />
           </TabsContent>
         </Tabs>
       )}
@@ -212,6 +220,23 @@ export function IdeasPage() {
         onOpenChange={(v) => {
           setQuickOpen(v);
           if (!v) void refresh();
+        }}
+      />
+
+      <TrackForm
+        open={trackFormOpen}
+        onOpenChange={(v) => {
+          setTrackFormOpen(v);
+          if (!v) setConvertingIdea(null);
+        }}
+        track={null}
+        onSaved={async () => {
+          if (convertingIdea) {
+            await markIdeaAsConverted(convertingIdea.id, "track", 0);
+            toast.success("Ideia convertida em track");
+          }
+          void refresh();
+          setConvertingIdea(null);
         }}
       />
     </div>
