@@ -32,6 +32,10 @@ export const CSV_ENTITIES = [
     label: "Categorias financeiras",
     table: "finance_categories",
   },
+  { key: "work_sessions", label: "Sessões de trabalho", table: "work_sessions" },
+  { key: "highlights", label: "Highlights", table: "highlights" },
+  { key: "okrs", label: "OKRs", table: "okrs" },
+  { key: "decisions", label: "Decision Log", table: "decisions" },
 ] as const;
 
 export type CsvEntityKey = (typeof CSV_ENTITIES)[number]["key"];

@@ -12,7 +12,8 @@ export type SearchHit = {
     | "idea"
     | "student"
     | "track"
-    | "party";
+    | "party"
+    | "decision";
   id: number;
   title: string;
   subtitle: string;
@@ -31,7 +32,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks, parties] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks, parties, decisions] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -128,6 +129,14 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, title, status, date FROM parties
         WHERE title LIKE $1 OR venue_name LIKE $1 OR description LIKE $1
         ORDER BY date IS NULL, date DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; decision_made: string; domain: string; context: string }[]
+    >(
+      `SELECT id, decision_made, domain, context FROM decisions
+        WHERE decision_made LIKE $1 OR context LIKE $1 OR reasoning LIKE $1
+        ORDER BY created_at DESC LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -242,6 +251,15 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/festas",
     });
   }
+  for (const d of decisions) {
+    hits.push({
+      kind: "decision",
+      id: d.id,
+      title: d.decision_made,
+      subtitle: `${d.domain} · ${d.context.slice(0, 60)}`,
+      route: "/decisoes",
+    });
+  }
 
   return hits;
 }
@@ -258,4 +276,5 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   student: "Aluno",
   track: "Track",
   party: "Festa",
+  decision: "Decisão",
 };

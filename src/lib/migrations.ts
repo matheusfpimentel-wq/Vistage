@@ -742,6 +742,68 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL;
     `,
   },
+  {
+    version: 15,
+    description: "work_sessions — rastreamento de energia e foco por sessão de trabalho",
+    sql: `
+      CREATE TABLE IF NOT EXISTS work_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        activity_type TEXT NOT NULL,
+        energy_level INTEGER,
+        focus_level INTEGER,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
+  {
+    version: 16,
+    description: "highlights — momentos marcantes cumulativos",
+    sql: `
+      CREATE TABLE IF NOT EXISTS highlights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT NOT NULL,
+        body TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
+  {
+    version: 17,
+    description: "okrs — OKRs trimestrais com key results auto-pulled",
+    sql: `
+      CREATE TABLE IF NOT EXISTS okrs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quarter TEXT NOT NULL,
+        objective TEXT NOT NULL,
+        key_results TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
+  {
+    version: 18,
+    description: "decisions — decision log estruturado",
+    sql: `
+      CREATE TABLE IF NOT EXISTS decisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        context TEXT NOT NULL,
+        options_considered TEXT,
+        decision_made TEXT NOT NULL,
+        reasoning TEXT,
+        domain TEXT NOT NULL DEFAULT 'business',
+        outcome TEXT,
+        outcome_evaluation TEXT,
+        learned TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

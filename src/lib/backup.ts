@@ -36,6 +36,10 @@ const TABLES = [
   "finance_transactions",
   "finance_recurring",
   "equipment",
+  "work_sessions",
+  "highlights",
+  "okrs",
+  "decisions",
   "app_settings",
   "gcal_auth",
 ] as const;

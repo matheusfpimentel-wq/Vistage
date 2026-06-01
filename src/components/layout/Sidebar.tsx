@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import {
+  BookOpen,
   Building2,
   CalendarRange,
   CheckSquare,
@@ -14,8 +15,10 @@ import {
   Settings,
   Sparkle,
   Sparkles,
+  Target,
   Users,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +35,9 @@ const NAV = [
   { to: "/ideias", label: "Ideias", icon: Lightbulb },
   { to: "/insights", label: "Insights", icon: Sparkle },
   { to: "/revisao", label: "Revisão Semanal", icon: ClipboardCheck },
+  { to: "/foco", label: "Energia & Foco", icon: Zap },
+  { to: "/objetivos", label: "OKRs", icon: Target },
+  { to: "/decisoes", label: "Decision Log", icon: BookOpen },
   { to: "/identidade", label: "Identidade", icon: Sparkles },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },

@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Search } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Toaster } from "@/components/ui/toaster";
+import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
+import { cn } from "@/lib/utils";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -14,6 +17,13 @@ const TITLES: Record<string, string> = {
   "/aulas": "Aulas",
   "/conteudo": "Gestão de Conteúdo",
   "/ideias": "Banco de Ideias",
+  "/musica": "Produção Musical",
+  "/festas": "Produção de Festas",
+  "/insights": "Insights",
+  "/revisao": "Revisão Semanal",
+  "/foco": "Energia & Foco",
+  "/objetivos": "OKRs",
+  "/decisoes": "Decision Log",
   "/identidade": "Identidade Artística",
   "/tarefas": "Tarefas",
   "/financeiro": "Financeiro",
@@ -22,6 +32,8 @@ const TITLES: Record<string, string> = {
 
 export function AppLayout() {
   const location = useLocation();
+  const [focusMode, setFocusMode] = useState(false);
+
   const title =
     TITLES[location.pathname] ??
     Object.entries(TITLES).find(([k]) =>
@@ -33,39 +45,47 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <Sidebar />
+      <div className={cn("transition-all duration-200", focusMode ? "w-0 overflow-hidden" : "")}>
+        <Sidebar />
+      </div>
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-16 items-center justify-between border-b px-6">
           <div>
             <h1 className="text-lg font-semibold">{title}</h1>
-            {dbPath && (
-              <p className="text-xs text-muted-foreground truncate max-w-[60ch]">
+            {!focusMode && dbPath && (
+              <p className="text-xs text-muted-foreground truncate max-w-[40ch]">
                 {dbPath}
               </p>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
-                const ev = new KeyboardEvent("keydown", {
-                  key: "k",
-                  ctrlKey: !isMac,
-                  metaKey: isMac,
-                  bubbles: true,
-                });
-                window.dispatchEvent(ev);
-              }}
-              className="hidden sm:inline-flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground transition hover:bg-accent"
-              aria-label="Abrir busca global"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <span>Buscar…</span>
-              <kbd className="ml-2 rounded border bg-background px-1.5 py-0.5 text-[10px]">
-                Ctrl K
-              </kbd>
-            </button>
+            {!focusMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
+                  const ev = new KeyboardEvent("keydown", {
+                    key: "k",
+                    ctrlKey: !isMac,
+                    metaKey: isMac,
+                    bubbles: true,
+                  });
+                  window.dispatchEvent(ev);
+                }}
+                className="hidden sm:inline-flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground transition hover:bg-accent"
+                aria-label="Abrir busca global"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <span>Buscar…</span>
+                <kbd className="ml-2 rounded border bg-background px-1.5 py-0.5 text-[10px]">
+                  Ctrl K
+                </kbd>
+              </button>
+            )}
+            <WorkSessionWidget
+              focusMode={focusMode}
+              onToggleFocus={() => setFocusMode((f) => !f)}
+            />
             <ThemeToggle />
           </div>
         </header>

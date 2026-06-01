@@ -56,6 +56,15 @@ const InsightsPage = lazy(() =>
 const RevisaoPage = lazy(() =>
   import("@/modules/revisao/RevisaoPage").then((m) => ({ default: m.RevisaoPage }))
 );
+const FocoPage = lazy(() =>
+  import("@/modules/foco/FocoPage").then((m) => ({ default: m.FocoPage }))
+);
+const ObjetivosPage = lazy(() =>
+  import("@/modules/objetivos/ObjetivosPage").then((m) => ({ default: m.ObjetivosPage }))
+);
+const DecisoesPage = lazy(() =>
+  import("@/modules/decisoes/DecisoesPage").then((m) => ({ default: m.DecisoesPage }))
+);
 const IdentityPage = lazy(() =>
   import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
 );
@@ -198,6 +207,9 @@ function RoutedApp() {
             <Route path="ideias" element={<IdeasPage />} />
             <Route path="insights" element={<InsightsPage />} />
             <Route path="revisao" element={<RevisaoPage />} />
+            <Route path="foco" element={<FocoPage />} />
+            <Route path="objetivos" element={<ObjetivosPage />} />
+            <Route path="decisoes" element={<DecisoesPage />} />
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />

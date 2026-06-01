@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch N (Camada de produtividade — recorrência de tarefas + Revisão Semanal + festas na timeline).
+Última atualização: Batch O (Camada de produtividade — Energy & Focus Tracking, Modo Foco Profundo, Weekly Review aprimorado, OKRs, Decision Log, Highlights).
 
 ---
 
@@ -65,7 +65,10 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
 | Identidade Artística | `/identidade` | Nome, biografia, **paleta livre de cores**, redes sociais (14 opções), logo/isótipo/presskit, abas Flyers (auto das GIGs) e Templates |
 | Tarefas | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros chip (Hoje/Semana/Atrasadas). **(Batch N)** Recorrência Semanal/Mensal — ao concluir, duplica tarefa com due_date deslocada |
-| Revisão Semanal | `/revisao` | **(Batch N)** KPIs da semana corrente (GIGs, tarefas, conteúdos, tracks), lista de foco (alta prioridade + vencendo em 7d), alertas de ação, 5 perguntas de reflexão |
+| Revisão Semanal | `/revisao` | **(Batch N→O)** KPIs da semana, checklist interativo persistido (6 itens com links), lista de foco, alertas (incl. decisions pendentes), mini-OKRs, highlights, 5 perguntas de reflexão |
+| Energia & Foco | `/foco` | **(Batch O)** WorkSessionWidget no header (iniciar/encerrar sessão, cronômetro). Heatmap energia×dia/hora. Distribuição por tipo de atividade. Highlights cumulativos (momentos marcantes) |
+| OKRs | `/objetivos` | **(Batch O)** Objetivos trimestrais com key results. Auto-pull de métricas: GIGs concluídas, tracks lançadas, festas realizadas, conteúdos publicados, receita. Barra de progresso por KR e OKR |
+| Decision Log | `/decisoes` | **(Batch O)** Registro de decisões com contexto, opções consideradas, raciocínio, domínio. Revisão posterior: outcome + avaliação (Acertou/Errou/Inconclusivo) + aprendizado. Buscável via Ctrl+K |
 | Financeiro | `/financeiro` | 4 abas (Dashboard com Recharts/Transações/Recorrentes/Patrimônio), categorias customizáveis, auto-receita ao marcar GIG paga, patrimônio derivado de "Equipamentos" |
 | Configurações | `/configuracoes` | Path do banco, Google Calendar, **CSV por entidade + JSON completo**, atalhos customizáveis, dados de exemplo, ícone de Apple seguro |
 
@@ -139,6 +142,10 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v12 | Festas: `parties`, `party_costs`; recria `v_insights` adicionando fonte `party` (notes) |
 | v13 | `gig_tracks` — set list N:N entre gigs e tracks |
 | v14 | `ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL` |
+| v15 | `work_sessions` — rastreamento de energia e foco por sessão |
+| v16 | `highlights` — momentos marcantes cumulativos |
+| v17 | `okrs` — OKRs trimestrais com key_results JSON |
+| v18 | `decisions` — decision log estruturado |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.

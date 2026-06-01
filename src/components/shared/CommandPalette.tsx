@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  BookOpen,
   Building2,
   Calendar,
   CheckSquare,
@@ -34,6 +35,7 @@ const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: str
   student: GraduationCap,
   track: Music,
   party: PartyPopper,
+  decision: BookOpen,
 };
 
 type Props = {
