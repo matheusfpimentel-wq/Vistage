@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: ao lado do commit `4830f55` (Batch G).
+Última atualização: Batch H (Insights + Dashboard refatorado).
 
 ---
 
@@ -22,7 +22,7 @@ desenvolvedor. Lê código vagamente. Pede mudanças de UX e features.
 - **Frontend**: React 18, Vite, TypeScript estrito, Tailwind, shadcn-style components
 - **Banco**: SQLite via `@tauri-apps/plugin-sql`, **path escolhido pelo usuário**
   (configurável, fica no HD externo). Migrations versionadas em
-  `src/lib/migrations.ts` (v1 → v8)
+  `src/lib/migrations.ts` (v1 → v9)
 - **Estado**: Zustand (theme, config)
 - **Charts**: Recharts (lazy-loaded só no /financeiro)
 - **OAuth Google Calendar**: PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`),
@@ -52,7 +52,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 
 | Módulo | Rota | Estado |
 |---|---|---|
-| Dashboard | `/` | KPIs, próximas GIGs com barras de prep, alerta de debriefs pendentes, próximas tarefas |
+| Dashboard | `/` | **(Batch H)** 4 KPIs estratégicos (receita do mês c/ tendência, GIGs do mês, pipeline criativo, alertas críticos clicáveis) + 4 cards de domínio (GIGs / Conteúdos ativos; Produção Musical e Festas como "Em breve") + linha do tempo integrada dos próximos 7 dias (GIGs+tarefas+posts no mesmo eixo) + rodapé Lei de Goodhart |
 | GIGs | `/gigs` | CRUD + 4 visualizações (lista/calendário/kanban/insights), debrief automático com avaliação por estrelas, autosave, checklist de preparação fixo agrupado em Musical/Marketing/Logística |
 | Venues | `/venues` | CRUD, foto, view cards/lista, detalhe com KPIs |
 | CRM | `/crm` | **Pessoas** (não estabelecimentos), foto, prioridade Alta/Média/Baixa, histórico de interações |
@@ -84,6 +84,10 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
   "DJ parceiro" e "Outros"
 - GIG: **event_name** é o campo principal (nome da festa); venue_name
   vem auto-preenchido pelo dropdown de venue cadastrado
+- **"Insights"** é a nomenclatura padrão (Batch H) para o que antes era
+  "Aprendizados / Experiências". O campo do banco continua
+  `gigs.debrief_learnings` (sem migration destrutiva) — só o label da UI
+  mudou. A view `v_insights` agrega insights de todas as fontes
 
 ### Comportamento
 - Modal de Debrief abre automaticamente ao mudar status pra Concluída
@@ -125,6 +129,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v6 | students, class_packages, student_packages, classes |
 | v7 | event_name, fans_present, photo_path em várias tabelas, syllabus em class_packages, tabelas artist_identity e artist_templates |
 | v8 | Palette JSON em artist_identity |
+| v9 | View `v_insights` — pool unificada de insights (gigs.debrief_learnings + ideas.body; tracks/festas entram nos batches I/L). Não-destrutiva: `DROP VIEW IF EXISTS` + `CREATE VIEW` |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.
@@ -232,7 +237,7 @@ src/
 ├── App.tsx                    # roteador + atalhos globais + Suspense
 ├── lib/
 │   ├── db.ts                  # SQLite load + migrations
-│   ├── migrations.ts          # SCHEMA — v1 a v8
+│   ├── migrations.ts          # SCHEMA — v1 a v9
 │   ├── config.ts              # caminho do banco no HD
 │   ├── theme.ts               # dark default
 │   ├── uploads.ts             # pickFile, saveAttachment, useImageUrl

@@ -474,6 +474,32 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE artist_identity ADD COLUMN palette TEXT;
     `,
   },
+  {
+    version: 9,
+    description:
+      "View v_insights — pool unificada de insights (gigs + ideias; tracks/festas entram nos batches I/L)",
+    sql: `
+      DROP VIEW IF EXISTS v_insights;
+      CREATE VIEW v_insights AS
+        SELECT
+          'gig' AS source_type,
+          g.id AS source_id,
+          COALESCE(NULLIF(g.event_name, ''), g.venue_name) AS source_title,
+          g.debrief_learnings AS content,
+          g.date AS occurred_at
+        FROM gigs g
+        WHERE g.debrief_learnings IS NOT NULL AND g.debrief_learnings != ''
+        UNION ALL
+        SELECT
+          'idea' AS source_type,
+          i.id AS source_id,
+          i.title AS source_title,
+          i.body AS content,
+          i.created_at AS occurred_at
+        FROM ideas i
+        WHERE i.body IS NOT NULL AND i.body != '';
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

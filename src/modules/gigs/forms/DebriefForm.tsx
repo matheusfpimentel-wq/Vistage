@@ -204,7 +204,7 @@ export function DebriefForm({
   async function saveAsComplete() {
     if (!complete) {
       toast.error(
-        "Preencha pontos fortes, fracos, aprendizados e as três avaliações."
+        "Preencha pontos fortes, fracos, insights e as três avaliações."
       );
       return;
     }
@@ -284,7 +284,7 @@ export function DebriefForm({
 
         <Tabs defaultValue="learn" className="w-full">
           <TabsList>
-            <TabsTrigger value="learn">Aprendizados</TabsTrigger>
+            <TabsTrigger value="learn">Insights</TabsTrigger>
             <TabsTrigger value="ratings">
               Avaliações
               {avg !== null && (
@@ -304,7 +304,7 @@ export function DebriefForm({
             </TabsTrigger>
           </TabsList>
 
-          {/* ============ APRENDIZADOS ============ */}
+          {/* ============ INSIGHTS ============ */}
           <TabsContent value="learn" className="space-y-4">
             <DebriefField
               label="Pontos fortes da apresentação"
@@ -319,7 +319,7 @@ export function DebriefForm({
               onChange={(v) => set("debrief_weaknesses", v)}
             />
             <DebriefField
-              label="Experiências / aprendizados"
+              label="Insights"
               required
               value={state.debrief_learnings}
               onChange={(v) => set("debrief_learnings", v)}
@@ -405,7 +405,7 @@ export function DebriefForm({
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               Esta GIG foi marcada como <strong>Concluída</strong>. Preencha os
-              campos obrigatórios (Pontos fortes / fracos / aprendizados + as
+              campos obrigatórios (Pontos fortes / fracos / insights + as
               três avaliações) ou salve como pendente para terminar depois.
             </div>
           </div>
