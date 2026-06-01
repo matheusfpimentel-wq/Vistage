@@ -889,6 +889,35 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 22,
+    description: "Fornecedores — suppliers e supplier_services",
+    sql: `
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT,
+        contact_name TEXT,
+        phone TEXT,
+        email TEXT,
+        instagram TEXT,
+        city TEXT,
+        notes TEXT,
+        rating INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS supplier_services (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+        description TEXT NOT NULL,
+        unit TEXT,
+        price REAL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
