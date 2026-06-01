@@ -813,6 +813,20 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE venues ADD COLUMN geocoded_at TEXT;
     `,
   },
+  {
+    version: 20,
+    description: "gig_setlists — histórico de setlists importados de DJ software",
+    sql: `
+      CREATE TABLE IF NOT EXISTS gig_setlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gig_id INTEGER NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
+        source_format TEXT NOT NULL,
+        source_filename TEXT,
+        tracks TEXT NOT NULL DEFAULT '[]',
+        imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
