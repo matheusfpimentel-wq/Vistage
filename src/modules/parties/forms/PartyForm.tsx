@@ -262,6 +262,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           const fresh: PartyDeserialized = {
             id,
             ...payload,
+            stage_current: null,
+            financial_synced: 0,
             tasks_generated: 0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),

@@ -331,37 +331,42 @@ function ContactCard({ contact: c, onOpen }: { contact: Contact; onOpen: () => v
   const daysAgo = last
     ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
     : null;
+  const initials = c.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
     <button
       onClick={onOpen}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      className="group flex items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
     >
-      <div className="h-28 w-full bg-muted">
+      {/* Avatar */}
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted ring-2 ring-background">
         {photoUrl ? (
           <img
             src={photoUrl}
             alt={c.name}
-            className="h-full w-full object-cover transition group-hover:scale-105"
+            className="h-full w-full object-cover object-top transition group-hover:scale-105"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
-            <User className="h-8 w-8" />
+          <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-muted-foreground">
+            {initials || <User className="h-6 w-6" />}
           </div>
         )}
       </div>
-      <div className="space-y-1.5 p-3">
-        <div className="font-medium leading-tight">{c.name}</div>
-        <TypeBadges types={c.types} />
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{c.city ?? "—"}</span>
+
+      {/* Info */}
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate font-medium leading-tight">{c.name}</span>
           <PriorityBadge rating={c.rating} />
         </div>
-        {last && (
-          <div className="text-[11px] text-muted-foreground">
-            Último contato:{" "}
-            {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
-          </div>
-        )}
+        <TypeBadges types={c.types} />
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+          <span className="truncate">{c.city ?? "—"}</span>
+          {last && (
+            <span className="shrink-0 pl-2">
+              {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );

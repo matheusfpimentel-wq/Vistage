@@ -827,6 +827,68 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 21,
+    description: "Produção de Festas — stages, budget projection/actual, tickets, party tasks",
+    sql: `
+      ALTER TABLE parties ADD COLUMN stage_current INTEGER;
+      ALTER TABLE parties ADD COLUMN financial_synced INTEGER NOT NULL DEFAULT 0;
+
+      CREATE TABLE IF NOT EXISTS party_stages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pendente',
+        notes TEXT,
+        fields TEXT NOT NULL DEFAULT '{}',
+        completed_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS party_budget_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        subcategory TEXT,
+        description TEXT,
+        projected_amount REAL NOT NULL DEFAULT 0,
+        actual_amount REAL,
+        supplier_note TEXT,
+        status TEXT NOT NULL DEFAULT 'projetado',
+        date_paid TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS party_tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        ticket_type TEXT NOT NULL DEFAULT 'antecipado',
+        price REAL NOT NULL DEFAULT 0,
+        quantity_total INTEGER,
+        quantity_sold INTEGER DEFAULT 0,
+        sale_start_date TEXT,
+        sale_end_date TEXT,
+        position INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS party_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        stage_id INTEGER REFERENCES party_stages(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pendente',
+        priority TEXT NOT NULL DEFAULT 'Media',
+        due_date TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
