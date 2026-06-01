@@ -70,6 +70,7 @@ import {
   createTrack,
   getTrack,
   listTrackCollaborators,
+  listTrackGigs,
   reactivateTrack,
   recordGate4,
   regressStage,
@@ -126,6 +127,7 @@ export function TrackForm({
   const [moodInput, setMoodInput] = useState("");
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
   const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
+  const [trackGigs, setTrackGigs] = useState<{ id: number; event_name: string | null; venue_name: string; date: string }[]>([]);
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!track;
@@ -167,6 +169,7 @@ export function TrackForm({
       });
       setLoaded(track);
       void listTrackCollaborators(track.id).then(setCollabs);
+      void listTrackGigs(track.id).then(setTrackGigs);
     } else {
       setState(EMPTY);
       setLoaded(null);
@@ -634,6 +637,24 @@ export function TrackForm({
                   placeholder="O que estava travando e como destravou."
                 />
               </Field>
+
+              {trackGigs.length > 0 && (
+                <Field label="GIGs onde foi tocada">
+                  <div className="space-y-1">
+                    {trackGigs.map((g) => (
+                      <div
+                        key={g.id}
+                        className="flex items-center gap-2 rounded border px-2 py-1 text-xs text-muted-foreground"
+                      >
+                        <span className="font-medium text-foreground">
+                          {g.event_name ?? g.venue_name}
+                        </span>
+                        <span>{formatDate(g.date)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              )}
 
               {loaded.stage_history.length > 0 && (
                 <Field label="Histórico de stages">

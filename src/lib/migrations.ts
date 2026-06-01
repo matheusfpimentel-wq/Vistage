@@ -722,6 +722,19 @@ const MIGRATIONS: Migration[] = [
         WHERE i.body IS NOT NULL AND i.body != '';
     `,
   },
+  {
+    version: 13,
+    description: "gig_tracks — set list N:N entre gigs e tracks",
+    sql: `
+      CREATE TABLE IF NOT EXISTS gig_tracks (
+        gig_id INTEGER NOT NULL,
+        track_id INTEGER NOT NULL,
+        PRIMARY KEY (gig_id, track_id),
+        FOREIGN KEY (gig_id) REFERENCES gigs(id) ON DELETE CASCADE,
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

@@ -30,6 +30,8 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { formatDate } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { listContent } from "@/modules/content/api";
+import type { Content } from "@/modules/content/types";
 import {
   PARTY_STATUSES,
   PARTY_COST_CATEGORIES,
@@ -91,6 +93,7 @@ const formatCurrency = (n: number) =>
 export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [linkedContent, setLinkedContent] = useState<Content[]>([]);
   const [costs, setCosts] = useState<PartyCost[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -130,6 +133,12 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     );
 
     if (party) {
+      void listContent().then((all) => {
+        const titleLower = party.title.toLowerCase();
+        setLinkedContent(
+          all.filter((c) => c.title.toLowerCase().includes(titleLower))
+        );
+      });
       setState({
         title: party.title,
         date: party.date,
@@ -288,6 +297,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             <TabsTrigger value="info">Info</TabsTrigger>
             <TabsTrigger value="lineup">Lineup</TabsTrigger>
             {isEdit && <TabsTrigger value="custos">Custos</TabsTrigger>}
+            {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
 
@@ -569,6 +579,42 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   <div className="flex justify-end pt-1 text-sm font-semibold">
                     Total: {formatCurrency(totalCosts)}
                   </div>
+                </div>
+              )}
+            </TabsContent>
+          )}
+
+          {/* ===== CONTEÚDO VINCULADO ===== */}
+          {isEdit && (
+            <TabsContent value="conteudo" className="space-y-3 pt-2">
+              {linkedContent.length === 0 ? (
+                <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  Nenhum conteúdo com o nome desta festa encontrado. Crie posts
+                  no módulo Conteúdo mencionando "{state.title}" no título.
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {linkedContent.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{c.title}</span>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {c.format && <span>{c.format}</span>}
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5",
+                            c.status === "Publicado"
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {c.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </TabsContent>

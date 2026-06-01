@@ -301,3 +301,30 @@ export async function countPendingDebriefs(): Promise<number> {
   );
   return rows[0]?.n ?? 0;
 }
+
+// ============================================================
+// Set list — gig_tracks (N:N)
+// ============================================================
+
+export async function listGigTracks(gigId: number): Promise<number[]> {
+  const db = getDb();
+  const rows = await db.select<{ track_id: number }[]>(
+    "SELECT track_id FROM gig_tracks WHERE gig_id = $1",
+    [gigId]
+  );
+  return rows.map((r) => r.track_id);
+}
+
+export async function setGigTracks(
+  gigId: number,
+  trackIds: number[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM gig_tracks WHERE gig_id = $1", [gigId]);
+  for (const tid of trackIds) {
+    await db.execute(
+      "INSERT OR IGNORE INTO gig_tracks (gig_id, track_id) VALUES ($1, $2)",
+      [gigId, tid]
+    );
+  }
+}

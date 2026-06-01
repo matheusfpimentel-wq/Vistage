@@ -36,6 +36,8 @@ import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
 import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api";
 import { listTracks, daysInStage } from "@/modules/music/api";
+import { listParties } from "@/modules/parties/api";
+import { estimatedRevenue, type PartyDeserialized } from "@/modules/parties/types";
 import type { TrackWithProject } from "@/modules/music/types";
 import { trackDisplayName } from "@/modules/music/types";
 import { TRACK_KIND_LABEL } from "@/modules/music/stages";
@@ -76,6 +78,7 @@ type DashData = {
   content: Content[];
   weekTasks: Task[];
   tracks: TrackWithProject[];
+  parties: PartyDeserialized[];
 };
 
 export function DashboardPage() {
@@ -83,14 +86,15 @@ export function DashboardPage() {
 
   useEffect(() => {
     void (async () => {
-      const [gigs, fin, content, weekTasks, tracks] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks, parties] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
         listUpcoming(50),
         listTracks(),
+        listParties(),
       ]);
-      setData({ gigs, fin, content, weekTasks, tracks });
+      setData({ gigs, fin, content, weekTasks, tracks, parties });
     })();
   }, []);
 
@@ -331,12 +335,7 @@ function DomainCards({ data }: { data: DashData }) {
       <GigsCard data={data} />
       <MusicCard data={data} />
       <ContentCard data={data} />
-      <ComingSoonCard
-        icon={<PartyPopper className="h-4 w-4" />}
-        title="Produção de Festas"
-        batch="Batch K"
-        to="/venues"
-      />
+      <FestasCard data={data} />
     </div>
   );
 }
@@ -661,41 +660,97 @@ function MiniKanbanCol({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ComingSoonCard({
-  icon,
-  title,
-  batch,
-  to,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  batch: string;
-  to: string;
-}) {
+function FestasCard({ data }: { data: DashData }) {
+  const today = todayISO();
+  const upcoming = data.parties
+    .filter(
+      (p) =>
+        p.date &&
+        p.date >= today &&
+        p.status !== "Cancelada" &&
+        p.status !== "Realizada"
+    )
+    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
+    .slice(0, 3);
+
+  const next = upcoming[0] ?? null;
+  const noConfirmed =
+    !data.parties.some(
+      (p) =>
+        p.status === "Confirmada" &&
+        p.date &&
+        p.date >= today &&
+        p.date <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+    );
+
   return (
-    <Card className="border-dashed">
+    <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base text-muted-foreground">
-          {icon}
-          {title}
+        <CardTitle className="flex items-center gap-2 text-base">
+          <PartyPopper className="h-4 w-4 text-pink-400" />
+          Produção de Festas
         </CardTitle>
-        <CardDescription>Módulo em desenvolvimento.</CardDescription>
+        <CardDescription>
+          {data.parties.length === 0
+            ? "Nenhuma festa cadastrada."
+            : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`}
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center gap-2 rounded-md border border-dashed p-6 text-center">
-          <Badge variant="secondary">Em breve · {batch}</Badge>
-          <p className="text-xs text-muted-foreground">
-            Enquanto isso, capture ideias em{" "}
-            <Link to={to} className="underline hover:text-foreground">
-              {to}
-            </Link>
-            .
-          </p>
-        </div>
+      <CardContent className="space-y-3">
+        {noConfirmed && data.parties.length > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            Nenhuma festa confirmada nos próximos 30 dias.
+          </div>
+        )}
+        {next ? (
+          <div className="space-y-1 rounded-md border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium text-sm">{next.title}</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-xs",
+                  next.status === "Confirmada"
+                    ? "border-emerald-500/30 text-emerald-400"
+                    : "border-amber-500/30 text-amber-400"
+                )}
+              >
+                {next.status}
+              </Badge>
+            </div>
+            {next.date && (
+              <p className="text-xs text-muted-foreground">
+                {formatDate(next.date)} · {daysUntil(next.date)} dias
+              </p>
+            )}
+            {next.expected_capacity && (
+              <p className="text-xs text-muted-foreground">
+                Capacidade: {next.expected_capacity.toLocaleString("pt-BR")} pessoas
+                {estimatedRevenue(next) > 0 &&
+                  ` · Receita est. ${formatCurrency(estimatedRevenue(next))}`}
+              </p>
+            )}
+          </div>
+        ) : (
+          <Link
+            to="/festas"
+            className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
+          >
+            <PartyPopper className="h-3.5 w-3.5" /> Cadastrar primeira festa
+          </Link>
+        )}
+        <Link
+          to="/festas"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Ver todas as festas <ChevronRight className="h-3 w-3" />
+        </Link>
       </CardContent>
     </Card>
   );
 }
+
 
 // ============================================================
 // Bloco 3 — Visão integrada da semana

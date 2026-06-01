@@ -28,7 +28,7 @@ import {
   type Gig,
   type GigCreateInput,
 } from "../types";
-import { createGig, updateGig } from "../api";
+import { createGig, listGigTracks, setGigTracks, updateGig } from "../api";
 import { ensureGigPaymentTransaction } from "@/modules/finance/api";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
@@ -36,10 +36,12 @@ import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues } from "@/modules/venues/api";
+import { listTracks } from "@/modules/music/api";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { parsePrepState } from "../prep";
 
@@ -129,6 +131,8 @@ export function GigForm({
   const confirmClose = useUnsavedConfirm(dirty);
   const [quickVenueOpen, setQuickVenueOpen] = useState(false);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
+  const [setListTrackIds, setSetListTrackIds] = useState<number[]>([]);
+  const [allTracks, setAllTracks] = useState<{ id: number; title: string }[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,7 +152,20 @@ export function GigForm({
     if (!open) return;
     void listContacts().then(setContacts);
     void listVenues().then(setVenues);
-  }, [open]);
+    void listTracks().then((ts) =>
+      setAllTracks(
+        ts.map((t) => ({
+          id: t.id,
+          title: t.title_final?.trim() || t.title_working,
+        }))
+      )
+    );
+    if (gig) {
+      void listGigTracks(gig.id).then(setSetListTrackIds);
+    } else {
+      setSetListTrackIds([]);
+    }
+  }, [open, gig]);
 
   function pickVenue(venueId: number | null) {
     if (venueId === null) {
@@ -230,6 +247,8 @@ export function GigForm({
           /* não interrompe se a tarefa falhar */
         }
       }
+
+      await setGigTracks(savedId, setListTrackIds);
 
       onSaved({
         id: savedId,
@@ -637,6 +656,42 @@ export function GigForm({
               />
             </div>
           </Section>
+
+          {gig && allTracks.length > 0 && (
+            <Section title="Set list (tracks tocadas)">
+              <div className="flex flex-wrap gap-1.5">
+                {allTracks.map((t) => {
+                  const selected = setListTrackIds.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() =>
+                        setSetListTrackIds((ids) =>
+                          selected
+                            ? ids.filter((x) => x !== t.id)
+                            : [...ids, t.id]
+                        )
+                      }
+                      className={cn(
+                        "rounded-md border px-2.5 py-1 text-xs transition",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      {t.title}
+                    </button>
+                  );
+                })}
+              </div>
+              {allTracks.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma track cadastrada ainda.
+                </p>
+              )}
+            </Section>
+          )}
           </>
           )}
         </div>

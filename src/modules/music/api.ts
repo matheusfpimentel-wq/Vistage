@@ -545,3 +545,21 @@ export async function autoCreateLaunchTask(track: Track): Promise<void> {
     ]
   );
 }
+
+// ============================================================
+// GIGs onde a track foi tocada
+// ============================================================
+
+export async function listTrackGigs(
+  trackId: number
+): Promise<{ id: number; event_name: string | null; venue_name: string; date: string }[]> {
+  const db = getDb();
+  return db.select(
+    `SELECT g.id, g.event_name, g.venue_name, g.date
+       FROM gigs g
+       JOIN gig_tracks gt ON gt.gig_id = g.id
+      WHERE gt.track_id = $1
+      ORDER BY g.date DESC`,
+    [trackId]
+  );
+}

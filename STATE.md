@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch L (Insights — pool unificado de aprendizados).
+Última atualização: Batch M (Cross-pollination — conexões entre módulos).
 
 ---
 
@@ -136,6 +136,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v10 | Produção Musical: `music_projects`, `tracks`, `track_collaborators`, `track_flow_sessions`, `music_project_costs`, `track_performance_snapshots`; `ALTER finance_transactions ADD track_id`; recria `v_insights` incluindo a fonte `track` (creative_block_notes). Obs: a coluna de anexos da track chama-se `reference_files` (não `references`, palavra reservada no SQLite) — a propriedade TS é `references`, mapeada na api |
 | v11 | `track_media_targets` — N:N tracks × contacts para lista de mídia alvo (role: Imprensa/Curador/Influencer) |
 | v12 | Festas: `parties`, `party_costs`; recria `v_insights` adicionando fonte `party` (notes) |
+| v13 | `gig_tracks` — set list N:N entre gigs e tracks |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.
