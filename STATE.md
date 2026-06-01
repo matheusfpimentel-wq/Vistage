@@ -1,7 +1,7 @@
 # STATE.md — MusicGest
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
-Última atualização: Batch H (Insights + Dashboard refatorado).
+Última atualização: Batch I (Produção Musical — núcleo).
 
 ---
 
@@ -22,7 +22,7 @@ desenvolvedor. Lê código vagamente. Pede mudanças de UX e features.
 - **Frontend**: React 18, Vite, TypeScript estrito, Tailwind, shadcn-style components
 - **Banco**: SQLite via `@tauri-apps/plugin-sql`, **path escolhido pelo usuário**
   (configurável, fica no HD externo). Migrations versionadas em
-  `src/lib/migrations.ts` (v1 → v9)
+  `src/lib/migrations.ts` (v1 → v10)
 - **Estado**: Zustand (theme, config)
 - **Charts**: Recharts (lazy-loaded só no /financeiro)
 - **OAuth Google Calendar**: PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`),
@@ -57,6 +57,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Venues | `/venues` | CRUD, foto, view cards/lista, detalhe com KPIs |
 | CRM | `/crm` | **Pessoas** (não estabelecimentos), foto, prioridade Alta/Média/Baixa, histórico de interações |
 | Clube de fãs | `/fas` | 3 níveis (Superfã/Fã/Possível fã), foto, view cards/lista, multi-select em fans_present do Debrief |
+| Produção Musical | `/musica` | **(Batch I)** CRUD de projetos + tracks. Pipeline Stage-Gate (8 stages: Ideação→…→Pós-lançamento) com 4 gates decisórios; reprovar num gate → **Stand-by** (reativável, não "Cancelada"). Gate 1 mostra paleta/briefing da Identidade. Sub-bloco Criatividade (Flow Sessions + heatmap período×dia). Colaboradores N:N com CRM. `constraints` obrigatório (dica de Stokes). Views Kanban por stage + Lista. Marketing/financeiro/ROI/performance e "Converter Ideia em Track" ficam pro Batch J |
 | Aulas | `/aulas` | 3 abas (Aulas/Alunos/Pacotes), pacote-template com ementa, instância por aluno com saldo, auto-recalc do pacote quando aula vira "Realizada" |
 | Conteúdo | `/conteudo` | CRUD + 3 visualizações (lista/calendário editorial/kanban), métricas manuais, tarefa-prazo automática |
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
@@ -130,6 +131,7 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v7 | event_name, fans_present, photo_path em várias tabelas, syllabus em class_packages, tabelas artist_identity e artist_templates |
 | v8 | Palette JSON em artist_identity |
 | v9 | View `v_insights` — pool unificada de insights (gigs.debrief_learnings + ideas.body; tracks/festas entram nos batches I/L). Não-destrutiva: `DROP VIEW IF EXISTS` + `CREATE VIEW` |
+| v10 | Produção Musical: `music_projects`, `tracks`, `track_collaborators`, `track_flow_sessions`, `music_project_costs`, `track_performance_snapshots`; `ALTER finance_transactions ADD track_id`; recria `v_insights` incluindo a fonte `track` (creative_block_notes). Obs: a coluna de anexos da track chama-se `reference_files` (não `references`, palavra reservada no SQLite) — a propriedade TS é `references`, mapeada na api |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.
@@ -237,7 +239,7 @@ src/
 ├── App.tsx                    # roteador + atalhos globais + Suspense
 ├── lib/
 │   ├── db.ts                  # SQLite load + migrations
-│   ├── migrations.ts          # SCHEMA — v1 a v9
+│   ├── migrations.ts          # SCHEMA — v1 a v10
 │   ├── config.ts              # caminho do banco no HD
 │   ├── theme.ts               # dark default
 │   ├── uploads.ts             # pickFile, saveAttachment, useImageUrl
@@ -259,6 +261,9 @@ src/
 │   ├── crm/types.ts           # ratingToPriority/priorityToRating
 │   ├── fans/...
 │   ├── classes/...
+│   ├── music/{stages,gates,types,api}.ts          # Stage-Gate
+│   ├── music/{MusicPage}.tsx + forms/{TrackForm,ProjectForm,GateDialog}
+│   ├── music/components/{StageBadge,FlowSessionPanel} + views/{KanbanView,ListView}
 │   ├── content/...
 │   ├── ideas/forms/{IdeaForm,QuickCapture}.tsx
 │   ├── identity/{types,api,IdentityPage}.ts

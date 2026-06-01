@@ -8,6 +8,7 @@ import {
   GraduationCap,
   Heart,
   Lightbulb,
+  Music,
   Search,
   Users,
   Wallet,
@@ -30,6 +31,7 @@ const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: str
   content: Film,
   idea: Lightbulb,
   student: GraduationCap,
+  track: Music,
 };
 
 type Props = {

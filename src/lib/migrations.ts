@@ -500,6 +500,134 @@ const MIGRATIONS: Migration[] = [
         WHERE i.body IS NOT NULL AND i.body != '';
     `,
   },
+  {
+    version: 10,
+    description:
+      "Produção Musical: music_projects, tracks, collaborators, flow sessions, costs, performance; finance_transactions.track_id; v_insights inclui tracks",
+    sql: `
+      CREATE TABLE IF NOT EXISTS music_projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        kind TEXT NOT NULL DEFAULT 'single',
+          -- single | ep | album | remix | beat | edit | bootleg
+        title TEXT NOT NULL,
+        release_strategy TEXT,            -- waterfall | drop_unico | album_direto
+        presave_link TEXT,
+        press_release_draft TEXT,
+        marketing_dates TEXT,             -- JSON { anuncio, teaser, presave_open, release, follow_up }
+        partnerships_confirmed TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS tracks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'single',
+          -- single | album_track | remix | beat | edit | bootleg
+        title_working TEXT NOT NULL,
+        title_final TEXT,
+        bpm INTEGER,
+        key TEXT,
+        duration_seconds INTEGER,
+        mood_tags TEXT,                   -- JSON array
+        genre_primary TEXT,
+        genre_secondary TEXT,
+        reference_files TEXT,             -- JSON array de anexos (evita palavra reservada)
+        constraints TEXT,                 -- texto livre (restrições criativas)
+        concept_narrative TEXT,
+        current_stage TEXT NOT NULL DEFAULT 'Ideação',
+        stage_history TEXT,               -- JSON array de StageHistoryEntry
+        daw_project_path TEXT,
+        stems_path TEXT,
+        final_files_path TEXT,
+        stage_notes TEXT,
+        creative_block_notes TEXT,        -- bloqueios criativos resolvidos (vira Insight)
+        standby INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES music_projects(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_tracks_project ON tracks(project_id);
+      CREATE INDEX IF NOT EXISTS idx_tracks_stage ON tracks(current_stage);
+
+      CREATE TABLE IF NOT EXISTS track_collaborators (
+        track_id INTEGER NOT NULL,
+        contact_id INTEGER NOT NULL,
+        role TEXT,
+        PRIMARY KEY (track_id, contact_id),
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS track_flow_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id INTEGER NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT,
+        flow_level INTEGER,               -- 1..5
+        block_notes TEXT,
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_flow_track ON track_flow_sessions(track_id);
+
+      CREATE TABLE IF NOT EXISTS music_project_costs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER,
+        track_id INTEGER,
+        category TEXT,
+        description TEXT,
+        amount REAL NOT NULL DEFAULT 0,
+        date TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES music_projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS track_performance_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id INTEGER NOT NULL,
+        period_yyyymm TEXT NOT NULL,
+        data TEXT,                        -- JSON streams/saves/etc
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(track_id, period_yyyymm),
+        FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE
+      );
+
+      ALTER TABLE finance_transactions ADD COLUMN track_id INTEGER;
+
+      DROP VIEW IF EXISTS v_insights;
+      CREATE VIEW v_insights AS
+        SELECT
+          'gig' AS source_type,
+          g.id AS source_id,
+          COALESCE(NULLIF(g.event_name, ''), g.venue_name) AS source_title,
+          g.debrief_learnings AS content,
+          g.date AS occurred_at
+        FROM gigs g
+        WHERE g.debrief_learnings IS NOT NULL AND g.debrief_learnings != ''
+        UNION ALL
+        SELECT
+          'track' AS source_type,
+          t.id AS source_id,
+          COALESCE(NULLIF(t.title_final, ''), t.title_working) AS source_title,
+          t.creative_block_notes AS content,
+          t.updated_at AS occurred_at
+        FROM tracks t
+        WHERE t.creative_block_notes IS NOT NULL AND t.creative_block_notes != ''
+        UNION ALL
+        SELECT
+          'idea' AS source_type,
+          i.id AS source_id,
+          i.title AS source_title,
+          i.body AS content,
+          i.created_at AS occurred_at
+        FROM ideas i
+        WHERE i.body IS NOT NULL AND i.body != '';
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

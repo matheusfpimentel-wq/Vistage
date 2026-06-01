@@ -35,6 +35,12 @@ import type { Task } from "@/modules/tasks/types";
 import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
 import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api";
+import { listTracks, daysInStage } from "@/modules/music/api";
+import type { TrackWithProject } from "@/modules/music/types";
+import { trackDisplayName } from "@/modules/music/types";
+import { TRACK_KIND_LABEL } from "@/modules/music/stages";
+import { gateAfter } from "@/modules/music/gates";
+import { StageBadge } from "@/modules/music/components/StageBadge";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 
 // ============================================================
@@ -69,6 +75,7 @@ type DashData = {
   fin: FinanceInsights;
   content: Content[];
   weekTasks: Task[];
+  tracks: TrackWithProject[];
 };
 
 export function DashboardPage() {
@@ -76,13 +83,14 @@ export function DashboardPage() {
 
   useEffect(() => {
     void (async () => {
-      const [gigs, fin, content, weekTasks] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
         listUpcoming(50),
+        listTracks(),
       ]);
-      setData({ gigs, fin, content, weekTasks });
+      setData({ gigs, fin, content, weekTasks, tracks });
     })();
   }, []);
 
@@ -121,7 +129,7 @@ export function DashboardPage() {
 // ============================================================
 
 function KpiRow({ data }: { data: DashData }) {
-  const { gigs, fin, content, weekTasks } = data;
+  const { gigs, fin, content, weekTasks, tracks } = data;
   const month = todayISO().slice(0, 7);
 
   // receita do mês + tendência vs mês anterior
@@ -136,10 +144,12 @@ function KpiRow({ data }: { data: DashData }) {
   const confirmadas = monthGigs.filter((g) => g.status === "Confirmada").length;
   const propostas = monthGigs.filter((g) => g.status === "Proposta").length;
 
-  // pipeline criativo (por enquanto só conteúdos em produção)
+  // pipeline criativo: tracks ativas + conteúdos em produção (festas em breve)
+  const activeTracks = tracks.filter((t) => !t.standby).length;
   const contentInProd = content.filter((c) =>
     CONTENT_IN_PRODUCTION.includes(c.status)
   ).length;
+  const pipeline = activeTracks + contentInProd;
 
   // alertas críticos
   const alerts = computeAlerts(gigs, weekTasks, fin);
@@ -166,11 +176,11 @@ function KpiRow({ data }: { data: DashData }) {
       />
       <KpiCard
         label="Pipeline criativo"
-        value={contentInProd.toString()}
-        to="/conteudo"
+        value={pipeline.toString()}
+        to="/musica"
         footer={
           <span className="text-xs text-muted-foreground">
-            conteúdos em produção · tracks e festas em breve
+            {activeTracks} tracks · {contentInProd} conteúdos · festas em breve
           </span>
         }
       />
@@ -319,13 +329,8 @@ function DomainCards({ data }: { data: DashData }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <GigsCard data={data} />
+      <MusicCard data={data} />
       <ContentCard data={data} />
-      <ComingSoonCard
-        icon={<Music className="h-4 w-4" />}
-        title="Produção Musical"
-        batch="Batch I"
-        to="/ideias"
-      />
       <ComingSoonCard
         icon={<PartyPopper className="h-4 w-4" />}
         title="Produção de Festas"
@@ -432,6 +437,81 @@ function GigsCard({ data }: { data: DashData }) {
               {pending.length > 1 ? "s" : ""}
             </Link>
           </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MusicCard({ data }: { data: DashData }) {
+  const { tracks } = data;
+
+  const active = tracks.filter((t) => !t.standby);
+  const top3 = active.slice(0, 3);
+  const stalled = active.filter((t) => {
+    const d = daysInStage(t);
+    return d !== null && d > 30;
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Music className="h-4 w-4 text-primary" />
+          Produção Musical
+        </CardTitle>
+        <CardDescription>Tracks ativas no pipeline.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {top3.length === 0 ? (
+          <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+            Sem tracks ativas.{" "}
+            <Button asChild variant="dark" size="sm" className="ml-1">
+              <Link to="/musica">Criar</Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {top3.map((t) => {
+              const d = daysInStage(t);
+              const gate = gateAfter(t.current_stage);
+              return (
+                <Link
+                  key={t.id}
+                  to="/musica"
+                  className="block space-y-1 rounded-md border p-2.5 transition hover:border-primary"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-medium leading-tight">
+                      {trackDisplayName(t)}
+                    </div>
+                    <StageBadge stage={t.current_stage} />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>{TRACK_KIND_LABEL[t.kind]}</span>
+                    <span>
+                      {d !== null && (
+                        <span className={d > 30 ? "text-amber-500" : ""}>
+                          {d}d no stage
+                        </span>
+                      )}
+                      {gate && <> · próx: {gate.id}</>}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+
+        {stalled.length > 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              {stalled.length} track{stalled.length > 1 ? "s" : ""} parada
+              {stalled.length > 1 ? "s" : ""} há +30 dias em algum stage.
+            </span>
+          </div>
         )}
       </CardContent>
     </Card>

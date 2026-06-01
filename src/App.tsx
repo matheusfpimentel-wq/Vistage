@@ -44,6 +44,9 @@ const IdeasPage = lazy(() =>
 const ClassesPage = lazy(() =>
   import("@/modules/classes/ClassesPage").then((m) => ({ default: m.ClassesPage }))
 );
+const MusicPage = lazy(() =>
+  import("@/modules/music/MusicPage").then((m) => ({ default: m.MusicPage }))
+);
 const IdentityPage = lazy(() =>
   import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
 );
@@ -180,6 +183,7 @@ function RoutedApp() {
             <Route path="crm" element={<CrmPage />} />
             <Route path="fas" element={<FansPage />} />
             <Route path="aulas" element={<ClassesPage />} />
+            <Route path="musica" element={<MusicPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
             <Route path="identidade" element={<IdentityPage />} />
