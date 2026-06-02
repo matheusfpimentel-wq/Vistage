@@ -152,7 +152,9 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               {venue.dominant_genre && (
                 <Row label="Gênero dominante" value={venue.dominant_genre} />
               )}
-              <Row label="Rider disponível" value={venue.rider_available ? "Sim" : "Não"} />
+              {venue.rider_equipment && (
+                <Row label="Rider técnico" value={venue.rider_equipment} />
+              )}
               {venue.regular_audience && (
                 <Row label="Público habitual" value={venue.regular_audience} />
               )}

@@ -1021,6 +1021,13 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 32,
+    description: "venues — rider técnico como texto (equipamento)",
+    sql: `
+      ALTER TABLE venues ADD COLUMN rider_equipment TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

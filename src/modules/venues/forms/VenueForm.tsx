@@ -59,7 +59,7 @@ const EMPTY: VenueCreateInput = {
   geocoded_at: null,
   concept: null,
   dominant_genre: null,
-  rider_available: 0,
+  rider_equipment: null,
   regular_audience: null,
 };
 
@@ -84,7 +84,7 @@ function venueToState(v: Venue): VenueCreateInput {
     geocoded_at: v.geocoded_at,
     concept: v.concept,
     dominant_genre: v.dominant_genre,
-    rider_available: v.rider_available ?? 0,
+    rider_equipment: v.rider_equipment ?? null,
     regular_audience: v.regular_audience,
   };
 }
@@ -367,16 +367,14 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
                 />
               </Field>
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="rider_available"
-                checked={state.rider_available === 1}
-                onChange={(e) => set("rider_available", e.target.checked ? 1 : 0)}
-                className="h-4 w-4 rounded border border-input"
+            <Field label="Rider técnico disponível">
+              <Textarea
+                placeholder="Equipamento disponível na casa: PA, mesa, monitores, microfones, backline…"
+                value={state.rider_equipment ?? ""}
+                onChange={(e) => set("rider_equipment", e.target.value || null)}
+                rows={3}
               />
-              <Label htmlFor="rider_available">Rider técnico disponível</Label>
-            </div>
+            </Field>
           </div>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">

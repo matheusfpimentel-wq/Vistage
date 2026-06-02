@@ -16,7 +16,7 @@ export type Venue = {
   photo_path: string | null;
   concept?: string | null;
   dominant_genre?: string | null;
-  rider_available?: number;
+  rider_equipment?: string | null;
   regular_audience?: string | null;
   lat: number | null;
   lng: number | null;

@@ -55,7 +55,7 @@ import {
   prevStage,
   type TrackKind,
 } from "../stages";
-import { MOOD_SUGGESTIONS, type MusicProject, type Track, type TrackCreateInput } from "../types";
+import { type MusicProject, type Track, type TrackCreateInput } from "../types";
 import { gateAfter, GATES, type GateDecisionRecord } from "../gates";
 import { StageBadge } from "../components/StageBadge";
 import { FlowSessionPanel } from "../components/FlowSessionPanel";
@@ -68,7 +68,6 @@ import {
   autoCreateLaunchTask,
   autoCreatePreLaunchContent,
   createTrack,
-  getMoodBank,
   getTrack,
   listProjects,
   listTrackCollaborators,
@@ -77,7 +76,6 @@ import {
   recordGate4,
   regressStage,
   rejectAtGate,
-  saveMoodBank,
   setTrackCollaborators,
   updateTrack,
 } from "../api";
@@ -128,7 +126,6 @@ export function TrackForm({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [moodInput, setMoodInput] = useState("");
-  const [moodBank, setMoodBank] = useState<string[]>([]);
   const [projects, setProjects] = useState<MusicProject[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
@@ -148,7 +145,6 @@ export function TrackForm({
     if (!open) return;
     setDirty(false);
     setMoodInput("");
-    void getMoodBank().then(setMoodBank);
     void listProjects().then(setProjects);
     setProjectId(track?.project_id ?? defaultProjectId ?? null);
     void listContacts().then((all) =>
@@ -196,18 +192,6 @@ export function TrackForm({
     if (!t) return;
     if (!state.mood_tags.includes(t)) set("mood_tags", [...state.mood_tags, t]);
     setMoodInput("");
-    // alimenta o banco geral de mood tags se for novo
-    if (!(MOOD_SUGGESTIONS as readonly string[]).includes(t) && !moodBank.includes(t)) {
-      const next = [...moodBank, t];
-      setMoodBank(next);
-      void saveMoodBank(next);
-    }
-  }
-
-  function removeMoodFromBank(tag: string) {
-    const next = moodBank.filter((m) => m !== tag);
-    setMoodBank(next);
-    void saveMoodBank(next);
   }
 
   async function addReference() {
@@ -486,38 +470,6 @@ export function TrackForm({
                   placeholder="Adicionar mood…"
                   className="h-8"
                 />
-              </div>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {Array.from(new Set([...MOOD_SUGGESTIONS, ...moodBank]))
-                  .filter((m) => !state.mood_tags.includes(m))
-                  .map((m) => {
-                    const isCustom = !(MOOD_SUGGESTIONS as readonly string[]).includes(m);
-                    return (
-                      <span
-                        key={m}
-                        className="inline-flex items-center rounded border text-[11px] text-muted-foreground"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => addMood(m)}
-                          className="px-1.5 py-0.5 hover:bg-accent"
-                        >
-                          + {m}
-                        </button>
-                        {isCustom && (
-                          <button
-                            type="button"
-                            onClick={() => removeMoodFromBank(m)}
-                            className="border-l px-1 py-0.5 text-muted-foreground/60 hover:text-destructive"
-                            aria-label={`Remover ${m} do banco`}
-                            title="Remover do banco geral"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </span>
-                    );
-                  })}
               </div>
             </Field>
           </TabsContent>

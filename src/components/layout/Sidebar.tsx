@@ -197,11 +197,23 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        {/* Logo Vistage */}
-        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 via-primary to-fuchsia-500 shadow-lg shadow-primary/40">
-          <span className="text-sm font-black leading-none tracking-tighter text-white drop-shadow">
-            Vi
-          </span>
+        {/* Logo Vistage — mesmo ícone do app */}
+        <div className="relative h-8 w-8 shrink-0">
+          <svg
+            viewBox="0 0 512 512"
+            className="h-8 w-8 rounded-lg shadow-lg shadow-primary/40"
+            aria-hidden
+          >
+            <circle cx="256" cy="256" r="256" fill="#1A0D2E" />
+            <circle cx="256" cy="256" r="218" fill="none" stroke="#7C3AED" strokeWidth="18" />
+            <circle cx="256" cy="256" r="158" fill="none" stroke="#7C3AED" strokeWidth="18" />
+            <circle cx="256" cy="256" r="98" fill="none" stroke="#7C3AED" strokeWidth="18" />
+            <circle cx="256" cy="256" r="34" fill="#7C3AED" />
+            <path
+              d="M 136 106 Q 192 168, 256 274 Q 320 168, 376 106 C 368 98, 358 98, 350 105 C 318 144, 274 228, 256 246 C 238 228, 194 144, 162 105 C 154 98, 144 98, 136 106 Z"
+              fill="#C4B5FD"
+            />
+          </svg>
           {/* dot — virtual backstage "on-air" indicator */}
           <span
             aria-hidden
