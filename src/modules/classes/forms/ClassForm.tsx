@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -37,6 +37,7 @@ import {
   recalcPackageUsage,
   updateClass,
 } from "../api";
+import { QuickStudentForm } from "./QuickStudentForm";
 import { todayISO } from "@/lib/format";
 
 type Props = {
@@ -87,6 +88,7 @@ export function ClassForm({
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPackages, setStudentPackages] = useState<StudentPackage[]>([]);
   const [errors, setErrors] = useState<{ student?: string; date?: string }>({});
+  const [quickStudentOpen, setQuickStudentOpen] = useState(false);
 
   useEffect(() => {
     if (session) setState(toState(session));
@@ -185,21 +187,32 @@ export function ClassForm({
             <Label>
               Aluno <span className="text-destructive">*</span>
             </Label>
-            <Select
-              value={state.student_id ? state.student_id.toString() : ""}
-              onValueChange={(v) => set("student_id", Number(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map((s) => (
-                  <SelectItem key={s.id} value={s.id.toString()}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select
+                value={state.student_id ? state.student_id.toString() : ""}
+                onValueChange={(v) => set("student_id", Number(v))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map((s) => (
+                    <SelectItem key={s.id} value={s.id.toString()}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Novo aluno"
+                onClick={() => setQuickStudentOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
             {errors.student && (
               <p className="text-xs text-destructive">{errors.student}</p>
             )}
@@ -353,6 +366,15 @@ export function ClassForm({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <QuickStudentForm
+        open={quickStudentOpen}
+        onOpenChange={setQuickStudentOpen}
+        onCreated={async (id) => {
+          setStudents(await listStudents());
+          set("student_id", id);
+        }}
+      />
     </Dialog>
   );
 }

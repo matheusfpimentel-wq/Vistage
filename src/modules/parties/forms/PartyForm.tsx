@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { formatDate } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
+import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
 import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
@@ -89,6 +90,7 @@ const formatCurrency = (n: number) =>
 export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
   const [costs, setCosts] = useState<PartyCost[]>([]);
   const [saving, setSaving] = useState(false);
@@ -388,10 +390,20 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           {/* ===== LINEUP ===== */}
           <TabsContent value="lineup" className="space-y-6 pt-2">
             <div className="space-y-2">
-              <Label>DJs / Músicos escalados</Label>
+              <div className="flex items-center justify-between">
+                <Label>DJs / Músicos escalados</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setQuickContactOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo DJ / Músico
+                </Button>
+              </div>
               {contacts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Cadastre contatos do tipo DJ parceiro no CRM.
+                  Nenhum DJ parceiro ou músico no CRM. Use "Novo DJ / Músico".
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -615,6 +627,17 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           </Button>
         </div>
       </DialogContent>
+
+      <QuickContactForm
+        open={quickContactOpen}
+        onOpenChange={setQuickContactOpen}
+        defaultType="DJ parceiro"
+        onCreated={async (id) => {
+          const all = await listContacts();
+          setContacts(all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t))));
+          toggleLineup(id);
+        }}
+      />
     </Dialog>
   );
 }

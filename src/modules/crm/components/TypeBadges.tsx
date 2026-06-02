@@ -9,6 +9,7 @@ const VARIANT_BY_TYPE: Record<
   "Agente / Booker": "warning",
   "Produtor de eventos": "default",
   "DJ parceiro": "success",
+  "Músico": "success",
   Colaborador: "secondary",
   Fornecedor: "outline",
   Outros: "outline",

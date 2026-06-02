@@ -3,6 +3,7 @@ export const CONTACT_TYPES = [
   "Agente / Booker",
   "Produtor de eventos",
   "DJ parceiro",
+  "Músico",
   "Colaborador",
   "Fornecedor",
   "Outros",
