@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background circle (deep dark) -->
+  <circle cx="256" cy="256" r="256" fill="#0F0F14"/>
+
+  <!-- Bullseye rings -->
+  <!-- Outer ring -->
+  <circle cx="256" cy="256" r="218" fill="none" stroke="#E53E3E" stroke-width="20"/>
+  <!-- Middle ring -->
+  <circle cx="256" cy="256" r="158" fill="none" stroke="#E53E3E" stroke-width="20"/>
+  <!-- Inner ring -->
+  <circle cx="256" cy="256" r="98" fill="none" stroke="#E53E3E" stroke-width="20"/>
+  <!-- Bull's eye dot -->
+  <circle cx="256" cy="256" r="32" fill="#E53E3E"/>
+
+  <!-- Stylized V "arrow" pointing to center from top -->
+  <!-- The V shape: two diagonal arms meeting at the center (256,256), coming from top-left and top-right -->
+  <!-- Left arm: from (148, 100) to (256, 256) -->
+  <!-- Right arm: from (364, 100) to (256, 256) -->
+  <path d="M 148 92 L 256 256 L 364 92"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="38"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- White dot at tip to make the V feel like it's hitting the bullseye -->
+  <circle cx="256" cy="256" r="14" fill="#FFFFFF"/>
+</svg>
