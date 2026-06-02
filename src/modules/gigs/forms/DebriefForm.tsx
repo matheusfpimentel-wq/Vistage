@@ -81,11 +81,9 @@ function gigToDebrief(gig: Gig): DebriefState {
 }
 
 function isComplete(state: DebriefState): boolean {
-  const has = (s: string | null) => !!s && s.trim().length > 0;
+  // Pontos fortes/fracos/insights deixaram de ser obrigatórios — basta as
+  // três avaliações pra considerar o debrief completo.
   return (
-    has(state.debrief_strengths) &&
-    has(state.debrief_weaknesses) &&
-    has(state.debrief_learnings) &&
     state.rating_charisma !== null &&
     state.rating_technique !== null &&
     state.rating_repertoire !== null
@@ -385,19 +383,19 @@ export function DebriefForm({
           <TabsContent value="learn" className="space-y-4">
             <DebriefField
               label="Pontos fortes da apresentação"
-              required
+              compact
               value={state.debrief_strengths}
               onChange={(v) => set("debrief_strengths", v)}
             />
             <DebriefField
               label="Pontos fracos da apresentação"
-              required
+              compact
               value={state.debrief_weaknesses}
               onChange={(v) => set("debrief_weaknesses", v)}
             />
             <DebriefField
               label="Insights"
-              required
+              compact
               value={state.debrief_learnings}
               onChange={(v) => set("debrief_learnings", v)}
             />
@@ -486,9 +484,9 @@ export function DebriefForm({
           <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
-              Esta GIG foi marcada como <strong>Concluída</strong>. Preencha os
-              campos obrigatórios (Pontos fortes / fracos / insights + as
-              três avaliações) ou salve como pendente para terminar depois.
+              Esta GIG foi marcada como <strong>Concluída</strong>. Preencha as
+              três avaliações (carisma, técnica, repertório) ou salve como
+              pendente para terminar depois.
             </div>
           </div>
         )}
@@ -522,11 +520,13 @@ function DebriefField({
   label,
   value,
   required,
+  compact,
   onChange,
 }: {
   label: string;
   value: string | null;
   required?: boolean;
+  compact?: boolean;
   onChange: (value: string | null) => void;
 }) {
   return (
@@ -535,7 +535,7 @@ function DebriefField({
         {label} {required && <span className="text-destructive">*</span>}
       </Label>
       <Textarea
-        rows={4}
+        rows={compact ? 2 : 4}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
       />

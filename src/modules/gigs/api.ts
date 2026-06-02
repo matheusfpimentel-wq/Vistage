@@ -19,6 +19,7 @@ const GIG_COLUMNS = [
   "cache_amount",
   "script_file_path",
   "banner_file_path",
+  "extra_flyer_paths",
   "opportunities",
   "briefing",
   "set_concept",

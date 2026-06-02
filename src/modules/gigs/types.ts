@@ -35,6 +35,7 @@ export type Gig = {
   cache_amount: number | null;
   script_file_path: string | null;
   banner_file_path: string | null;
+  extra_flyer_paths: string | null; // JSON array de caminhos (flyers além do primeiro)
   opportunities: string | null;
   briefing: string | null;
   set_concept: string | null;

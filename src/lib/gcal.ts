@@ -392,6 +392,7 @@ export async function syncAll(): Promise<{
       cache_amount: null,
       script_file_path: null,
       banner_file_path: null,
+      extra_flyer_paths: null,
       opportunities: null,
       briefing: ev.description ?? null,
       set_concept: null,

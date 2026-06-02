@@ -926,6 +926,13 @@ const MIGRATIONS: Migration[] = [
       UPDATE ideas SET maturation = 'Pronta' WHERE maturation = 'Convertida';
     `,
   },
+  {
+    version: 24,
+    description: "gigs — flyers adicionais (o primeiro continua sendo o da identidade)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN extra_flyer_paths TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Target } from "lucide-react";
+import { Loader2, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,7 +54,10 @@ type Props = {
   onSaved: (gig: { id: number; statusChanged: boolean; isNew: boolean }) => void;
 };
 
-type FormState = Omit<GigCreateInput, "id"> & { prep: Record<string, 1> };
+type FormState = Omit<GigCreateInput, "id"> & {
+  prep: Record<string, 1>;
+  extra_flyers: string[]; // flyers além do primeiro (banner_file_path)
+};
 
 const EMPTY: FormState = {
   date: todayISO(),
@@ -73,6 +76,8 @@ const EMPTY: FormState = {
   cache_amount: null,
   script_file_path: null,
   banner_file_path: null,
+  extra_flyer_paths: null,
+  extra_flyers: [],
   opportunities: null,
   briefing: null,
   set_concept: null,
@@ -112,7 +117,14 @@ const EMPTY: FormState = {
 
 function gigToState(gig: Gig): FormState {
   const { id: _id, created_at: _c, updated_at: _u, debrief_pending: _dp, debrief_completed_at: _dca, ...rest } = gig;
-  return { ...rest, prep: parsePrepState(gig.prep_state) };
+  let extra_flyers: string[] = [];
+  try {
+    const parsed = gig.extra_flyer_paths ? JSON.parse(gig.extra_flyer_paths) : [];
+    if (Array.isArray(parsed)) extra_flyers = parsed.filter((p): p is string => typeof p === "string");
+  } catch {
+    extra_flyers = [];
+  }
+  return { ...rest, prep: parsePrepState(gig.prep_state), extra_flyers };
 }
 
 export function GigForm({
@@ -210,9 +222,11 @@ export function GigForm({
       const payload: GigCreateInput = {
         ...state,
         prep_state: JSON.stringify(state.prep),
+        extra_flyer_paths: state.extra_flyers.length > 0 ? JSON.stringify(state.extra_flyers) : null,
       };
-      // remove o campo `prep` que não existe no banco
+      // remove campos auxiliares que não existem no banco
       delete (payload as unknown as { prep?: unknown }).prep;
+      delete (payload as unknown as { extra_flyers?: unknown }).extra_flyers;
 
       let savedId: number;
       if (gig) {
@@ -664,7 +678,7 @@ export function GigForm({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AttachmentField
-                label="Flyer / arte"
+                label="Flyer / arte (principal — vai pra Identidade)"
                 value={state.banner_file_path}
                 onChange={(v) => set("banner_file_path", v)}
                 subdir="gigs/flyers"
@@ -677,6 +691,59 @@ export function GigForm({
                 subdir="gigs/scripts"
                 variant="document"
               />
+            </div>
+
+            {/* Flyers adicionais — só o principal acima vai pra Identidade */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">Flyers adicionais</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => set("extra_flyers", [...state.extra_flyers, ""])}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Adicionar flyer
+                </Button>
+              </div>
+              {state.extra_flyers.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Adicione mais de uma arte se a GIG tiver variações de flyer.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {state.extra_flyers.map((path, i) => (
+                    <div key={i} className="space-y-1">
+                      <AttachmentField
+                        label={`Flyer adicional ${i + 1}`}
+                        value={path || null}
+                        onChange={(v) =>
+                          set(
+                            "extra_flyers",
+                            state.extra_flyers.map((p, j) => (j === i ? v ?? "" : p))
+                          )
+                        }
+                        subdir="gigs/flyers"
+                        variant="image"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs text-destructive"
+                        onClick={() =>
+                          set(
+                            "extra_flyers",
+                            state.extra_flyers.filter((_, j) => j !== i)
+                          )
+                        }
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remover
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Section>
 
