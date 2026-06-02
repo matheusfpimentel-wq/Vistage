@@ -20,7 +20,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { STAGES, TRACK_KINDS, TRACK_KIND_LABEL, type Stage, type TrackKind } from "./stages";
-import { daysInStage, deleteTrack, getTrack, listProjects, listTracks } from "./api";
+import { daysInStage, deleteTrack, getTrack, listProjects, listTracks, moveTrackToStage, setTrackStandby } from "./api";
 import type { Track, TrackWithProject } from "./types";
 import { TrackForm } from "./forms/TrackForm";
 import { ProjectForm } from "./forms/ProjectForm";
@@ -63,6 +63,17 @@ export function MusicPage() {
     const full = await getTrack(t.id);
     setEditing(full);
     setTrackFormOpen(true);
+  }
+
+  async function handleMoveStage(t: TrackWithProject, stage: import("./stages").Stage) {
+    const full = await getTrack(t.id);
+    if (full) await moveTrackToStage(full, stage);
+    await refresh();
+  }
+
+  async function handleStandby(t: TrackWithProject) {
+    await setTrackStandby(t.id, true);
+    await refresh();
   }
 
   async function handleDelete(t: TrackWithProject) {
@@ -183,7 +194,12 @@ export function MusicPage() {
             <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
           </TabsList>
           <TabsContent value="kanban">
-            <KanbanView tracks={filtered} onEdit={openEdit} />
+            <KanbanView
+              tracks={filtered}
+              onEdit={openEdit}
+              onMove={handleMoveStage}
+              onStandby={handleStandby}
+            />
           </TabsContent>
           <TabsContent value="list">
             <ListView

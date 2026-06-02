@@ -2,6 +2,7 @@ export const TASK_CATEGORIES = [
   "GIG",
   "Produção Musical",
   "Conteúdo",
+  "Festas",
   "Administrativo",
   "Pessoal",
 ] as const;

@@ -300,6 +300,26 @@ export async function rejectAtGate(
   await writeStage(track.id, track.current_stage, history, true);
 }
 
+/** Move a track direto pra um stage (drag no kanban). Sai do stand-by. */
+export async function moveTrackToStage(track: Track, stage: Stage): Promise<void> {
+  if (track.current_stage === stage && !track.standby) return;
+  const now = nowISO();
+  const history = [...track.stage_history];
+  const cur = history[history.length - 1];
+  if (cur && !cur.exited_at) cur.exited_at = now;
+  history.push({ stage, entered_at: now });
+  await writeStage(track.id, stage, history, false);
+}
+
+/** Coloca/tira do Stand-by sem mexer no stage (drag pro coluna Stand-by). */
+export async function setTrackStandby(id: number, standby: boolean): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE tracks SET standby = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [standby ? 1 : 0, id]
+  );
+}
+
 /** Reativa uma track que estava em Stand-by. */
 export async function reactivateTrack(id: number): Promise<void> {
   const db = getDb();

@@ -21,7 +21,8 @@ import { ContentForm } from "./forms/ContentForm";
 import { ContentList } from "./views/ContentList";
 import { ContentKanban } from "./views/ContentKanban";
 import { ContentCalendar } from "./views/ContentCalendar";
-import { deleteContent, getContentStats, listContent, type ContentFilters, type ContentStats } from "./api";
+import { deleteContent, getContentStats, listContent, updateContent, type ContentFilters, type ContentStats } from "./api";
+import { updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
   CONTENT_NETWORKS,
@@ -83,6 +84,18 @@ export function ContentPage() {
   function openEdit(c: Content) {
     setEditing(c);
     setFormOpen(true);
+  }
+
+  async function handleMove(id: number, status: ContentStatus) {
+    await updateContent({ id, status });
+    // Quando publica, conclui a tarefa vinculada ao conteúdo.
+    if (status === "Publicado") {
+      const moved = items.find((c) => c.id === id);
+      if (moved?.task_id) {
+        await updateTask({ id: moved.task_id, status: "Concluída" });
+      }
+    }
+    await refresh();
   }
 
   async function handleDelete(c: Content) {
@@ -215,7 +228,7 @@ export function ContentPage() {
           </TabsContent>
 
           <TabsContent value="kanban">
-            <ContentKanban items={items} onEdit={openEdit} />
+            <ContentKanban items={items} onEdit={openEdit} onMove={handleMove} />
           </TabsContent>
         </Tabs>
       )}

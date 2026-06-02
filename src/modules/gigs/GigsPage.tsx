@@ -78,6 +78,11 @@ export function GigsPage() {
     setFormOpen(true);
   }
 
+  async function handleMove(id: number, status: GigStatus) {
+    await updateGig({ id, status });
+    await refresh();
+  }
+
   async function handleSaved({
     id,
     statusChanged,
@@ -202,7 +207,7 @@ export function GigsPage() {
         </TabsContent>
 
         <TabsContent value="kanban">
-          <KanbanView gigs={gigs} onEdit={openEdit} />
+          <KanbanView gigs={gigs} onEdit={openEdit} onMove={handleMove} />
         </TabsContent>
 
         <TabsContent value="insights">

@@ -3,33 +3,38 @@ import { Badge } from "@/components/ui/badge";
 import { GIG_STATUSES, type Gig, type GigStatus } from "../types";
 import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
 
 type Props = {
   gigs: Gig[];
   onEdit: (gig: Gig) => void;
+  onMove?: (id: number, status: GigStatus) => void;
 };
 
-export function KanbanView({ gigs, onEdit }: Props) {
+export function KanbanView({ gigs, onEdit, onMove }: Props) {
   const columns = GIG_STATUSES.map((status) => ({
     status,
     gigs: gigs.filter((g) => g.status === status),
   }));
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <KanbanBoard
+      onMove={(id, status) => onMove?.(id, status as GigStatus)}
+      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+    >
       {columns.map((col) => (
-        <KanbanColumn
+        <Column
           key={col.status}
           status={col.status}
           gigs={col.gigs}
           onEdit={onEdit}
         />
       ))}
-    </div>
+    </KanbanBoard>
   );
 }
 
-function KanbanColumn({
+function Column({
   status,
   gigs,
   onEdit,
@@ -39,7 +44,7 @@ function KanbanColumn({
   onEdit: (gig: Gig) => void;
 }) {
   return (
-    <div className="flex flex-col rounded-md border bg-muted/30">
+    <KanbanColumn status={status} className="flex flex-col rounded-md border bg-muted/30">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="text-sm font-medium">{status}</div>
         <Badge variant="outline">{gigs.length}</Badge>
@@ -51,8 +56,9 @@ function KanbanColumn({
           </div>
         )}
         {gigs.map((g) => (
-          <button
+          <KanbanCard
             key={g.id}
+            id={g.id}
             onClick={() => onEdit(g)}
             className="w-full rounded-md border bg-background p-2 text-left text-sm transition hover:border-primary"
           >
@@ -72,9 +78,9 @@ function KanbanColumn({
                 </Badge>
               )}
             </div>
-          </button>
+          </KanbanCard>
         ))}
       </div>
-    </div>
+    </KanbanColumn>
   );
 }

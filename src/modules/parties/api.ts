@@ -150,17 +150,17 @@ export async function autoGeneratePartyTasks(party: PartyDeserialized): Promise<
   if (party.tasks_generated) return;
   const db = getDb();
   const now = nowISO();
-  const base = party.date ?? now.slice(0, 10);
-  const dueDate = new Date(base);
-  dueDate.setDate(dueDate.getDate() - 7);
-  const due = dueDate.toISOString().slice(0, 10);
+  // Data final = data da festa; se não houver, deixa sem data.
+  const due = party.date ?? null;
   const tasks = [
     "Confirmar venue e contrato",
     "Contratar sistema de som/luz",
     "Lançar divulgação nas redes",
     "Fechar line-up e cachês",
   ];
-  for (const title of tasks) {
+  for (const action of tasks) {
+    // Título traz a ação e termina com o nome da festa entre parênteses.
+    const title = `${action} (${party.title})`;
     await db.execute(
       `INSERT INTO tasks (title, category, priority, status, due_date, created_at, updated_at)
        VALUES ($1, 'Festas', 'Alta', 'A fazer', $2, $3, $4)`,

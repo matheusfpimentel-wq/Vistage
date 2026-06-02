@@ -6,15 +6,20 @@ import {
   type ContentStatus,
 } from "../types";
 import { formatDate } from "@/lib/format";
+import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
 
 type Props = {
   items: Content[];
   onEdit: (c: Content) => void;
+  onMove?: (id: number, status: ContentStatus) => void;
 };
 
-export function ContentKanban({ items, onEdit }: Props) {
+export function ContentKanban({ items, onEdit, onMove }: Props) {
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <KanbanBoard
+      onMove={(id, status) => onMove?.(id, status as ContentStatus)}
+      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+    >
       {CONTENT_STATUSES.map((status) => (
         <Column
           key={status}
@@ -23,7 +28,7 @@ export function ContentKanban({ items, onEdit }: Props) {
           onEdit={onEdit}
         />
       ))}
-    </div>
+    </KanbanBoard>
   );
 }
 
@@ -37,7 +42,7 @@ function Column({
   onEdit: (c: Content) => void;
 }) {
   return (
-    <div className="flex flex-col rounded-md border bg-muted/30">
+    <KanbanColumn status={status} className="flex flex-col rounded-md border bg-muted/30">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="text-sm font-medium flex items-center gap-2">
           <Badge variant={contentStatusVariant(status)}>{status}</Badge>
@@ -51,8 +56,9 @@ function Column({
           </div>
         )}
         {items.map((c) => (
-          <button
+          <KanbanCard
             key={c.id}
+            id={c.id}
             onClick={() => onEdit(c)}
             className="w-full rounded-md border bg-background p-2 text-left text-sm transition hover:border-primary"
           >
@@ -74,9 +80,9 @@ function Column({
                 </span>
               )}
             </div>
-          </button>
+          </KanbanCard>
         ))}
       </div>
-    </div>
+    </KanbanColumn>
   );
 }

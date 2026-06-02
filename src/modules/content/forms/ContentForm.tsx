@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { createTask } from "@/modules/tasks/api";
+import { createTask, updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
   CONTENT_NETWORKS,
@@ -153,6 +153,18 @@ export function ContentForm({
           await updateContent({ id, task_id: taskId });
         } catch {
           /* não interrompe */
+        }
+      }
+
+      // Publicou → conclui a tarefa vinculada.
+      if (state.status === "Publicado") {
+        const taskId = prevTaskId ?? content?.task_id ?? null;
+        if (taskId) {
+          try {
+            await updateTask({ id: taskId, status: "Concluída" });
+          } catch {
+            /* não interrompe */
+          }
         }
       }
 
