@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderPlus, Music, Plus, Search } from "lucide-react";
+import { FolderOpen, FolderPlus, Music, Plus, Search } from "lucide-react";
 import type { MusicProject } from "./types";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -28,6 +28,7 @@ import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { RoadmapView } from "./views/RoadmapView";
 import { PortfolioView } from "./views/PortfolioView";
+import { ProjectsView } from "./views/ProjectsView";
 
 type StageFilter = Stage | "Todos";
 type KindFilter = TrackKind | "Todos";
@@ -41,7 +42,9 @@ export function MusicPage() {
 
   const [trackFormOpen, setTrackFormOpen] = useState(false);
   const [editing, setEditing] = useState<Track | null>(null);
+  const [defaultProjectId, setDefaultProjectId] = useState<number | null>(null);
   const [projectFormOpen, setProjectFormOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<MusicProject | null>(null);
 
   const refresh = useCallback(async () => {
     const [t, p] = await Promise.all([listTracks(), listProjects()]);
@@ -53,11 +56,12 @@ export function MusicPage() {
     void refresh();
   }, [refresh]);
 
-  function openCreate() {
+  function openCreate(projectId?: number) {
     setEditing(null);
+    setDefaultProjectId(projectId ?? null);
     setTrackFormOpen(true);
   }
-  useNewItemShortcut(openCreate);
+  useNewItemShortcut(() => openCreate());
 
   async function openEdit(t: TrackWithProject) {
     const full = await getTrack(t.id);
@@ -119,7 +123,7 @@ export function MusicPage() {
           <Button variant="outline" onClick={() => setProjectFormOpen(true)}>
             <FolderPlus className="h-4 w-4" /> Novo projeto
           </Button>
-          <Button onClick={openCreate}>
+          <Button onClick={() => openCreate()}>
             <Plus className="h-4 w-4" /> Nova track
           </Button>
         </div>
@@ -179,53 +183,71 @@ export function MusicPage() {
         </Select>
       </div>
 
-      {tracks.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Music className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhuma track ainda. Clica em "Nova track" — o projeto é criado
-          automaticamente.
-        </div>
-      ) : (
-        <Tabs defaultValue="kanban">
-          <TabsList>
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            <TabsTrigger value="list">Lista</TabsTrigger>
-            <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
-            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-          </TabsList>
-          <TabsContent value="kanban">
-            <KanbanView
-              tracks={filtered}
-              onEdit={openEdit}
-              onMove={handleMoveStage}
-              onStandby={handleStandby}
+      <Tabs defaultValue="projetos">
+        <TabsList>
+          <TabsTrigger value="projetos">
+            <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+            Projetos
+          </TabsTrigger>
+          <TabsTrigger value="kanban">Kanban</TabsTrigger>
+          <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+          <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="projetos">
+          {projects.length === 0 && tracks.length === 0 ? (
+            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+              <Music className="mx-auto mb-2 h-8 w-8 opacity-50" />
+              Nenhuma track ainda. Clica em "Nova track" — o projeto é criado
+              automaticamente.
+            </div>
+          ) : (
+            <ProjectsView
+              projects={projects}
+              tracks={tracks}
+              onEditProject={(p) => { setEditingProject(p); setProjectFormOpen(true); }}
+              onEditTrack={openEdit}
+              onNewTrack={(projectId) => openCreate(projectId)}
+              onRefresh={() => void refresh()}
             />
-          </TabsContent>
-          <TabsContent value="list">
-            <ListView
-              tracks={filtered}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-            />
-          </TabsContent>
-          <TabsContent value="roadmap">
-            <RoadmapView tracks={tracks} projects={projects} />
-          </TabsContent>
-          <TabsContent value="portfolio">
-            <PortfolioView tracks={tracks} />
-          </TabsContent>
-        </Tabs>
-      )}
+          )}
+        </TabsContent>
+
+        <TabsContent value="kanban">
+          <KanbanView
+            tracks={filtered}
+            onEdit={openEdit}
+            onMove={handleMoveStage}
+            onStandby={handleStandby}
+          />
+        </TabsContent>
+        <TabsContent value="list">
+          <ListView
+            tracks={filtered}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+          />
+        </TabsContent>
+        <TabsContent value="roadmap">
+          <RoadmapView tracks={tracks} projects={projects} />
+        </TabsContent>
+        <TabsContent value="portfolio">
+          <PortfolioView tracks={tracks} />
+        </TabsContent>
+      </Tabs>
 
       <TrackForm
         open={trackFormOpen}
         onOpenChange={setTrackFormOpen}
         track={editing}
+        defaultProjectId={defaultProjectId}
         onSaved={() => void refresh()}
       />
       <ProjectForm
         open={projectFormOpen}
-        onOpenChange={setProjectFormOpen}
+        onOpenChange={(v) => { setProjectFormOpen(v); if (!v) setEditingProject(null); }}
+        project={editingProject}
         onSaved={() => void refresh()}
       />
     </div>
