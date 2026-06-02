@@ -17,6 +17,7 @@ export type WeekStats = {
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
   stalledProductions: number; // tracks/festas/conteúdos sem movimento há +15 dias
   undatedParties: number; // festas sem data (entram no pipeline criativo)
+  noConfirmedFestas: boolean; // nenhuma festa confirmada à frente
 };
 
 function weekRange(): { start: string; end: string } {
@@ -62,6 +63,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
     stalledPartiesRows,
     stalledContentRows,
     undatedPartiesRows,
+    confirmedFestasRows,
   ] = await Promise.all([
     db.select<CountRow[]>(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -134,6 +136,11 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
       []
     ),
+    // festas confirmadas no futuro
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM parties WHERE status = 'Confirmada' AND date >= $1`,
+      [today]
+    ),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
@@ -173,6 +180,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
       (stalledPartiesRows[0]?.c ?? 0) +
       (stalledContentRows[0]?.c ?? 0),
     undatedParties: undatedPartiesRows[0]?.c ?? 0,
+    noConfirmedFestas: (confirmedFestasRows[0]?.c ?? 0) === 0,
   };
 }
 

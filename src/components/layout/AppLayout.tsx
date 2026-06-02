@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Search } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Toaster } from "@/components/ui/toaster";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
@@ -85,6 +86,7 @@ export function AppLayout() {
               focusMode={focusMode}
               onToggleFocus={() => setFocusMode((f) => !f)}
             />
+            <NotificationBell />
             <ThemeToggle />
           </div>
         </header>

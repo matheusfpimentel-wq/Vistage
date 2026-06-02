@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
   Bell,
   CalendarClock,
   ChevronRight,
@@ -9,7 +8,6 @@ import {
   Minus,
   Music,
   PartyPopper,
-  Star,
   Target,
   TrendingDown,
   TrendingUp,
@@ -23,29 +21,24 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
-import { averageRating, type Gig } from "@/modules/gigs/types";
+import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
-import { PrepProgressMini } from "@/modules/gigs/components/PrepChecklist";
-import { parsePrepState, prepProgress } from "@/modules/gigs/prep";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { listUpcoming } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
 import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
 import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api";
-import { listTracks, daysInStage } from "@/modules/music/api";
+import { listTracks } from "@/modules/music/api";
 import { listParties } from "@/modules/parties/api";
-import { estimatedRevenue, type PartyDeserialized } from "@/modules/parties/types";
+import type { PartyDeserialized } from "@/modules/parties/types";
 import { listOkrs, currentQuarter, okrProgress, type Okr } from "@/modules/objetivos/api";
 import type { TrackWithProject } from "@/modules/music/types";
 import { trackDisplayName } from "@/modules/music/types";
-import { TRACK_KIND_LABEL } from "@/modules/music/stages";
-import { gateAfter } from "@/modules/music/gates";
 import { StageBadge } from "@/modules/music/components/StageBadge";
-import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 
 // ============================================================
 // Helpers de data
@@ -104,18 +97,13 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
-        <p className="text-sm text-muted-foreground">
-          Poucos números, alto sinal. A semana inteira num só eixo.
-        </p>
-      </div>
+      <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
 
       {data ? (
         <>
           <KpiRow data={data} />
           <OkrCard okrs={data.okrs} />
-          <DomainCards data={data} />
+          <CreativePipelineCard data={data} />
           <WeekTimeline data={data} />
         </>
       ) : (
@@ -334,7 +322,7 @@ function TrendIndicator({ delta }: { delta: number }) {
 }
 
 // ============================================================
-// Bloco 2 — 4 cards de domínio
+// Bloco 2 — OKRs + Pipeline criativo compacto
 // ============================================================
 
 function OkrCard({ okrs }: { okrs: Okr[] }) {
@@ -404,474 +392,166 @@ function OkrCard({ okrs }: { okrs: Okr[] }) {
   );
 }
 
-function DomainCards({ data }: { data: DashData }) {
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <GigsCard data={data} />
-      <MusicCard data={data} />
-      <ContentCard data={data} />
-      <FestasCard data={data} />
-    </div>
-  );
-}
-
-function GigsCard({ data }: { data: DashData }) {
-  const { gigs } = data;
+function CreativePipelineCard({ data }: { data: DashData }) {
   const today = todayISO();
 
-  const upcoming = gigs
-    .filter(
-      (g) =>
-        g.date >= today && g.status !== "Concluída" && g.status !== "Cancelada"
-    )
+  const upcomingGigs = data.gigs
+    .filter((g) => g.date >= today && (g.status === "Proposta" || g.status === "Confirmada"))
     .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 3);
-
-  const pending = gigs.filter((g) => g.debrief_pending === 1);
-
-  const last5 = gigs
-    .filter((g) => g.status === "Concluída")
-    .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 5);
-  const last5Ratings = last5
-    .map((g) => averageRating(g))
-    .filter((r): r is number => r !== null);
-  const last5Avg =
-    last5Ratings.length > 0
-      ? last5Ratings.reduce((s, r) => s + r, 0) / last5Ratings.length
-      : null;
+
+  const unrecordedContent = data.content.filter((c) =>
+    ["Ideia", "Roteiro", "Gravando", "Edição", "Pronto"].includes(c.status)
+  );
+
+  const activeTracks = data.tracks.filter(
+    (t) => !t.standby && ["Ideação", "Composição", "Produção"].includes(t.current_stage)
+  );
+
+  const activePipeline = data.parties.filter(
+    (p) => p.status === "Planejando" || p.status === "Confirmada"
+  );
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Disc3 className="h-4 w-4 text-primary" />
-          GIGs
-        </CardTitle>
-        <CardDescription>Próximas apresentações e debriefs.</CardDescription>
+        <CardTitle className="text-base">Pipeline criativo</CardTitle>
+        <CardDescription>O que está em execução agora.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {upcoming.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-            Sem GIGs futuras.{" "}
-            <Button asChild variant="dark" size="sm" className="ml-1">
-              <Link to="/gigs">Criar</Link>
-            </Button>
+      <CardContent className="space-y-4">
+        {/* GIGs futuras */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <Disc3 className="h-3.5 w-3.5" /> GIGs futuras
+            </span>
+            <Link to="/gigs" className="text-[11px] text-muted-foreground hover:text-foreground">
+              ver todas <ChevronRight className="inline h-3 w-3" />
+            </Link>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {upcoming.map((g) => {
-              const prep = parsePrepState(g.prep_state);
-              const { done, total } = prepProgress(prep);
-              const d = daysUntil(g.date);
-              return (
+          {upcomingGigs.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma GIG proposta ou confirmada.</p>
+          ) : (
+            <div className="space-y-1">
+              {upcomingGigs.map((g) => (
                 <Link
                   key={g.id}
                   to="/gigs"
-                  className="block space-y-2 rounded-md border p-3 transition hover:border-primary"
+                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition hover:bg-accent"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{gigDisplayName(g)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {g.venue_name} · {formatDate(g.date)}
-                        {d >= 0 && <> · {d === 0 ? "hoje" : `em ${d}d`}</>}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {done}/{total}
-                      </span>
-                      <StatusBadge status={g.status} />
-                    </div>
+                  <span className="font-medium">{gigDisplayName(g)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{formatDate(g.date)}</span>
+                    <StatusBadge status={g.status} />
                   </div>
-                  <PrepProgressMini state={prep} />
                 </Link>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between border-t pt-3 text-sm">
-          <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Star className="h-3.5 w-3.5 text-amber-500" />
-            Média últimas 5
-          </span>
-          <span className="font-semibold text-amber-500">
-            {last5Avg !== null ? formatRating(last5Avg) : "—"}
-          </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {pending.length > 0 && (
-          <Button asChild variant="outline" size="sm" className="w-full">
-            <Link to="/gigs">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              Finalizar {pending.length} debrief
-              {pending.length > 1 ? "s" : ""} pendente
-              {pending.length > 1 ? "s" : ""}
-            </Link>
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function MusicCard({ data }: { data: DashData }) {
-  const { tracks } = data;
-
-  const active = tracks.filter((t) => !t.standby);
-  const top3 = active.slice(0, 3);
-  const stalled = active.filter((t) => {
-    const d = daysInStage(t);
-    return d !== null && d > 30;
-  });
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Music className="h-4 w-4 text-primary" />
-          Produção Musical
-        </CardTitle>
-        <CardDescription>Tracks ativas no pipeline.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {top3.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-            Sem tracks ativas.{" "}
-            <Button asChild variant="dark" size="sm" className="ml-1">
-              <Link to="/musica">Criar</Link>
-            </Button>
+        {/* Conteúdos não gravados */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <Film className="h-3.5 w-3.5" /> Conteúdos não gravados
+            </span>
+            <span className="text-[11px] text-muted-foreground">{unrecordedContent.length} no pipeline</span>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {top3.map((t) => {
-              const d = daysInStage(t);
-              const gate = gateAfter(t.current_stage);
-              return (
+          {unrecordedContent.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhum conteúdo em andamento.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {(["Ideia", "Roteiro", "Gravando", "Edição", "Pronto"] as const).map((status) => {
+                const n = unrecordedContent.filter((c) => c.status === status).length;
+                if (n === 0) return null;
+                return (
+                  <Link
+                    key={status}
+                    to="/conteudo"
+                    className="flex items-center gap-1 rounded-md border bg-muted/40 px-2.5 py-1 text-xs transition hover:bg-accent"
+                  >
+                    <span className="font-medium">{n}</span>
+                    <span className="text-muted-foreground">{status}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Tracks em produção */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <Music className="h-3.5 w-3.5" /> Tracks em produção
+            </span>
+            <Link to="/musica" className="text-[11px] text-muted-foreground hover:text-foreground">
+              ver todas <ChevronRight className="inline h-3 w-3" />
+            </Link>
+          </div>
+          {activeTracks.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma track em Ideação, Composição ou Produção.</p>
+          ) : (
+            <div className="space-y-1">
+              {activeTracks.slice(0, 5).map((t) => (
                 <Link
                   key={t.id}
                   to="/musica"
-                  className="block space-y-1 rounded-md border p-2.5 transition hover:border-primary"
+                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition hover:bg-accent"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="font-medium leading-tight">
-                      {trackDisplayName(t)}
-                    </div>
-                    <StageBadge stage={t.current_stage} />
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span>{TRACK_KIND_LABEL[t.kind]}</span>
-                    <span>
-                      {d !== null && (
-                        <span className={d > 30 ? "text-amber-500" : ""}>
-                          {d}d no stage
-                        </span>
-                      )}
-                      {gate && <> · próx: {gate.id}</>}
-                    </span>
-                  </div>
+                  <span className="font-medium">{trackDisplayName(t)}</span>
+                  <StageBadge stage={t.current_stage} />
                 </Link>
-              );
-            })}
-          </div>
-        )}
-
-        {stalled.length > 0 && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              {stalled.length} track{stalled.length > 1 ? "s" : ""} parada
-              {stalled.length > 1 ? "s" : ""} há +30 dias em algum stage.
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ContentCard({ data }: { data: DashData }) {
-  const { content } = data;
-  const today = todayISO();
-  const month = today.slice(0, 7);
-
-  const isScheduled = (c: Content) =>
-    c.status !== "Publicado" &&
-    c.status !== "Arquivado" &&
-    c.publish_date !== null &&
-    c.publish_date >= today;
-
-  const counts = {
-    ideia: content.filter((c) => c.status === "Ideia").length,
-    producao: content.filter((c) =>
-      ["Roteiro", "Gravando", "Edição"].includes(c.status)
-    ).length,
-    pronto: content.filter((c) => c.status === "Pronto").length,
-    agendado: content.filter(isScheduled).length,
-  };
-
-  const nextScheduled = content
-    .filter(isScheduled)
-    .sort((a, b) =>
-      (a.publish_date ?? "").localeCompare(b.publish_date ?? "")
-    )[0];
-
-  // distribuição por finalidade no mês
-  const monthContent = content.filter((c) => {
-    const ref = c.publish_date ?? c.due_date ?? c.created_at;
-    return ref.slice(0, 7) === month && !!c.purpose;
-  });
-  const byPurpose = new Map<string, number>();
-  for (const c of monthContent) {
-    const p = c.purpose!.trim();
-    byPurpose.set(p, (byPurpose.get(p) ?? 0) + 1);
-  }
-  const purposeTotal = monthContent.length;
-  const purposes = Array.from(byPurpose.entries()).sort((a, b) => b[1] - a[1]);
-  const topShare = purposeTotal > 0 ? purposes[0][1] / purposeTotal : 0;
-  const imbalance = purposeTotal >= 3 && topShare > 0.7;
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Film className="h-4 w-4 text-primary" />
-          Conteúdos
-        </CardTitle>
-        <CardDescription>Pipeline editorial resumido.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-4 gap-2">
-          <MiniKanbanCol label="Ideia" value={counts.ideia} />
-          <MiniKanbanCol label="Produção" value={counts.producao} />
-          <MiniKanbanCol label="Pronto" value={counts.pronto} />
-          <MiniKanbanCol label="Agendado" value={counts.agendado} />
+              ))}
+            </div>
+          )}
         </div>
 
-        {nextScheduled ? (
-          <Link
-            to="/conteudo"
-            className="flex items-center justify-between rounded-md border p-2.5 text-sm transition hover:border-primary"
-          >
-            <div>
-              <div className="font-medium">{nextScheduled.title}</div>
-              <div className="text-xs text-muted-foreground">
-                {nextScheduled.networks.join(", ") || "—"}
-                {nextScheduled.format && ` · ${nextScheduled.format}`}
-              </div>
-            </div>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {formatDate(nextScheduled.publish_date)}
+        {/* Festas no pipeline */}
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <PartyPopper className="h-3.5 w-3.5" /> Festas no pipeline
             </span>
-          </Link>
-        ) : (
-          <div className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-            Nenhum conteúdo agendado.
+            <Link to="/festas" className="text-[11px] text-muted-foreground hover:text-foreground">
+              ver todas <ChevronRight className="inline h-3 w-3" />
+            </Link>
           </div>
-        )}
-
-        {purposeTotal > 0 && (
-          <div className="space-y-1.5">
-            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-              {purposes.map(([p, n], i) => (
-                <div
-                  key={p}
-                  className={cn(
-                    "h-full",
-                    PURPOSE_COLORS[i % PURPOSE_COLORS.length]
-                  )}
-                  style={{ width: `${(n / purposeTotal) * 100}%` }}
-                  title={`${p}: ${n}`}
-                />
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-              {purposes.slice(0, 4).map(([p, n], i) => (
-                <span key={p} className="flex items-center gap-1">
-                  <span
-                    className={cn(
-                      "inline-block h-2 w-2 rounded-full",
-                      PURPOSE_COLORS[i % PURPOSE_COLORS.length]
-                    )}
-                  />
-                  {p} ({n})
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {imbalance && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              Desequilíbrio: <strong>{Math.round(topShare * 100)}%</strong> do
-              mês é só "{purposes[0][0]}". Varie as finalidades.
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-const PURPOSE_COLORS = [
-  "bg-primary",
-  "bg-emerald-500",
-  "bg-amber-500",
-  "bg-sky-500",
-  "bg-rose-500",
-  "bg-violet-400",
-];
-
-function MiniKanbanCol({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-2 text-center">
-      <div className="text-lg font-semibold tabular-nums">{value}</div>
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-    </div>
-  );
-}
-
-function FestasCard({ data }: { data: DashData }) {
-  const today = todayISO();
-  const upcoming = data.parties
-    .filter(
-      (p) =>
-        p.date &&
-        p.date >= today &&
-        p.status !== "Cancelada" &&
-        p.status !== "Realizada"
-    )
-    .sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
-    .slice(0, 3);
-
-  const next = upcoming[0] ?? null;
-
-  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
-  const hasUpcoming30 = data.parties.some(
-    (p) =>
-      p.date &&
-      p.date >= today &&
-      p.date <= in30 &&
-      p.status !== "Cancelada" &&
-      p.status !== "Realizada"
-  );
-  const noConfirmed = !data.parties.some(
-    (p) =>
-      p.status === "Confirmada" &&
-      p.date &&
-      p.date >= today &&
-      p.date <= in30
-  );
-
-  // Sem nada nos próximos 30 dias: mostra as festas sem data marcada,
-  // pra elas não sumirem do radar.
-  const undated =
-    !hasUpcoming30
-      ? data.parties
-          .filter(
-            (p) =>
-              !p.date &&
-              p.status !== "Cancelada" &&
-              p.status !== "Realizada"
-          )
-          .slice(0, 3)
-      : [];
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PartyPopper className="h-4 w-4 text-pink-400" />
-          Produção de Festas
-        </CardTitle>
-        <CardDescription>
-          {data.parties.length === 0
-            ? "Nenhuma festa cadastrada."
-            : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {noConfirmed && data.parties.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            Nenhuma festa confirmada nos próximos 30 dias.
-          </div>
-        )}
-        {next ? (
-          <div className="space-y-1 rounded-md border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-sm">{next.title}</span>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-xs",
-                  next.status === "Confirmada"
-                    ? "border-emerald-500/30 text-emerald-400"
-                    : "border-amber-500/30 text-amber-400"
-                )}
-              >
-                {next.status}
-              </Badge>
-            </div>
-            {next.date && (
-              <p className="text-xs text-muted-foreground">
-                {formatDate(next.date)} · {daysUntil(next.date)} dias
-              </p>
-            )}
-            {next.expected_capacity && (
-              <p className="text-xs text-muted-foreground">
-                Capacidade: {next.expected_capacity.toLocaleString("pt-BR")} pessoas
-                {estimatedRevenue(next) > 0 &&
-                  ` · Receita est. ${formatCurrency(estimatedRevenue(next))}`}
-              </p>
-            )}
-          </div>
-        ) : undated.length === 0 ? (
-          <Link
-            to="/festas"
-            className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
-          >
-            <PartyPopper className="h-3.5 w-3.5" /> Cadastrar primeira festa
-          </Link>
-        ) : null}
-
-        {undated.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">
-              Nada nos próximos 30 dias. Festas sem data definida:
-            </p>
-            {undated.map((p) => (
-              <Link
-                key={p.id}
-                to="/festas"
-                className="flex items-center justify-between gap-2 rounded-md border p-2.5 transition hover:bg-accent"
-              >
-                <span className="text-sm font-medium">{p.title}</span>
-                <Badge
-                  variant="outline"
-                  className="shrink-0 border-amber-500/30 text-xs text-amber-400"
+          {activePipeline.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nenhuma festa planejando ou confirmada.</p>
+          ) : (
+            <div className="space-y-1">
+              {activePipeline.slice(0, 4).map((p) => (
+                <Link
+                  key={p.id}
+                  to="/festas"
+                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm transition hover:bg-accent"
                 >
-                  Sem data
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        )}
-        <Link
-          to="/festas"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          Ver todas as festas <ChevronRight className="h-3 w-3" />
-        </Link>
+                  <span className="font-medium">{p.title}</span>
+                  <div className="flex items-center gap-2">
+                    {p.date && <span className="text-xs text-muted-foreground">{formatDate(p.date)}</span>}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        p.status === "Confirmada"
+                          ? "border-emerald-500/30 text-emerald-400"
+                          : "border-amber-500/30 text-amber-400"
+                      )}
+                    >
+                      {p.status}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 }
-
 
 // ============================================================
 // Bloco 3 — Visão integrada da semana
