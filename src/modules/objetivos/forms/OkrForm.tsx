@@ -53,19 +53,46 @@ function newKr(): KeyResult {
   };
 }
 
+// Quebra "YYYY-Qn" em ano e trimestre.
+function splitQuarter(q: string): { year: string; q: string } {
+  const m = /^(\d{4})-Q([1-4])$/.exec(q);
+  if (m) return { year: m[1], q: m[2] };
+  const now = new Date();
+  return { year: String(now.getFullYear()), q: String(Math.ceil((now.getMonth() + 1) / 3)) };
+}
+
+const QUARTERS = [
+  { value: "1", label: "Q1 · jan–mar" },
+  { value: "2", label: "Q2 · abr–jun" },
+  { value: "3", label: "Q3 · jul–set" },
+  { value: "4", label: "Q4 · out–dez" },
+];
+
 export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
-  const [quarter, setQuarter] = useState(currentQuarter());
+  const initial = splitQuarter(currentQuarter());
+  const [year, setYear] = useState(initial.year);
+  const [quarterNum, setQuarterNum] = useState(initial.q);
   const [objective, setObjective] = useState("");
   const [krs, setKrs] = useState<KeyResult[]>([newKr()]);
   const [saving, setSaving] = useState(false);
 
+  const quarter = `${year}-Q${quarterNum}`;
+
+  // anos: do atual -1 até +3
+  const baseYear = new Date().getFullYear();
+  const YEARS = Array.from({ length: 5 }, (_, i) => String(baseYear - 1 + i));
+
   useEffect(() => {
     if (okr) {
-      setQuarter(okr.quarter);
+      const s = splitQuarter(okr.quarter);
+      setYear(s.year);
+      setQuarterNum(s.q);
       setObjective(okr.objective);
       setKrs(okr.key_results.length > 0 ? okr.key_results : [newKr()]);
     } else {
-      setQuarter(currentQuarter());
+      const s = splitQuarter(currentQuarter());
+      setYear(s.year);
+      setQuarterNum(s.q);
       setObjective("");
       setKrs([newKr()]);
     }
@@ -104,12 +131,34 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label>Ano</Label>
+              <Select value={year} onValueChange={setYear}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {YEARS.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Trimestre</Label>
-              <Input
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-                placeholder="2026-Q3"
-              />
+              <Select value={quarterNum} onValueChange={setQuarterNum}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {QUARTERS.map((q) => (
+                    <SelectItem key={q.value} value={q.value}>
+                      {q.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

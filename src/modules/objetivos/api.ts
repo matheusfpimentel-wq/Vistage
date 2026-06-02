@@ -70,18 +70,13 @@ export async function deleteOkr(id: number): Promise<void> {
   await db.execute(`DELETE FROM okrs WHERE id=$1`, [id]);
 }
 
-// Calcula current automaticamente pra KRs com metric_source != manual
-async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
+// Conta as métricas auto pra um intervalo (trimestre) específico.
+async function countsForRange(
+  needs: Set<string>,
+  qStart: string,
+  qEnd: string
+): Promise<Record<string, number>> {
   const db = getDb();
-  const needs = new Set(
-    okrs.flatMap((o) => o.key_results.map((kr) => kr.metric_source)).filter((s) => s !== "manual")
-  );
-  if (needs.size === 0) return okrs;
-
-  const today = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const quarter = currentQuarter();
-  const [qStart, qEnd] = quarterRange(quarter);
-
   const counts: Record<string, number> = {};
 
   if (needs.has("gigs_completed")) {
@@ -93,8 +88,8 @@ async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
   }
   if (needs.has("tracks_released")) {
     const rows = await db.select<{ c: number }[]>(
-      `SELECT COUNT(*) as c FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento') AND stage_entered_at >= $1`,
-      [qStart]
+      `SELECT COUNT(*) as c FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento') AND stage_entered_at >= $1 AND stage_entered_at <= $2`,
+      [qStart, qEnd]
     );
     counts.tracks_released = rows[0]?.c ?? 0;
   }
@@ -120,15 +115,39 @@ async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
     counts.finance_revenue = Math.round((rows[0]?.total ?? 0) / 100);
   }
 
-  void today; // suppress unused warning
+  return counts;
+}
 
-  return okrs.map((o) => ({
-    ...o,
-    key_results: o.key_results.map((kr) => ({
-      ...kr,
-      current: kr.metric_source === "manual" ? kr.current : (counts[kr.metric_source] ?? kr.current),
-    })),
-  }));
+// Calcula current automaticamente pra KRs com metric_source != manual.
+// Cada OKR usa o intervalo do SEU próprio trimestre (antes usava sempre o
+// trimestre atual, por isso não "sincronizava" em OKRs de outro período).
+async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
+  const needs = new Set(
+    okrs.flatMap((o) => o.key_results.map((kr) => kr.metric_source)).filter((s) => s !== "manual")
+  );
+  if (needs.size === 0) return okrs;
+
+  // memoiza por trimestre pra não repetir queries
+  const byQuarter = new Map<string, Record<string, number>>();
+  for (const o of okrs) {
+    if (byQuarter.has(o.quarter)) continue;
+    const [qStart, qEnd] = quarterRange(o.quarter);
+    byQuarter.set(o.quarter, await countsForRange(needs, qStart, qEnd));
+  }
+
+  return okrs.map((o) => {
+    const counts = byQuarter.get(o.quarter) ?? {};
+    return {
+      ...o,
+      key_results: o.key_results.map((kr) => ({
+        ...kr,
+        current:
+          kr.metric_source === "manual"
+            ? kr.current
+            : counts[kr.metric_source] ?? kr.current,
+      })),
+    };
+  });
 }
 
 export function currentQuarter(): string {

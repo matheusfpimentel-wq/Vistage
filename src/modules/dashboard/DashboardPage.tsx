@@ -114,8 +114,8 @@ export function DashboardPage() {
       {data ? (
         <>
           <KpiRow data={data} />
-          <OkrCard okrs={data.okrs} />
           <DomainCards data={data} />
+          <OkrCard okrs={data.okrs} />
           <WeekTimeline data={data} />
         </>
       ) : (
