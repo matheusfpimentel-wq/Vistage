@@ -291,51 +291,64 @@ export function IdentityPage() {
                 </Label>
                 <div className="space-y-2">
                   {identity.fonts.map((font, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <Input
-                        value={font.name}
-                        placeholder="Nome da fonte (ex: Clash Display)"
-                        onChange={(e) => {
+                    <div key={idx} className="space-y-2 rounded-md border p-2.5">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={font.name}
+                          placeholder="Nome da fonte (ex: Clash Display)"
+                          onChange={(e) => {
+                            const next = [...identity.fonts];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            set("fonts", next);
+                          }}
+                          className="flex-1"
+                          style={{ fontFamily: font.name || undefined }}
+                        />
+                        <Input
+                          value={font.role ?? ""}
+                          placeholder="Uso (Títulos, Corpo…)"
+                          onChange={(e) => {
+                            const next = [...identity.fonts];
+                            next[idx] = {
+                              ...next[idx],
+                              role: e.target.value || undefined,
+                            };
+                            set("fonts", next);
+                          }}
+                          className="w-40"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            set(
+                              "fonts",
+                              identity.fonts.filter((_, i) => i !== idx)
+                            )
+                          }
+                          aria-label="Remover fonte"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <AttachmentField
+                        label="Arquivo da fonte"
+                        value={font.file_path ?? null}
+                        onChange={(v) => {
                           const next = [...identity.fonts];
-                          next[idx] = { ...next[idx], name: e.target.value };
+                          next[idx] = { ...next[idx], file_path: v };
                           set("fonts", next);
                         }}
-                        className="flex-1"
-                        style={{ fontFamily: font.name || undefined }}
+                        subdir="fonts"
+                        variant="document"
                       />
-                      <Input
-                        value={font.role ?? ""}
-                        placeholder="Uso (Títulos, Corpo…)"
-                        onChange={(e) => {
-                          const next = [...identity.fonts];
-                          next[idx] = {
-                            ...next[idx],
-                            role: e.target.value || undefined,
-                          };
-                          set("fonts", next);
-                        }}
-                        className="w-40"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          set(
-                            "fonts",
-                            identity.fonts.filter((_, i) => i !== idx)
-                          )
-                        }
-                        aria-label="Remover fonte"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
                     </div>
                   ))}
                   <button
                     type="button"
                     onClick={() =>
-                      set("fonts", [...identity.fonts, { name: "", role: "" }])
+                      set("fonts", [...identity.fonts, { name: "", role: "", file_path: null }])
                     }
                     className="flex items-center gap-1.5 rounded-md border-2 border-dashed px-3 py-2 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
                   >

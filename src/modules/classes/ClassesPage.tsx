@@ -244,8 +244,6 @@ export function ClassesPage() {
                 setEditingClass(null);
                 setClassFormOpen(true);
               }}
-              disabled={students.length === 0}
-              title={students.length === 0 ? "Cadastre um aluno antes" : ""}
             >
               <Plus className="h-4 w-4" /> Nova aula
             </Button>

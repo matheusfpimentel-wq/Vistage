@@ -33,6 +33,8 @@ export type FontEntry = {
   name: string;
   /** Uso opcional (ex: "Títulos", "Corpo", "Destaque"). */
   role?: string;
+  /** Caminho opcional do arquivo da fonte anexado. */
+  file_path?: string | null;
 };
 
 export type ArtistIdentity = {

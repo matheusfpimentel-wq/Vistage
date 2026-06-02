@@ -11,7 +11,7 @@ import { open as openShell } from "@tauri-apps/plugin-shell";
 import { useConfigStore } from "./config";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
-export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt"];
+export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt", "ttf", "otf", "woff", "woff2"];
 
 type PickOptions = {
   title?: string;
