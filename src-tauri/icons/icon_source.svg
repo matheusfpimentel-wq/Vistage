@@ -1,28 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Background circle (deep dark) -->
-  <circle cx="256" cy="256" r="256" fill="#0F0F14"/>
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#1A0D2E"/>
 
-  <!-- Bullseye rings -->
-  <!-- Outer ring -->
-  <circle cx="256" cy="256" r="218" fill="none" stroke="#E53E3E" stroke-width="20"/>
-  <!-- Middle ring -->
-  <circle cx="256" cy="256" r="158" fill="none" stroke="#E53E3E" stroke-width="20"/>
-  <!-- Inner ring -->
-  <circle cx="256" cy="256" r="98" fill="none" stroke="#E53E3E" stroke-width="20"/>
-  <!-- Bull's eye dot -->
-  <circle cx="256" cy="256" r="32" fill="#E53E3E"/>
+  <!-- Bullseye rings — purple tones -->
+  <circle cx="256" cy="256" r="218" fill="none" stroke="#7C3AED" stroke-width="18"/>
+  <circle cx="256" cy="256" r="158" fill="none" stroke="#7C3AED" stroke-width="18"/>
+  <circle cx="256" cy="256" r="98"  fill="none" stroke="#7C3AED" stroke-width="18"/>
+  <!-- Bull's eye filled -->
+  <circle cx="256" cy="256" r="34"  fill="#7C3AED"/>
 
-  <!-- Stylized V "arrow" pointing to center from top -->
-  <!-- The V shape: two diagonal arms meeting at the center (256,256), coming from top-left and top-right -->
-  <!-- Left arm: from (148, 100) to (256, 256) -->
-  <!-- Right arm: from (364, 100) to (256, 256) -->
-  <path d="M 148 92 L 256 256 L 364 92"
+  <!--
+    Stylized V: two arms curving gently inward, tips pointed at both ends.
+    Uses a cubic bezier so the arms have a slight inward curve (more elegant).
+    The V is lighter/thinner than before — discreto.
+    Tips: top-left (138, 96) and top-right (374, 96), meeting at center (256, 272).
+    Control points pull each arm slightly inward to give a curved, pointed feel.
+  -->
+  <path d="M 138 96 C 160 130, 234 230, 256 272 C 278 230, 352 130, 374 96"
         fill="none"
-        stroke="#FFFFFF"
-        stroke-width="38"
+        stroke="#C4B5FD"
+        stroke-width="24"
         stroke-linecap="round"
         stroke-linejoin="round"/>
-
-  <!-- White dot at tip to make the V feel like it's hitting the bullseye -->
-  <circle cx="256" cy="256" r="14" fill="#FFFFFF"/>
 </svg>
