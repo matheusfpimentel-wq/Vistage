@@ -134,12 +134,15 @@ export function MarketingPanel({ projectId, trackId }: Props) {
     <div className="space-y-5">
       <div className="space-y-1.5">
         <Label className="text-xs">Estratégia de lançamento</Label>
-        <Select value={releaseStrategy} onValueChange={setReleaseStrategy}>
+        <Select
+          value={releaseStrategy || "_none"}
+          onValueChange={(v) => setReleaseStrategy(v === "_none" ? "" : v)}
+        >
           <SelectTrigger>
             <SelectValue placeholder="Não definido" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Não definido</SelectItem>
+            <SelectItem value="_none">Não definido</SelectItem>
             <SelectItem value="waterfall">Waterfall</SelectItem>
             <SelectItem value="drop_unico">Drop único</SelectItem>
             <SelectItem value="album_direto">Álbum direto</SelectItem>
