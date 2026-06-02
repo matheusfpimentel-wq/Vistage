@@ -28,6 +28,13 @@ export type PaletteColor = {
   label?: string;
 };
 
+export type FontEntry = {
+  /** Nome da fonte (ex: "Clash Display", "Inter"). */
+  name: string;
+  /** Uso opcional (ex: "Títulos", "Corpo", "Destaque"). */
+  role?: string;
+};
+
 export type ArtistIdentity = {
   id: 1;
   artist_name: string | null;
@@ -39,6 +46,8 @@ export type ArtistIdentity = {
   presskit_path: string | null;
   /** Paleta livre (qualquer número de cores). Substitui primary/secondary. */
   palette: PaletteColor[];
+  /** Fontes da marca (tipografia). */
+  fonts: FontEntry[];
   notes: string | null;
   updated_at: string;
 };

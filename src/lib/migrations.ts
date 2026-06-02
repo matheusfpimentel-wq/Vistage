@@ -933,6 +933,13 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN extra_flyer_paths TEXT;
     `,
   },
+  {
+    version: 25,
+    description: "artist_identity — fontes (tipografia)",
+    sql: `
+      ALTER TABLE artist_identity ADD COLUMN fonts TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

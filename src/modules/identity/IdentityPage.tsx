@@ -6,6 +6,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Type,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,7 @@ export function IdentityPage() {
         isotype_path: identity.isotype_path,
         presskit_path: identity.presskit_path,
         palette: identity.palette,
+        fonts: identity.fonts,
         notes: identity.notes,
       });
       toast.success("Identidade salva");
@@ -278,6 +280,67 @@ export function IdentityPage() {
                   >
                     <Plus className="h-4 w-4" />
                     Nova cor
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">
+                  <Type className="h-3.5 w-3.5" />
+                  Fontes (tipografia)
+                </Label>
+                <div className="space-y-2">
+                  {identity.fonts.map((font, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Input
+                        value={font.name}
+                        placeholder="Nome da fonte (ex: Clash Display)"
+                        onChange={(e) => {
+                          const next = [...identity.fonts];
+                          next[idx] = { ...next[idx], name: e.target.value };
+                          set("fonts", next);
+                        }}
+                        className="flex-1"
+                        style={{ fontFamily: font.name || undefined }}
+                      />
+                      <Input
+                        value={font.role ?? ""}
+                        placeholder="Uso (Títulos, Corpo…)"
+                        onChange={(e) => {
+                          const next = [...identity.fonts];
+                          next[idx] = {
+                            ...next[idx],
+                            role: e.target.value || undefined,
+                          };
+                          set("fonts", next);
+                        }}
+                        className="w-40"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() =>
+                          set(
+                            "fonts",
+                            identity.fonts.filter((_, i) => i !== idx)
+                          )
+                        }
+                        aria-label="Remover fonte"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set("fonts", [...identity.fonts, { name: "", role: "" }])
+                    }
+                    className="flex items-center gap-1.5 rounded-md border-2 border-dashed px-3 py-2 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Nova fonte
                   </button>
                 </div>
               </div>

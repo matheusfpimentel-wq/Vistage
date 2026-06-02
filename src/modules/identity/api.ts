@@ -7,9 +7,10 @@ import type {
   SocialLink,
 } from "./types";
 
-type IdentityRow = Omit<ArtistIdentity, "socials" | "palette"> & {
+type IdentityRow = Omit<ArtistIdentity, "socials" | "palette" | "fonts"> & {
   socials: string | null;
   palette: string | null;
+  fonts: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
 };
@@ -36,8 +37,16 @@ function rowToIdentity(r: IdentityRow): ArtistIdentity {
     if (r.primary_color) palette.push({ hex: r.primary_color, label: "Primária" });
     if (r.secondary_color) palette.push({ hex: r.secondary_color, label: "Secundária" });
   }
+  let fonts: ArtistIdentity["fonts"] = [];
+  if (r.fonts) {
+    try {
+      fonts = JSON.parse(r.fonts) as ArtistIdentity["fonts"];
+    } catch {
+      fonts = [];
+    }
+  }
   const { primary_color: _p, secondary_color: _s, ...rest } = r;
-  return { ...rest, socials, palette };
+  return { ...rest, socials, palette, fonts };
 }
 
 export async function loadIdentity(): Promise<ArtistIdentity> {
@@ -62,6 +71,7 @@ export async function saveIdentity(input: ArtistIdentityInput): Promise<void> {
     ...input,
     socials: JSON.stringify(input.socials ?? []),
     palette: JSON.stringify(input.palette ?? []),
+    fonts: JSON.stringify(input.fonts ?? []),
   };
   await db.execute(
     `INSERT OR IGNORE INTO artist_identity (id, socials, palette) VALUES (1, '[]', '[]')`
