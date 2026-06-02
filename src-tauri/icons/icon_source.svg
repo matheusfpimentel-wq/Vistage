@@ -10,16 +10,19 @@
   <circle cx="256" cy="256" r="34"  fill="#7C3AED"/>
 
   <!--
-    Stylized V: two arms curving gently inward, tips pointed at both ends.
-    Uses a cubic bezier so the arms have a slight inward curve (more elegant).
-    The V is lighter/thinner than before — discreto.
-    Tips: top-left (138, 96) and top-right (374, 96), meeting at center (256, 272).
-    Control points pull each arm slightly inward to give a curved, pointed feel.
+    Gaivota / seagull V: filled shape, pointed at both wing tips,
+    thickening smoothly toward the center bottom point.
+    Outer edge: wide bezier curve from tip-to-tip via center.
+    Inner edge: tighter bezier slightly above, creating a tapering filled wing.
   -->
-  <path d="M 138 96 C 160 130, 234 230, 256 272 C 278 230, 352 130, 374 96"
-        fill="none"
-        stroke="#C4B5FD"
-        stroke-width="24"
-        stroke-linecap="round"
-        stroke-linejoin="round"/>
+  <path d="
+    M 134 108
+    C 160 145, 230 238, 256 270
+    C 282 238, 352 145, 378 108
+    C 370 102, 362 100, 354 104
+    C 330 138, 276 222, 256 248
+    C 236 222, 182 138, 158 104
+    C 150 100, 142 102, 134 108
+    Z"
+        fill="#C4B5FD"/>
 </svg>
