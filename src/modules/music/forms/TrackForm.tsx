@@ -55,7 +55,7 @@ import {
   prevStage,
   type TrackKind,
 } from "../stages";
-import { MOOD_SUGGESTIONS, type Track, type TrackCreateInput } from "../types";
+import { MOOD_SUGGESTIONS, type MusicProject, type Track, type TrackCreateInput } from "../types";
 import { gateAfter, GATES, type GateDecisionRecord } from "../gates";
 import { StageBadge } from "../components/StageBadge";
 import { FlowSessionPanel } from "../components/FlowSessionPanel";
@@ -68,13 +68,16 @@ import {
   autoCreateLaunchTask,
   autoCreatePreLaunchContent,
   createTrack,
+  getMoodBank,
   getTrack,
+  listProjects,
   listTrackCollaborators,
   listTrackGigs,
   reactivateTrack,
   recordGate4,
   regressStage,
   rejectAtGate,
+  saveMoodBank,
   setTrackCollaborators,
   updateTrack,
 } from "../api";
@@ -109,7 +112,7 @@ const EMPTY: FormState = {
   creative_block_notes: null,
 };
 
-const COLLAB_TYPES = ["DJ parceiro", "Colaborador", "Produtor de eventos"];
+const COLLAB_TYPES = ["DJ parceiro", "Músico"];
 
 export function TrackForm({
   open,
@@ -125,6 +128,9 @@ export function TrackForm({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [moodInput, setMoodInput] = useState("");
+  const [moodBank, setMoodBank] = useState<string[]>([]);
+  const [projects, setProjects] = useState<MusicProject[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
   const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
   const [trackGigs, setTrackGigs] = useState<{ id: number; event_name: string | null; venue_name: string; date: string }[]>([]);
@@ -142,6 +148,9 @@ export function TrackForm({
     if (!open) return;
     setDirty(false);
     setMoodInput("");
+    void getMoodBank().then(setMoodBank);
+    void listProjects().then(setProjects);
+    setProjectId(track?.project_id ?? defaultProjectId ?? null);
     void listContacts().then((all) =>
       setContacts(
         all.filter((c) => c.types.some((t) => COLLAB_TYPES.includes(t)))
@@ -184,9 +193,21 @@ export function TrackForm({
 
   function addMood(tag: string) {
     const t = tag.trim();
-    if (!t || state.mood_tags.includes(t)) return;
-    set("mood_tags", [...state.mood_tags, t]);
+    if (!t) return;
+    if (!state.mood_tags.includes(t)) set("mood_tags", [...state.mood_tags, t]);
     setMoodInput("");
+    // alimenta o banco geral de mood tags se for novo
+    if (!(MOOD_SUGGESTIONS as readonly string[]).includes(t) && !moodBank.includes(t)) {
+      const next = [...moodBank, t];
+      setMoodBank(next);
+      void saveMoodBank(next);
+    }
+  }
+
+  function removeMoodFromBank(tag: string) {
+    const next = moodBank.filter((m) => m !== tag);
+    setMoodBank(next);
+    void saveMoodBank(next);
   }
 
   async function addReference() {
@@ -222,20 +243,14 @@ export function TrackForm({
       toast.error("O título de trabalho é obrigatório");
       return;
     }
-    if (!state.constraints || !state.constraints.trim()) {
-      toast.error(
-        "Defina as restrições criativas — elas aumentam a produção criativa."
-      );
-      return;
-    }
     setSaving(true);
     try {
       let id: number;
       if (track) {
-        await updateTrack({ id: track.id, ...state });
+        await updateTrack({ id: track.id, ...state, project_id: projectId });
         id = track.id;
       } else {
-        id = await createTrack({ ...state, project_id: defaultProjectId ?? null });
+        id = await createTrack({ ...state, project_id: projectId });
       }
       await setTrackCollaborators(id, collabs);
       toast.success(track ? "Track atualizada" : "Track criada");
@@ -352,6 +367,27 @@ export function TrackForm({
                 />
               </Field>
             </div>
+            <Field label="Projeto (pasta que agrupa as músicas)">
+              <Select
+                value={projectId === null ? "_none" : projectId.toString()}
+                onValueChange={(v) => {
+                  setProjectId(v === "_none" ? null : Number(v));
+                  setDirty(true);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem projeto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Sem projeto</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <div className="grid gap-3 sm:grid-cols-4">
               <Field label="Tipo">
                 <Select
@@ -452,25 +488,43 @@ export function TrackForm({
                 />
               </div>
               <div className="mt-1 flex flex-wrap gap-1">
-                {MOOD_SUGGESTIONS.filter((m) => !state.mood_tags.includes(m)).map(
-                  (m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => addMood(m)}
-                      className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-                    >
-                      + {m}
-                    </button>
-                  )
-                )}
+                {Array.from(new Set([...MOOD_SUGGESTIONS, ...moodBank]))
+                  .filter((m) => !state.mood_tags.includes(m))
+                  .map((m) => {
+                    const isCustom = !(MOOD_SUGGESTIONS as readonly string[]).includes(m);
+                    return (
+                      <span
+                        key={m}
+                        className="inline-flex items-center rounded border text-[11px] text-muted-foreground"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => addMood(m)}
+                          className="px-1.5 py-0.5 hover:bg-accent"
+                        >
+                          + {m}
+                        </button>
+                        {isCustom && (
+                          <button
+                            type="button"
+                            onClick={() => removeMoodFromBank(m)}
+                            className="border-l px-1 py-0.5 text-muted-foreground/60 hover:text-destructive"
+                            aria-label={`Remover ${m} do banco`}
+                            title="Remover do banco geral"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </span>
+                    );
+                  })}
               </div>
             </Field>
           </TabsContent>
 
           {/* ===== CONCEITO ===== */}
           <TabsContent value="concept" className="space-y-4">
-            <Field label="Restrições criativas *">
+            <Field label="Restrições criativas">
               <p className="text-xs text-muted-foreground">
                 Definir restrições explícitas aumenta a produção criativa. Ex:
                 "só sintetizadores", "sem sample vocal", "produzir em 7 dias".
@@ -597,7 +651,7 @@ export function TrackForm({
               <Field label="Colaboradores">
                 {contacts.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Cadastre contatos do tipo DJ parceiro / Colaborador no CRM.
+                    Cadastre contatos do tipo DJ parceiro ou Músico no CRM.
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">

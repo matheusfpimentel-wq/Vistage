@@ -13,6 +13,7 @@ export type MusicProject = {
   press_release_draft: string | null;
   marketing_dates: string | null; // JSON
   partnerships_confirmed: string | null;
+  concept: string | null; // conceito do projeto
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -93,9 +94,7 @@ export type TrackCreateInput = {
   creative_block_notes: string | null;
 };
 
-export type TrackUpdateInput = Partial<
-  Omit<TrackCreateInput, "project_id">
-> & { id: number };
+export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number };
 
 /** Track com dados do projeto agregados (pro dashboard e listas). */
 export type TrackWithProject = Track & {

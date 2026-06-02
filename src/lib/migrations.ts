@@ -940,6 +940,13 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE artist_identity ADD COLUMN fonts TEXT;
     `,
   },
+  {
+    version: 26,
+    description: "music_projects — campo conceito do projeto",
+    sql: `
+      ALTER TABLE music_projects ADD COLUMN concept TEXT;
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

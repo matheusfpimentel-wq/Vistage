@@ -35,6 +35,7 @@ type Props = {
 export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
   const [kind, setKind] = useState<ProjectKind>("single");
   const [title, setTitle] = useState("");
+  const [concept, setConcept] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -45,6 +46,7 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
     if (!open) return;
     setKind((project?.kind as ProjectKind) ?? "single");
     setTitle(project?.title ?? "");
+    setConcept(project?.concept ?? "");
     setNotes(project?.notes ?? "");
     setDirty(false);
   }, [open, project]);
@@ -58,7 +60,7 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
     try {
       let id: number;
       if (project) {
-        await updateProject({ id: project.id, kind, title: title.trim(), notes: notes.trim() || null });
+        await updateProject({ id: project.id, kind, title: title.trim(), concept: concept.trim() || null, notes: notes.trim() || null });
         id = project.id;
       } else {
         id = await createProject({
@@ -69,6 +71,7 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
           press_release_draft: null,
           marketing_dates: null,
           partnerships_confirmed: null,
+          concept: concept.trim() || null,
           notes: notes.trim() || null,
         });
       }
@@ -128,6 +131,18 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
                 setDirty(true);
               }}
               placeholder='Ex: "EP Madrugada"'
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Conceito do projeto</Label>
+            <Textarea
+              rows={3}
+              value={concept}
+              onChange={(e) => {
+                setConcept(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="A ideia central que une as músicas — vibe, narrativa, estética…"
             />
           </div>
           <div className="space-y-1.5">
