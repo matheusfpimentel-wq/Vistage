@@ -137,8 +137,8 @@ export function ContentForm({
         ? (await updateContent({ id: content.id, ...state }), content.id)
         : await createContent(state);
 
-      // Cria tarefa pro prazo da primeira vez que due_date é definido
-      if (state.due_date && !prevTaskId) {
+      // Cria tarefa sempre que não existe ainda
+      if (!prevTaskId && !content?.task_id) {
         try {
           const taskId = await createTask({
             title: `Conteúdo: ${state.title.trim()}`,
@@ -157,8 +157,8 @@ export function ContentForm({
         }
       }
 
-      // Publicou → conclui a tarefa vinculada.
-      if (state.status === "Publicado") {
+      // Pronto ou Publicado → conclui a tarefa vinculada.
+      if (state.status === "Pronto" || state.status === "Publicado") {
         const taskId = prevTaskId ?? content?.task_id ?? null;
         if (taskId) {
           try {

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   Flame,
   Heart,
   LayoutGrid,
@@ -33,13 +35,19 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import {
+  addFanGroupMember,
+  createFanGroup,
   deleteFan,
+  deleteFanGroup,
   getFanStats,
+  listFanGroupMembers,
+  listFanGroups,
   listFans,
+  removeFanGroupMember,
   type FanFilters,
   type FanStats,
 } from "./api";
-import { FAN_LEVELS, type Fan, type FanLevel } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
@@ -320,6 +328,8 @@ export function FansPage() {
           openEdit(f);
         }}
       />
+
+      <FanGroupsPanel fans={fans} />
     </div>
   );
 }
@@ -443,6 +453,179 @@ function FanCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function FanGroupsPanel({ fans }: { fans: Fan[] }) {
+  const [open, setOpen] = useState(false);
+  const [groups, setGroups] = useState<FanGroup[]>([]);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [members, setMembers] = useState<Record<number, FanGroupMember[]>>({});
+  const [newName, setNewName] = useState("");
+  const [newWhatsapp, setNewWhatsapp] = useState("");
+  const [newOrigin, setNewOrigin] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [memberInput, setMemberInput] = useState<Record<number, { fanId: string; name: string }>>({});
+
+  useEffect(() => {
+    if (open) void refresh();
+  }, [open]);
+
+  async function refresh() {
+    const gs = await listFanGroups();
+    setGroups(gs);
+  }
+
+  async function expand(id: number) {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    const m = await listFanGroupMembers(id);
+    setMembers((prev) => ({ ...prev, [id]: m }));
+  }
+
+  async function handleAddGroup() {
+    if (!newName.trim()) return;
+    setAdding(true);
+    try {
+      await createFanGroup({ name: newName.trim(), whatsapp_group: newWhatsapp || null, origin: newOrigin || null, notes: null });
+      setNewName(""); setNewWhatsapp(""); setNewOrigin("");
+      await refresh();
+      toast.success("Grupo criado");
+    } finally { setAdding(false); }
+  }
+
+  async function handleDeleteGroup(id: number) {
+    await deleteFanGroup(id);
+    if (expandedId === id) setExpandedId(null);
+    await refresh();
+  }
+
+  async function handleAddMember(groupId: number) {
+    const inp = memberInput[groupId];
+    const fanId = inp?.fanId ? Number(inp.fanId) : null;
+    const name = inp?.name?.trim() || null;
+    if (!fanId && !name) return;
+    await addFanGroupMember(groupId, fanId, name, null);
+    const m = await listFanGroupMembers(groupId);
+    setMembers((prev) => ({ ...prev, [groupId]: m }));
+    setMemberInput((prev) => ({ ...prev, [groupId]: { fanId: "", name: "" } }));
+  }
+
+  async function handleRemoveMember(groupId: number, memberId: number) {
+    await removeFanGroupMember(memberId);
+    const m = await listFanGroupMembers(groupId);
+    setMembers((prev) => ({ ...prev, [groupId]: m }));
+  }
+
+  return (
+    <div className="rounded-md border">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span>Grupos de Fãs</span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+
+      {open && (
+        <div className="border-t p-4 space-y-4">
+          {groups.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum grupo cadastrado.</p>
+          )}
+          {groups.map((g) => (
+            <div key={g.id} className="rounded-md border">
+              <div className="flex items-center justify-between px-3 py-2">
+                <button
+                  type="button"
+                  className="flex-1 text-left text-sm font-medium"
+                  onClick={() => void expand(g.id)}
+                >
+                  {g.name}
+                  {g.origin && <span className="ml-2 text-xs text-muted-foreground">({g.origin})</span>}
+                  {g.whatsapp_group && <span className="ml-2 text-xs text-muted-foreground">· {g.whatsapp_group}</span>}
+                </button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 text-destructive"
+                  onClick={() => void handleDeleteGroup(g.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {expandedId === g.id && (
+                <div className="border-t px-3 py-3 space-y-2">
+                  {(members[g.id] ?? []).map((m) => {
+                    const fanName = m.fan_id ? fans.find((f) => f.id === m.fan_id)?.name : null;
+                    return (
+                      <div key={m.id} className="flex items-center justify-between text-sm">
+                        <span>{fanName ?? m.name ?? "—"}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive"
+                          onClick={() => void handleRemoveMember(g.id, m.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                  <div className="flex gap-2 pt-1">
+                    <select
+                      className="h-8 rounded-md border bg-background px-2 text-xs flex-1"
+                      value={memberInput[g.id]?.fanId ?? ""}
+                      onChange={(e) => setMemberInput((prev) => ({ ...prev, [g.id]: { ...prev[g.id], fanId: e.target.value, name: prev[g.id]?.name ?? "" } }))}
+                    >
+                      <option value="">Selecionar fã…</option>
+                      {fans.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                    <Input
+                      className="h-8 text-xs flex-1"
+                      placeholder="Ou nome livre"
+                      value={memberInput[g.id]?.name ?? ""}
+                      onChange={(e) => setMemberInput((prev) => ({ ...prev, [g.id]: { ...prev[g.id], name: e.target.value, fanId: prev[g.id]?.fanId ?? "" } }))}
+                    />
+                    <Button size="sm" className="h-8" onClick={() => void handleAddMember(g.id)}>
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="text-xs font-medium text-muted-foreground">Novo grupo</div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Input
+                placeholder="Nome do grupo *"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+              />
+              <Input
+                placeholder="Link/nome WhatsApp"
+                value={newWhatsapp}
+                onChange={(e) => setNewWhatsapp(e.target.value)}
+              />
+              <Input
+                placeholder="Origem"
+                value={newOrigin}
+                onChange={(e) => setNewOrigin(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" onClick={() => void handleAddGroup()} disabled={adding}>
+                <Plus className="h-3.5 w-3.5" /> Criar grupo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

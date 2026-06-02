@@ -417,3 +417,36 @@ export async function syncPartyToFinanceiro(
     [party.id]
   );
 }
+
+/** Links a party task to the global tasks module, creating a global task if needed. */
+export async function linkPartyTaskToGlobal(
+  task: PartyTask,
+  partyTitle: string,
+  partyDate: string | null
+): Promise<number> {
+  const { createTask } = await import("@/modules/tasks/api");
+  const taskId = await createTask({
+    title: `${task.title} (${partyTitle})`,
+    description: null,
+    category: "Festas",
+    gig_id: null,
+    contact_id: null,
+    priority: "Média",
+    status: "A fazer",
+    due_date: partyDate,
+    tags: ["festa"],
+  });
+  const db = getDb();
+  await db.execute("UPDATE party_tasks SET global_task_id = $1 WHERE id = $2", [taskId, task.id]);
+  return taskId;
+}
+
+/** Completes both the party task and its linked global task. */
+export async function completePartyTask(task: PartyTask): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE party_tasks SET status = 'concluida' WHERE id = $1", [task.id]);
+  if (task.global_task_id) {
+    const { updateTask } = await import("@/modules/tasks/api");
+    await updateTask({ id: task.global_task_id, status: "Concluída" });
+  }
+}

@@ -75,6 +75,7 @@ export type ClassSession = {
   feedback: string | null;
   amount: number | null;
   notes: string | null;
+  task_id?: number | null;
   created_at: string;
   updated_at: string;
 };

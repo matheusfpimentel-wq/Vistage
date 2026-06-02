@@ -250,7 +250,33 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
     `INSERT INTO classes (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa se a aula é no futuro
+  const today = new Date().toISOString().slice(0, 10);
+  if (input.date && input.date > today) {
+    try {
+      const studentRows = await db.select<{ name: string }[]>(
+        "SELECT name FROM students WHERE id = $1", [input.student_id]
+      );
+      const studentName = studentRows[0]?.name ?? "Aluno";
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskId = await createTask({
+        title: `Aula: ${studentName}`,
+        description: input.subject ?? null,
+        category: "Pessoal",
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: input.date,
+        tags: ["aula"],
+      });
+      await db.execute("UPDATE classes SET task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch {
+      /* não interrompe */
+    }
+  }
+  return id;
 }
 
 export async function updateClass(input: ClassSessionUpdateInput): Promise<void> {

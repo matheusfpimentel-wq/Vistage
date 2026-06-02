@@ -79,6 +79,7 @@ export type Gig = {
   prep_state: string | null;
   /** ID da tarefa auto-criada a partir do objetivo principal. */
   main_goal_task_id: number | null;
+  prep_task_id?: number | null;
   created_at: string;
   updated_at: string;
 };

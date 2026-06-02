@@ -146,6 +146,16 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               {venue.instagram && (
                 <Row label="Instagram" value={venue.instagram} />
               )}
+              {venue.concept && (
+                <Row label="Conceito" value={venue.concept} />
+              )}
+              {venue.dominant_genre && (
+                <Row label="Gênero dominante" value={venue.dominant_genre} />
+              )}
+              <Row label="Rider disponível" value={venue.rider_available ? "Sim" : "Não"} />
+              {venue.regular_audience && (
+                <Row label="Público habitual" value={venue.regular_audience} />
+              )}
               {venue.website && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">

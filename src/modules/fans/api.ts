@@ -2,6 +2,10 @@ import { getDb } from "@/lib/db";
 import type {
   Fan,
   FanCreateInput,
+  FanGroup,
+  FanGroupCreateInput,
+  FanGroupMember,
+  FanGroupUpdateInput,
   FanInteraction,
   FanLevel,
   FanUpdateInput,
@@ -149,4 +153,64 @@ export async function getFanStats(): Promise<FanStats> {
     else if (r.level === "Possível fã") stats.possivelFa = r.n;
   }
   return stats;
+}
+
+// ===== Fan Groups =====
+
+export async function listFanGroups(): Promise<FanGroup[]> {
+  const db = getDb();
+  return db.select<FanGroup[]>("SELECT * FROM fan_groups ORDER BY name ASC");
+}
+
+export async function createFanGroup(input: FanGroupCreateInput): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO fan_groups (name, whatsapp_group, origin, notes) VALUES ($1, $2, $3, $4)`,
+    [input.name, input.whatsapp_group, input.origin, input.notes]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updateFanGroup(input: FanGroupUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = [...cols.map((k) => (rest as Record<string, unknown>)[k]), id];
+  await db.execute(
+    `UPDATE fan_groups SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+    values
+  );
+}
+
+export async function deleteFanGroup(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM fan_groups WHERE id = $1", [id]);
+}
+
+export async function listFanGroupMembers(groupId: number): Promise<FanGroupMember[]> {
+  const db = getDb();
+  return db.select<FanGroupMember[]>(
+    "SELECT * FROM fan_group_members WHERE group_id = $1 ORDER BY id ASC",
+    [groupId]
+  );
+}
+
+export async function addFanGroupMember(
+  groupId: number,
+  fanId: number | null,
+  name: string | null,
+  notes: string | null
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "INSERT INTO fan_group_members (group_id, fan_id, name, notes) VALUES ($1, $2, $3, $4)",
+    [groupId, fanId, name, notes]
+  );
+}
+
+export async function removeFanGroupMember(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM fan_group_members WHERE id = $1", [id]);
 }

@@ -41,6 +41,9 @@ const TABLES = [
   "highlights",
   "okrs",
   "decisions",
+  "fan_groups",
+  "fan_group_members",
+  "okr_kr_tasks",
   "app_settings",
   "gcal_auth",
 ] as const;

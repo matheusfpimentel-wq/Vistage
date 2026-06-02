@@ -79,6 +79,7 @@ export type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
 export type PartyTask = {
   id: number; party_id: number; stage_id: number|null; title: string;
   status: PartyTaskStatus; priority: string; due_date: string|null; notes: string|null;
+  global_task_id?: number | null;
   created_at: string; updated_at: string;
 };
 

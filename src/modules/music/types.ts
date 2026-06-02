@@ -58,6 +58,7 @@ export type TrackRow = {
   stage_notes: string | null;
   creative_block_notes: string | null;
   standby: number;
+  task_id: number | null;
   created_at: string;
   updated_at: string;
 };

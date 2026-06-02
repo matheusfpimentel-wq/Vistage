@@ -28,7 +28,7 @@ import {
   type Gig,
   type GigCreateInput,
 } from "../types";
-import { createGig, listGigTracks, setGigTracks, updateGig } from "../api";
+import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
 import { syncGigPaymentTransaction } from "@/modules/finance/api";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
@@ -112,6 +112,7 @@ const EMPTY: FormState = {
   main_goal: null,
   prep_state: null,
   main_goal_task_id: null,
+  prep_task_id: null,
   prep: {},
 };
 
@@ -236,6 +237,16 @@ export function GigForm({
       } else {
         savedId = await createGig(payload);
         toast.success("GIG criada");
+        // Cria tarefa de preparação para a nova GIG
+        try {
+          const newGig = await getGig(savedId);
+          if (newGig) {
+            const prepTaskId = await createGigPrepTask(newGig);
+            await updateGig({ id: savedId, prep_task_id: prepTaskId });
+          }
+        } catch {
+          /* não interrompe */
+        }
       }
 
       // objetivo principal vira tarefa (uma única vez por GIG)
@@ -259,6 +270,16 @@ export function GigForm({
           await updateGig({ id: savedId, main_goal_task_id: taskId });
         } catch {
           /* não interrompe se a tarefa falhar */
+        }
+      }
+
+      // Ao concluir a GIG, conclui também a tarefa de preparação
+      if (state.status === "Concluída" && gig?.prep_task_id) {
+        try {
+          const { updateTask } = await import("@/modules/tasks/api");
+          await updateTask({ id: gig.prep_task_id, status: "Concluída" });
+        } catch {
+          /* não interrompe */
         }
       }
 

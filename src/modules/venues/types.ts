@@ -14,6 +14,10 @@ export type Venue = {
   website: string | null;
   notes: string | null;
   photo_path: string | null;
+  concept?: string | null;
+  dominant_genre?: string | null;
+  rider_available?: number;
+  regular_audience?: string | null;
   lat: number | null;
   lng: number | null;
   geocoded_at: string | null;

@@ -54,7 +54,17 @@ export async function createOkr(input: { quarter: string; objective: string; key
     `INSERT INTO okrs (quarter, objective, key_results) VALUES ($1, $2, $3)`,
     [input.quarter, input.objective, JSON.stringify(input.key_results)]
   );
-  return res.lastInsertId as number;
+  const id = res.lastInsertId as number;
+  const okr: Okr = {
+    id,
+    quarter: input.quarter,
+    objective: input.objective,
+    key_results: input.key_results,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  await syncOkrKrTasks(okr).catch(() => {});
+  return id;
 }
 
 export async function updateOkr(input: { id: number; quarter: string; objective: string; key_results: KeyResult[] }): Promise<void> {
@@ -63,6 +73,15 @@ export async function updateOkr(input: { id: number; quarter: string; objective:
     `UPDATE okrs SET quarter=$1, objective=$2, key_results=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
     [input.quarter, input.objective, JSON.stringify(input.key_results), input.id]
   );
+  const okr: Okr = {
+    id: input.id,
+    quarter: input.quarter,
+    objective: input.objective,
+    key_results: input.key_results,
+    created_at: "",
+    updated_at: new Date().toISOString(),
+  };
+  await syncOkrKrTasks(okr).catch(() => {});
 }
 
 export async function deleteOkr(id: number): Promise<void> {
@@ -176,4 +195,44 @@ export function okrProgress(okr: Okr): number {
     return s + pct;
   }, 0);
   return total / okr.key_results.length;
+}
+
+export async function syncOkrKrTasks(okr: Okr): Promise<void> {
+  const db = getDb();
+  const [, endDate] = quarterRange(okr.quarter);
+  const { createTask, updateTask } = await import("@/modules/tasks/api");
+
+  for (let i = 0; i < okr.key_results.length; i++) {
+    const kr = okr.key_results[i];
+    const title = `${kr.description} — ${okr.quarter}`;
+
+    const rows = await db.select<{ task_id: number }[]>(
+      "SELECT task_id FROM okr_kr_tasks WHERE okr_id = $1 AND kr_index = $2",
+      [okr.id, i]
+    );
+
+    if (rows[0]) {
+      await updateTask({ id: rows[0].task_id, title, due_date: endDate }).catch(() => {});
+    } else {
+      try {
+        const taskId = await createTask({
+          title,
+          description: `Meta: ${kr.target} ${kr.unit}`,
+          category: "Pessoal",
+          gig_id: null,
+          contact_id: null,
+          priority: "Alta",
+          status: "A fazer",
+          due_date: endDate,
+          tags: ["okr"],
+        });
+        await db.execute(
+          "INSERT OR IGNORE INTO okr_kr_tasks (okr_id, kr_index, task_id) VALUES ($1, $2, $3)",
+          [okr.id, i, taskId]
+        );
+      } catch {
+        /* não interrompe */
+      }
+    }
+  }
 }

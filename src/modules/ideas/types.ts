@@ -33,6 +33,7 @@ export type Idea = {
   maturation: IdeaMaturation;
   converted_to: IdeaConversion | null;
   converted_id: number | null;
+  task_id?: number | null;
   created_at: string;
   updated_at: string;
 };

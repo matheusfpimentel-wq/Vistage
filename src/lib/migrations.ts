@@ -964,6 +964,63 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 28,
+    description: "venues — conceito, gênero, rider, público habitual",
+    sql: `
+      ALTER TABLE venues ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN dominant_genre TEXT;
+      ALTER TABLE venues ADD COLUMN rider_available INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE venues ADD COLUMN regular_audience TEXT;
+    `,
+  },
+  {
+    version: 29,
+    description: "fan_groups — grupos de fãs com membros",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fan_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        whatsapp_group TEXT,
+        origin TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS fan_group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL REFERENCES fan_groups(id) ON DELETE CASCADE,
+        fan_id INTEGER REFERENCES fans(id) ON DELETE SET NULL,
+        name TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
+    version: 30,
+    description: "task_id em party_tasks, gigs, ideas, tracks, classes",
+    sql: `
+      ALTER TABLE party_tasks ADD COLUMN global_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN prep_task_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN task_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN task_id INTEGER;
+      ALTER TABLE classes ADD COLUMN task_id INTEGER;
+    `,
+  },
+  {
+    version: 31,
+    description: "okr_kr_tasks — tasks vinculadas a KRs",
+    sql: `
+      CREATE TABLE IF NOT EXISTS okr_kr_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        okr_id INTEGER NOT NULL,
+        kr_index INTEGER NOT NULL,
+        task_id INTEGER NOT NULL,
+        UNIQUE(okr_id, kr_index)
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

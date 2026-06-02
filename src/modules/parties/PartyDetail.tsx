@@ -44,6 +44,7 @@ import {
   type TicketType,
 } from "./types";
 import {
+  completePartyTask,
   createPartyBudgetItem,
   createPartyStage,
   createPartyTask,
@@ -53,6 +54,7 @@ import {
   deletePartyTask,
   deletePartyTicket,
   initDefaultStages,
+  linkPartyTaskToGlobal,
   listPartyBudgetItems,
   listPartyStages,
   listPartyTasks,
@@ -124,13 +126,13 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh, onDe
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="workflow">
+        <Tabs defaultValue="geral">
           <TabsList>
+            <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="workflow">Workflow</TabsTrigger>
             <TabsTrigger value="orcamento">Orçamento</TabsTrigger>
             <TabsTrigger value="ingressos">Ingressos</TabsTrigger>
             <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
-            <TabsTrigger value="geral">Geral</TabsTrigger>
           </TabsList>
 
           <TabsContent value="workflow" className="pt-2">
@@ -162,6 +164,7 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh, onDe
 
           <TabsContent value="tarefas" className="pt-2">
             <TarefasTab
+              party={party}
               partyId={party.id}
               stages={stages}
               tasks={tasks}
@@ -170,7 +173,7 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh, onDe
           </TabsContent>
 
           <TabsContent value="geral" className="pt-2">
-            <GeralTab party={party} onEdit={onEdit} navigate={navigate} />
+            <GeralTab party={party} budgetItems={budgetItems} tasks={tasks} onEdit={onEdit} navigate={navigate} />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -1080,16 +1083,14 @@ function taskStatusColor(s: PartyTaskStatus) {
     : "";
 }
 
-function nextTaskStatus(s: PartyTaskStatus): PartyTaskStatus {
-  return s === "pendente" ? "em_andamento" : s === "em_andamento" ? "concluida" : "pendente";
-}
-
 function TarefasTab({
+  party,
   partyId,
   stages,
   tasks,
   onReload,
 }: {
+  party: PartyDeserialized;
   partyId: number;
   stages: PartyStage[];
   tasks: PartyTask[];
@@ -1102,7 +1103,13 @@ function TarefasTab({
 
   async function handleToggle(task: PartyTask) {
     try {
-      await updatePartyTask(task.id, { status: nextTaskStatus(task.status) });
+      if (task.status === "concluida") {
+        await updatePartyTask(task.id, { status: "pendente" });
+      } else if (task.global_task_id) {
+        await completePartyTask(task);
+      } else {
+        await linkPartyTaskToGlobal(task, party.title, party.date);
+      }
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -1281,24 +1288,24 @@ function TaskRow({
         type="button"
         onClick={() => void onToggle(task)}
         className={cn(
-          "flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors",
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
           task.status === "concluida"
             ? "border-emerald-500 bg-emerald-500 text-white"
-            : task.status === "em_andamento"
+            : task.global_task_id
             ? "border-amber-500 bg-amber-500/30"
-            : "border-input bg-background"
+            : "border-input bg-background hover:border-primary"
         )}
         title={
-          task.status === "pendente"
-            ? "Iniciar tarefa"
-            : task.status === "em_andamento"
-            ? "Concluir tarefa"
-            : "Reabrir tarefa"
+          task.status === "concluida"
+            ? "Reabrir"
+            : task.global_task_id
+            ? "Marcar como concluída (sincroniza com Tarefas)"
+            : "Adicionar ao módulo Tarefas"
         }
       >
         {task.status === "concluida" && <Check className="h-3 w-3" />}
-        {task.status === "em_andamento" && (
-          <div className="h-2 w-2 rounded-sm bg-amber-500" />
+        {task.status !== "concluida" && task.global_task_id && (
+          <div className="h-2 w-2 rounded-full bg-amber-500" />
         )}
       </button>
       <span className={cn("flex-1 text-sm", taskStatusColor(task.status))}>
@@ -1323,10 +1330,14 @@ function TaskRow({
 
 function GeralTab({
   party,
+  budgetItems,
+  tasks,
   onEdit,
   navigate,
 }: {
   party: PartyDeserialized;
+  budgetItems: PartyBudgetItem[];
+  tasks: PartyTask[];
   onEdit: () => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
@@ -1337,6 +1348,49 @@ function GeralTab({
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" /> Editar
         </Button>
+      </div>
+
+      {/* Métricas rápidas */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {(() => {
+          const totalBudget = budgetItems.reduce((sum, i) => sum + i.projected_amount, 0);
+          const cap = party.expected_capacity;
+          const breakEvenTicket =
+            totalBudget > 0 && cap && cap > 0
+              ? (totalBudget / cap).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+              : "—";
+
+          const daysToEvent = party.date
+            ? Math.ceil((new Date(party.date).getTime() - Date.now()) / 86400000)
+            : null;
+          const daysLabel =
+            daysToEvent === null
+              ? "—"
+              : daysToEvent < 0
+              ? `${Math.abs(daysToEvent)} dias atrás`
+              : daysToEvent === 0
+              ? "Hoje"
+              : `${daysToEvent} dias`;
+
+          const pending = tasks.filter((t) => t.status !== "concluida").length;
+
+          return (
+            <>
+              <div className="rounded-md border p-3">
+                <div className="text-xs text-muted-foreground">Ticket / Break Even</div>
+                <div className="mt-1 font-semibold tabular-nums">{breakEvenTicket}</div>
+              </div>
+              <div className="rounded-md border p-3">
+                <div className="text-xs text-muted-foreground">Dias até o evento</div>
+                <div className="mt-1 font-semibold tabular-nums">{daysLabel}</div>
+              </div>
+              <div className="rounded-md border p-3">
+                <div className="text-xs text-muted-foreground">Tarefas pendentes</div>
+                <div className="mt-1 font-semibold tabular-nums">{pending}</div>
+              </div>
+            </>
+          );
+        })()}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 rounded-md border p-4">

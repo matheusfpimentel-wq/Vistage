@@ -50,3 +50,25 @@ export function levelVariant(level: FanLevel):
       return "outline";
   }
 }
+
+export type FanGroup = {
+  id: number;
+  name: string;
+  whatsapp_group: string | null;
+  origin: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FanGroupMember = {
+  id: number;
+  group_id: number;
+  fan_id: number | null;
+  name: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type FanGroupCreateInput = Omit<FanGroup, "id" | "created_at" | "updated_at">;
+export type FanGroupUpdateInput = Partial<FanGroupCreateInput> & { id: number };

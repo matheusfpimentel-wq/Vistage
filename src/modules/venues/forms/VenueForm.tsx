@@ -57,6 +57,10 @@ const EMPTY: VenueCreateInput = {
   lat: null,
   lng: null,
   geocoded_at: null,
+  concept: null,
+  dominant_genre: null,
+  rider_available: 0,
+  regular_audience: null,
 };
 
 function venueToState(v: Venue): VenueCreateInput {
@@ -78,6 +82,10 @@ function venueToState(v: Venue): VenueCreateInput {
     lat: v.lat,
     lng: v.lng,
     geocoded_at: v.geocoded_at,
+    concept: v.concept,
+    dominant_genre: v.dominant_genre,
+    rider_available: v.rider_available ?? 0,
+    regular_audience: v.regular_audience,
   };
 }
 
@@ -320,28 +328,55 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Ano de fundação">
-              <Input
-                type="number"
-                min={1800}
-                max={2100}
-                value={state.founded_year ?? ""}
-                onChange={(e) =>
-                  set("founded_year", e.target.value ? Number(e.target.value) : null)
-                }
+          <Field label="Capacidade (pessoas)">
+            <Input
+              type="number"
+              min={0}
+              value={state.capacity ?? ""}
+              onChange={(e) =>
+                set("capacity", e.target.value ? Number(e.target.value) : null)
+              }
+            />
+          </Field>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Identidade do Espaço
+            </div>
+            <Field label="Conceito do espaço">
+              <Textarea
+                rows={2}
+                placeholder="Ex: underground techno, intimista, industrial…"
+                value={state.concept ?? ""}
+                onChange={(e) => set("concept", e.target.value || null)}
               />
             </Field>
-            <Field label="Capacidade (pessoas)">
-              <Input
-                type="number"
-                min={0}
-                value={state.capacity ?? ""}
-                onChange={(e) =>
-                  set("capacity", e.target.value ? Number(e.target.value) : null)
-                }
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Gênero musical dominante">
+                <Input
+                  placeholder="Ex: Techno, House, Drum & Bass"
+                  value={state.dominant_genre ?? ""}
+                  onChange={(e) => set("dominant_genre", e.target.value || null)}
+                />
+              </Field>
+              <Field label="Público habitual">
+                <Input
+                  placeholder="Ex: 200–400 pessoas, 25–35 anos"
+                  value={state.regular_audience ?? ""}
+                  onChange={(e) => set("regular_audience", e.target.value || null)}
+                />
+              </Field>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rider_available"
+                checked={state.rider_available === 1}
+                onChange={(e) => set("rider_available", e.target.checked ? 1 : 0)}
+                className="h-4 w-4 rounded border border-input"
               />
-            </Field>
+              <Label htmlFor="rider_available">Rider técnico disponível</Label>
+            </div>
           </div>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">

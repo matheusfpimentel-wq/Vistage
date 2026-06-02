@@ -209,7 +209,27 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
     `INSERT INTO tracks (${TRACK_INSERT_COLS.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa vinculada
+  try {
+    const { createTask } = await import("@/modules/tasks/api");
+    const taskStage = "Ideação";
+    const taskId = await createTask({
+      title: `${input.title_working} (${taskStage})`,
+      description: null,
+      category: "Produção Musical",
+      gig_id: null,
+      contact_id: null,
+      priority: "Média",
+      status: "A fazer",
+      due_date: null,
+      tags: ["música"],
+    });
+    await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
+  } catch {
+    /* não interrompe */
+  }
+  return id;
 }
 
 const COL_MAP: Record<string, string> = { references: "reference_files" };
@@ -310,6 +330,19 @@ export async function moveTrackToStage(track: Track, stage: Stage): Promise<void
   if (cur && !cur.exited_at) cur.exited_at = now;
   history.push({ stage, entered_at: now });
   await writeStage(track.id, stage, history, false);
+  // Sincroniza tarefa vinculada
+  if (track.task_id) {
+    try {
+      const { updateTask } = await import("@/modules/tasks/api");
+      if (stage === "Lançamento" || stage === "Pós-lançamento") {
+        await updateTask({ id: track.task_id, status: "Concluída" });
+      } else {
+        await updateTask({ id: track.task_id, title: `${track.title_working} (${stage})` });
+      }
+    } catch {
+      /* não interrompe */
+    }
+  }
 }
 
 // ============================================================

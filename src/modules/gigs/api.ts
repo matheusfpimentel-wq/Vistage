@@ -56,6 +56,7 @@ const GIG_COLUMNS = [
   "main_goal",
   "prep_state",
   "main_goal_task_id",
+  "prep_task_id",
   "created_at",
   "updated_at",
 ] as const;
@@ -334,4 +335,22 @@ export async function setGigTracks(
       [gigId, tid]
     );
   }
+}
+
+export async function createGigPrepTask(gig: Gig): Promise<number> {
+  const { createTask } = await import("@/modules/tasks/api");
+  const title = gig.event_name
+    ? `Preparação - ${gig.event_name}`
+    : `Preparação - GIG ${gig.date ?? "sem data"}`;
+  return createTask({
+    title,
+    description: gig.venue_name ?? null,
+    category: "GIG",
+    gig_id: gig.id,
+    contact_id: null,
+    priority: "Alta",
+    status: "A fazer",
+    due_date: gig.date,
+    tags: ["gig", "preparação"],
+  });
 }

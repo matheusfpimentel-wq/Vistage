@@ -78,7 +78,26 @@ export async function createIdea(input: IdeaCreateInput): Promise<number> {
     `INSERT INTO ideas (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa vinculada
+  try {
+    const { createTask } = await import("@/modules/tasks/api");
+    const taskId = await createTask({
+      title: `Ideia: ${input.title}`,
+      description: input.body ?? null,
+      category: "Pessoal",
+      gig_id: null,
+      contact_id: null,
+      priority: "Baixa",
+      status: "A fazer",
+      due_date: null,
+      tags: ["ideia"],
+    });
+    await db.execute("UPDATE ideas SET task_id = $1 WHERE id = $2", [taskId, id]);
+  } catch {
+    /* não interrompe */
+  }
+  return id;
 }
 
 export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
@@ -95,6 +114,20 @@ export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
     `UPDATE ideas SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  if (input.maturation === "Pronta") {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM ideas WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: taskId, status: "Concluída" });
+      } catch {
+        /* não interrompe */
+      }
+    }
+  }
 }
 
 export async function deleteIdea(id: number): Promise<void> {
