@@ -78,6 +78,9 @@ const SettingsPage = lazy(() =>
 const SuppliersPage = lazy(() =>
   import("@/modules/suppliers/SuppliersPage").then((m) => ({ default: m.SuppliersPage }))
 );
+const DecisoesPage = lazy(() =>
+  import("@/modules/decisoes/DecisoesPage").then((m) => ({ default: m.DecisoesPage }))
+);
 
 export default function App() {
   const { ready, config, hydrate } = useConfigStore();
@@ -213,6 +216,7 @@ function RoutedApp() {
             <Route path="revisao" element={<RevisaoPage />} />
             <Route path="foco" element={<FocoPage />} />
             <Route path="objetivos" element={<ObjetivosPage />} />
+            <Route path="decisoes" element={<DecisoesPage />} />
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />

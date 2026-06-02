@@ -112,19 +112,6 @@ export type FlowSession = {
   block_notes: string | null;
 };
 
-export const MOOD_SUGGESTIONS = [
-  "dark",
-  "eufórico",
-  "melancólico",
-  "hipnótico",
-  "agressivo",
-  "sonhador",
-  "groovy",
-  "tenso",
-  "íntimo",
-  "épico",
-] as const;
-
 export type MusicProjectCost = {
   id: number;
   project_id: number | null;

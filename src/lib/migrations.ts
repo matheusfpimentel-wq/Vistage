@@ -1028,6 +1028,16 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE venues ADD COLUMN rider_equipment TEXT;
     `,
   },
+  {
+    version: 33,
+    description: "venues — backfill rider_equipment a partir do antigo rider_available",
+    sql: `
+      UPDATE venues
+        SET rider_equipment = 'Rider disponível (revisar equipamento)'
+        WHERE rider_available = 1
+          AND (rider_equipment IS NULL OR rider_equipment = '');
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

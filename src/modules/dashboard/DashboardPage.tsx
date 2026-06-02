@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bell,
   CalendarClock,
   ChevronRight,
   Disc3,
@@ -43,12 +42,6 @@ import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 // ============================================================
 // Helpers de data
 // ============================================================
-
-function daysUntil(iso: string): number {
-  const today = new Date(todayISO());
-  const target = new Date(iso.slice(0, 10));
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
-}
 
 function nextNDays(n: number): string[] {
   const out: string[] = [];
@@ -126,7 +119,7 @@ export function DashboardPage() {
 // ============================================================
 
 function KpiRow({ data }: { data: DashData }) {
-  const { gigs, fin, content, weekTasks, tracks } = data;
+  const { gigs, fin, content, tracks } = data;
   const month = todayISO().slice(0, 7);
 
   // receita do mês + tendência vs mês anterior
@@ -151,12 +144,8 @@ function KpiRow({ data }: { data: DashData }) {
   ).length;
   const pipeline = activeTracks + contentInProd + undatedParties;
 
-  // alertas críticos
-  const alerts = computeAlerts(gigs, weekTasks, fin);
-  const totalAlerts = alerts.reduce((s, a) => s + a.count, 0);
-
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <KpiCard
         label="Receita do mês"
         value={formatCurrency(curRevenue)}
@@ -184,90 +173,7 @@ function KpiRow({ data }: { data: DashData }) {
           </span>
         }
       />
-      <AlertsKpi alerts={alerts} total={totalAlerts} />
     </div>
-  );
-}
-
-type AlertLine = { label: string; to: string; count: number };
-
-function computeAlerts(
-  gigs: Gig[],
-  weekTasks: Task[],
-  fin: FinanceInsights
-): AlertLine[] {
-  const out: AlertLine[] = [];
-
-  const pendingDebriefs = gigs.filter((g) => g.debrief_pending === 1).length;
-  if (pendingDebriefs > 0)
-    out.push({
-      label: `${pendingDebriefs} debrief${pendingDebriefs > 1 ? "s" : ""} pendente${pendingDebriefs > 1 ? "s" : ""}`,
-      to: "/gigs",
-      count: pendingDebriefs,
-    });
-
-  const soon = weekTasks.filter(
-    (t) => t.due_date && daysUntil(t.due_date) <= 2
-  ).length;
-  if (soon > 0)
-    out.push({
-      label: `${soon} tarefa${soon > 1 ? "s" : ""} vencendo em 48h`,
-      to: "/tarefas",
-      count: soon,
-    });
-
-  if (fin.next30Payable > 0)
-    out.push({
-      label: `${formatCurrency(fin.next30Payable)} a pagar em 30 dias`,
-      to: "/financeiro",
-      count: 1,
-    });
-
-  // tracks paradas / festas abaixo do break-even entram nos batches I e K
-  return out;
-}
-
-function AlertsKpi({ alerts, total }: { alerts: AlertLine[]; total: number }) {
-  const [open, setOpen] = useState(false);
-  const danger = total > 0;
-  return (
-    <Card className={cn(danger && "border-amber-500/40 bg-amber-500/5")}>
-      <CardHeader className="pb-2">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="w-full text-left"
-          disabled={total === 0}
-        >
-          <CardDescription className="flex items-center gap-2 text-xs">
-            <Bell className={cn("h-4 w-4", danger && "text-amber-500")} />
-            Alertas críticos
-          </CardDescription>
-          <CardTitle
-            className={cn(
-              "text-2xl tabular-nums",
-              danger ? "text-amber-600" : "text-muted-foreground"
-            )}
-          >
-            {total}
-          </CardTitle>
-        </button>
-      </CardHeader>
-      {open && total > 0 && (
-        <CardContent className="space-y-1 pt-0">
-          {alerts.map((a) => (
-            <Link
-              key={a.label}
-              to={a.to}
-              className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-xs transition hover:border-amber-500/60"
-            >
-              <span>{a.label}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            </Link>
-          ))}
-        </CardContent>
-      )}
-    </Card>
   );
 }
 

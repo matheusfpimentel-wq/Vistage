@@ -345,36 +345,6 @@ export async function moveTrackToStage(track: Track, stage: Stage): Promise<void
   }
 }
 
-// ============================================================
-// Banco geral de mood tags (compartilhado entre tracks)
-// ============================================================
-
-const MOOD_BANK_KEY = "mood_tag_bank";
-
-export async function getMoodBank(): Promise<string[]> {
-  const db = getDb();
-  try {
-    const rows = await db.select<{ value: string }[]>(
-      "SELECT value FROM app_settings WHERE key = $1",
-      [MOOD_BANK_KEY]
-    );
-    if (!rows[0]) return [];
-    const parsed = JSON.parse(rows[0].value);
-    return Array.isArray(parsed) ? (parsed as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveMoodBank(tags: string[]): Promise<void> {
-  const db = getDb();
-  const unique = Array.from(new Set(tags.map((t) => t.trim()).filter(Boolean)));
-  await db.execute(
-    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-    [MOOD_BANK_KEY, JSON.stringify(unique)]
-  );
-}
-
 /** Coloca/tira do Stand-by sem mexer no stage (drag pro coluna Stand-by). */
 export async function setTrackStandby(id: number, standby: boolean): Promise<void> {
   const db = getDb();

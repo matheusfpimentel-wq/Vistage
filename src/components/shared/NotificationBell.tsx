@@ -3,21 +3,9 @@ import { AlertTriangle, Bell, Clock, Flame, Lightbulb, Music, PartyPopper, Star 
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
-import { getDb } from "@/lib/db";
+import { countPendingOutcomes } from "@/modules/decisoes/api";
 
 type Alert = { icon: React.ReactNode; label: string; to: string; critical: boolean };
-
-async function countPendingDecisions(): Promise<number> {
-  try {
-    const db = getDb();
-    const rows = await db.select<{ c: number }[]>(
-      "SELECT COUNT(*) as c FROM decisions WHERE outcome_evaluated = 0 OR outcome_evaluated IS NULL"
-    );
-    return rows[0]?.c ?? 0;
-  } catch {
-    return 0;
-  }
-}
 
 function buildAlerts(stats: WeekStats, pendingDecisions: number): Alert[] {
   const alerts: Alert[] = [];
@@ -49,7 +37,7 @@ export function NotificationBell() {
 
   const refresh = useCallback(async () => {
     try {
-      const [stats, pd] = await Promise.all([loadWeekStats(), countPendingDecisions()]);
+      const [stats, pd] = await Promise.all([loadWeekStats(), countPendingOutcomes()]);
       setAlerts(buildAlerts(stats, pd));
     } catch {
       // silently ignore
@@ -101,7 +89,7 @@ export function NotificationBell() {
       {open && (
         <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-popover shadow-lg">
           <div className="border-b px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Alertas críticos
+            Alertas
           </div>
           {alerts.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-muted-foreground">

@@ -136,9 +136,10 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
       []
     ),
-    // festas confirmadas no futuro
+    // festas confirmadas ainda à frente (com data futura OU sem data marcada)
     db.select<CountRow[]>(
-      `SELECT COUNT(*) as c FROM parties WHERE status = 'Confirmada' AND date >= $1`,
+      `SELECT COUNT(*) as c FROM parties
+        WHERE status = 'Confirmada' AND (date IS NULL OR date = '' OR date >= $1)`,
       [today]
     ),
   ]);
