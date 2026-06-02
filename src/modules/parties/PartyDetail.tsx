@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Check, ChevronDown, ChevronUp, Loader2, Pencil, Plus, RotateCcw, Trash2,
+  Check, ChevronDown, ChevronUp, Loader2, Pencil, Plus, RotateCcw, Trash2, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,8 @@ import {
   updatePartyTask,
   updatePartyTicket,
 } from "./api";
+import { listSuppliers } from "@/modules/suppliers/api";
+import type { Supplier } from "@/modules/suppliers/types";
 
 const fmt = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -135,6 +137,7 @@ export function PartyDetail({ open, onOpenChange, party, onEdit, onRefresh, onDe
             <WorkflowTab
               partyId={party.id}
               stages={stages}
+              tasks={tasks}
               onReload={loadAll}
             />
           </TabsContent>
@@ -192,10 +195,12 @@ function stageStatusLabel(s: StageStatus) {
 function WorkflowTab({
   partyId,
   stages,
+  tasks,
   onReload,
 }: {
   partyId: number;
   stages: PartyStage[];
+  tasks: PartyTask[];
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -205,6 +210,12 @@ function WorkflowTab({
   const [newStageName, setNewStageName] = useState("");
   const [addingStage, setAddingStage] = useState(false);
   const [restoringDefaults, setRestoringDefaults] = useState(false);
+  // inline task creation state per stage (keyed by stage id)
+  const [inlineTask, setInlineTask] = useState<Record<number, { title: string; due_date: string }>>({});
+  const [addingTask, setAddingTask] = useState<number | null>(null);
+  // suppliers for the picker
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  useEffect(() => { void listSuppliers().then(setSuppliers); }, []);
 
   function openStage(stage: PartyStage) {
     setExpandedId(stage.id);
@@ -267,6 +278,30 @@ function WorkflowTab({
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleAddTaskToStage(stageId: number) {
+    const t = inlineTask[stageId];
+    const title = t?.title?.trim();
+    if (!title) return;
+    setAddingTask(stageId);
+    try {
+      await createPartyTask({
+        party_id: partyId,
+        stage_id: stageId,
+        title,
+        status: "pendente",
+        priority: "Normal",
+        due_date: t.due_date || null,
+        notes: null,
+      });
+      setInlineTask((prev) => ({ ...prev, [stageId]: { title: "", due_date: "" } }));
+      await onReload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setAddingTask(null);
     }
   }
 
@@ -352,34 +387,99 @@ function WorkflowTab({
 
             {fieldDefs.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2">
-                {fieldDefs.map((fd) => (
-                  <div key={fd.key} className="space-y-1">
-                    <Label className="text-xs">{fd.label}</Label>
-                    {fd.type === "text" ? (
-                      <Textarea
-                        rows={2}
-                        value={String(editFields[fd.key] ?? "")}
-                        onChange={(e) =>
-                          setEditFields((f) => ({ ...f, [fd.key]: e.target.value || null }))
-                        }
-                      />
-                    ) : (
-                      <Input
-                        type={fd.type}
-                        value={String(editFields[fd.key] ?? "")}
-                        onChange={(e) =>
-                          setEditFields((f) => ({
-                            ...f,
-                            [fd.key]:
-                              fd.type === "number"
-                                ? e.target.value ? Number(e.target.value) : null
-                                : e.target.value || null,
-                          }))
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
+                {fieldDefs.map((fd) => {
+                  // campo especial: fornecedores fechados → picker do módulo Fornecedores
+                  if (fd.key === "fornecedores_fechados") {
+                    const raw = String(editFields[fd.key] ?? "");
+                    // armazenamos como JSON array de ids para cruzar, exibimos nomes
+                    let selectedIds: number[] = [];
+                    try { selectedIds = JSON.parse(raw); } catch { /* texto legado */ }
+                    const selectedSuppliers = suppliers.filter((s) => selectedIds.includes(s.id));
+                    const unselected = suppliers.filter((s) => !selectedIds.includes(s.id));
+                    return (
+                      <div key={fd.key} className="space-y-1 sm:col-span-2">
+                        <Label className="text-xs">{fd.label}</Label>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedSuppliers.map((s) => (
+                            <span
+                              key={s.id}
+                              className="flex items-center gap-1 rounded-full border bg-muted px-2.5 py-0.5 text-xs"
+                            >
+                              {s.name}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = selectedIds.filter((id) => id !== s.id);
+                                  setEditFields((f) => ({
+                                    ...f,
+                                    [fd.key]: next.length ? JSON.stringify(next) : null,
+                                  }));
+                                }}
+                                className="ml-0.5 text-muted-foreground hover:text-destructive"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                          {unselected.length > 0 && (
+                            <Select
+                              value="_add"
+                              onValueChange={(v) => {
+                                if (v === "_add") return;
+                                const next = [...selectedIds, Number(v)];
+                                setEditFields((f) => ({
+                                  ...f,
+                                  [fd.key]: JSON.stringify(next),
+                                }));
+                              }}
+                            >
+                              <SelectTrigger className="h-7 w-auto gap-1 rounded-full border bg-muted px-2.5 text-xs">
+                                <Plus className="h-3 w-3" />
+                                <span>Adicionar fornecedor</span>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_add" disabled>Selecionar…</SelectItem>
+                                {unselected.map((s) => (
+                                  <SelectItem key={s.id} value={String(s.id)}>
+                                    {s.name}{s.category ? ` · ${s.category}` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={fd.key} className="space-y-1">
+                      <Label className="text-xs">{fd.label}</Label>
+                      {fd.type === "text" ? (
+                        <Textarea
+                          rows={2}
+                          value={String(editFields[fd.key] ?? "")}
+                          onChange={(e) =>
+                            setEditFields((f) => ({ ...f, [fd.key]: e.target.value || null }))
+                          }
+                        />
+                      ) : (
+                        <Input
+                          type={fd.type}
+                          value={String(editFields[fd.key] ?? "")}
+                          onChange={(e) =>
+                            setEditFields((f) => ({
+                              ...f,
+                              [fd.key]:
+                                fd.type === "number"
+                                  ? e.target.value ? Number(e.target.value) : null
+                                  : e.target.value || null,
+                            }))
+                          }
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -391,6 +491,72 @@ function WorkflowTab({
                 onChange={(e) => setEditNotes(e.target.value)}
                 placeholder="Observações sobre esta etapa…"
               />
+            </div>
+
+            {/* Tarefas desta etapa */}
+            <div className="space-y-2 border-t pt-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Tarefas desta etapa
+              </div>
+              {tasks.filter((t) => t.stage_id === stage.id).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhuma tarefa ainda.</p>
+              ) : (
+                <div className="space-y-1">
+                  {tasks.filter((t) => t.stage_id === stage.id).map((task) => (
+                    <div key={task.id} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+                      <span className={cn(
+                        "flex-1",
+                        task.status === "concluida" ? "line-through text-muted-foreground" : ""
+                      )}>
+                        {task.title}
+                      </span>
+                      {task.due_date && (
+                        <span className="shrink-0 text-xs text-muted-foreground">{formatDate(task.due_date)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Input
+                  className="flex-1 h-8 text-xs"
+                  placeholder="Nova tarefa…"
+                  value={inlineTask[stage.id]?.title ?? ""}
+                  onChange={(e) =>
+                    setInlineTask((p) => ({
+                      ...p,
+                      [stage.id]: { ...p[stage.id], title: e.target.value, due_date: p[stage.id]?.due_date ?? "" },
+                    }))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleAddTaskToStage(stage.id);
+                  }}
+                />
+                <Input
+                  type="date"
+                  className="w-36 h-8 text-xs"
+                  value={inlineTask[stage.id]?.due_date ?? ""}
+                  onChange={(e) =>
+                    setInlineTask((p) => ({
+                      ...p,
+                      [stage.id]: { ...p[stage.id], due_date: e.target.value, title: p[stage.id]?.title ?? "" },
+                    }))
+                  }
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8"
+                  disabled={addingTask === stage.id}
+                  onClick={() => void handleAddTaskToStage(stage.id)}
+                >
+                  {addingTask === stage.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div className="flex justify-end">
@@ -931,6 +1097,7 @@ function TarefasTab({
 }) {
   const [newTitle, setNewTitle] = useState("");
   const [newStageId, setNewStageId] = useState<string>("none");
+  const [newDueDate, setNewDueDate] = useState("");
   const [generating, setGenerating] = useState(false);
 
   async function handleToggle(task: PartyTask) {
@@ -961,10 +1128,11 @@ function TarefasTab({
         title,
         status: "pendente",
         priority: "Normal",
-        due_date: null,
+        due_date: newDueDate || null,
         notes: null,
       });
       setNewTitle("");
+      setNewDueDate("");
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -1054,7 +1222,7 @@ function TarefasTab({
         <p className="py-4 text-center text-sm text-muted-foreground">Nenhuma tarefa.</p>
       )}
 
-      <div className="flex items-center gap-2 border-t pt-3">
+      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
         <Input
           placeholder="Nova tarefa… (Enter para adicionar)"
           value={newTitle}
@@ -1062,7 +1230,13 @@ function TarefasTab({
           onKeyDown={(e) => {
             if (e.key === "Enter") void handleAdd();
           }}
-          className="flex-1"
+          className="flex-1 min-w-40"
+        />
+        <Input
+          type="date"
+          className="w-36 h-9 text-sm"
+          value={newDueDate}
+          onChange={(e) => setNewDueDate(e.target.value)}
         />
         <Select value={newStageId} onValueChange={setNewStageId}>
           <SelectTrigger className="h-9 w-36 text-xs">

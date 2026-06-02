@@ -237,8 +237,100 @@ export async function importCsvIntoTable(
     });
     try {
       const res = await db.execute(sql, values);
-      if (res.rowsAffected > 0) result.inserted += 1;
-      else result.skipped += 1;
+      if (res.rowsAffected > 0) {
+        result.inserted += 1;
+
+        // ── Gig-specific enrichment ──────────────────────────────────────
+        if (table === "gigs") {
+          // Determine the inserted gig id (prefer id from CSV, else last_insert_rowid)
+          let gigId: unknown = null;
+          const idIdx = headerIdx["id"];
+          if (idIdx !== undefined) {
+            const rawId = row[idIdx];
+            gigId = rawId === undefined || rawId === "" ? null : rawId;
+          }
+          if (!gigId) {
+            const lastRow = await db.select<{ id: unknown }[]>(
+              `SELECT id FROM gigs ORDER BY rowid DESC LIMIT 1`
+            );
+            gigId = lastRow[0]?.id ?? null;
+          }
+
+          if (gigId !== null) {
+            // 1) venue_name → create venue if missing, then link
+            const venueNameIdx = headerIdx["venue_name"];
+            if (venueNameIdx !== undefined) {
+              const venueName = row[venueNameIdx];
+              if (venueName && venueName.trim() !== "") {
+                const existing = await db.select<{ id: unknown }[]>(
+                  `SELECT id FROM venues WHERE name = $1 LIMIT 1`,
+                  [venueName]
+                );
+                let venueId: unknown;
+                if (existing.length > 0) {
+                  venueId = existing[0].id;
+                } else {
+                  const cityIdx = headerIdx["venue_city"];
+                  const venueCity =
+                    cityIdx !== undefined && row[cityIdx] && row[cityIdx].trim() !== ""
+                      ? row[cityIdx]
+                      : null;
+                  await db.execute(
+                    `INSERT INTO venues (name, city) VALUES ($1, $2)`,
+                    [venueName, venueCity]
+                  );
+                  const newVenue = await db.select<{ id: unknown }[]>(
+                    `SELECT id FROM venues WHERE name = $1 ORDER BY rowid DESC LIMIT 1`,
+                    [venueName]
+                  );
+                  venueId = newVenue[0]?.id ?? null;
+                }
+                if (venueId !== null && venueId !== undefined) {
+                  await db.execute(
+                    `UPDATE gigs SET venue_id = $1 WHERE id = $2`,
+                    [venueId, gigId]
+                  );
+                }
+              }
+            }
+
+            // 2) promoter → find or create contact, then link
+            const promoterIdx = headerIdx["promoter"];
+            if (promoterIdx !== undefined) {
+              const promoterName = row[promoterIdx];
+              if (promoterName && promoterName.trim() !== "") {
+                const existingContact = await db.select<{ id: unknown }[]>(
+                  `SELECT id FROM contacts WHERE name = $1 LIMIT 1`,
+                  [promoterName]
+                );
+                let contactId: unknown;
+                if (existingContact.length > 0) {
+                  contactId = existingContact[0].id;
+                } else {
+                  await db.execute(
+                    `INSERT INTO contacts (name, types) VALUES ($1, $2)`,
+                    [promoterName, '["Contratante"]']
+                  );
+                  const newContact = await db.select<{ id: unknown }[]>(
+                    `SELECT id FROM contacts WHERE name = $1 ORDER BY rowid DESC LIMIT 1`,
+                    [promoterName]
+                  );
+                  contactId = newContact[0]?.id ?? null;
+                }
+                if (contactId !== null && contactId !== undefined) {
+                  await db.execute(
+                    `UPDATE gigs SET promoter_contact_id = $1 WHERE id = $2`,
+                    [contactId, gigId]
+                  );
+                }
+              }
+            }
+          }
+        }
+        // ── end gig enrichment ──────────────────────────────────────────
+      } else {
+        result.skipped += 1;
+      }
     } catch (e) {
       result.skipped += 1;
       // guarda só as 10 primeiras pra não estourar a UI

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,20 @@ type Props = {
   onSaved: (id: number) => void;
 };
 
+type NominatimResult = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  address: {
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+    country_code?: string;
+  };
+};
+
 const EMPTY: VenueCreateInput = {
   name: "",
   city: null,
@@ -40,6 +54,9 @@ const EMPTY: VenueCreateInput = {
   website: null,
   notes: null,
   photo_path: null,
+  lat: null,
+  lng: null,
+  geocoded_at: null,
 };
 
 function venueToState(v: Venue): VenueCreateInput {
@@ -58,6 +75,9 @@ function venueToState(v: Venue): VenueCreateInput {
     website: v.website,
     notes: v.notes,
     photo_path: v.photo_path,
+    lat: v.lat,
+    lng: v.lng,
+    geocoded_at: v.geocoded_at,
   };
 }
 
@@ -68,13 +88,34 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
+  const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addressContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     if (venue) setState(venueToState(venue));
     else setState(EMPTY);
     setNameError(null);
     setDirty(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
   }, [venue, open]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        addressContainerRef.current &&
+        !addressContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   function set<K extends keyof VenueCreateInput>(
     key: K,
@@ -82,6 +123,59 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   ) {
     setDirty(true);
     setState((s) => ({ ...s, [key]: value }));
+  }
+
+  function handleAddressChange(value: string) {
+    set("address", value || null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(value)}&addressdetails=1`;
+        const res = await fetch(url, {
+          headers: { "User-Agent": "MusicGest/1.0" },
+        });
+        if (!res.ok) return;
+        const data: NominatimResult[] = await res.json();
+        setSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch {
+        // silently ignore network errors
+      }
+    }, 600);
+  }
+
+  function applySuggestion(s: NominatimResult) {
+    const city =
+      s.address.city ?? s.address.town ?? s.address.village ?? null;
+    const stateVal = s.address.state ?? null;
+    const country = s.address.country_code
+      ? s.address.country_code.toUpperCase()
+      : null;
+    const lat = parseFloat(s.lat);
+    const lng = parseFloat(s.lon);
+    setDirty(true);
+    setState((prev) => ({
+      ...prev,
+      address: s.display_name,
+      city: city ?? prev.city,
+      state: stateVal ?? prev.state,
+      country: country ?? prev.country,
+      lat,
+      lng,
+      geocoded_at: new Date().toISOString(),
+    }));
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  function clearCoordinates() {
+    setDirty(true);
+    setState((s) => ({ ...s, lat: null, lng: null, geocoded_at: null }));
   }
 
   async function handleSubmit() {
@@ -156,12 +250,75 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Field>
           </div>
 
-          <Field label="Endereço completo">
-            <Input
-              value={state.address ?? ""}
-              onChange={(e) => set("address", e.target.value || null)}
-            />
-          </Field>
+          <div ref={addressContainerRef} className="relative">
+            <Field label="Endereço completo">
+              <Input
+                value={state.address ?? ""}
+                onChange={(e) => handleAddressChange(e.target.value)}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                autoComplete="off"
+              />
+            </Field>
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.place_id}
+                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                    onMouseDown={(e) => {
+                      // prevent blur from firing before click
+                      e.preventDefault();
+                      applySuggestion(s);
+                    }}
+                  >
+                    {s.display_name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Geolocalização */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Geolocalização
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Latitude">
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder="ex: -23.5505"
+                  value={state.lat ?? ""}
+                  onChange={(e) =>
+                    set("lat", e.target.value ? Number(e.target.value) : null)
+                  }
+                />
+              </Field>
+              <Field label="Longitude">
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder="ex: -46.6333"
+                  value={state.lng ?? ""}
+                  onChange={(e) =>
+                    set("lng", e.target.value ? Number(e.target.value) : null)
+                  }
+                />
+              </Field>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={clearCoordinates}
+              disabled={state.lat == null && state.lng == null}
+            >
+              Limpar coordenadas
+            </Button>
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Ano de fundação">

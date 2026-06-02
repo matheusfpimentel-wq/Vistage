@@ -236,7 +236,9 @@ export function FansPage() {
                     className="cursor-pointer border-t transition-colors hover:bg-muted/40"
                     onClick={() => openDetail(f)}
                   >
-                    <td className="px-3 py-2 font-medium">{f.name}</td>
+                    <td className="px-3 py-2">
+                      <FanListAvatar fan={f} />
+                    </td>
                     <td className="px-3 py-2">
                       <LevelBadge level={f.level} />
                     </td>
@@ -335,6 +337,25 @@ function StatCard({
       </CardHeader>
       <CardContent />
     </Card>
+  );
+}
+
+function FanListAvatar({ fan: f }: { fan: Fan }) {
+  const photoUrl = useImageUrl(f.photo_path);
+  const initials = f.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted">
+        {photoUrl ? (
+          <img src={photoUrl} alt={f.name} className="h-full w-full object-cover object-top" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-muted-foreground">
+            {initials || <User className="h-5 w-5" />}
+          </div>
+        )}
+      </div>
+      <span className="font-medium">{f.name}</span>
+    </div>
   );
 }
 
