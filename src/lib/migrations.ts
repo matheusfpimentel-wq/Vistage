@@ -1038,6 +1038,13 @@ const MIGRATIONS: Migration[] = [
           AND (rider_equipment IS NULL OR rider_equipment = '');
     `,
   },
+  {
+    version: 34,
+    description: "parties — add team column for equipe de producao",
+    sql: `
+      ALTER TABLE parties ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

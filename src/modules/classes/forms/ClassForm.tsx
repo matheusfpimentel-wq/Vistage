@@ -23,15 +23,19 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import {
   CLASS_STATUSES,
+  type ClassPackage,
   type ClassSession,
   type ClassSessionCreateInput,
   type ClassStatus,
   type Student,
   type StudentPackage,
+  type StudentPackageCreateInput,
 } from "../types";
 import {
   createClass,
+  createStudentPackage,
   getActiveStudentPackage,
+  listPackages,
   listStudentPackages,
   listStudents,
   recalcPackageUsage,
@@ -87,6 +91,8 @@ export function ClassForm({
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPackages, setStudentPackages] = useState<StudentPackage[]>([]);
+  const [allPackages, setAllPackages] = useState<ClassPackage[]>([]);
+  const [linkPkgId, setLinkPkgId] = useState<number | null>(null);
   const [errors, setErrors] = useState<{ student?: string; date?: string }>({});
   const [quickStudentOpen, setQuickStudentOpen] = useState(false);
 
@@ -103,6 +109,7 @@ export function ClassForm({
   useEffect(() => {
     if (!open) return;
     void listStudents().then(setStudents);
+    void listPackages(true).then(setAllPackages);
   }, [open]);
 
   // Quando muda o aluno, busca os pacotes ativos dele e tenta auto-vincular
@@ -129,6 +136,32 @@ export function ClassForm({
     value: ClassSessionCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+  }
+
+  async function handleVincularPackage() {
+    if (!state.student_id || linkPkgId === null) return;
+    const template = allPackages.find((p) => p.id === linkPkgId);
+    if (!template) return;
+    const input: StudentPackageCreateInput = {
+      student_id: state.student_id,
+      package_id: linkPkgId,
+      total_classes: template.total_classes,
+      used_classes: 0,
+      purchased_at: todayISO(),
+      status: "Ativo",
+      notes: null,
+    };
+    try {
+      await createStudentPackage(input);
+      const pkgs = await listStudentPackages(state.student_id);
+      setStudentPackages(pkgs);
+      const newest = pkgs[pkgs.length - 1];
+      if (newest) setState((s) => ({ ...s, student_package_id: newest.id }));
+      setLinkPkgId(null);
+      toast.success("Pacote vinculado");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
   }
 
   function validate(): boolean {
@@ -248,6 +281,37 @@ export function ClassForm({
                 <Badge variant="outline">
                   Saldo: {selectedPkg.total_classes - selectedPkg.used_classes} aulas
                 </Badge>
+              </div>
+            )}
+            {state.student_id > 0 && studentPackages.length === 0 && allPackages.length > 0 && (
+              <div className="space-y-1.5 rounded-md border border-dashed p-3">
+                <p className="text-xs text-muted-foreground">Este aluno não tem pacote ativo.</p>
+                <div className="flex gap-2">
+                  <Select
+                    value={linkPkgId !== null ? linkPkgId.toString() : ""}
+                    onValueChange={(v) => setLinkPkgId(Number(v))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecionar pacote template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allPackages.map((p) => (
+                        <SelectItem key={p.id} value={p.id.toString()}>
+                          {p.name} — {p.total_classes} aulas
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleVincularPackage()}
+                    disabled={linkPkgId === null}
+                  >
+                    Vincular pacote
+                  </Button>
+                </div>
               </div>
             )}
           </div>

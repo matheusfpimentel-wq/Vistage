@@ -83,26 +83,35 @@ export type PartyTask = {
   created_at: string; updated_at: string;
 };
 
+export type PartyTeamMember = {
+  name: string;
+  role: string;
+  amount_cents: number;
+  supplier_id: number | null;
+};
+
 export type Party = {
   id: number; title: string; date: string|null; venue_id: number|null;
   venue_name: string|null; status: PartyStatus; description: string|null;
   expected_capacity: number|null; actual_attendance: number|null;
   ticket_price_regular: number|null; ticket_price_vip: number|null;
-  lineup: string|null; sponsors: string|null; tasks_generated: number;
+  lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
   created_at: string; updated_at: string;
 };
 
-export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"> & {
+export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   lineup: number[]; sponsors: { name: string; amount_cents: number }[];
+  team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"> & {
   stage_current?: number|null;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
+  team?: PartyTeamMember[]|string|null;
 };
 export type PartyUpdateInput = Partial<PartyCreateInput> & { id: number };
 

@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import type {
   Party,
   PartyDeserialized,
+  PartyTeamMember,
   PartyCost,
   PartyCreateInput,
   PartyUpdateInput,
@@ -47,6 +48,7 @@ function rowToParty(r: Party): PartyDeserialized {
     ...r,
     lineup: parseJsonArray<number>(r.lineup),
     sponsors: parseJsonArray<{ name: string; amount_cents: number }>(r.sponsors),
+    team: parseJsonArray<PartyTeamMember>(r.team),
   };
 }
 
@@ -59,7 +61,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "lineup", "sponsors", "notes",
+  "ticket_price_vip", "lineup", "sponsors", "team", "notes",
 ];
 
 export async function listParties(): Promise<PartyDeserialized[]> {
@@ -85,6 +87,7 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     ...input,
     lineup: JSON.stringify(Array.isArray(input.lineup) ? input.lineup : []),
     sponsors: JSON.stringify(Array.isArray(input.sponsors) ? input.sponsors : []),
+    team: JSON.stringify(Array.isArray(input.team) ? input.team : []),
   };
   const cols = PARTY_COLS.filter((c) => payload[c] !== undefined);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
@@ -102,6 +105,7 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
   const payload: Record<string, unknown> = { ...rest };
   if (Array.isArray(payload.lineup)) payload.lineup = JSON.stringify(payload.lineup);
   if (Array.isArray(payload.sponsors)) payload.sponsors = JSON.stringify(payload.sponsors);
+  if (Array.isArray(payload.team)) payload.team = JSON.stringify(payload.team);
   const cols = Object.keys(payload);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");

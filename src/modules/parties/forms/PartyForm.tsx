@@ -33,12 +33,15 @@ import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
 import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
+import { listSuppliers } from "@/modules/suppliers/api";
+import type { Supplier } from "@/modules/suppliers/types";
 import {
   PARTY_STATUSES,
   PARTY_COST_CATEGORIES,
   type PartyDeserialized,
   type PartyStatus,
   type PartyCost,
+  type PartyTeamMember,
 } from "../types";
 import {
   createParty,
@@ -66,6 +69,7 @@ type FormState = {
   actual_attendance: number | null;
   lineup: number[];
   sponsors: { name: string; amount_cents: number }[];
+  team: PartyTeamMember[];
   notes: string | null;
 };
 
@@ -79,6 +83,7 @@ const EMPTY: FormState = {
   actual_attendance: null,
   lineup: [],
   sponsors: [],
+  team: [],
   notes: null,
 };
 
@@ -93,8 +98,15 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
   const [costs, setCosts] = useState<PartyCost[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+
+  // Team add-form state
+  const [teamSupplierId, setTeamSupplierId] = useState<number | null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [teamRole, setTeamRole] = useState("");
+  const [teamAmount, setTeamAmount] = useState("");
 
   const [costCategory, setCostCategory] = useState<string>("");
   const [costDesc, setCostDesc] = useState("");
@@ -129,6 +141,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t)))
       )
     );
+    void listSuppliers().then(setSuppliers);
 
     if (party) {
       void listContent().then((all) => {
@@ -147,6 +160,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         actual_attendance: party.actual_attendance,
         lineup: party.lineup,
         sponsors: party.sponsors,
+        team: party.team,
         notes: party.notes,
       });
       void loadCosts();
@@ -187,6 +201,33 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       "sponsors",
       state.sponsors.filter((_, i) => i !== idx)
     );
+  }
+
+  function addTeamMember() {
+    const name = teamSupplierId
+      ? (suppliers.find((s) => s.id === teamSupplierId)?.name ?? teamName.trim())
+      : teamName.trim();
+    const role = teamRole.trim();
+    const cents = Math.round(parseFloat(teamAmount) * 100);
+    if (!name || !role) {
+      toast.error("Preencha nome e função do membro");
+      return;
+    }
+    const member: PartyTeamMember = {
+      name,
+      role,
+      amount_cents: isNaN(cents) || cents < 0 ? 0 : cents,
+      supplier_id: teamSupplierId,
+    };
+    set("team", [...state.team, member]);
+    setTeamSupplierId(null);
+    setTeamName("");
+    setTeamRole("");
+    setTeamAmount("");
+  }
+
+  function removeTeamMember(idx: number) {
+    set("team", state.team.filter((_, i) => i !== idx));
   }
 
   async function handleAddCost() {
@@ -240,6 +281,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         ticket_price_vip: null,
         lineup: state.lineup,
         sponsors: state.sponsors,
+        team: state.team,
       };
 
       if (party) {
@@ -260,6 +302,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           const fresh: PartyDeserialized = {
             id,
             ...payload,
+            team: state.team,
             stage_current: null,
             financial_synced: 0,
             tasks_generated: 0,
@@ -295,7 +338,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         <Tabs defaultValue="info">
           <TabsList>
             <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="lineup">Lineup</TabsTrigger>
+            <TabsTrigger value="lineup">Equipe</TabsTrigger>
             {isEdit && <TabsTrigger value="custos">Custos</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
             <TabsTrigger value="notas">Notas</TabsTrigger>
@@ -469,6 +512,86 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 />
                 <Button type="button" variant="outline" size="sm" onClick={addSponsor}>
                   <Plus className="h-3.5 w-3.5" /> Adicionar patrocinador
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Equipe de produção</Label>
+              {state.team.length > 0 && (
+                <div className="space-y-1.5">
+                  {state.team.map((m, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{m.name}</span>
+                      <span className="text-muted-foreground">{m.role}</span>
+                      <span className="text-muted-foreground">
+                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : "—"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeTeamMember(i)}
+                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        aria-label="Remover membro"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={teamSupplierId !== null ? teamSupplierId.toString() : "none"}
+                  onValueChange={(v) => {
+                    const id = v === "none" ? null : Number(v);
+                    setTeamSupplierId(id);
+                    if (id !== null) {
+                      const sup = suppliers.find((s) => s.id === id);
+                      if (sup) setTeamName(sup.name);
+                    } else {
+                      setTeamName("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Fornecedor (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sem fornecedor</SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  placeholder="Nome"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  className="w-36"
+                  disabled={teamSupplierId !== null}
+                />
+                <Input
+                  placeholder="Função"
+                  value={teamRole}
+                  onChange={(e) => setTeamRole(e.target.value)}
+                  className="w-36"
+                />
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  placeholder="Valor (R$)"
+                  value={teamAmount}
+                  onChange={(e) => setTeamAmount(e.target.value)}
+                  className="w-32"
+                />
+                <Button type="button" variant="outline" size="sm" onClick={addTeamMember}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
                 </Button>
               </div>
             </div>

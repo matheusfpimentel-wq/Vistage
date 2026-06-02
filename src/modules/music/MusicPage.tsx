@@ -183,7 +183,7 @@ export function MusicPage() {
         </Select>
       </div>
 
-      <Tabs defaultValue="projetos">
+      <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="projetos">
             <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
