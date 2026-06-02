@@ -9,6 +9,8 @@ import {
   Disc3,
   ExternalLink,
   Film,
+  Flame,
+  Lightbulb,
   Music,
   PartyPopper,
   Square,
@@ -350,6 +352,12 @@ function AlertsCard({ stats, pendingDecisions }: { stats: WeekStats; pendingDeci
     alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.tasksOverdue} tarefa${stats.tasksOverdue > 1 ? "s" : ""} atrasada${stats.tasksOverdue > 1 ? "s" : ""}`, to: "/tarefas" });
   if (stats.tracksStalled > 0)
     alerts.push({ icon: <Music className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.tracksStalled} track${stats.tracksStalled > 1 ? "s" : ""} parada${stats.tracksStalled > 1 ? "s" : ""} há +30 dias`, to: "/musica" });
+  if (stats.hotIdeasStuck > 0)
+    alerts.push({ icon: <Flame className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.hotIdeasStuck} ideia${stats.hotIdeasStuck > 1 ? "s" : ""} quente${stats.hotIdeasStuck > 1 ? "s" : ""} parada${stats.hotIdeasStuck > 1 ? "s" : ""} em Embrião há +15 dias`, to: "/ideias" });
+  if (stats.stalledProductions > 0)
+    alerts.push({ icon: <Clock className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.stalledProductions} produç${stats.stalledProductions > 1 ? "ões" : "ão"} sem movimento há +15 dias`, to: "/musica" });
+  if (stats.undatedParties > 0)
+    alerts.push({ icon: <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />, label: `${stats.undatedParties} festa${stats.undatedParties > 1 ? "s" : ""} sem data no pipeline criativo`, to: "/festas" });
   if (stats.partiesConfirmed === 0)
     alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-muted-foreground" />, label: "Nenhuma festa confirmada à frente", to: "/festas" });
   if (pendingDecisions > 0)

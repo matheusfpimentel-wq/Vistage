@@ -13,6 +13,10 @@ export type WeekStats = {
   tracksStalled: number;
   avgGigRating: number | null;
   pendingDebriefs: number;
+  // sinais críticos adicionais (item 13)
+  hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
+  stalledProductions: number; // tracks/festas/conteúdos sem movimento há +15 dias
+  undatedParties: number; // festas sem data (entram no pipeline criativo)
 };
 
 function weekRange(): { start: string; end: string } {
@@ -37,6 +41,11 @@ export async function loadWeekStats(): Promise<WeekStats> {
   const today = todayISO();
   const db = getDb();
 
+  // limite de 15 dias atrás (sinais de estagnação)
+  const d15 = new Date(today);
+  d15.setDate(d15.getDate() - 15);
+  const cut15 = d15.toISOString().slice(0, 10);
+
   const [
     gigsRows,
     tasksCompletedRows,
@@ -48,6 +57,11 @@ export async function loadWeekStats(): Promise<WeekStats> {
     tracksRows,
     debriefRows,
     gigRatingRows,
+    hotIdeasRows,
+    stalledTracksRows,
+    stalledPartiesRows,
+    stalledContentRows,
+    undatedPartiesRows,
   ] = await Promise.all([
     db.select<CountRow[]>(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -89,6 +103,37 @@ export async function loadWeekStats(): Promise<WeekStats> {
       `SELECT rating_sound, rating_crowd, rating_overall FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
       [start, end]
     ),
+    // ideias quentes (heat 3) presas em Embrião há +15 dias
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM ideas
+        WHERE heat = 3 AND maturation = 'Embrião' AND substr(updated_at, 1, 10) < $1`,
+      [cut15]
+    ),
+    // tracks ativas sem mudança de stage há +15 dias
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM tracks
+        WHERE standby = 0 AND stage_entered_at IS NOT NULL
+          AND substr(stage_entered_at, 1, 10) < $1`,
+      [cut15]
+    ),
+    // festas em aberto sem movimento há +15 dias
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM parties
+        WHERE status NOT IN ('Realizada','Cancelada') AND substr(updated_at, 1, 10) < $1`,
+      [cut15]
+    ),
+    // conteúdos em produção sem movimento há +15 dias
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM content
+        WHERE status NOT IN ('Publicado','Arquivado') AND substr(updated_at, 1, 10) < $1`,
+      [cut15]
+    ),
+    // festas sem data (entram no pipeline criativo)
+    db.select<CountRow[]>(
+      `SELECT COUNT(*) as c FROM parties
+        WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
+      []
+    ),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
@@ -122,6 +167,12 @@ export async function loadWeekStats(): Promise<WeekStats> {
     tracksStalled,
     avgGigRating,
     pendingDebriefs: debriefRows[0]?.c ?? 0,
+    hotIdeasStuck: hotIdeasRows[0]?.c ?? 0,
+    stalledProductions:
+      (stalledTracksRows[0]?.c ?? 0) +
+      (stalledPartiesRows[0]?.c ?? 0) +
+      (stalledContentRows[0]?.c ?? 0),
+    undatedParties: undatedPartiesRows[0]?.c ?? 0,
   };
 }
 

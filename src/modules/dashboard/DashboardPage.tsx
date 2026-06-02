@@ -153,12 +153,15 @@ function KpiRow({ data }: { data: DashData }) {
   const confirmadas = monthGigs.filter((g) => g.status === "Confirmada").length;
   const propostas = monthGigs.filter((g) => g.status === "Proposta").length;
 
-  // pipeline criativo: tracks ativas + conteúdos em produção (festas em breve)
+  // pipeline criativo: tracks ativas + conteúdos em produção + festas sem data
   const activeTracks = tracks.filter((t) => !t.standby).length;
   const contentInProd = content.filter((c) =>
     CONTENT_IN_PRODUCTION.includes(c.status)
   ).length;
-  const pipeline = activeTracks + contentInProd;
+  const undatedParties = data.parties.filter(
+    (p) => !p.date && p.status !== "Realizada" && p.status !== "Cancelada"
+  ).length;
+  const pipeline = activeTracks + contentInProd + undatedParties;
 
   // alertas críticos
   const alerts = computeAlerts(gigs, weekTasks, fin);
@@ -189,7 +192,7 @@ function KpiRow({ data }: { data: DashData }) {
         to="/musica"
         footer={
           <span className="text-xs text-muted-foreground">
-            {activeTracks} tracks · {contentInProd} conteúdos · festas em breve
+            {activeTracks} tracks · {contentInProd} conteúdos · {undatedParties} festas s/ data
           </span>
         }
       />
