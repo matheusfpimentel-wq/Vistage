@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Film, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -85,7 +86,7 @@ export function ContentPage() {
   }
 
   async function handleDelete(c: Content) {
-    if (!window.confirm(`Excluir "${c.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${c.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteContent(c.id);
     toast.success("Conteúdo excluído");
     await refresh();

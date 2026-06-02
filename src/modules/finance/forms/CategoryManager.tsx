@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Dialog,
   DialogContent,
@@ -82,7 +83,7 @@ export function CategoryManager({ open, onOpenChange, onChanged }: Props) {
       count > 0
         ? `"${c.name}" está em uso em ${count} transação(ões). Ao excluir, essas transações ficarão sem categoria. Continuar?`
         : `Excluir a categoria "${c.name}"?`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: msg, confirmLabel: "Excluir", destructive: true }))) return;
     try {
       await deleteCategory(c.id);
       await refresh();

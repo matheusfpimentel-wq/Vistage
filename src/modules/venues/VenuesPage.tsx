@@ -5,6 +5,7 @@ const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
 );
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
@@ -61,9 +62,12 @@ export function VenuesPage() {
   }
 
   async function handleDelete(v: Venue) {
-    const ok = window.confirm(
-      `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`
-    );
+    const ok = await confirmDialog({
+      title: "Excluir",
+      description: `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
     if (!ok) return;
     try {
       await deleteVenue(v.id);

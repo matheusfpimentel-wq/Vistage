@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbulb, Plus, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -89,7 +90,7 @@ export function IdeasPage() {
   }
 
   async function handleDelete(i: Idea) {
-    if (!window.confirm(`Excluir "${i.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${i.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteIdea(i.id);
     toast.success("Ideia excluída");
     await refresh();

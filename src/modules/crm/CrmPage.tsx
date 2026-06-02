@@ -20,6 +20,7 @@ import {
 } from "./api";
 import { CONTACT_TYPES, ratingToPriority, type Contact, type ContactType } from "./types";
 import { Badge } from "@/components/ui/badge";
+import { confirmDialog } from "@/components/ui/confirm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { formatDate } from "@/lib/format";
@@ -83,9 +84,12 @@ export function CrmPage() {
   }
 
   async function handleDelete(c: Contact) {
-    const ok = window.confirm(
-      `Excluir "${c.name}"? GIGs vinculadas perderão a referência ao promoter.`
-    );
+    const ok = await confirmDialog({
+      title: "Excluir",
+      description: `Excluir "${c.name}"? GIGs vinculadas perderão a referência ao promoter.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
     if (!ok) return;
     try {
       await deleteContact(c.id);

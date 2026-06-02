@@ -369,21 +369,30 @@ export function GigForm({
               label="Venue"
               required
               error={errors.venue_name}
-              hint="Escolha um venue cadastrado, ou clique 'Novo' pra cadastrar rapidamente."
+              hint="Selecione um venue cadastrado, crie um novo ou escolha 'Outro' para preencher manualmente sem salvar no módulo de Venues."
             >
               <div className="flex gap-2">
                 <Select
-                  value={state.venue_id?.toString() ?? ""}
-                  onValueChange={(v) => pickVenue(Number(v))}
+                  value={
+                    state.venue_id != null
+                      ? state.venue_id.toString()
+                      : state.venue_name && !state.venue_id
+                      ? "_other"
+                      : ""
+                  }
+                  onValueChange={(v) => {
+                    if (v === "_other") {
+                      setState((s) => ({ ...s, venue_id: null, venue_name: "", venue_city: null, venue_address: null }));
+                    } else {
+                      pickVenue(Number(v));
+                    }
+                  }}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue
-                      placeholder={
-                        venues.length === 0 ? "Nenhum venue ainda" : "Selecione um venue"
-                      }
-                    />
+                    <SelectValue placeholder="Selecione um venue" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="_other">Outro (campo manual)</SelectItem>
                     {venues.map((v) => (
                       <SelectItem key={v.id} value={v.id.toString()}>
                         {v.name}
@@ -400,11 +409,17 @@ export function GigForm({
                   <Plus className="h-3.5 w-3.5" /> Novo
                 </Button>
               </div>
-              {state.venue_name && state.venue_id && (
-                <p className="text-xs text-muted-foreground">
-                  {state.venue_name}
-                  {state.venue_city ? ` · ${state.venue_city}` : ""}
-                </p>
+              {/* Campo manual quando "Outro" selecionado */}
+              {state.venue_id == null && (
+                <Input
+                  className="mt-2"
+                  placeholder="Nome do venue (não salvo no módulo de Venues)"
+                  value={state.venue_name}
+                  onChange={(e) => {
+                    set("venue_name", e.target.value);
+                    if (errors.venue_name) setErrors((er) => ({ ...er, venue_name: undefined }));
+                  }}
+                />
               )}
             </Field>
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -115,7 +116,7 @@ export function TasksPage() {
   }
 
   async function handleDelete(task: Task) {
-    if (!window.confirm(`Excluir "${task.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${task.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteTask(task.id);
     toast.success("Tarefa excluída");
     await refresh();

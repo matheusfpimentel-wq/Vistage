@@ -9,6 +9,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -126,7 +127,7 @@ export function ClassesPage() {
   });
 
   async function handleDeleteClass(c: ClassWithStudent) {
-    if (!window.confirm("Excluir esta aula?")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta aula?", confirmLabel: "Excluir", destructive: true }))) return;
     const pkgId = c.student_package_id;
     await deleteClass(c.id);
     if (pkgId) await recalcPackageUsage(pkgId);
@@ -136,7 +137,7 @@ export function ClassesPage() {
 
   async function handleDeleteStudent(s: Student) {
     if (
-      !window.confirm(`Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`)
+      !(await confirmDialog({ title: "Excluir", description: `Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`, confirmLabel: "Excluir", destructive: true }))
     )
       return;
     await deleteStudent(s.id);
@@ -145,7 +146,7 @@ export function ClassesPage() {
   }
 
   async function handleDeletePackage(p: ClassPackage) {
-    if (!window.confirm(`Excluir o template "${p.name}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir o template "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deletePackage(p.id);
     toast.success("Pacote excluído");
     await refresh();

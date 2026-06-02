@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
@@ -28,7 +29,7 @@ export function SettingsPage() {
   }, []);
 
   async function handleReset() {
-    const ok = window.confirm(
+    const ok = await confirmDialog(
       "Isso vai desconectar o app do banco atual. Você precisará apontar o caminho do banco novamente. Continuar?"
     );
     if (!ok) return;
@@ -50,9 +51,9 @@ export function SettingsPage() {
 
   async function handleSeed() {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         "Carregar dados de exemplo? 5 contatos, 4 GIGs em estados diferentes, 6 tarefas e algumas transações vão ser adicionados ao banco."
-      )
+      ))
     )
       return;
     setSeeding(true);
@@ -73,7 +74,7 @@ export function SettingsPage() {
     try {
       const backup = await pickBackupFile();
       if (!backup) return;
-      const ok = window.confirm(
+      const ok = await confirmDialog(
         `ATENÇÃO: importar este backup vai SUBSTITUIR TODOS os dados do banco atual.\n\n` +
           `Backup gerado em: ${new Date(backup.exportedAt).toLocaleString("pt-BR")}\n` +
           `Versão: ${backup.version}\n\n` +

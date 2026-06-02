@@ -67,6 +67,21 @@ export async function updateVenue(input: VenueUpdateInput): Promise<void> {
     `UPDATE venues SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Mantém venue_name/city/address nas GIGs sincronizados com o venue.
+  if (rest.name || rest.city !== undefined || rest.address !== undefined) {
+    const updated: string[] = [];
+    const params: unknown[] = [];
+    if (rest.name) { params.push(rest.name); updated.push(`venue_name = $${params.length}`); }
+    if (rest.city !== undefined) { params.push(rest.city); updated.push(`venue_city = $${params.length}`); }
+    if (rest.address !== undefined) { params.push(rest.address); updated.push(`venue_address = $${params.length}`); }
+    if (updated.length > 0) {
+      params.push(id);
+      await db.execute(
+        `UPDATE gigs SET ${updated.join(", ")} WHERE venue_id = $${params.length}`,
+        params
+      );
+    }
+  }
 }
 
 export async function deleteVenue(id: number): Promise<void> {

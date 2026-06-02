@@ -7,6 +7,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
@@ -120,7 +121,7 @@ export function GoogleCalendarSettings() {
   }
 
   async function handleDisconnect() {
-    if (!window.confirm("Desconectar do Google Calendar? Os tokens locais serão apagados.")) return;
+    if (!(await confirmDialog("Desconectar do Google Calendar? Os tokens locais serão apagados."))) return;
     await disconnect();
     toast.success("Desconectado");
     await refresh();

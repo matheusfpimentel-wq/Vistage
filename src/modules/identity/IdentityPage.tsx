@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { open as openShell } from "@tauri-apps/plugin-shell";
 import {
@@ -598,7 +599,7 @@ function TemplateCard({
             size="icon"
             variant="ghost"
             onClick={async () => {
-              if (window.confirm(`Excluir "${t.name}"?`)) {
+              if (await confirmDialog({ title: "Excluir", description: `Excluir "${t.name}"?`, confirmLabel: "Excluir", destructive: true })) {
                 await deleteTemplate(t.id);
                 onDeleted();
               }

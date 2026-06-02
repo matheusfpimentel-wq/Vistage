@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Dialog,
   DialogContent,
@@ -113,13 +114,13 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
   }
 
   async function handleCancelPackage(p: StudentPackage) {
-    if (!window.confirm("Cancelar este pacote?")) return;
+    if (!(await confirmDialog("Cancelar este pacote?"))) return;
     await setStudentPackageStatus(p.id, "Cancelado");
     await refresh();
   }
 
   async function handleDeletePackage(p: StudentPackage) {
-    if (!window.confirm("Excluir este pacote? As aulas vinculadas a ele viram avulsa.")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir este pacote? As aulas vinculadas a ele viram avulsa.", confirmLabel: "Excluir", destructive: true }))) return;
     await deleteStudentPackage(p.id);
     await refresh();
   }

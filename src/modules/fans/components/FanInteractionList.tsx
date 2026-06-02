@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -52,7 +53,7 @@ export function FanInteractionList({ fanId, onChange }: Props) {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Excluir essa interação?")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir essa interação?", confirmLabel: "Excluir", destructive: true }))) return;
     await deleteFanInteraction(id);
     await refresh();
     onChange?.();

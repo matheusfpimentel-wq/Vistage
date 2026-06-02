@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   addInteraction,
   deleteInteraction,
@@ -52,7 +53,7 @@ export function InteractionList({ contactId, onChange }: Props) {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Excluir essa interação?")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir essa interação?", confirmLabel: "Excluir", destructive: true }))) return;
     await deleteInteraction(id);
     await refresh();
     onChange?.();

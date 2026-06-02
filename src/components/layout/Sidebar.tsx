@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
-  BookOpen,
   Building2,
   CalendarRange,
   CheckSquare,
@@ -46,7 +45,6 @@ const DEFAULT_NAV: NavItem[] = [
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb },
   { to: "/foco", label: "Energia & Foco", icon: Zap },
   { to: "/objetivos", label: "OKRs", icon: Target },
-  { to: "/decisoes", label: "Decision Log", icon: BookOpen },
   { to: "/identidade", label: "Identidade", icon: Sparkles },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },
@@ -99,13 +97,7 @@ export function Sidebar() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
-
-  // pointer drag state
-  const dragState = useRef<{
-    startY: number;
-    currentY: number;
-    idx: number;
-  } | null>(null);
+  const dragState = useRef<{ startY: number; idx: number } | null>(null);
 
   useEffect(() => {
     loadOrder().then((order) => {
@@ -118,27 +110,29 @@ export function Sidebar() {
     void saveOrder(order);
   }, []);
 
+  // Calcula o índice dentro dos reordenáveis a partir do índice global.
   function reorderableIdx(navIdx: number, items: NavItem[]): number {
-    return items.filter((i) => !i.fixed).findIndex(
-      (_, ri) => items.indexOf(items.filter((i2) => !i2.fixed)[ri]) === navIdx
-    );
+    const reorderable = items.filter((i) => !i.fixed);
+    return reorderable.findIndex((item) => items.indexOf(item) === navIdx);
   }
 
   function onGripPointerDown(e: React.PointerEvent, navIdx: number) {
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    dragState.current = { startY: e.clientY, currentY: e.clientY, idx: navIdx };
+    e.stopPropagation();
+    // Captura o pointer no div wrapper (não no svg) pra garantir que todos os
+    // eventos seguintes chegam aqui mesmo que o cursor saia do elemento.
+    const el = (e.currentTarget as HTMLElement);
+    el.setPointerCapture(e.pointerId);
+    dragState.current = { startY: e.clientY, idx: navIdx };
     setDraggingIdx(navIdx);
     setOverIdx(navIdx);
   }
 
   function onGripPointerMove(e: React.PointerEvent) {
     if (!dragState.current) return;
-    dragState.current.currentY = e.clientY;
     const dy = e.clientY - dragState.current.startY;
     const steps = Math.round(dy / ITEM_HEIGHT);
     const srcNavIdx = dragState.current.idx;
-
     setNav((prev) => {
       const reorderable = prev.filter((i) => !i.fixed);
       const srcReIdx = reorderableIdx(srcNavIdx, prev);
@@ -172,7 +166,6 @@ export function Sidebar() {
       persistOrder(result);
       return result;
     });
-
     setDraggingIdx(null);
     setOverIdx(null);
   }
@@ -221,12 +214,22 @@ export function Sidebar() {
                 {label}
               </NavLink>
               {!fixed && (
-                <GripVertical
-                  className="mr-1 h-3.5 w-3.5 shrink-0 cursor-grab text-muted-foreground/30 opacity-0 transition group-hover/row:opacity-100 active:cursor-grabbing"
+                // div wrapper garante que setPointerCapture funcione (SVG pode falhar)
+                // e que o grip suma quando não estamos arrastando
+                <div
+                  className={cn(
+                    "mr-1 flex h-5 w-5 shrink-0 cursor-grab items-center justify-center rounded transition active:cursor-grabbing",
+                    draggingIdx === idx
+                      ? "opacity-60"
+                      : "opacity-0 group-hover/row:opacity-100"
+                  )}
                   onPointerDown={(e) => onGripPointerDown(e, idx)}
-                  onPointerMove={(e) => draggingIdx !== null && onGripPointerMove(e)}
-                  onPointerUp={(e) => onGripPointerUp(e)}
-                />
+                  onPointerMove={onGripPointerMove}
+                  onPointerUp={onGripPointerUp}
+                  onPointerCancel={onGripPointerUp}
+                >
+                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
+                </div>
               )}
             </div>
           );

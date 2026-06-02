@@ -18,6 +18,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { RatingSlider } from "../components/RatingSlider";
 import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
 import { FansPresentPicker } from "../components/FansPresentPicker";
@@ -309,9 +310,9 @@ export function DebriefForm({
   // Quando o debrief é obrigatório (status acabou de virar Concluída),
   // não dá pra simplesmente fechar — o usuário precisa ou completar ou
   // marcar como pendente. Interceptamos o close.
-  function handleOpenChange(next: boolean) {
+  async function handleOpenChange(next: boolean) {
     if (!next && required && !complete) {
-      const ok = window.confirm(
+      const ok = await confirmDialog(
         "Você ainda não preencheu todos os campos obrigatórios. " +
           "Deseja salvar como 'pendente' e terminar depois?"
       );

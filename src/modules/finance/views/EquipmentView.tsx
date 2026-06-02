@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,7 +58,7 @@ export function EquipmentView() {
   }, []);
 
   async function handleDelete(eq: Equipment) {
-    if (!window.confirm(`Excluir "${eq.name}" do patrimônio?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${eq.name}" do patrimônio?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteEquipment(eq.id);
     await refresh();
     toast.success("Item excluído");

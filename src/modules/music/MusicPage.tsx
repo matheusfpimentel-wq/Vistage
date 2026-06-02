@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderPlus, Music, Plus, Search } from "lucide-react";
 import type { MusicProject } from "./types";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -65,7 +66,7 @@ export function MusicPage() {
   }
 
   async function handleDelete(t: TrackWithProject) {
-    if (!window.confirm(`Excluir a track "${t.title_working}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir a track "${t.title_working}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteTrack(t.id);
     toast.success("Track excluída");
     await refresh();

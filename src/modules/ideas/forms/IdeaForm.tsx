@@ -151,7 +151,6 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
   }
 
   async function handleCreateTask() {
-    if (!idea) return;
     setCreatingTask(true);
     try {
       const due = new Date();
@@ -311,7 +310,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
           </div>
 
           {/* Desenvolvendo — criar tarefa inline */}
-          {idea && state.maturation === "Desenvolvendo" && (
+          {state.maturation === "Desenvolvendo" && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Crie uma tarefa para começar:

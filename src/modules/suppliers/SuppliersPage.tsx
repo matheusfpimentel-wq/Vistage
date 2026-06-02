@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -92,7 +93,7 @@ export function SuppliersPage() {
   }
 
   async function handleDelete(s: Supplier) {
-    const ok = window.confirm(`Excluir "${s.name}"?`);
+    const ok = await confirmDialog({ title: "Excluir", description: `Excluir "${s.name}"?`, confirmLabel: "Excluir", destructive: true });
     if (!ok) return;
     try {
       await deleteSupplier(s.id);

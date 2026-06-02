@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -100,7 +101,7 @@ export function FansPage() {
   }
 
   async function handleDelete(f: Fan) {
-    const ok = window.confirm(`Excluir "${f.name}"? Interações vinculadas também serão removidas.`);
+    const ok = await confirmDialog({ title: "Excluir", description: `Excluir "${f.name}"? Interações vinculadas também serão removidas.`, confirmLabel: "Excluir", destructive: true });
     if (!ok) return;
     try {
       await deleteFan(f.id);

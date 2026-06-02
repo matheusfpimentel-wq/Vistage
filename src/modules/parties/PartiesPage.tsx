@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { PARTY_STATUSES, type PartyDeserialized, type PartyStatus, estimatedRevenue } from "./types";
 import { deleteParty, listParties } from "./api";
@@ -70,7 +71,7 @@ export function PartiesPage() {
   }
 
   async function handleDelete(p: PartyDeserialized) {
-    if (!window.confirm(`Excluir a produção "${p.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir a produção "${p.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteParty(p.id);
     toast.success("Produção excluída");
     await refresh();

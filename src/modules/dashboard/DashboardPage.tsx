@@ -10,6 +10,7 @@ import {
   Music,
   PartyPopper,
   Star,
+  Target,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -38,6 +39,7 @@ import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api
 import { listTracks, daysInStage } from "@/modules/music/api";
 import { listParties } from "@/modules/parties/api";
 import { estimatedRevenue, type PartyDeserialized } from "@/modules/parties/types";
+import { listOkrs, currentQuarter, okrProgress, type Okr } from "@/modules/objetivos/api";
 import type { TrackWithProject } from "@/modules/music/types";
 import { trackDisplayName } from "@/modules/music/types";
 import { TRACK_KIND_LABEL } from "@/modules/music/stages";
@@ -79,6 +81,7 @@ type DashData = {
   weekTasks: Task[];
   tracks: TrackWithProject[];
   parties: PartyDeserialized[];
+  okrs: Okr[];
 };
 
 export function DashboardPage() {
@@ -86,15 +89,16 @@ export function DashboardPage() {
 
   useEffect(() => {
     void (async () => {
-      const [gigs, fin, content, weekTasks, tracks, parties] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks, parties, okrs] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
         listUpcoming(50),
         listTracks(),
         listParties(),
+        listOkrs(),
       ]);
-      setData({ gigs, fin, content, weekTasks, tracks, parties });
+      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs });
     })();
   }, []);
 
@@ -110,6 +114,7 @@ export function DashboardPage() {
       {data ? (
         <>
           <KpiRow data={data} />
+          <OkrCard okrs={data.okrs} />
           <DomainCards data={data} />
           <WeekTimeline data={data} />
         </>
@@ -328,6 +333,73 @@ function TrendIndicator({ delta }: { delta: number }) {
 // ============================================================
 // Bloco 2 — 4 cards de domínio
 // ============================================================
+
+function OkrCard({ okrs }: { okrs: Okr[] }) {
+  const quarter = currentQuarter();
+  const current = okrs.filter((o) => o.quarter === quarter);
+  const shown = current.length > 0 ? current : okrs.slice(0, 3);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Target className="h-4 w-4 text-primary" />
+          OKRs · {quarter}
+        </CardTitle>
+        <CardDescription>
+          {okrs.length === 0
+            ? "Nenhum OKR cadastrado."
+            : current.length === 0
+            ? "Sem OKRs neste trimestre."
+            : `${current.length} objetivo(s) neste trimestre`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {shown.length === 0 ? (
+          <Link
+            to="/objetivos"
+            className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
+          >
+            <Target className="h-3.5 w-3.5" /> Definir OKRs
+          </Link>
+        ) : (
+          shown.map((okr) => {
+            const pct = Math.round(okrProgress(okr) * 100);
+            return (
+              <Link
+                key={okr.id}
+                to="/objetivos"
+                className="block space-y-1.5 rounded-md border p-3 transition hover:bg-accent"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium">{okr.objective}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {okr.key_results.length} resultado(s)-chave
+                </p>
+              </Link>
+            );
+          })
+        )}
+        <Link
+          to="/objetivos"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Ver todos os OKRs <ChevronRight className="h-3 w-3" />
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
 
 function DomainCards({ data }: { data: DashData }) {
   return (
@@ -674,14 +746,37 @@ function FestasCard({ data }: { data: DashData }) {
     .slice(0, 3);
 
   const next = upcoming[0] ?? null;
-  const noConfirmed =
-    !data.parties.some(
-      (p) =>
-        p.status === "Confirmada" &&
-        p.date &&
-        p.date >= today &&
-        p.date <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
-    );
+
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const hasUpcoming30 = data.parties.some(
+    (p) =>
+      p.date &&
+      p.date >= today &&
+      p.date <= in30 &&
+      p.status !== "Cancelada" &&
+      p.status !== "Realizada"
+  );
+  const noConfirmed = !data.parties.some(
+    (p) =>
+      p.status === "Confirmada" &&
+      p.date &&
+      p.date >= today &&
+      p.date <= in30
+  );
+
+  // Sem nada nos próximos 30 dias: mostra as festas sem data marcada,
+  // pra elas não sumirem do radar.
+  const undated =
+    !hasUpcoming30
+      ? data.parties
+          .filter(
+            (p) =>
+              !p.date &&
+              p.status !== "Cancelada" &&
+              p.status !== "Realizada"
+          )
+          .slice(0, 3)
+      : [];
 
   return (
     <Card>
@@ -732,13 +827,36 @@ function FestasCard({ data }: { data: DashData }) {
               </p>
             )}
           </div>
-        ) : (
+        ) : undated.length === 0 ? (
           <Link
             to="/festas"
             className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
           >
             <PartyPopper className="h-3.5 w-3.5" /> Cadastrar primeira festa
           </Link>
+        ) : null}
+
+        {undated.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Nada nos próximos 30 dias. Festas sem data definida:
+            </p>
+            {undated.map((p) => (
+              <Link
+                key={p.id}
+                to="/festas"
+                className="flex items-center justify-between gap-2 rounded-md border p-2.5 transition hover:bg-accent"
+              >
+                <span className="text-sm font-medium">{p.title}</span>
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-amber-500/30 text-xs text-amber-400"
+                >
+                  Sem data
+                </Badge>
+              </Link>
+            ))}
+          </div>
         )}
         <Link
           to="/festas"
