@@ -115,6 +115,11 @@ export function TasksPage() {
     await refresh();
   }
 
+  async function handleMove(id: number, status: TaskStatus) {
+    await updateTask({ id, status });
+    await refresh();
+  }
+
   async function handleDelete(task: Task) {
     if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${task.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteTask(task.id);
@@ -230,7 +235,7 @@ export function TasksPage() {
         </TabsContent>
 
         <TabsContent value="kanban">
-          <TaskKanbanView tasks={tasks} onEdit={openEdit} />
+          <TaskKanbanView tasks={tasks} onEdit={openEdit} onMove={handleMove} />
         </TabsContent>
       </Tabs>
 

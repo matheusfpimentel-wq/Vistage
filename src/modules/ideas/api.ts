@@ -102,7 +102,7 @@ export async function deleteIdea(id: number): Promise<void> {
   await db.execute("DELETE FROM ideas WHERE id = $1", [id]);
 }
 
-/** Marca a ideia como Convertida e guarda o alvo. */
+/** Registra o alvo da conversão. A maturação 'Pronta' acumula as convertidas. */
 export async function markIdeaAsConverted(
   ideaId: number,
   to: IdeaConversion,
@@ -110,7 +110,7 @@ export async function markIdeaAsConverted(
 ): Promise<void> {
   const db = getDb();
   await db.execute(
-    `UPDATE ideas SET converted_to = $1, converted_id = $2, maturation = 'Convertida',
+    `UPDATE ideas SET converted_to = $1, converted_id = $2, maturation = 'Pronta',
                       updated_at = CURRENT_TIMESTAMP
       WHERE id = $3`,
     [to, newId, ideaId]

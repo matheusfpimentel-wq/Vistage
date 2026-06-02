@@ -13,7 +13,6 @@ export const IDEA_MATURATIONS = [
   "Embrião",
   "Desenvolvendo",
   "Pronta",
-  "Convertida",
   "Arquivada",
 ] as const;
 export type IdeaMaturation = (typeof IDEA_MATURATIONS)[number];

@@ -97,7 +97,17 @@ export function Sidebar() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
   const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
-  const dragState = useRef<{ startY: number; idx: number } | null>(null);
+  // active só vira true depois de passar do threshold, pra distinguir clique
+  // (navegar) de arraste. moved marca que houve arraste, pra suprimir o clique.
+  const dragState = useRef<{
+    startY: number;
+    idx: number;
+    active: boolean;
+    moved: boolean;
+  } | null>(null);
+  const DRAG_THRESHOLD = 5;
+  // marca que o último gesto foi arraste, pra suprimir o clique que vem logo após
+  const justDragged = useRef(false);
 
   useEffect(() => {
     loadOrder().then((order) => {
@@ -116,23 +126,29 @@ export function Sidebar() {
     return reorderable.findIndex((item) => items.indexOf(item) === navIdx);
   }
 
-  function onGripPointerDown(e: React.PointerEvent, navIdx: number) {
-    e.preventDefault();
-    e.stopPropagation();
-    // Captura o pointer no div wrapper (não no svg) pra garantir que todos os
-    // eventos seguintes chegam aqui mesmo que o cursor saia do elemento.
-    const el = (e.currentTarget as HTMLElement);
-    el.setPointerCapture(e.pointerId);
-    dragState.current = { startY: e.clientY, idx: navIdx };
-    setDraggingIdx(navIdx);
-    setOverIdx(navIdx);
+  function onRowPointerDown(e: React.PointerEvent, navIdx: number, fixed?: boolean) {
+    if (fixed) return;
+    // Só botão esquerdo / toque. Não captura ainda nem preventDefault: deixa o
+    // clique normal acontecer caso não passe do threshold (navegação).
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    dragState.current = { startY: e.clientY, idx: navIdx, active: false, moved: false };
   }
 
-  function onGripPointerMove(e: React.PointerEvent) {
-    if (!dragState.current) return;
-    const dy = e.clientY - dragState.current.startY;
+  function onRowPointerMove(e: React.PointerEvent) {
+    const st = dragState.current;
+    if (!st) return;
+    const dy = e.clientY - st.startY;
+    if (!st.active) {
+      if (Math.abs(dy) < DRAG_THRESHOLD) return;
+      // passou do threshold → vira arraste de verdade
+      st.active = true;
+      st.moved = true;
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      setDraggingIdx(st.idx);
+      setOverIdx(st.idx);
+    }
     const steps = Math.round(dy / ITEM_HEIGHT);
-    const srcNavIdx = dragState.current.idx;
+    const srcNavIdx = st.idx;
     setNav((prev) => {
       const reorderable = prev.filter((i) => !i.fixed);
       const srcReIdx = reorderableIdx(srcNavIdx, prev);
@@ -144,11 +160,19 @@ export function Sidebar() {
     });
   }
 
-  function onGripPointerUp(e: React.PointerEvent) {
-    if (!dragState.current) return;
-    const dy = e.clientY - dragState.current.startY;
+  function onRowPointerUp(e: React.PointerEvent) {
+    const st = dragState.current;
+    if (!st) return;
+    if (!st.active) {
+      // foi só um clique: deixa o NavLink navegar
+      dragState.current = null;
+      justDragged.current = false;
+      return;
+    }
+    justDragged.current = true;
+    const dy = e.clientY - st.startY;
     const steps = Math.round(dy / ITEM_HEIGHT);
-    const srcNavIdx = dragState.current.idx;
+    const srcNavIdx = st.idx;
     dragState.current = null;
 
     setNav((prev) => {
@@ -203,13 +227,25 @@ export function Sidebar() {
               key={to}
               className={cn(
                 "group/row flex items-center rounded-md transition-all",
+                !fixed && "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-50 scale-95",
                 isOver && "border-t-2 border-primary"
               )}
+              onPointerDown={(e) => onRowPointerDown(e, idx, fixed)}
+              onPointerMove={onRowPointerMove}
+              onPointerUp={onRowPointerUp}
+              onPointerCancel={onRowPointerUp}
             >
               <NavLink
                 to={to}
                 end={end}
+                // se acabamos de arrastar, suprime a navegação do clique
+                onClick={(e) => {
+                  if (justDragged.current) {
+                    e.preventDefault();
+                    justDragged.current = false;
+                  }
+                }}
                 className={({ isActive }) =>
                   cn(
                     "flex flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
@@ -223,19 +259,13 @@ export function Sidebar() {
                 {label}
               </NavLink>
               {!fixed && (
-                // div wrapper garante que setPointerCapture funcione (SVG pode falhar)
-                // e que o grip suma quando não estamos arrastando
                 <div
                   className={cn(
-                    "mr-1 flex h-5 w-5 shrink-0 cursor-grab items-center justify-center rounded transition active:cursor-grabbing",
+                    "mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded transition",
                     draggingIdx === idx
                       ? "opacity-60"
                       : "opacity-0 group-hover/row:opacity-100"
                   )}
-                  onPointerDown={(e) => onGripPointerDown(e, idx)}
-                  onPointerMove={onGripPointerMove}
-                  onPointerUp={onGripPointerUp}
-                  onPointerCancel={onGripPointerUp}
                 >
                   <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
                 </div>

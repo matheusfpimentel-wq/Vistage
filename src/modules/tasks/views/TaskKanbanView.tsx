@@ -4,24 +4,29 @@ import { PriorityBadge } from "../components/PriorityBadge";
 import { TASK_STATUSES, type Task, type TaskStatus } from "../types";
 import { formatDate, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
 
 type Props = {
   tasks: Task[];
   onEdit: (task: Task) => void;
+  onMove?: (id: number, status: TaskStatus) => void;
 };
 
-export function TaskKanbanView({ tasks, onEdit }: Props) {
+export function TaskKanbanView({ tasks, onEdit, onMove }: Props) {
   const columns = TASK_STATUSES.map((status) => ({
     status,
     tasks: tasks.filter((t) => t.status === status),
   }));
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <KanbanBoard
+      onMove={(id, status) => onMove?.(id, status as TaskStatus)}
+      className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+    >
       {columns.map((col) => (
         <Column key={col.status} status={col.status} tasks={col.tasks} onEdit={onEdit} />
       ))}
-    </div>
+    </KanbanBoard>
   );
 }
 
@@ -35,7 +40,7 @@ function Column({
   onEdit: (task: Task) => void;
 }) {
   return (
-    <div className="flex flex-col rounded-md border bg-muted/30">
+    <KanbanColumn status={status} className="flex flex-col rounded-md border bg-muted/30">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="text-sm font-medium">{status}</div>
         <Badge variant="outline">{tasks.length}</Badge>
@@ -53,8 +58,9 @@ function Column({
             t.status !== "Concluída" &&
             t.status !== "Cancelada";
           return (
-            <button
+            <KanbanCard
               key={t.id}
+              id={t.id}
               onClick={() => onEdit(t)}
               className={cn(
                 "w-full rounded-md border bg-background p-2 text-left text-sm transition hover:border-primary",
@@ -83,10 +89,10 @@ function Column({
                   </span>
                 )}
               </div>
-            </button>
+            </KanbanCard>
           );
         })}
       </div>
-    </div>
+    </KanbanColumn>
   );
 }

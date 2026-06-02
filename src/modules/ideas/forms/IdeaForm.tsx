@@ -336,7 +336,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
           )}
 
           {/* Pronta — Em que se converteu? */}
-          {idea && state.maturation === "Pronta" && idea.maturation !== "Convertida" && (
+          {idea && state.maturation === "Pronta" && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Em que se converteu?

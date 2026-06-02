@@ -918,6 +918,14 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 23,
+    description:
+      "ideas — funde maturação 'Convertida' em 'Pronta' (Pronta agora também converte)",
+    sql: `
+      UPDATE ideas SET maturation = 'Pronta' WHERE maturation = 'Convertida';
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

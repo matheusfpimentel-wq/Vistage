@@ -67,7 +67,7 @@ export function IdeaList({ items, onEdit, onDelete, onConvertToTrack }: Props) {
             </div>
           </div>
           <div className="flex gap-0.5">
-            {onConvertToTrack && i.maturation !== "Convertida" && (
+            {onConvertToTrack && i.maturation !== "Arquivada" && (
               <Button
                 size="icon"
                 variant="ghost"
