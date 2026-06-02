@@ -947,6 +947,23 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE music_projects ADD COLUMN concept TEXT;
     `,
   },
+  {
+    version: 27,
+    description: "content_snapshots — retratos de métricas com data de captura",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_id INTEGER NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+        captured_at TEXT NOT NULL,
+        metric_views INTEGER,
+        metric_likes INTEGER,
+        metric_comments INTEGER,
+        metric_shares INTEGER,
+        metric_saves INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

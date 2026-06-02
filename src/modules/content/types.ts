@@ -58,6 +58,21 @@ export type Content = {
 export type ContentCreateInput = Omit<Content, "id" | "created_at" | "updated_at">;
 export type ContentUpdateInput = Partial<ContentCreateInput> & { id: number };
 
+/** Retrato de métricas num dado momento (captura). */
+export type ContentSnapshot = {
+  id: number;
+  content_id: number;
+  captured_at: string;
+  metric_views: number | null;
+  metric_likes: number | null;
+  metric_comments: number | null;
+  metric_shares: number | null;
+  metric_saves: number | null;
+  created_at: string;
+};
+
+export type ContentSnapshotInput = Omit<ContentSnapshot, "id" | "created_at">;
+
 export function contentStatusVariant(s: ContentStatus):
   | "default"
   | "secondary"

@@ -16,6 +16,7 @@ const TABLES = [
   "tasks",
   "subtasks",
   "content",
+  "content_snapshots",
   "ideas",
   "students",
   "class_packages",

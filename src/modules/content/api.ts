@@ -4,6 +4,8 @@ import type {
   ContentCreateInput,
   ContentFormat,
   ContentNetwork,
+  ContentSnapshot,
+  ContentSnapshotInput,
   ContentStatus,
   ContentUpdateInput,
 } from "./types";
@@ -156,4 +158,74 @@ export async function getContentStats(): Promise<ContentStats> {
     byStatus,
     publishedThisMonth: publishedRows[0]?.n ?? 0,
   };
+}
+
+// ============================================================
+// Snapshots de métricas (retratos com data de captura)
+// ============================================================
+
+export async function listContentSnapshots(
+  contentId: number
+): Promise<ContentSnapshot[]> {
+  const db = getDb();
+  return db.select<ContentSnapshot[]>(
+    "SELECT * FROM content_snapshots WHERE content_id = $1 ORDER BY captured_at DESC, id DESC",
+    [contentId]
+  );
+}
+
+export async function addContentSnapshot(
+  input: ContentSnapshotInput
+): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO content_snapshots
+       (content_id, captured_at, metric_views, metric_likes, metric_comments, metric_shares, metric_saves)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      input.content_id,
+      input.captured_at,
+      input.metric_views,
+      input.metric_likes,
+      input.metric_comments,
+      input.metric_shares,
+      input.metric_saves,
+    ]
+  );
+  // mantém os campos "atuais" do content com a captura mais recente
+  await syncLatestSnapshotToContent(input.content_id);
+  return Number(res.lastInsertId);
+}
+
+export async function deleteContentSnapshot(id: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<{ content_id: number }[]>(
+    "SELECT content_id FROM content_snapshots WHERE id = $1",
+    [id]
+  );
+  await db.execute("DELETE FROM content_snapshots WHERE id = $1", [id]);
+  if (rows[0]) await syncLatestSnapshotToContent(rows[0].content_id);
+}
+
+/** Copia a captura mais recente pros campos metric_* do content (compat com listas). */
+async function syncLatestSnapshotToContent(contentId: number): Promise<void> {
+  const db = getDb();
+  const latest = await db.select<ContentSnapshot[]>(
+    "SELECT * FROM content_snapshots WHERE content_id = $1 ORDER BY captured_at DESC, id DESC LIMIT 1",
+    [contentId]
+  );
+  const s = latest[0];
+  await db.execute(
+    `UPDATE content SET metric_views = $1, metric_likes = $2, metric_comments = $3,
+                        metric_shares = $4, metric_saves = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6`,
+    [
+      s?.metric_views ?? null,
+      s?.metric_likes ?? null,
+      s?.metric_comments ?? null,
+      s?.metric_shares ?? null,
+      s?.metric_saves ?? null,
+      contentId,
+    ]
+  );
 }

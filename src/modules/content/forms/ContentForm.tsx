@@ -39,6 +39,7 @@ import {
   type ContentStatus,
 } from "../types";
 import { createContent, updateContent } from "../api";
+import { ContentSnapshots } from "../components/ContentSnapshots";
 
 type Props = {
   open: boolean;
@@ -337,37 +338,13 @@ export function ContentForm({
             </TabsContent>
 
             <TabsContent value="metricas" className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Preencha manualmente depois de publicar (a app não puxa direto das
-                redes).
-              </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                <MetricInput
-                  label="Views"
-                  value={state.metric_views}
-                  onChange={(v) => set("metric_views", v)}
-                />
-                <MetricInput
-                  label="Curtidas"
-                  value={state.metric_likes}
-                  onChange={(v) => set("metric_likes", v)}
-                />
-                <MetricInput
-                  label="Comentários"
-                  value={state.metric_comments}
-                  onChange={(v) => set("metric_comments", v)}
-                />
-                <MetricInput
-                  label="Compart."
-                  value={state.metric_shares}
-                  onChange={(v) => set("metric_shares", v)}
-                />
-                <MetricInput
-                  label="Salvos"
-                  value={state.metric_saves}
-                  onChange={(v) => set("metric_saves", v)}
-                />
-              </div>
+              {content ? (
+                <ContentSnapshots contentId={content.id} title={content.title} />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Salve o conteúdo primeiro para registrar capturas de métricas.
+                </p>
+              )}
             </TabsContent>
           </Tabs>
         </div>
@@ -401,28 +378,6 @@ function Field({
     <div className="space-y-1.5">
       <Label>{label}</Label>
       {children}
-    </div>
-  );
-}
-
-function MetricInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs">{label}</Label>
-      <Input
-        type="number"
-        min={0}
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-      />
     </div>
   );
 }
