@@ -172,7 +172,13 @@ export function VenuesPage() {
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {venues.map((v) => (
-            <VenueCard key={v.id} venue={v} onOpen={() => openDetail(v)} />
+            <VenueCard
+              key={v.id}
+              venue={v}
+              onOpen={() => openDetail(v)}
+              onEdit={() => openEdit(v)}
+              onDelete={() => void handleDelete(v)}
+            />
           ))}
         </div>
       ) : (
@@ -265,13 +271,55 @@ export function VenuesPage() {
   );
 }
 
-function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
+function VenueCard({
+  venue: v,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  venue: Venue;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const photoUrl = useImageUrl(v.photo_path);
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
     >
+      {/* ações no hover */}
+      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Editar"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Excluir"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
       <div className="h-32 w-full bg-muted">
         {photoUrl ? (
           <img
@@ -300,6 +348,6 @@ function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
           {v.founded_year && <span className="tabular-nums">desde {v.founded_year}</span>}
         </div>
       </div>
-    </button>
+    </div>
   );
 }

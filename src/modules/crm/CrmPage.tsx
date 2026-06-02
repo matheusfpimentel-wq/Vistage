@@ -189,7 +189,13 @@ export function CrmPage() {
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {contacts.map((c) => (
-            <ContactCard key={c.id} contact={c} onOpen={() => openDetail(c)} />
+            <ContactCard
+              key={c.id}
+              contact={c}
+              onOpen={() => openDetail(c)}
+              onEdit={() => openEdit(c)}
+              onDelete={() => void handleDelete(c)}
+            />
           ))}
         </div>
       ) : (
@@ -329,7 +335,17 @@ function PriorityBadge({ rating }: { rating: number | null }) {
   return <Badge variant={variant}>{p}</Badge>;
 }
 
-function ContactCard({ contact: c, onOpen }: { contact: Contact; onOpen: () => void }) {
+function ContactCard({
+  contact: c,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  contact: Contact;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const photoUrl = useImageUrl(c.photo_path);
   const last = c.last_interaction_at;
   const daysAgo = last
@@ -337,10 +353,42 @@ function ContactCard({ contact: c, onOpen }: { contact: Contact; onOpen: () => v
     : null;
   const initials = c.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="group flex items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      className="group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
     >
+      {/* ações no hover */}
+      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Editar"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Excluir"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
       {/* Avatar */}
       <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted ring-2 ring-background">
         {photoUrl ? (
@@ -372,6 +420,6 @@ function ContactCard({ contact: c, onOpen }: { contact: Contact; onOpen: () => v
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }

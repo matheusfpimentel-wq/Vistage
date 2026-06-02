@@ -209,7 +209,13 @@ export function FansPage() {
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {fans.map((f) => (
-            <FanCard key={f.id} fan={f} onOpen={() => openDetail(f)} />
+            <FanCard
+              key={f.id}
+              fan={f}
+              onOpen={() => openDetail(f)}
+              onEdit={() => openEdit(f)}
+              onDelete={() => void handleDelete(f)}
+            />
           ))}
         </div>
       ) : (
@@ -360,17 +366,59 @@ function FanListAvatar({ fan: f }: { fan: Fan }) {
   );
 }
 
-function FanCard({ fan: f, onOpen }: { fan: Fan; onOpen: () => void }) {
+function FanCard({
+  fan: f,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  fan: Fan;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const photoUrl = useImageUrl(f.photo_path);
   const last = f.last_interaction_at;
   const daysAgo = last
     ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
     : null;
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
     >
+      {/* ações no hover */}
+      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Editar"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Excluir"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
       <div className="h-28 w-full bg-muted">
         {photoUrl ? (
           <img
@@ -395,6 +443,6 @@ function FanCard({ fan: f, onOpen }: { fan: Fan; onOpen: () => void }) {
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 }
