@@ -6,6 +6,7 @@ import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
@@ -145,9 +146,11 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <BrowserRouter>
-        <RoutedApp />
-      </BrowserRouter>
+      <ConfirmProvider>
+        <BrowserRouter>
+          <RoutedApp />
+        </BrowserRouter>
+      </ConfirmProvider>
     </TooltipProvider>
   );
 }

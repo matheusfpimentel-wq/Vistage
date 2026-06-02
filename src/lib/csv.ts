@@ -213,35 +213,39 @@ export async function importCsvIntoTable(
 
   const result: ImportResult = { inserted: 0, skipped: 0, errors: [] };
 
-  await db.execute("BEGIN");
-  try {
-    if (mode === "replace") {
-      await db.execute(`DELETE FROM ${table}`);
+  // IMPORTANTE: nada de BEGIN/COMMIT manual aqui. O tauri-plugin-sql usa um
+  // pool de conexões; uma transação aberta numa conexão enquanto os INSERTs
+  // caem em outras gera "database is locked" e trava o app. Inserimos linha a
+  // linha, cada execute é atômico por si só.
+  if (mode === "replace") {
+    await db.execute(`DELETE FROM ${table}`);
+  }
+
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+  const sql = `INSERT INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`;
+
+  let rowNum = 1; // linha 1 = cabeçalho
+  for (const row of rows) {
+    rowNum += 1;
+    // ignora linhas em branco
+    if (row.length === 0 || (row.length === 1 && row[0].trim() === "")) {
+      continue;
     }
-
-    const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
-    const sql = `INSERT OR IGNORE INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`;
-
-    for (const row of rows) {
-      // ignora linhas em branco
-      if (row.length === 1 && row[0] === "") continue;
-      const values = cols.map((c) => {
-        const v = row[headerIdx[c]];
-        return v === undefined || v === "" ? null : v;
-      });
-      try {
-        const res = await db.execute(sql, values);
-        if (res.rowsAffected > 0) result.inserted += 1;
-        else result.skipped += 1;
-      } catch (e) {
-        result.errors.push(String(e));
-        result.skipped += 1;
+    const values = cols.map((c) => {
+      const v = row[headerIdx[c]];
+      return v === undefined || v === "" ? null : v;
+    });
+    try {
+      const res = await db.execute(sql, values);
+      if (res.rowsAffected > 0) result.inserted += 1;
+      else result.skipped += 1;
+    } catch (e) {
+      result.skipped += 1;
+      // guarda só as 10 primeiras pra não estourar a UI
+      if (result.errors.length < 10) {
+        result.errors.push(`Linha ${rowNum}: ${String(e)}`);
       }
     }
-    await db.execute("COMMIT");
-  } catch (e) {
-    await db.execute("ROLLBACK");
-    throw e;
   }
 
   return result;

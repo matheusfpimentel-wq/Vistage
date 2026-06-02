@@ -29,7 +29,7 @@ import {
   type GigCreateInput,
 } from "../types";
 import { createGig, listGigTracks, setGigTracks, updateGig } from "../api";
-import { ensureGigPaymentTransaction } from "@/modules/finance/api";
+import { syncGigPaymentTransaction } from "@/modules/finance/api";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
@@ -256,22 +256,30 @@ export function GigForm({
         isNew,
       });
 
-      // Auto-vínculo financeiro: pagamento integral → cria receita
-      if (
-        state.payment_status === "Pago integralmente" &&
-        typeof state.cache_amount === "number" &&
-        state.cache_amount > 0
-      ) {
-        try {
-          await ensureGigPaymentTransaction(
-            savedId,
-            state.cache_amount,
-            state.payment_due_date ?? state.date,
-            `Cachê — ${state.venue_name}`
-          );
-        } catch {
-          /* não interrompe */
-        }
+      // Auto-vínculo financeiro: reflete o cachê recebido no Financeiro.
+      // "Pago integralmente" → valor cheio; "50% pago" → metade; qualquer
+      // outro status remove a receita vinculada (mantém integrado).
+      try {
+        const cache =
+          typeof state.cache_amount === "number" ? state.cache_amount : 0;
+        const paid =
+          state.payment_status === "Pago integralmente" ||
+          state.payment_status === "50% pago";
+        const received =
+          state.payment_status === "50% pago" ? cache * 0.5 : cache;
+        const label =
+          state.payment_status === "50% pago"
+            ? `Cachê (50%) — ${state.venue_name}`
+            : `Cachê — ${state.venue_name}`;
+        await syncGigPaymentTransaction(
+          savedId,
+          paid,
+          received,
+          state.payment_due_date ?? state.date,
+          label
+        );
+      } catch {
+        /* não interrompe */
       }
 
       try {

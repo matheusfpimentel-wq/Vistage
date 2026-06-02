@@ -37,16 +37,47 @@ import {
 } from "./types";
 import { formatCurrency } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { useConfirm } from "@/components/ui/confirm";
 
 type KindFilter = TransactionKind | "all";
 type StatusFilter = TransactionStatus | "all";
 
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+function isoDaysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
-function monthOptions(): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [];
+/**
+ * Converte um "período" selecionado em filtros de data. O padrão é os últimos
+ * 12 meses (não mais um único mês), com opções pra ano corrente e global.
+ */
+function periodToFilter(period: string): { fromDate?: string; toDate?: string } {
+  const now = new Date();
+  if (period === "all") return {};
+  if (period === "last12") return { fromDate: isoDaysAgo(365) };
+  if (period === "thismonth") {
+    const m = now.toISOString().slice(0, 7);
+    return { fromDate: `${m}-01`, toDate: `${m}-31` };
+  }
+  if (period === "thisyear") {
+    const y = now.toISOString().slice(0, 4);
+    return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
+  }
+  // mês específico YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    return { fromDate: `${period}-01`, toDate: `${period}-31` };
+  }
+  return {};
+}
+
+function periodOptions(): { value: string; label: string }[] {
+  const opts = [
+    { value: "last12", label: "Últimos 12 meses" },
+    { value: "thismonth", label: "Este mês" },
+    { value: "thisyear", label: "Este ano" },
+    { value: "all", label: "Todo o período" },
+  ];
   const d = new Date();
   for (let i = 0; i < 12; i++) {
     const month = d.toISOString().slice(0, 7);
@@ -69,13 +100,13 @@ export function FinancePage() {
     kind: KindFilter;
     status: StatusFilter;
     categoryId: number | "all";
-    month: string;
+    period: string;
     search: string;
   }>({
     kind: "all",
     status: "all",
     categoryId: "all",
-    month: currentMonth(),
+    period: "last12",
     search: "",
   });
 
@@ -85,6 +116,7 @@ export function FinancePage() {
   const [defaultKind, setDefaultKind] = useState<TransactionKind>("income");
   const [categoryMgrOpen, setCategoryMgrOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const confirm = useConfirm();
 
   const queryFilters: TransactionFilters = useMemo(
     () => ({
@@ -92,7 +124,7 @@ export function FinancePage() {
       status: filters.status,
       categoryId:
         filters.categoryId === "all" ? undefined : filters.categoryId,
-      month: filters.month,
+      ...periodToFilter(filters.period),
       search: filters.search,
     }),
     [filters]
@@ -126,7 +158,15 @@ export function FinancePage() {
   }
 
   async function handleDelete(t: FinanceTransactionWithCategory) {
-    if (!window.confirm(`Excluir esta transação?`)) return;
+    const ok = await confirm({
+      title: "Excluir transação",
+      description: t.gig_id
+        ? "Esta receita está vinculada a uma GIG. Excluí-la some só com o lançamento financeiro, a GIG continua."
+        : "Tem certeza que quer excluir esta transação?",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteTransaction(t.id);
     await refresh();
     toast.success("Transação excluída");
@@ -184,16 +224,16 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
               <Select
-                value={filters.month}
+                value={filters.period}
                 onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, month: v }))
+                  setFilters((f) => ({ ...f, period: v }))
                 }
               >
                 <SelectTrigger className="w-48 capitalize">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="capitalize">
-                  {monthOptions().map((m) => (
+                  {periodOptions().map((m) => (
                     <SelectItem key={m.value} value={m.value}>
                       {m.label}
                     </SelectItem>

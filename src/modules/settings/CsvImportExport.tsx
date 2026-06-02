@@ -70,13 +70,17 @@ export function CsvImportExport() {
     setConfirmOpen(false);
     try {
       const res = await importCsvIntoTable(selected.table, pendingData, mode);
-      const errMsg =
-        res.errors.length > 0
-          ? ` · ${res.errors.length} erro(s)`
-          : "";
-      toast.success(
-        `Importadas ${res.inserted}, puladas ${res.skipped}${errMsg}`
-      );
+      if (res.errors.length > 0) {
+        // mostra o primeiro erro real pra dar pra depurar (coluna faltando,
+        // constraint, data inválida etc.)
+        toast.error(
+          `Importadas ${res.inserted}, puladas ${res.skipped}. ${res.errors[0]}`
+        );
+      } else {
+        toast.success(
+          `Importadas ${res.inserted}, puladas ${res.skipped}`
+        );
+      }
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {

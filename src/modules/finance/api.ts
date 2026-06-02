@@ -221,22 +221,49 @@ async function syncEquipmentForTransaction(transactionId: number): Promise<void>
 }
 
 /**
- * Quando uma GIG é marcada como paga (50% ou integralmente), cria uma
- * entrada de receita em "DJ" vinculada à GIG, caso ainda não exista.
+ * Sincroniza a receita financeira de uma GIG com o estado de pagamento dela.
+ *
+ * - `paid = true` e `amount > 0`: garante uma entrada de receita "DJ"
+ *   vinculada à GIG, criando ou atualizando valor/data/descrição.
+ * - caso contrário: remove qualquer receita vinculada (pagamento revertido,
+ *   cachê zerado etc.) pra não deixar lançamento fantasma no financeiro.
+ *
+ * Mantém o app integrado: mudou no GIG, reflete no Financeiro.
  */
-export async function ensureGigPaymentTransaction(
+export async function syncGigPaymentTransaction(
   gigId: number,
+  paid: boolean,
   amount: number,
   date: string,
   description: string
 ): Promise<void> {
   const db = getDb();
-  // checa se já existe entrada vinculada
   const existing = await db.select<{ id: number }[]>(
     `SELECT id FROM finance_transactions WHERE gig_id = $1 AND kind = 'income'`,
     [gigId]
   );
-  if (existing.length > 0) return;
+
+  if (!paid || !(amount > 0)) {
+    // pagamento revertido ou sem valor: limpa lançamentos vinculados
+    if (existing.length > 0) {
+      await db.execute(
+        `DELETE FROM finance_transactions WHERE gig_id = $1 AND kind = 'income'`,
+        [gigId]
+      );
+    }
+    return;
+  }
+
+  if (existing.length > 0) {
+    await db.execute(
+      `UPDATE finance_transactions
+          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4`,
+      [amount, date, description, existing[0].id]
+    );
+    return;
+  }
 
   // procura categoria "DJ"
   const cat = await db.select<{ id: number }[]>(
@@ -249,6 +276,15 @@ export async function ensureGigPaymentTransaction(
        (kind, amount, date, description, category_id, gig_id, status)
      VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
     [amount, date, description, categoryId, gigId]
+  );
+}
+
+/** Remove todas as transações vinculadas a uma GIG (usado ao excluir a GIG). */
+export async function deleteTransactionsForGig(gigId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM finance_transactions WHERE gig_id = $1",
+    [gigId]
   );
 }
 

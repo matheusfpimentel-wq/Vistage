@@ -140,6 +140,12 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
 
 export async function deleteGig(id: number): Promise<void> {
   const db = getDb();
+  // mantém o financeiro integrado: ao excluir a GIG, apaga também a receita
+  // vinculada (senão vira lançamento fantasma com gig_id nulo).
+  await db.execute(
+    "DELETE FROM finance_transactions WHERE gig_id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM gigs WHERE id = $1", [id]);
 }
 
