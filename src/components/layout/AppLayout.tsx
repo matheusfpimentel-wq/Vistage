@@ -38,7 +38,7 @@ export function AppLayout() {
     Object.entries(TITLES).find(([k]) =>
       k !== "/" && location.pathname.startsWith(k)
     )?.[1] ??
-    "MusicGest";
+    "Vistage";
 
   const dbPath = useConfigStore((s) => s.config?.dbPath);
 

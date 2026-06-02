@@ -173,15 +173,24 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-5">
-        <div className="bg-primary-gradient relative flex h-8 w-8 items-center justify-center rounded-lg text-primary-foreground shadow-md shadow-primary/30">
-          <span className="text-base font-black leading-none tracking-tighter">M</span>
+        {/* Logo Vistage */}
+        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 via-primary to-fuchsia-500 shadow-lg shadow-primary/40">
+          <span className="text-sm font-black leading-none tracking-tighter text-white drop-shadow">
+            Vi
+          </span>
+          {/* dot — virtual backstage "on-air" indicator */}
           <span
             aria-hidden
-            className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-orange-400 shadow-sm"
+            className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-card bg-emerald-400 shadow-sm"
           />
         </div>
-        <div className="text-primary-gradient font-semibold tracking-tight">
-          MusicGest
+        <div>
+          <div className="text-sm font-bold leading-tight tracking-wide bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent">
+            Vistage
+          </div>
+          <div className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60 leading-tight">
+            Virtual Backstage
+          </div>
         </div>
       </div>
 

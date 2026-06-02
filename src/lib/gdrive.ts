@@ -218,7 +218,7 @@ export async function uploadBackup(): Promise<DriveFile> {
 
   const backup = await buildBackup();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-  const fileName = `musicgest-backup-${stamp}.json`;
+  const fileName = `vistage-backup-${stamp}.json`;
   const content = JSON.stringify(backup);
 
   const file: DriveFile = await invoke("gdrive_upload_backup", {

@@ -49,14 +49,14 @@ type TableName = (typeof TABLES)[number];
 export type Backup = {
   version: number;
   exportedAt: string;
-  app: "musicgest";
+  app: "vistage" | "musicgest"; // aceita backups antigos do MusicGest
   tables: Record<TableName, Record<string, unknown>[]>;
 };
 
 /**
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
  * Não inclui anexos físicos (uploads/) — eles ficam na pasta apontada
- * pelo musicgest.config.json e devem ser copiados separadamente.
+ * pelo vistage.config.json e devem ser copiados separadamente.
  */
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
@@ -67,7 +67,7 @@ export async function buildBackup(): Promise<Backup> {
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
-    app: "musicgest",
+    app: "vistage",
     tables,
   };
 }
@@ -77,8 +77,8 @@ export async function exportBackupToFile(): Promise<string | null> {
   const backup = await buildBackup();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const path = await saveDialog({
-    title: "Exportar backup do MusicGest",
-    defaultPath: `musicgest-backup-${stamp}.json`,
+    title: "Exportar backup do Vistage",
+    defaultPath: `vistage-backup-${stamp}.json`,
     filters: [{ name: "JSON", extensions: ["json"] }],
   });
   if (!path) return null;
@@ -91,13 +91,13 @@ export async function pickBackupFile(): Promise<Backup | null> {
   const file = await openDialog({
     multiple: false,
     title: "Selecione o arquivo de backup",
-    filters: [{ name: "Backup MusicGest", extensions: ["json"] }],
+    filters: [{ name: "Backup Vistage", extensions: ["json"] }],
   });
   if (!file || typeof file !== "string") return null;
   const raw = await readTextFile(file);
   const parsed = JSON.parse(raw) as Partial<Backup>;
-  if (parsed.app !== "musicgest") {
-    throw new Error("Arquivo não é um backup do MusicGest.");
+  if (parsed.app !== "vistage" && parsed.app !== "musicgest") {
+    throw new Error("Arquivo não é um backup do Vistage.");
   }
   if (typeof parsed.version !== "number" || parsed.version > BACKUP_VERSION) {
     throw new Error(

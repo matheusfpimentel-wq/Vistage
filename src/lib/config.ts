@@ -6,7 +6,7 @@ import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-f
 // apontando para o último caminho de config usado, para o app encontrar tudo
 // novamente depois de fechar.
 
-const LS_KEY = "musicgest.lastConfigPath";
+const LS_KEY = "vistage.lastConfigPath";
 
 export type AppConfig = {
   dbPath: string;            // caminho absoluto do .db
@@ -69,8 +69,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     if (!(await exists(uploadsDir))) {
       await mkdir(uploadsDir, { recursive: true });
     }
-    const dbPath = joinPath(folder, "musicgest.db");
-    const configPath = joinPath(folder, "musicgest.config.json");
+    const dbPath = joinPath(folder, "vistage.db");
+    const configPath = joinPath(folder, "vistage.config.json");
     const cfg: AppConfig = {
       dbPath,
       uploadsDir,

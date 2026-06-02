@@ -168,7 +168,7 @@ export function GoogleDriveSettings() {
                 )}
               </CardTitle>
               <CardDescription>
-                Envia backups completos do banco para uma pasta "MusicGest
+                Envia backups completos do banco para uma pasta "Vistage
                 Backups" no seu Drive. Usa escopo restrito (drive.file) — o
                 app só acessa os arquivos que ele mesmo criou.
               </CardDescription>
@@ -320,7 +320,7 @@ export function GoogleDriveSettings() {
           <CardHeader>
             <CardTitle className="text-base">Backups no Drive</CardTitle>
             <CardDescription>
-              Pasta "MusicGest Backups" no seu Google Drive. Restaurar é
+              Pasta "Vistage Backups" no seu Google Drive. Restaurar é
               destrutivo — substitui todos os dados atuais.
             </CardDescription>
           </CardHeader>

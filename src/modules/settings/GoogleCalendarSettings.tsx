@@ -337,7 +337,7 @@ export function GoogleCalendarSettings() {
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               <strong className="text-foreground">Como funciona:</strong> ao
-              salvar/editar uma GIG no MusicGest, o evento correspondente é
+              salvar/editar uma GIG no Vistage, o evento correspondente é
               atualizado no Google Calendar automaticamente. Eventos novos no
               calendário escolhido viram GIGs em <Badge variant="outline">Proposta</Badge>
               {" "}quando você clicar em "Sincronizar".

@@ -141,7 +141,7 @@ export async function geocodeVenue(
   try {
     const resp = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`,
-      { headers: { "User-Agent": "MusicGest/1.0" } }
+      { headers: { "User-Agent": "Vistage/1.0" } }
     );
     const data = await resp.json() as { lat: string; lon: string }[];
     if (!data[0]) return null;

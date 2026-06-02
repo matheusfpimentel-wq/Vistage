@@ -6,8 +6,8 @@ import { getDb } from "./db";
  * Páginas registram um handler via `useNewItemShortcut(openCreate)` e o
  * listener global de Ctrl+N (em App.tsx) dispara `triggerNewItem()`.
  */
-const NEW_ITEM_EVENT = "musicgest:new-item";
-const QUICK_CAPTURE_EVENT = "musicgest:quick-capture";
+const NEW_ITEM_EVENT = "vistage:new-item";
+const QUICK_CAPTURE_EVENT = "vistage:quick-capture";
 
 export function triggerNewItem(): void {
   window.dispatchEvent(new CustomEvent(NEW_ITEM_EVENT));
@@ -56,7 +56,7 @@ const SETTING_KEYS: Record<ShortcutAction, string> = {
   quickCapture: "shortcut.quickCapture",
 };
 
-const LS_FALLBACK_PREFIX = "musicgest.shortcut.";
+const LS_FALLBACK_PREFIX = "vistage.shortcut.";
 
 async function readSetting(key: string): Promise<string | null> {
   try {

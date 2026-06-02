@@ -251,7 +251,7 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
       }`,
     typeof gig.cache_amount === "number" &&
       `Cachê: R$ ${gig.cache_amount.toFixed(2)}`,
-    `MusicGest GIG #${gig.id}`,
+    `Vistage GIG #${gig.id}`,
   ].filter(Boolean);
 
   const location = [gig.venue_address, gig.venue_city].filter(Boolean).join(" — ");

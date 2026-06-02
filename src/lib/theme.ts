@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type Theme = "light" | "dark";
-const LS_KEY = "musicgest.theme";
+const LS_KEY = "vistage.theme";
 
 type ThemeState = {
   theme: Theme;

@@ -137,7 +137,7 @@ export async function exportEntityCsv(table: string): Promise<string | null> {
   const stamp = new Date().toISOString().slice(0, 10);
   const path = await saveDialog({
     title: `Exportar ${table} em CSV`,
-    defaultPath: `musicgest-${table}-${stamp}.csv`,
+    defaultPath: `vistage-${table}-${stamp}.csv`,
     filters: [{ name: "CSV", extensions: ["csv"] }],
   });
   if (!path) return null;

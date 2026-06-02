@@ -137,7 +137,7 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
       try {
         const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(value)}&addressdetails=1`;
         const res = await fetch(url, {
-          headers: { "User-Agent": "MusicGest/1.0" },
+          headers: { "User-Agent": "Vistage/1.0" },
         });
         if (!res.ok) return;
         const data: NominatimResult[] = await res.json();

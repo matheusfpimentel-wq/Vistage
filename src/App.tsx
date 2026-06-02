@@ -121,7 +121,7 @@ export default function App() {
     };
   }, [ready, config]);
 
-  if (booting) return <FullscreenLoader label="Iniciando o MusicGest…" />;
+  if (booting) return <FullscreenLoader label="Iniciando o Vistage…" />;
 
   if (!ready) return <Setup />;
 
