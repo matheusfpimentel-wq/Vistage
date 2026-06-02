@@ -15,14 +15,20 @@
     Outer edge: wide bezier curve from tip-to-tip via center.
     Inner edge: tighter bezier slightly above, creating a tapering filled wing.
   -->
+  <!--
+    Gaivota: ponta afiada nas extremidades, arco que engrossa até o centro.
+    Borda externa (belly): arco largo e baixo.
+    Borda interna: arco mais curto/alto — encontra a externa nas pontas (zero espessura)
+    e se afasta no centro (~30px de espessura).
+  -->
   <path d="
-    M 134 108
-    C 160 145, 230 238, 256 270
-    C 282 238, 352 145, 378 108
-    C 370 102, 362 100, 354 104
-    C 330 138, 276 222, 256 248
-    C 236 222, 182 138, 158 104
-    C 150 100, 142 102, 134 108
+    M 136 106
+    Q 192 168, 256 274
+    Q 320 168, 376 106
+    C 368 98, 358 98, 350 105
+    C 318 144, 274 228, 256 246
+    C 238 228, 194 144, 162 105
+    C 154 98, 144 98, 136 106
     Z"
         fill="#C4B5FD"/>
 </svg>
