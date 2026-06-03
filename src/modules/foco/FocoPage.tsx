@@ -60,9 +60,6 @@ export function FocoPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Energia & Foco</h2>
-        <p className="text-sm text-muted-foreground">
-          Seus padrões de energia e foco ao longo das sessões de trabalho.
-        </p>
       </div>
 
       {activityStats.length === 0 ? (

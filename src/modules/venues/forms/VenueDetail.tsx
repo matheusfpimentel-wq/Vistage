@@ -125,7 +125,7 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               {venue.owner_name && (
                 <Row
                   icon={<Users className="h-3.5 w-3.5" />}
-                  label="Dono"
+                  label={venue.owner_role ?? "Responsável"}
                   value={venue.owner_name}
                 />
               )}

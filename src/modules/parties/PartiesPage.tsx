@@ -94,9 +94,6 @@ export function PartiesPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight">Produção de Festas</h2>
-          <p className="text-sm text-muted-foreground">
-            Produção e gestão de eventos próprios.
-          </p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nova produção

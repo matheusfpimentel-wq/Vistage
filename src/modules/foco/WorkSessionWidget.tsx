@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Square, Zap } from "lucide-react";
+import { Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,11 +28,6 @@ import {
   startSession,
 } from "./api";
 
-type Props = {
-  focusMode: boolean;
-  onToggleFocus: () => void;
-};
-
 function elapsed(startedAt: string): string {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
   const h = Math.floor(diff / 3600);
@@ -42,7 +37,7 @@ function elapsed(startedAt: string): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-export function WorkSessionWidget({ focusMode, onToggleFocus }: Props) {
+export function WorkSessionWidget() {
   const [session, setSession] = useState<WorkSession | null>(null);
   const [timer, setTimer] = useState("");
   const [startOpen, setStartOpen] = useState(false);
@@ -76,18 +71,6 @@ export function WorkSessionWidget({ focusMode, onToggleFocus }: Props) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [session]);
-
-  // Ctrl+Shift+F to toggle focus mode
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") {
-        e.preventDefault();
-        onToggleFocus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onToggleFocus]);
 
   async function handleStart() {
     setSaving(true);
@@ -148,15 +131,6 @@ export function WorkSessionWidget({ focusMode, onToggleFocus }: Props) {
           </Button>
         )}
 
-        <Button
-          size="icon"
-          variant={focusMode ? "default" : "ghost"}
-          className={cn("h-8 w-8", focusMode && "bg-primary text-primary-foreground")}
-          onClick={onToggleFocus}
-          title="Modo Foco Profundo (Ctrl+Shift+F)"
-        >
-          <Zap className="h-3.5 w-3.5" />
-        </Button>
       </div>
 
       {/* Start dialog */}

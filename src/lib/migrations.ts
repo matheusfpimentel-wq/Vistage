@@ -1097,6 +1097,11 @@ const MIGRATIONS: Migration[] = [
     description: "gcal_event_id for okrs",
     sql: `ALTER TABLE okrs ADD COLUMN gcal_event_id TEXT`,
   },
+  {
+    version: 40,
+    description: "owner_role for venues",
+    sql: `ALTER TABLE venues ADD COLUMN owner_role TEXT`,
+  },
 ];
 
 

@@ -6,13 +6,12 @@ import {
   CheckSquare,
   Film,
   GraduationCap,
-
   Heart,
+  PanelLeftClose,
   LayoutDashboard,
   Lightbulb,
   Music,
   PartyPopper,
-
   Settings,
   Sparkles,
   Store,
@@ -93,7 +92,7 @@ function applyOrder(items: NavItem[], order: string[]): NavItem[] {
   return [...fixed_head, ...reorderable, ...missing, ...fixed_tail];
 }
 
-export function Sidebar() {
+export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
   // `to` do item sendo arrastado (null quando não há arraste)
   const [draggingTo, setDraggingTo] = useState<string | null>(null);
@@ -158,7 +157,7 @@ export function Sidebar() {
         <div className="relative h-8 w-8 shrink-0">
           <svg
             viewBox="0 0 512 512"
-            className="h-8 w-8 rounded-lg shadow-lg shadow-primary/40"
+            className="h-8 w-8 rounded-lg"
             aria-hidden
           >
             <circle cx="256" cy="256" r="256" fill="#1A0D2E" />
@@ -207,11 +206,9 @@ export function Sidebar() {
               <NavLink
                 to={to}
                 end={end}
-                // se acabamos de arrastar, suprime a navegação do clique
+                draggable={false}
                 onClick={(e) => {
-                  if (justDragged.current) {
-                    e.preventDefault();
-                  }
+                  if (justDragged.current) e.preventDefault();
                 }}
                 className={({ isActive }) =>
                   cn(
@@ -230,9 +227,19 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t p-4 text-xs text-muted-foreground">
-        v0.1.0 · local-first
-      </div>
+      {onCollapse && (
+        <div className="border-t p-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+            title="Recolher painel lateral"
+            aria-label="Recolher painel lateral"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

@@ -843,7 +843,7 @@ export function GigForm({
       <QuickContactForm
         open={quickContactOpen}
         onOpenChange={setQuickContactOpen}
-        defaultType="Cliente / Contratante"
+        defaultType="Contratante"
         onCreated={async (id) => {
           const fresh = await listContacts();
           setContacts(fresh);

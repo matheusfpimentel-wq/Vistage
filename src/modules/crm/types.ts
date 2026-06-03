@@ -1,11 +1,12 @@
 export const CONTACT_TYPES = [
-  "Cliente / Contratante",
-  "Agente / Booker",
+  "Contratante",
+  "Booker",
   "Produtor de eventos",
   "DJ parceiro",
   "Músico",
-  "Colaborador",
-  "Fornecedor",
+  "Influencer",
+  "Gerente de Club",
+  "Dono de Club",
   "Outros",
 ] as const;
 export type ContactType = (typeof CONTACT_TYPES)[number];

@@ -324,18 +324,9 @@ export async function restoreLatestBackupSilently(): Promise<boolean> {
   }
 }
 
-/** Intervalo mínimo entre backups automáticos disparados por mudança de dados. */
-const MIN_AUTO_BACKUP_INTERVAL_MS = 30 * 1000; // 30 s
-
-/**
- * Sobe um backup se o automático estiver ligado e já tiver passado o intervalo
- * mínimo desde o último. Usado após mudanças de dados para manter o Drive
- * próximo do estado atual sem floodar a API a cada clique.
- */
+/** Sobe um backup se o automático estiver ligado. Chamado após cada mudança de dados. */
 export async function maybeAutoBackupAfterChange(): Promise<void> {
   const auth = await loadAuth();
   if (!auth?.autoBackup) return;
-  const last = auth.lastBackupAt ? Date.parse(auth.lastBackupAt) : 0;
-  if (Date.now() - last < MIN_AUTO_BACKUP_INTERVAL_MS) return;
   await uploadBackup();
 }

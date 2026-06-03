@@ -608,7 +608,7 @@ function FanGroupsPanel({ fans }: { fans: Fan[] }) {
                 onChange={(e) => setNewName(e.target.value)}
               />
               <Input
-                placeholder="Link/nome WhatsApp"
+                placeholder="Link do grupo, se houver"
                 value={newWhatsapp}
                 onChange={(e) => setNewWhatsapp(e.target.value)}
               />

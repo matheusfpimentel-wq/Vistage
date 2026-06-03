@@ -8,6 +8,7 @@ export type Venue = {
   founded_year: number | null;
   capacity: number | null;
   owner_name: string | null;
+  owner_role: string | null;
   owner_phone: string | null;
   owner_email: string | null;
   instagram: string | null;

@@ -2,6 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -48,6 +55,7 @@ const EMPTY: VenueCreateInput = {
   founded_year: null,
   capacity: null,
   owner_name: null,
+  owner_role: null,
   owner_phone: null,
   owner_email: null,
   instagram: null,
@@ -73,6 +81,7 @@ function venueToState(v: Venue): VenueCreateInput {
     founded_year: v.founded_year,
     capacity: v.capacity,
     owner_name: v.owner_name,
+    owner_role: v.owner_role,
     owner_phone: v.owner_phone,
     owner_email: v.owner_email,
     instagram: v.instagram,
@@ -379,22 +388,39 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Dono / Operação
+              Contato responsável
             </div>
-            <Field label="Nome do dono / responsável">
-              <Input
-                value={state.owner_name ?? ""}
-                onChange={(e) => set("owner_name", e.target.value || null)}
-              />
-            </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Telefone do dono">
+              <Field label="Nome">
+                <Input
+                  value={state.owner_name ?? ""}
+                  onChange={(e) => set("owner_name", e.target.value || null)}
+                  placeholder="Nome do responsável"
+                />
+              </Field>
+              <Field label="Cargo">
+                <Select
+                  value={state.owner_role ?? ""}
+                  onValueChange={(v) => set("owner_role", v || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Dono">Dono</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Telefone">
                 <Input
                   value={state.owner_phone ?? ""}
                   onChange={(e) => set("owner_phone", e.target.value || null)}
                 />
               </Field>
-              <Field label="Email do dono">
+              <Field label="Email">
                 <Input
                   type="email"
                   value={state.owner_email ?? ""}

@@ -5,13 +5,14 @@ const VARIANT_BY_TYPE: Record<
   ContactType,
   "default" | "secondary" | "outline" | "info" | "success" | "warning"
 > = {
-  "Cliente / Contratante": "info",
-  "Agente / Booker": "warning",
+  Contratante: "info",
+  Booker: "warning",
   "Produtor de eventos": "default",
   "DJ parceiro": "success",
-  "Músico": "success",
-  Colaborador: "secondary",
-  Fornecedor: "outline",
+  Músico: "success",
+  Influencer: "secondary",
+  "Gerente de Club": "outline",
+  "Dono de Club": "outline",
   Outros: "outline",
 };
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Search, Zap } from "lucide-react";
+import { PanelLeftOpen, Search, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
@@ -33,7 +33,7 @@ const TITLES: Record<string, string> = {
 
 export function AppLayout() {
   const location = useLocation();
-  const [focusMode, setFocusMode] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const title =
     TITLES[location.pathname] ??
@@ -46,21 +46,34 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <div className={cn("transition-all duration-200", focusMode ? "w-0 overflow-hidden" : "")}>
-        <Sidebar />
+      <div className={cn("transition-all duration-200", sidebarCollapsed ? "w-0 overflow-hidden" : "")}>
+        <Sidebar onCollapse={() => setSidebarCollapsed(true)} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-16 items-center justify-between border-b px-6">
-          <div>
-            <h1 className="text-lg font-semibold">{title}</h1>
-            {!focusMode && dbPath && (
-              <p className="text-xs text-muted-foreground truncate max-w-[40ch]">
-                {dbPath}
-              </p>
+          <div className="flex items-center gap-2">
+            {sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                aria-label="Expandir painel lateral"
+                title="Expandir painel lateral"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
             )}
+            <div>
+              <h1 className="text-lg font-semibold">{title}</h1>
+              {!sidebarCollapsed && dbPath && (
+                <p className="text-xs text-muted-foreground truncate max-w-[40ch]">
+                  {dbPath}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            {!focusMode && (
+            {!sidebarCollapsed && (
               <button
                 type="button"
                 onClick={() => {
@@ -92,10 +105,7 @@ export function AppLayout() {
             >
               <Zap className="h-4 w-4" />
             </button>
-            <WorkSessionWidget
-              focusMode={focusMode}
-              onToggleFocus={() => setFocusMode((f) => !f)}
-            />
+            <WorkSessionWidget />
             <NotificationBell />
             <ThemeToggle />
           </div>
