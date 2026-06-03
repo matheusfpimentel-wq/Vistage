@@ -205,17 +205,16 @@ export function DashboardPage() {
       {data ? (
         <>
           <KpiRow data={data} />
-          <WeekTimeline data={data} />
-
-          <div className="space-y-4 pt-2">
-            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Painéis temáticos
-            </h3>
-            <FinancePanel />
+          <div className="grid gap-4 lg:grid-cols-2">
             <GigsCard data={data} />
             <MusicCard data={data} />
-            <FestasCard data={data} />
             <ContentCard data={data} />
+            <FestasCard data={data} />
+          </div>
+          <WeekTimeline data={data} />
+
+          <div className="space-y-4">
+            <FinancePanel />
             <OkrPanel okrs={data.okrs} />
           </div>
         </>
@@ -561,12 +560,14 @@ function GigsCard({ data }: { data: DashData }) {
       : null;
 
   return (
-    <CollapsibleCard
-      storageKey="gigs"
-      icon={<Disc3 className="h-4 w-4 text-primary" />}
-      title="GIGs"
-      description="Próximas apresentações e debriefs."
-    >
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Disc3 className="h-4 w-4 text-primary" /> GIGs
+        </CardTitle>
+        <CardDescription>Próximas apresentações e debriefs.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {upcoming.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
             Sem GIGs futuras.{" "}
@@ -628,7 +629,8 @@ function GigsCard({ data }: { data: DashData }) {
             </Link>
           </Button>
         )}
-    </CollapsibleCard>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -643,12 +645,14 @@ function MusicCard({ data }: { data: DashData }) {
   });
 
   return (
-    <CollapsibleCard
-      storageKey="musica"
-      icon={<Music className="h-4 w-4 text-primary" />}
-      title="Produção Musical"
-      description="Tracks ativas em produção."
-    >
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Music className="h-4 w-4 text-primary" /> Produção Musical
+        </CardTitle>
+        <CardDescription>Tracks ativas em produção.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {top3.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
             Sem tracks ativas.{" "}
@@ -699,7 +703,8 @@ function MusicCard({ data }: { data: DashData }) {
             </span>
           </div>
         )}
-    </CollapsibleCard>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -744,13 +749,14 @@ function ContentCard({ data }: { data: DashData }) {
   const imbalance = purposeTotal >= 3 && topShare > 0.7;
 
   return (
-    <CollapsibleCard
-      storageKey="conteudo"
-      icon={<Film className="h-4 w-4 text-primary" />}
-      title="Conteúdos"
-      description="Resumo editorial."
-      defaultOpen={false}
-    >
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Film className="h-4 w-4 text-primary" /> Conteúdos
+        </CardTitle>
+        <CardDescription>Resumo editorial.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         <div className="grid grid-cols-4 gap-2">
           <MiniKanbanCol label="Ideia" value={counts.ideia} />
           <MiniKanbanCol label="Produção" value={counts.producao} />
@@ -820,7 +826,8 @@ function ContentCard({ data }: { data: DashData }) {
             </span>
           </div>
         )}
-    </CollapsibleCard>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -887,16 +894,18 @@ function FestasCard({ data }: { data: DashData }) {
       : [];
 
   return (
-    <CollapsibleCard
-      storageKey="festas"
-      icon={<PartyPopper className="h-4 w-4 text-pink-400" />}
-      title="Produção de Festas"
-      description={
-        data.parties.length === 0
-          ? "Nenhuma festa cadastrada."
-          : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`
-      }
-    >
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <PartyPopper className="h-4 w-4 text-pink-400" /> Produção de Festas
+        </CardTitle>
+        <CardDescription>
+          {data.parties.length === 0
+            ? "Nenhuma festa cadastrada."
+            : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
         {noConfirmed && data.parties.length > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -969,7 +978,8 @@ function FestasCard({ data }: { data: DashData }) {
         >
           Ver todas as festas <ChevronRight className="h-3 w-3" />
         </Link>
-    </CollapsibleCard>
+      </CardContent>
+    </Card>
   );
 }
 
