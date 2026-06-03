@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
   CalendarClock,
+  ChevronDown,
   ChevronRight,
   Disc3,
   Film,
@@ -11,8 +12,10 @@ import {
   PartyPopper,
   RefreshCw,
   Star,
+  Target,
   TrendingDown,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -48,6 +51,77 @@ import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+
+// Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
+const FinanceDashboard = lazy(() =>
+  import("@/modules/finance/views/FinanceDashboard").then((m) => ({
+    default: m.FinanceDashboard,
+  }))
+);
+
+// ============================================================
+// Painel temático colapsável (estado lembrado em localStorage)
+// ============================================================
+
+function useCollapsed(key: string, defaultOpen = true): [boolean, () => void] {
+  const storageKey = `dash.panel.${key}`;
+  const [open, setOpen] = useState<boolean>(() => {
+    const v = localStorage.getItem(storageKey);
+    return v === null ? defaultOpen : v === "1";
+  });
+  const toggle = useCallback(() => {
+    setOpen((o) => {
+      localStorage.setItem(storageKey, o ? "0" : "1");
+      return !o;
+    });
+  }, [storageKey]);
+  return [open, toggle];
+}
+
+function CollapsibleCard({
+  storageKey,
+  icon,
+  title,
+  description,
+  children,
+  defaultOpen = true,
+}: {
+  storageKey: string;
+  icon: React.ReactNode;
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, toggle] = useCollapsed(storageKey, defaultOpen);
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full text-left"
+        aria-expanded={open}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {icon}
+              {title}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                !open && "-rotate-90"
+              )}
+            />
+          </div>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+      </button>
+      {open && <CardContent className="space-y-3">{children}</CardContent>}
+    </Card>
+  );
+}
 
 // ============================================================
 // Helpers de data
@@ -131,8 +205,19 @@ export function DashboardPage() {
       {data ? (
         <>
           <KpiRow data={data} />
-          <DomainCards data={data} />
           <WeekTimeline data={data} />
+
+          <div className="space-y-4 pt-2">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Painéis temáticos
+            </h3>
+            <FinancePanel />
+            <GigsCard data={data} />
+            <MusicCard data={data} />
+            <FestasCard data={data} />
+            <ContentCard data={data} />
+            <OkrPanel okrs={data.okrs} />
+          </div>
         </>
       ) : (
         <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -352,17 +437,100 @@ function TrendIndicator({ delta }: { delta: number }) {
 }
 
 // ============================================================
-// Bloco 2 — 4 cards de domínio
+// Bloco 2 — painéis temáticos
 // ============================================================
 
-function DomainCards({ data }: { data: DashData }) {
+function FinancePanel() {
+  const [open, toggle] = useCollapsed("financeiro", false);
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <GigsCard data={data} />
-      <MusicCard data={data} />
-      <ContentCard data={data} />
-      <FestasCard data={data} />
-    </div>
+    <Card>
+      <button type="button" onClick={toggle} className="w-full text-left" aria-expanded={open}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Wallet className="h-4 w-4 text-primary" />
+              Financeiro
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                !open && "-rotate-90"
+              )}
+            />
+          </div>
+          <CardDescription>Receitas, despesas e patrimônio.</CardDescription>
+        </CardHeader>
+      </button>
+      {open && (
+        <CardContent>
+          <Suspense
+            fallback={
+              <div className="text-sm text-muted-foreground">Carregando dashboard…</div>
+            }
+          >
+            <FinanceDashboard refreshKey={0} />
+          </Suspense>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function OkrPanel({ okrs }: { okrs: Okr[] }) {
+  const quarter = currentQuarter();
+  const current = okrs.filter((o) => o.quarter === quarter);
+  const shown = current.length > 0 ? current : okrs;
+
+  return (
+    <CollapsibleCard
+      storageKey="okrs"
+      icon={<Target className="h-4 w-4 text-primary" />}
+      title="OKRs"
+      description={
+        shown.length === 0
+          ? "Nenhum OKR cadastrado."
+          : `${shown.length} objetivo(s) · ${quarter}`
+      }
+      defaultOpen={false}
+    >
+      {shown.length === 0 ? (
+        <Link
+          to="/objetivos"
+          className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
+        >
+          <Target className="h-3.5 w-3.5" /> Criar primeiro objetivo
+        </Link>
+      ) : (
+        <div className="space-y-3">
+          {shown.map((o) => {
+            const pct = Math.round(okrProgress(o) * 100);
+            return (
+              <Link
+                key={o.id}
+                to="/objetivos"
+                className="block space-y-1.5 rounded-md border p-3 transition hover:border-primary"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium leading-tight">{o.objective}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-primary/60"
+                    )}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </CollapsibleCard>
   );
 }
 
@@ -393,15 +561,12 @@ function GigsCard({ data }: { data: DashData }) {
       : null;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Disc3 className="h-4 w-4 text-primary" />
-          GIGs
-        </CardTitle>
-        <CardDescription>Próximas apresentações e debriefs.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CollapsibleCard
+      storageKey="gigs"
+      icon={<Disc3 className="h-4 w-4 text-primary" />}
+      title="GIGs"
+      description="Próximas apresentações e debriefs."
+    >
         {upcoming.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
             Sem GIGs futuras.{" "}
@@ -463,8 +628,7 @@ function GigsCard({ data }: { data: DashData }) {
             </Link>
           </Button>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -479,15 +643,12 @@ function MusicCard({ data }: { data: DashData }) {
   });
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Music className="h-4 w-4 text-primary" />
-          Produção Musical
-        </CardTitle>
-        <CardDescription>Tracks ativas em produção.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CollapsibleCard
+      storageKey="musica"
+      icon={<Music className="h-4 w-4 text-primary" />}
+      title="Produção Musical"
+      description="Tracks ativas em produção."
+    >
         {top3.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
             Sem tracks ativas.{" "}
@@ -538,8 +699,7 @@ function MusicCard({ data }: { data: DashData }) {
             </span>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -584,15 +744,13 @@ function ContentCard({ data }: { data: DashData }) {
   const imbalance = purposeTotal >= 3 && topShare > 0.7;
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Film className="h-4 w-4 text-primary" />
-          Conteúdos
-        </CardTitle>
-        <CardDescription>Resumo editorial.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CollapsibleCard
+      storageKey="conteudo"
+      icon={<Film className="h-4 w-4 text-primary" />}
+      title="Conteúdos"
+      description="Resumo editorial."
+      defaultOpen={false}
+    >
         <div className="grid grid-cols-4 gap-2">
           <MiniKanbanCol label="Ideia" value={counts.ideia} />
           <MiniKanbanCol label="Produção" value={counts.producao} />
@@ -662,8 +820,7 @@ function ContentCard({ data }: { data: DashData }) {
             </span>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 
@@ -730,19 +887,16 @@ function FestasCard({ data }: { data: DashData }) {
       : [];
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <PartyPopper className="h-4 w-4 text-pink-400" />
-          Produção de Festas
-        </CardTitle>
-        <CardDescription>
-          {data.parties.length === 0
-            ? "Nenhuma festa cadastrada."
-            : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <CollapsibleCard
+      storageKey="festas"
+      icon={<PartyPopper className="h-4 w-4 text-pink-400" />}
+      title="Produção de Festas"
+      description={
+        data.parties.length === 0
+          ? "Nenhuma festa cadastrada."
+          : `${upcoming.length} próxima(s) · ${data.parties.filter((p) => p.status === "Realizada").length} realizada(s)`
+      }
+    >
         {noConfirmed && data.parties.length > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -815,8 +969,7 @@ function FestasCard({ data }: { data: DashData }) {
         >
           Ver todas as festas <ChevronRight className="h-3 w-3" />
         </Link>
-      </CardContent>
-    </Card>
+    </CollapsibleCard>
   );
 }
 

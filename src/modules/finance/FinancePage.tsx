@@ -19,7 +19,6 @@ import { toast } from "@/components/ui/toaster";
 import { TransactionForm } from "./forms/TransactionForm";
 import { CategoryManager } from "./forms/CategoryManager";
 import { TransactionList } from "./views/TransactionList";
-import { FinanceDashboard } from "./views/FinanceDashboard";
 import { EquipmentView } from "./views/EquipmentView";
 import { RecurringView } from "./views/RecurringView";
 import {
@@ -115,7 +114,6 @@ export function FinancePage() {
     useState<FinanceTransactionWithCategory | null>(null);
   const [defaultKind, setDefaultKind] = useState<TransactionKind>("income");
   const [categoryMgrOpen, setCategoryMgrOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const confirm = useConfirm();
 
   const queryFilters: TransactionFilters = useMemo(
@@ -137,7 +135,6 @@ export function FinancePage() {
     ]);
     setTransactions(tx);
     setCategories(cats);
-    setRefreshKey((k) => k + 1);
   }, [queryFilters]);
 
   useEffect(() => {
@@ -182,17 +179,12 @@ export function FinancePage() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="dashboard">
+      <Tabs defaultValue="transactions">
         <TabsList>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="transactions">Transações</TabsTrigger>
           <TabsTrigger value="recurring">Recorrentes</TabsTrigger>
           <TabsTrigger value="equipment">Patrimônio</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="dashboard">
-          <FinanceDashboard refreshKey={refreshKey} />
-        </TabsContent>
 
         <TabsContent value="transactions" className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
