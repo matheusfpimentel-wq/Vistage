@@ -48,6 +48,7 @@ import {
 } from "../api";
 import { ContentSnapshots } from "../components/ContentSnapshots";
 import { SceneEditor } from "../components/SceneEditor";
+import { loadIdentity } from "@/modules/identity/api";
 
 type Props = {
   open: boolean;
@@ -115,6 +116,22 @@ export function ContentForm({
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
+  // Redes disponíveis vêm das redes sociais cadastradas em Identidade.
+  const [networkOptions, setNetworkOptions] = useState<string[]>([
+    ...CONTENT_NETWORKS,
+  ]);
+
+  useEffect(() => {
+    if (!open) return;
+    void loadIdentity().then((identity) => {
+      const fromIdentity = Array.from(
+        new Set(identity.socials.map((s) => s.network).filter(Boolean))
+      );
+      setNetworkOptions(
+        fromIdentity.length > 0 ? fromIdentity : [...CONTENT_NETWORKS]
+      );
+    });
+  }, [open]);
 
   useEffect(() => {
     if (content) setState(contentToState(content));
@@ -272,7 +289,9 @@ export function ContentForm({
               <div className="space-y-1.5">
                 <Label>Redes (multi-select)</Label>
                 <div className="flex flex-wrap gap-1.5">
-                  {CONTENT_NETWORKS.map((n) => {
+                  {Array.from(
+                    new Set([...networkOptions, ...state.networks])
+                  ).map((n) => {
                     const active = state.networks.includes(n);
                     return (
                       <button
@@ -291,6 +310,9 @@ export function ContentForm({
                     );
                   })}
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  As redes vêm das que você cadastra em Identidade.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

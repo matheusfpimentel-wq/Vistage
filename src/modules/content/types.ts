@@ -1,3 +1,4 @@
+/** Lista padrão de redes, usada como fallback quando a Identidade não tem redes cadastradas. */
 export const CONTENT_NETWORKS = [
   "Instagram",
   "TikTok",
@@ -7,7 +8,11 @@ export const CONTENT_NETWORKS = [
   "Threads",
   "Spotify",
 ] as const;
-export type ContentNetwork = (typeof CONTENT_NETWORKS)[number];
+/**
+ * Rede de conteúdo. É uma string livre porque as opções vêm das redes sociais
+ * cadastradas no módulo Identidade (com fallback para CONTENT_NETWORKS).
+ */
+export type ContentNetwork = string;
 
 export const CONTENT_FORMATS = [
   "Reels",

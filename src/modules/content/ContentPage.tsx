@@ -32,6 +32,7 @@ import {
   type ContentNetwork,
   type ContentStatus,
 } from "./types";
+import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 
 type StatusFilter = ContentStatus | "Todos";
@@ -50,6 +51,9 @@ export function ContentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Content | null>(null);
+  const [networkOptions, setNetworkOptions] = useState<string[]>([
+    ...CONTENT_NETWORKS,
+  ]);
 
   const queryFilters: ContentFilters = useMemo(
     () => ({
@@ -73,6 +77,15 @@ export function ContentPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void loadIdentity().then((identity) => {
+      const fromIdentity = Array.from(
+        new Set(identity.socials.map((s) => s.network).filter(Boolean))
+      );
+      if (fromIdentity.length > 0) setNetworkOptions(fromIdentity);
+    });
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -187,7 +200,7 @@ export function ContentPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Todas">Todas redes</SelectItem>
-              {CONTENT_NETWORKS.map((n) => (
+              {networkOptions.map((n) => (
                 <SelectItem key={n} value={n}>
                   {n}
                 </SelectItem>
