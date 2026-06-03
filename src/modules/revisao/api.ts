@@ -15,12 +15,10 @@ export type WeekStats = {
   pendingDebriefs: number;
   // sinais críticos adicionais (item 13)
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
-  stalledProductions: number; // soma legada
   stalledTracks: number;
   stalledParties: number;
   stalledContent: number;
   undatedParties: number; // festas sem data definida
-  noConfirmedFestas: boolean;
   noUpcomingGigs: boolean;
   noTracksInProduction: boolean;
   unpreparedClasses: number; // aulas em <=48h sem subject
@@ -83,7 +81,6 @@ export async function loadWeekStats(): Promise<WeekStats> {
     stalledPartiesRows,
     stalledContentRows,
     undatedPartiesRows,
-    confirmedFestasRows,
     upcomingGigsRows,
     tracksInProductionRows,
     unpreparedClassesRows,
@@ -160,12 +157,6 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
       []
     ), []),
-    // festas confirmadas ainda à frente (com data futura OU sem data marcada)
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM parties
-        WHERE status = 'Confirmada' AND (date IS NULL OR date = '' OR date >= $1)`,
-      [today]
-    ), [{ c: 1 }]),
     // GIGs marcadas ainda à frente (data futura, fora canceladas).
     // Fallback [{c:1}]: se a query falhar, NÃO disparar o alerta de ausência.
     safeSelect<CountRow>(() => db.select(
@@ -228,15 +219,10 @@ export async function loadWeekStats(): Promise<WeekStats> {
     avgGigRating,
     pendingDebriefs: debriefRows[0]?.c ?? 0,
     hotIdeasStuck: hotIdeasRows[0]?.c ?? 0,
-    stalledProductions:
-      (stalledTracksRows[0]?.c ?? 0) +
-      (stalledPartiesRows[0]?.c ?? 0) +
-      (stalledContentRows[0]?.c ?? 0),
     stalledTracks: stalledTracksRows[0]?.c ?? 0,
     stalledParties: stalledPartiesRows[0]?.c ?? 0,
     stalledContent: stalledContentRows[0]?.c ?? 0,
     undatedParties: undatedPartiesRows[0]?.c ?? 0,
-    noConfirmedFestas: (confirmedFestasRows[0]?.c ?? 0) === 0,
     noUpcomingGigs: (upcomingGigsRows[0]?.c ?? 0) === 0,
     noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
     unpreparedClasses: unpreparedClassesRows[0]?.c ?? 0,

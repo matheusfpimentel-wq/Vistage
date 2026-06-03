@@ -41,24 +41,30 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  const refresh = useCallback(async () => {
-    try {
-      const stats = await loadWeekStats();
-      setAlerts(buildAlerts(stats));
-    } catch {
-      // silently ignore
-    }
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refresh = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const stats = await loadWeekStats();
+        setAlerts(buildAlerts(stats));
+      } catch {
+        // silently ignore
+      }
+    }, 500);
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const interval = setInterval(() => void refresh(), 60_000);
+    refresh();
+    const interval = setInterval(() => refresh(), 60_000);
     // atualiza na hora quando o app sinaliza mudança de dados ou a janela volta ao foco
     const onChange = () => void refresh();
     window.addEventListener(DATA_CHANGED, onChange);
     window.addEventListener("focus", onChange);
     return () => {
       clearInterval(interval);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       window.removeEventListener(DATA_CHANGED, onChange);
       window.removeEventListener("focus", onChange);
     };
@@ -82,7 +88,7 @@ export function NotificationBell() {
         type="button"
         onClick={() => {
           setOpen((v) => !v);
-          void refresh();
+          refresh();
         }}
         className={cn(
           "relative flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-accent",
