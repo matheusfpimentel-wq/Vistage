@@ -130,6 +130,16 @@ export async function pickBackupFile(): Promise<Backup | null> {
  * atômico por si só. Para preservar consistência, limpamos tudo primeiro e
  * só então reinserimos; um erro no meio é propagado para a UI avisar.
  */
+/**
+ * Colunas que criam dependências circulares entre tabelas e precisam ser
+ * inseridas como NULL e depois atualizadas em uma segunda passagem.
+ * Formato: { tabela: [coluna, ...] }
+ */
+const DEFERRED_COLS: Partial<Record<TableName, string[]>> = {
+  // gigs.main_goal_task_id → tasks  (e tasks.gig_id → gigs)
+  gigs: ["main_goal_task_id"],
+};
+
 export async function restoreBackup(backup: Backup): Promise<{
   restoredTables: number;
   restoredRows: number;
@@ -137,11 +147,8 @@ export async function restoreBackup(backup: Backup): Promise<{
   const db = getDb();
   let restoredRows = 0;
 
-  // PRAGMA foreign_keys é por-conexão no SQLite. O tauri-plugin-sql usa um
-  // pool, portanto não há garantia de que o PRAGMA setado numa execute afete
-  // as demais. A correção principal é a ordem topológica das tabelas (pais
-  // antes de filhos), que elimina qualquer violação mesmo com FK=ON.
-  // Mesmo assim, tentamos desligar FK antes de cada execute como salvaguarda.
+  // PRAGMA foreign_keys é por-conexão. Tentamos desligá-lo antes de cada
+  // operação, mas a correção principal é a ordem topológica + deferred cols.
   try {
     // limpa na ordem inversa (filhos antes de pais)
     for (const t of [...TABLES].reverse()) {
@@ -149,19 +156,45 @@ export async function restoreBackup(backup: Backup): Promise<{
       await db.execute(`DELETE FROM ${t}`);
     }
 
-    // reinsere na ordem original (pais antes de filhos)
+    // reinsere na ordem original (pais antes de filhos).
+    // Colunas com dependência circular são inseridas como NULL e restauradas
+    // depois que todas as tabelas foram inseridas.
     for (const t of TABLES) {
       const rows = backup.tables[t] ?? [];
+      const skipCols = DEFERRED_COLS[t] ?? [];
       for (const row of rows) {
-        const cols = Object.keys(row);
+        await db.execute("PRAGMA foreign_keys = OFF");
+        let cols = Object.keys(row);
         if (cols.length === 0) continue;
-        const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
-        const values = cols.map((c) => row[c]);
+        // Exclui as colunas circulares desta inserção (serão NULL por default)
+        const insertCols = cols.filter((c) => !skipCols.includes(c));
+        if (insertCols.length === 0) continue;
+        const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
+        const values = insertCols.map((c) => row[c]);
         await db.execute(
-          `INSERT INTO ${t} (${cols.join(", ")}) VALUES (${placeholders})`,
+          `INSERT INTO ${t} (${insertCols.join(", ")}) VALUES (${placeholders})`,
           values
         );
         restoredRows += 1;
+      }
+    }
+
+    // Segunda passagem: restaura as colunas deferidas agora que todas as
+    // tabelas-alvo já existem no banco.
+    for (const [t, cols] of Object.entries(DEFERRED_COLS) as [TableName, string[]][]) {
+      const rows = backup.tables[t] ?? [];
+      for (const row of rows) {
+        const id = row["id"];
+        if (id == null) continue;
+        for (const col of cols) {
+          const val = row[col];
+          if (val == null) continue; // nada a restaurar
+          await db.execute("PRAGMA foreign_keys = OFF");
+          await db.execute(
+            `UPDATE ${t} SET ${col} = $1 WHERE id = $2`,
+            [val, id]
+          );
+        }
       }
     }
   } finally {
