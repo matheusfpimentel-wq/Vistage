@@ -98,7 +98,9 @@ export async function createContent(input: ContentCreateInput): Promise<number> 
     `INSERT INTO content (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateContent(input: ContentUpdateInput): Promise<void> {
@@ -116,6 +118,7 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
     `UPDATE content SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteContent(id: number): Promise<void> {

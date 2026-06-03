@@ -44,6 +44,7 @@ import {
 import { QuickStudentForm } from "./QuickStudentForm";
 import { todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { loadAuth, pushClassToCalendar } from "@/lib/gcal";
 
 type Props = {
   open: boolean;
@@ -196,6 +197,29 @@ export function ClassForm({
         await recalcPackageUsage(newPackageId);
       else if (newPackageId) await recalcPackageUsage(newPackageId);
 
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id) {
+          const savedSession = session ?? null;
+          const studentName = students.find((s) => s.id === state.student_id)?.name ?? "Aluno";
+          const gcalEventId = savedSession?.gcal_event_id ?? null;
+          const eventId = await pushClassToCalendar({
+            id: savedSession?.id ?? 0,
+            date: state.date,
+            start_time: state.start_time ?? null,
+            end_time: null,
+            subject: state.subject ?? null,
+            student_name: studentName,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId && savedSession?.id) {
+            await updateClass({ id: savedSession.id, gcal_event_id: eventId });
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
+      }
       toast.success(session ? "Aula atualizada" : "Aula agendada");
       setDirty(false);
       onSaved();

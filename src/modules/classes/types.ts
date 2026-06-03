@@ -76,6 +76,7 @@ export type ClassSession = {
   amount: number | null;
   notes: string | null;
   task_id?: number | null;
+  gcal_event_id?: string | null;
   created_at: string;
   updated_at: string;
 };

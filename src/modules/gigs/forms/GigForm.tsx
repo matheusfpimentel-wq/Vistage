@@ -321,6 +321,8 @@ export function GigForm({
         const auth = await loadAuth();
         if (auth?.access_token && auth.calendar_id) {
           await pushGigToCalendar(savedId);
+        } else if (auth?.access_token && !auth.calendar_id) {
+          toast.warning("Google Calendar conectado mas sem calendário selecionado em Configurações.");
         }
       } catch (e) {
         toast.error(`GIG salva, mas sync com Google Calendar falhou: ${String(e)}`);

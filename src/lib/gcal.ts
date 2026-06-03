@@ -437,3 +437,151 @@ export async function syncAll(): Promise<{
   await saveGcalConfig({ lastSyncAt: new Date().toISOString() });
   return { pushed, pulled };
 }
+
+
+// ============================================================
+// Sync — Aulas, Festas, OKRs ↔ Eventos
+// ============================================================
+
+/** Cria/atualiza evento no GCal para uma aula. Retorna o event id. */
+export async function pushClassToCalendar(classData: {
+  id: number;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  subject: string | null;
+  student_name: string;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
+  const cfg = await loadGcalConfig();
+  const accessToken = await getValidAccessToken();
+
+  const start = classData.start_time
+    ? `${classData.date}T${classData.start_time}:00`
+    : classData.date;
+  const end = classData.end_time
+    ? `${classData.date}T${classData.end_time}:00`
+    : classData.date;
+
+  const event: EventInput = {
+    summary: `Aula: ${classData.student_name}`,
+    description: classData.subject ?? null,
+    start,
+    end,
+    time_zone: classData.start_time ? cfg.timezone : null,
+  };
+
+  if (classData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      eventId: classData.gcal_event_id,
+      event,
+    });
+    return classData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      event,
+    });
+  }
+}
+
+/** Cria/atualiza evento no GCal para uma festa. Retorna o event id. */
+export async function pushPartyToCalendar(partyData: {
+  id: number;
+  title: string;
+  date: string | null;
+  venue_name?: string | null;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  if (!partyData.date) throw new Error("Festa sem data não pode ser sincronizada.");
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
+  await getValidAccessToken();
+  const accessToken = await getValidAccessToken();
+
+  const event: EventInput = {
+    summary: partyData.title,
+    location: partyData.venue_name ?? null,
+    start: partyData.date,
+    end: partyData.date,
+  };
+
+  if (partyData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      eventId: partyData.gcal_event_id,
+      event,
+    });
+    return partyData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      event,
+    });
+  }
+}
+
+/** Cria/atualiza evento no GCal para um OKR (data fim do trimestre). Retorna o event id. */
+export async function pushOkrToCalendar(okrData: {
+  id: number;
+  quarter: string;
+  objective: string;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
+  const accessToken = await getValidAccessToken();
+
+  // Compute end of quarter
+  const [year, q] = okrData.quarter.split("-Q");
+  const qNum = parseInt(q);
+  const endMonth = qNum * 3;
+  const lastDay = new Date(parseInt(year), endMonth, 0).getDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const endDate = `${year}-${pad(endMonth)}-${lastDay}`;
+
+  const event: EventInput = {
+    summary: `OKR fim: ${okrData.objective}`,
+    start: endDate,
+    end: endDate,
+  };
+
+  if (okrData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      eventId: okrData.gcal_event_id,
+      event,
+    });
+    return okrData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      event,
+    });
+  }
+}
+
+/** Deleta um evento do GCal pelo id. */
+export async function deleteEventFromCalendar(gcalEventId: string): Promise<void> {
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) return;
+  try {
+    const accessToken = await getValidAccessToken();
+    await invoke<void>("gcal_delete_event", {
+      accessToken,
+      calendarId: auth.calendar_id,
+      eventId: gcalEventId,
+    });
+  } catch {
+    // ignora — pode já ter sido deletado manualmente
+  }
+}

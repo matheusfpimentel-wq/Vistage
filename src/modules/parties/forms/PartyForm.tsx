@@ -38,6 +38,7 @@ import type { Supplier } from "@/modules/suppliers/types";
 import { listVenues } from "@/modules/venues/api";
 import type { Venue } from "@/modules/venues/types";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
+import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
   PARTY_STATUSES,
   PARTY_COST_CATEGORIES,
@@ -486,6 +487,26 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           toast.success("4 tarefas criadas");
         }
         toast.success("Festa criada");
+      }
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id && state.date) {
+          const savedPartyId = party ? party.id : null;
+          const gcalEventId = party?.gcal_event_id ?? null;
+          const eventId = await pushPartyToCalendar({
+            id: savedPartyId ?? 0,
+            title: state.title,
+            date: state.date,
+            venue_name: state.venue_name ?? null,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId && savedPartyId) {
+            await updateParty({ id: savedPartyId, gcal_event_id: eventId });
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
       }
       onSaved();
       onOpenChange(false);

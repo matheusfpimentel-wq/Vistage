@@ -98,6 +98,7 @@ export async function createIdea(input: IdeaCreateInput): Promise<number> {
   } catch {
     /* não interrompe */
   }
+  emitDataChanged();
   return id;
 }
 
@@ -129,6 +130,7 @@ export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
       }
     }
   }
+  emitDataChanged();
 }
 
 export async function deleteIdea(id: number): Promise<void> {

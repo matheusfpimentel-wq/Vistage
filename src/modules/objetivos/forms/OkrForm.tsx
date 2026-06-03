@@ -22,9 +22,11 @@ import {
   createOkr,
   currentQuarter,
   updateOkr,
+  updateOkrGcalEventId,
   type KeyResult,
   type Okr,
 } from "../api";
+import { loadAuth, pushOkrToCalendar } from "@/lib/gcal";
 import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
@@ -112,12 +114,32 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
     const validKrs = krs.filter((kr) => kr.description.trim());
     setSaving(true);
     try {
+      let savedId: number | null = null;
       if (okr) {
         await updateOkr({ id: okr.id, quarter, objective, key_results: validKrs });
+        savedId = okr.id;
         toast.success("OKR atualizado");
       } else {
-        await createOkr({ quarter, objective, key_results: validKrs });
+        savedId = await createOkr({ quarter, objective, key_results: validKrs });
         toast.success("OKR criado");
+      }
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id && savedId !== null) {
+          const gcalEventId = okr?.gcal_event_id ?? null;
+          const eventId = await pushOkrToCalendar({
+            id: savedId,
+            quarter,
+            objective,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId) {
+            await updateOkrGcalEventId(savedId, eventId);
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
       }
       setDirty(false);
       onSaved();

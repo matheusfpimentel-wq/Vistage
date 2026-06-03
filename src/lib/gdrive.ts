@@ -301,8 +301,31 @@ export async function runAutoBackupIfEnabled(): Promise<void> {
   await uploadBackup();
 }
 
+
+/**
+ * Restaura silenciosamente o backup mais recente do Drive.
+ * Retorna true se restaurou, false se não havia backup ou ocorreu erro.
+ */
+export async function restoreLatestBackupSilently(): Promise<boolean> {
+  try {
+    const auth = await loadAuth();
+    if (!auth) return false;
+    const files = await listBackups();
+    if (files.length === 0) return false;
+    const sorted = [...files].sort((a, b) => {
+      const ta = a.created_time ? Date.parse(a.created_time) : 0;
+      const tb = b.created_time ? Date.parse(b.created_time) : 0;
+      return tb - ta;
+    });
+    await downloadAndRestoreBackup(sorted[0].id);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Intervalo mínimo entre backups automáticos disparados por mudança de dados. */
-const MIN_AUTO_BACKUP_INTERVAL_MS = 10 * 60 * 1000; // 10 min
+const MIN_AUTO_BACKUP_INTERVAL_MS = 30 * 1000; // 30 s
 
 /**
  * Sobe um backup se o automático estiver ligado e já tiver passado o intervalo

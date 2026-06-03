@@ -20,6 +20,7 @@ export type Okr = {
   quarter: string;
   objective: string;
   key_results: KeyResult[];
+  gcal_event_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -82,6 +83,14 @@ export async function updateOkr(input: { id: number; quarter: string; objective:
     updated_at: new Date().toISOString(),
   };
   await syncOkrKrTasks(okr).catch(() => {});
+}
+
+export async function updateOkrGcalEventId(id: number, gcalEventId: string): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE okrs SET gcal_event_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+    [gcalEventId, id]
+  );
 }
 
 export async function deleteOkr(id: number): Promise<void> {

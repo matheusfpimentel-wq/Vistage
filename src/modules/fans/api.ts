@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Fan,
   FanCreateInput,
@@ -77,7 +78,9 @@ export async function createFan(input: FanCreateInput): Promise<number> {
     `INSERT INTO fans (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateFan(input: FanUpdateInput): Promise<void> {
@@ -94,11 +97,13 @@ export async function updateFan(input: FanUpdateInput): Promise<void> {
     `UPDATE fans SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteFan(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fans WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function listFanInteractions(fanId: number): Promise<FanInteraction[]> {

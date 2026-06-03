@@ -98,7 +98,9 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     `INSERT INTO parties (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateParty(input: PartyUpdateInput): Promise<void> {
@@ -117,6 +119,7 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
     `UPDATE parties SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteParty(id: number): Promise<void> {

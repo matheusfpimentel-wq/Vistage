@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type { Gig } from "@/modules/gigs/types";
 import type {
   Contact,
@@ -93,7 +94,9 @@ export async function createContact(input: ContactCreateInput): Promise<number> 
     `INSERT INTO contacts (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateContact(input: ContactUpdateInput): Promise<void> {
@@ -111,11 +114,13 @@ export async function updateContact(input: ContactUpdateInput): Promise<void> {
     `UPDATE contacts SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteContact(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM contacts WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

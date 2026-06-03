@@ -124,7 +124,9 @@ export async function createGig(input: GigCreateInput): Promise<number> {
     `INSERT INTO gigs (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateGig(input: GigUpdateInput): Promise<void> {
@@ -139,6 +141,7 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     `UPDATE gigs SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteGig(id: number): Promise<void> {

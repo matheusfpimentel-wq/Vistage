@@ -251,6 +251,7 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
   } catch {
     /* não interrompe */
   }
+  emitDataChanged();
   return id;
 }
 
@@ -275,6 +276,7 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
     `UPDATE tracks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteTrack(id: number): Promise<void> {

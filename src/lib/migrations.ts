@@ -1082,7 +1082,23 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_content_scenes_content ON content_scenes(content_id);
     `,
   },
+  {
+    version: 37,
+    description: "gcal_event_id for classes",
+    sql: `ALTER TABLE classes ADD COLUMN gcal_event_id TEXT`,
+  },
+  {
+    version: 38,
+    description: "gcal_event_id for parties",
+    sql: `ALTER TABLE parties ADD COLUMN gcal_event_id TEXT`,
+  },
+  {
+    version: 39,
+    description: "gcal_event_id for okrs",
+    sql: `ALTER TABLE okrs ADD COLUMN gcal_event_id TEXT`,
+  },
 ];
+
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
 export async function runMigrations(db: Database): Promise<{ applied: number[] }> {

@@ -277,6 +277,7 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
       /* não interrompe */
     }
   }
+  emitDataChanged();
   return id;
 }
 
@@ -307,6 +308,7 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
       }
     }
   }
+  emitDataChanged();
 }
 
 export async function deleteClass(id: number): Promise<void> {
