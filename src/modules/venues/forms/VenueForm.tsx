@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -56,6 +56,7 @@ const EMPTY: VenueCreateInput = {
   founded_year: null,
   capacity: null,
   venue_type: null,
+  star_status: null,
   owner_name: null,
   owner_role: null,
   owner_phone: null,
@@ -83,6 +84,7 @@ function venueToState(v: Venue): VenueCreateInput {
     founded_year: v.founded_year,
     capacity: v.capacity,
     venue_type: v.venue_type ?? null,
+    star_status: v.star_status ?? null,
     owner_name: v.owner_name,
     owner_role: v.owner_role,
     owner_phone: v.owner_phone,
@@ -367,6 +369,32 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
               />
             </Field>
           </div>
+
+          <Field label="Marcação">
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                { value: null, label: "Nenhuma", cls: "text-muted-foreground/60" },
+                { value: "target", label: "Alvo", cls: "fill-red-500 text-red-500" },
+                { value: "played", label: "Já toquei", cls: "fill-amber-400 text-amber-400" },
+                { value: "favorite", label: "Gostei", cls: "fill-orange-500 text-orange-500" },
+              ] as const).map((opt) => {
+                const active = state.star_status === opt.value;
+                return (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => set("star_status", opt.value)}
+                    className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition ${
+                      active ? "border-primary bg-accent" : "border-input bg-background hover:bg-accent"
+                    }`}
+                  >
+                    <Star className={`h-3.5 w-3.5 ${opt.value ? opt.cls : "text-muted-foreground/60"}`} />
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Field>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

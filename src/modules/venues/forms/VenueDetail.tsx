@@ -74,11 +74,25 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <DialogTitle>{venue.name}</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2">
+                    {venue.star_status && (
+                      <Star
+                        className={`h-4 w-4 ${
+                          venue.star_status === "target"
+                            ? "fill-red-500 text-red-500"
+                            : venue.star_status === "played"
+                              ? "fill-amber-400 text-amber-400"
+                              : "fill-orange-500 text-orange-500"
+                        }`}
+                      />
+                    )}
+                    {venue.name}
+                  </DialogTitle>
                   <div className="text-sm text-muted-foreground">
                     {[venue.city, venue.state, venue.country]
                       .filter(Boolean)
                       .join(" · ")}
+                    {venue.venue_type && ` · ${venue.venue_type}`}
                     {venue.capacity && ` · cap. ${venue.capacity}`}
                     {venue.founded_year && ` · desde ${venue.founded_year}`}
                   </div>

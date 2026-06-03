@@ -1,10 +1,20 @@
 export const VENUE_TYPES = ["Club", "Bar", "Espaço para eventos", "Teatro", "Festival", "Outro"] as const;
 export type VenueType = (typeof VENUE_TYPES)[number];
 
+/**
+ * Estado da estrela do venue:
+ * - "target": alvo, quero tocar lá (estrela vermelha)
+ * - "played": já toquei lá (estrela amarela)
+ * - "favorite": já toquei e gostei, quero me aproximar (estrela laranja)
+ */
+export const VENUE_STAR_STATUSES = ["target", "played", "favorite"] as const;
+export type VenueStarStatus = (typeof VENUE_STAR_STATUSES)[number];
+
 export type Venue = {
   id: number;
   name: string;
   venue_type: VenueType | null;
+  star_status: VenueStarStatus | null;
   city: string | null;
   state: string | null;
   country: string | null;

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Star, Trash2, Users } from "lucide-react";
 
 const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
@@ -11,10 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { VenueForm } from "./forms/VenueForm";
 import { VenueDetail } from "./forms/VenueDetail";
-import { deleteVenue, listVenues, type VenueFilters } from "./api";
+import { deleteVenue, listVenues, updateVenue, type VenueFilters } from "./api";
 import type { Venue } from "./types";
+import { VenueStar, nextStarStatus, starSortWeight } from "./components/VenueStar";
 
-type SortKey = "name" | "type" | "city" | "capacity";
+type SortKey = "name" | "type" | "city" | "capacity" | "star";
 type SortDir = "asc" | "desc";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
@@ -54,13 +55,31 @@ export function VenuesPage() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
+  async function cycleStar(v: Venue) {
+    const next = nextStarStatus(v.star_status);
+    // Atualização otimista pra resposta imediata; refaz a busca em seguida.
+    setVenues((prev) => prev.map((x) => (x.id === v.id ? { ...x, star_status: next } : x)));
+    try {
+      await updateVenue({ id: v.id, star_status: next });
+    } finally {
+      await refresh();
+    }
+  }
+
   const sortedVenues = [...venues].sort((a, b) => {
     let cmp = 0;
     if (sortKey === "name") cmp = a.name.localeCompare(b.name);
     else if (sortKey === "type") cmp = (a.venue_type ?? "").localeCompare(b.venue_type ?? "");
     else if (sortKey === "city") cmp = (a.city ?? "").localeCompare(b.city ?? "");
     else if (sortKey === "capacity") cmp = (a.capacity ?? 0) - (b.capacity ?? 0);
+    else if (sortKey === "star") cmp = starSortWeight(a.star_status) - starSortWeight(b.star_status);
     return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  // Cards: alvos primeiro por padrão, depois ordem alfabética.
+  const cardVenues = [...venues].sort((a, b) => {
+    const w = starSortWeight(a.star_status) - starSortWeight(b.star_status);
+    return w !== 0 ? w : a.name.localeCompare(b.name);
   });
 
   function openCreate() {
@@ -169,6 +188,15 @@ export function VenuesPage() {
         </div>
       </div>
 
+      {view !== "map" && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span>Clique na estrela pra alternar:</span>
+          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-red-500 text-red-500" /> Alvo</span>
+          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> Já toquei</span>
+          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" /> Gostei</span>
+        </div>
+      )}
+
       {view === "map" ? (
         <Suspense
           fallback={
@@ -190,13 +218,14 @@ export function VenuesPage() {
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedVenues.map((v) => (
+          {cardVenues.map((v) => (
             <VenueCard
               key={v.id}
               venue={v}
               onOpen={() => openDetail(v)}
               onEdit={() => openEdit(v)}
               onDelete={() => void handleDelete(v)}
+              onCycleStar={() => void cycleStar(v)}
             />
           ))}
         </div>
@@ -205,8 +234,18 @@ export function VenuesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
+                <th
+                  className="cursor-pointer select-none px-3 py-2 text-left hover:text-foreground"
+                  onClick={() => toggleSort("star")}
+                  aria-label="Ordenar por estrela"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-3.5 w-3.5" />
+                    {sortKey === "star" && <ArrowUpDown className="h-3 w-3 opacity-60" />}
+                  </span>
+                </th>
                 {(["name", "type", "city", "capacity"] as SortKey[]).map((key) => {
-                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade" };
+                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade", star: "" };
                   const isRight = key === "capacity";
                   return (
                     <th
@@ -232,6 +271,9 @@ export function VenuesPage() {
                   className="cursor-pointer border-t transition-colors hover:bg-muted/40"
                   onClick={() => openDetail(v)}
                 >
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <VenueStar status={v.star_status} onCycle={() => void cycleStar(v)} size={16} />
+                  </td>
                   <td className="px-3 py-2 font-medium">
                     {v.name}
                     {v.founded_year && (
@@ -309,11 +351,13 @@ function VenueCard({
   onOpen,
   onEdit,
   onDelete,
+  onCycleStar,
 }: {
   venue: Venue;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onCycleStar: () => void;
 }) {
   const photoUrl = useImageUrl(v.photo_path);
   return (
@@ -326,6 +370,10 @@ function VenueCard({
       }}
       className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
     >
+      {/* estrela de status (sempre visível) */}
+      <div className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-background/80 shadow-sm backdrop-blur-sm">
+        <VenueStar status={v.star_status} onCycle={onCycleStar} size={16} />
+      </div>
       {/* ações no hover */}
       <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
         <Button

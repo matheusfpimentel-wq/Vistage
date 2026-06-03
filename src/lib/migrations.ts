@@ -1142,6 +1142,11 @@ const MIGRATIONS: Migration[] = [
     description: "photo_path for equipment",
     sql: `ALTER TABLE equipment ADD COLUMN photo_path TEXT`,
   },
+  {
+    version: 49,
+    description: "star_status for venues (target/played/favorite)",
+    sql: `ALTER TABLE venues ADD COLUMN star_status TEXT`,
+  },
 ];
 
 
