@@ -6,46 +6,51 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 const BACKUP_VERSION = 1;
 
 const TABLES = [
-  "contacts",
-  "contact_interactions",
-  "venues",
+  // ── sem dependências ──────────────────────────────────────────────────────
+  "app_settings",
+  "gcal_auth",
+  "venues",          // contacts.venue_id → venues  (deve vir antes de contacts)
   "fans",
-  "fan_interactions",
-  "gigs",
-  "gig_debrief_drafts",
-  "tasks",
-  "subtasks",
-  "content",
-  "content_snapshots",
-  "ideas",
+  "fan_groups",
   "students",
   "class_packages",
-  "student_packages",
-  "classes",
   "artist_identity",
   "artist_templates",
   "parties",
-  "party_costs",
   "music_projects",
-  "tracks",
-  "track_collaborators",
-  "track_flow_sessions",
-  "track_media_targets",
-  "music_project_costs",
-  "track_performance_snapshots",
   "finance_categories",
-  "finance_transactions",
-  "finance_recurring",
   "equipment",
   "work_sessions",
   "highlights",
   "okrs",
   "decisions",
-  "fan_groups",
-  "fan_group_members",
-  "okr_kr_tasks",
-  "app_settings",
-  "gcal_auth",
+  "ideas",
+  "content",
+  // ── dependem do nível anterior ────────────────────────────────────────────
+  "contacts",        // venue_id → venues
+  "fan_interactions",        // fan_id → fans
+  "fan_group_members",       // fan_id → fans, group_id → fan_groups
+  "student_packages",        // student_id → students, package_id → class_packages
+  "party_costs",             // party_id → parties
+  "tracks",                  // project_id → music_projects
+  "music_project_costs",     // project_id → music_projects
+  "finance_transactions",    // category_id → finance_categories
+  "finance_recurring",       // category_id → finance_categories
+  "content_snapshots",       // content_id → content
+  // ── dependem do nível anterior ────────────────────────────────────────────
+  "contact_interactions",    // contact_id → contacts
+  "gigs",                    // venue_id → venues, promoter_contact_id → contacts
+  "classes",                 // student_id → students
+  "track_collaborators",     // track_id → tracks
+  "track_flow_sessions",     // track_id → tracks
+  "track_media_targets",     // track_id → tracks
+  "track_performance_snapshots", // track_id → tracks
+  // ── dependem do nível anterior ────────────────────────────────────────────
+  "gig_debrief_drafts",      // gig_id → gigs
+  "tasks",                   // gig_id → gigs, contact_id → contacts
+  // ── dependem do nível anterior ────────────────────────────────────────────
+  "subtasks",                // task_id → tasks
+  "okr_kr_tasks",            // okr_id → okrs, task_id → tasks
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -132,12 +137,15 @@ export async function restoreBackup(backup: Backup): Promise<{
   const db = getDb();
   let restoredRows = 0;
 
-  // desliga checagem de foreign keys durante a recarga para que a ordem
-  // de limpeza/inserção não dispare violações transitórias
-  await db.execute("PRAGMA foreign_keys = OFF");
+  // PRAGMA foreign_keys é por-conexão no SQLite. O tauri-plugin-sql usa um
+  // pool, portanto não há garantia de que o PRAGMA setado numa execute afete
+  // as demais. A correção principal é a ordem topológica das tabelas (pais
+  // antes de filhos), que elimina qualquer violação mesmo com FK=ON.
+  // Mesmo assim, tentamos desligar FK antes de cada execute como salvaguarda.
   try {
     // limpa na ordem inversa (filhos antes de pais)
     for (const t of [...TABLES].reverse()) {
+      await db.execute("PRAGMA foreign_keys = OFF");
       await db.execute(`DELETE FROM ${t}`);
     }
 
