@@ -108,6 +108,9 @@ export function ContentForm({
 }: Props) {
   const [state, setState] = useState<ContentCreateInput>(EMPTY);
   const [scenes, setScenes] = useState<ContentSceneInput[]>([]);
+  // Só permite persistir cenas depois que a carga inicial terminou com sucesso.
+  // Evita que uma leitura falha/pendente apague cenas já salvas no save.
+  const [scenesLoaded, setScenesLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -118,9 +121,10 @@ export function ContentForm({
     else setState({ ...EMPTY, ...(defaults ?? {}) });
     setTitleError(null);
     setDirty(false);
+    setScenesLoaded(false);
     if (content) {
       void listScenes(content.id).then(
-        (rows) =>
+        (rows) => {
           setScenes(
             rows.map((r) => ({
               title: r.title,
@@ -129,11 +133,17 @@ export function ContentForm({
               materials: r.materials,
               scenery: r.scenery,
             }))
-          ),
-        () => setScenes([])
+          );
+          setScenesLoaded(true);
+        },
+        () => {
+          // leitura falhou: NÃO marca como carregado, para não sobrescrever
+          setScenes([]);
+        }
       );
     } else {
       setScenes([]);
+      setScenesLoaded(true);
     }
   }, [content, defaults, open]);
 
@@ -205,7 +215,11 @@ export function ContentForm({
         }
       }
 
-      await replaceScenes(id, scenes);
+      // Só regrava cenas se a carga inicial concluiu — senão um load
+      // pendente/falho apagaria cenas já salvas.
+      if (scenesLoaded) {
+        await replaceScenes(id, scenes);
+      }
 
       toast.success(content ? "Conteúdo atualizado" : "Conteúdo criado");
       setDirty(false);

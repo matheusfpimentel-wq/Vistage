@@ -370,32 +370,43 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   }
 
   async function handleCreateQuickContent() {
-    if (!quickContentForm.title.trim()) {
+    const typed = quickContentForm.title.trim();
+    if (!typed) {
       toast.error("Título é obrigatório");
       return;
     }
-    await createContent({
-      title: quickContentForm.title.trim(),
-      script: null,
-      networks: quickContentForm.network ? [quickContentForm.network as never] : [],
-      format: (quickContentForm.format as never) || null,
-      purpose: null,
-      status: quickContentForm.status as never,
-      due_date: null,
-      publish_date: null,
-      published_at: null,
-      post_url: null,
-      metric_views: null,
-      metric_likes: null,
-      metric_comments: null,
-      metric_shares: null,
-      metric_saves: null,
-      notes: null,
-      task_id: null,
-    });
-    setQuickContent(false);
-    setQuickContentForm({ title: "", format: "", network: "", status: "Ideia" });
-    await reloadLinkedContent(state.title);
+    // Garante que o conteúdo apareça na lista vinculada (filtrada pelo nome
+    // da festa): se o título digitado não contém o nome da festa, prefixa.
+    const title = typed.toLowerCase().includes(state.title.toLowerCase())
+      ? typed
+      : `${state.title} — ${typed}`;
+    try {
+      await createContent({
+        title,
+        script: null,
+        networks: quickContentForm.network ? [quickContentForm.network as never] : [],
+        format: (quickContentForm.format as never) || null,
+        purpose: null,
+        status: quickContentForm.status as never,
+        due_date: null,
+        publish_date: null,
+        published_at: null,
+        post_url: null,
+        metric_views: null,
+        metric_likes: null,
+        metric_comments: null,
+        metric_shares: null,
+        metric_saves: null,
+        notes: null,
+        task_id: null,
+      });
+      setQuickContent(false);
+      setQuickContentForm({ title: "", format: "", network: "", status: "Ideia" });
+      await reloadLinkedContent(state.title);
+      toast.success("Conteúdo criado");
+    } catch {
+      toast.error("Erro ao criar conteúdo");
+    }
   }
 
   async function handleSubmit() {
@@ -408,7 +419,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     let venueId = state.venue_id;
     let venueName = state.venue_name;
     if (isConfirmedStatus) {
-      if (candidates.length === 1) {
+      // Respeita a escolha explícita do usuário no Select. Só usa o
+      // candidato único automaticamente quando nada foi escolhido.
+      if (venueId == null && candidates.length === 1) {
         venueId = candidates[0].venue_id;
         venueName = candidates[0].venue_name;
       } else if (venueId == null) {

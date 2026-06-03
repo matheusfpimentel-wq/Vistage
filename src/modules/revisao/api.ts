@@ -165,19 +165,20 @@ export async function loadWeekStats(): Promise<WeekStats> {
       `SELECT COUNT(*) as c FROM parties
         WHERE status = 'Confirmada' AND (date IS NULL OR date = '' OR date >= $1)`,
       [today]
-    ), []),
-    // GIGs marcadas ainda à frente (data futura, fora canceladas)
+    ), [{ c: 1 }]),
+    // GIGs marcadas ainda à frente (data futura, fora canceladas).
+    // Fallback [{c:1}]: se a query falhar, NÃO disparar o alerta de ausência.
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs
         WHERE date >= $1 AND status != 'Cancelada'`,
       [today]
-    ), []),
+    ), [{ c: 1 }]),
     // músicas ativas sendo produzidas (não em stand-by, ainda não no pós-lançamento)
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM tracks
         WHERE standby = 0 AND current_stage != 'Pós-lançamento'`,
       []
-    ), []),
+    ), [{ c: 1 }]),
     // aulas em <= 48h sem matéria preenchida (subject vazio/nulo), status Agendada
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM classes

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Content,
   ContentCreateInput,
@@ -128,6 +129,7 @@ export async function deleteContent(id: number): Promise<void> {
   if (taskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
   }
+  emitDataChanged();
 }
 
 export type ContentStats = {

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Idea,
   IdeaCategory,
@@ -141,6 +142,7 @@ export async function deleteIdea(id: number): Promise<void> {
   if (taskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
   }
+  emitDataChanged();
 }
 
 /** Registra o alvo da conversão. A maturação 'Pronta' acumula as convertidas. */

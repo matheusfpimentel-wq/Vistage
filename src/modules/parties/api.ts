@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Party,
   PartyDeserialized,
@@ -131,6 +132,7 @@ export async function deleteParty(id: number): Promise<void> {
   for (const tid of taskIds) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [tid]);
   }
+  emitDataChanged();
 }
 
 export async function listPartyCosts(partyId: number): Promise<PartyCost[]> {

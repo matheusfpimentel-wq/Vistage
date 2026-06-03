@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   ClassPackage,
   ClassPackageCreateInput,
@@ -304,6 +305,7 @@ export async function deleteClass(id: number): Promise<void> {
   if (taskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
   }
+  emitDataChanged();
 }
 
 /**

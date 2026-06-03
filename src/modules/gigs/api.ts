@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
 
 const GIG_COLUMNS = [
@@ -161,6 +162,7 @@ export async function deleteGig(id: number): Promise<void> {
   if (prepTaskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [prepTaskId]);
   }
+  emitDataChanged();
 }
 
 // ============================================================
