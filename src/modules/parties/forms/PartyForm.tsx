@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +35,9 @@ import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
+import { listVenues } from "@/modules/venues/api";
+import type { Venue } from "@/modules/venues/types";
+import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import {
   PARTY_STATUSES,
   PARTY_COST_CATEGORIES,
@@ -42,6 +45,10 @@ import {
   type PartyStatus,
   type PartyCost,
   type PartyTeamMember,
+  type PartyStage,
+  type PartyBudgetItem,
+  type PartyTicket,
+  type PartyTask,
 } from "../types";
 import {
   createParty,
@@ -50,7 +57,18 @@ import {
   createPartyCost,
   deletePartyCost,
   autoGeneratePartyTasks,
+  listPartyVenueCandidates,
+  addPartyVenueCandidate,
+  removePartyVenueCandidate,
+  initDefaultStages,
+  listPartyStages,
+  listPartyBudgetItems,
+  listPartyTickets,
+  listPartyTasks,
 } from "../api";
+import { WorkflowTab } from "../components/WorkflowTab";
+import { OrcamentoTab } from "../components/OrcamentoTab";
+import { IngressosTab } from "../components/IngressosTab";
 
 type Props = {
   open: boolean;
@@ -62,6 +80,7 @@ type Props = {
 type FormState = {
   title: string;
   date: string | null;
+  venue_id: number | null;
   venue_name: string | null;
   status: PartyStatus;
   description: string | null;
@@ -76,6 +95,7 @@ type FormState = {
 const EMPTY: FormState = {
   title: "",
   date: null,
+  venue_id: null,
   venue_name: null,
   status: "Planejando",
   description: null,
@@ -89,6 +109,9 @@ const EMPTY: FormState = {
 
 const LINEUP_TYPES = ["DJ parceiro", "Músico"];
 
+// Candidato local (festa nova, ainda sem id): só venue_id + nome para exibir.
+type LocalCandidate = { venue_id: number; venue_name: string };
+
 const formatCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -101,6 +124,17 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+
+  // Venues
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [quickVenueOpen, setQuickVenueOpen] = useState(false);
+  const [candidates, setCandidates] = useState<LocalCandidate[]>([]);
+
+  // Sub-tab data (edit only)
+  const [stages, setStages] = useState<PartyStage[]>([]);
+  const [budgetItems, setBudgetItems] = useState<PartyBudgetItem[]>([]);
+  const [tickets, setTickets] = useState<PartyTicket[]>([]);
+  const [tasks, setTasks] = useState<PartyTask[]>([]);
 
   // Team add-form state
   const [teamSupplierId, setTeamSupplierId] = useState<number | null>(null);
@@ -126,6 +160,27 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     setCosts(rows);
   }, [party]);
 
+  const loadCandidates = useCallback(async () => {
+    if (!party) return;
+    const rows = await listPartyVenueCandidates(party.id);
+    setCandidates(rows.map((r) => ({ venue_id: r.venue_id, venue_name: r.venue_name ?? "" })));
+  }, [party]);
+
+  const loadSubTabs = useCallback(async () => {
+    if (!party) return;
+    await initDefaultStages(party.id);
+    const [s, b, t, tk] = await Promise.all([
+      listPartyStages(party.id),
+      listPartyBudgetItems(party.id),
+      listPartyTickets(party.id),
+      listPartyTasks(party.id),
+    ]);
+    setStages(s);
+    setBudgetItems(b);
+    setTickets(t);
+    setTasks(tk);
+  }, [party]);
+
   useEffect(() => {
     if (!open) return;
     setDirty(false);
@@ -142,6 +197,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       )
     );
     void listSuppliers().then(setSuppliers);
+    void listVenues().then(setVenues);
 
     if (party) {
       void listContent().then((all) => {
@@ -153,6 +209,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       setState({
         title: party.title,
         date: party.date,
+        venue_id: party.venue_id,
         venue_name: party.venue_name,
         status: party.status,
         description: party.description,
@@ -164,16 +221,25 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         notes: party.notes,
       });
       void loadCosts();
+      void loadCandidates();
+      void loadSubTabs();
     } else {
       setState(EMPTY);
       setCosts([]);
+      setCandidates([]);
+      setStages([]);
+      setBudgetItems([]);
+      setTickets([]);
+      setTasks([]);
     }
-  }, [open, party, loadCosts]);
+  }, [open, party, loadCosts, loadCandidates, loadSubTabs]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
     setDirty(true);
   }
+
+  const isConfirmedStatus = state.status === "Confirmada" || state.status === "Realizada";
 
   function toggleLineup(id: number) {
     set(
@@ -182,6 +248,39 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         ? state.lineup.filter((x) => x !== id)
         : [...state.lineup, id]
     );
+  }
+
+  async function addCandidate(venueId: number, venueList: Venue[] = venues) {
+    const v = venueList.find((x) => x.id === venueId);
+    if (!v) return;
+    if (candidates.some((c) => c.venue_id === venueId)) return;
+    if (party) {
+      try {
+        await addPartyVenueCandidate(party.id, venueId);
+        await loadCandidates();
+      } catch (e) {
+        toast.error(`Erro: ${String(e)}`);
+        return;
+      }
+    } else {
+      setCandidates((prev) => [...prev, { venue_id: venueId, venue_name: v.name }]);
+    }
+    setDirty(true);
+  }
+
+  async function removeCandidate(venueId: number) {
+    if (party) {
+      try {
+        await removePartyVenueCandidate(party.id, venueId);
+        await loadCandidates();
+      } catch (e) {
+        toast.error(`Erro: ${String(e)}`);
+        return;
+      }
+    } else {
+      setCandidates((prev) => prev.filter((c) => c.venue_id !== venueId));
+    }
+    setDirty(true);
   }
 
   function addSponsor() {
@@ -272,16 +371,41 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       toast.error("O título é obrigatório");
       return;
     }
+
+    // Confirmada/Realizada exige exatamente um venue.
+    let venueId = state.venue_id;
+    let venueName = state.venue_name;
+    if (isConfirmedStatus) {
+      if (candidates.length === 1) {
+        venueId = candidates[0].venue_id;
+        venueName = candidates[0].venue_name;
+      } else if (venueId == null) {
+        if (candidates.length === 0) {
+          toast.error("Status confirmado exige escolher um venue");
+        } else {
+          toast.error("Mais de um candidato. Escolha um venue único");
+        }
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
-        ...state,
-        venue_id: null,
+        title: state.title,
+        date: state.date,
+        venue_id: venueId,
+        venue_name: venueName,
+        status: state.status,
+        description: state.description,
+        expected_capacity: state.expected_capacity,
+        actual_attendance: state.actual_attendance,
         ticket_price_regular: null,
         ticket_price_vip: null,
         lineup: state.lineup,
         sponsors: state.sponsors,
         team: state.team,
+        notes: state.notes,
       };
 
       if (party) {
@@ -298,6 +422,10 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         toast.success("Festa atualizada");
       } else {
         const id = await createParty(payload);
+        // Persiste candidatos locais agora que temos o id.
+        for (const c of candidates) {
+          await addPartyVenueCandidate(id, c.venue_id);
+        }
         if (state.status === "Confirmada") {
           const fresh: PartyDeserialized = {
             id,
@@ -324,22 +452,26 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   }
 
   const totalCosts = costs.reduce((acc, c) => acc + c.amount, 0);
+  const candidateVenueIds = new Set(candidates.map((c) => c.venue_id));
+  const availableVenues = venues.filter((v) => !candidateVenueIds.has(v.id));
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>{party ? "Editar festa" : "Nova festa"}</DialogTitle>
           <DialogDescription>
-            Gerencie produção, lineup e custos do evento.
+            Gerencie produção, workflow, orçamento e ingressos do evento.
           </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="info">
           <TabsList>
             <TabsTrigger value="info">Info</TabsTrigger>
+            {isEdit && <TabsTrigger value="workflow">Workflow</TabsTrigger>}
             <TabsTrigger value="lineup">Equipe</TabsTrigger>
-            {isEdit && <TabsTrigger value="custos">Custos</TabsTrigger>}
+            {isEdit && <TabsTrigger value="orcamento">Orçamento</TabsTrigger>}
+            {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
@@ -381,13 +513,99 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               </Field>
             </div>
 
-            <Field label="Venue">
-              <Input
-                value={state.venue_name ?? ""}
-                onChange={(e) => set("venue_name", e.target.value || null)}
-                placeholder="Nome do local"
-              />
-            </Field>
+            {/* ===== VENUES ===== */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>
+                  {isConfirmedStatus ? "Venue (escolha um)" : "Venues candidatos"}
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setQuickVenueOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo venue
+                </Button>
+              </div>
+
+              {isConfirmedStatus ? (
+                <>
+                  <Select
+                    value={state.venue_id != null ? String(state.venue_id) : "none"}
+                    onValueChange={(v) => {
+                      if (v === "none") {
+                        set("venue_id", null);
+                        set("venue_name", null);
+                      } else {
+                        const id = Number(v);
+                        set("venue_id", id);
+                        set("venue_name", venues.find((x) => x.id === id)?.name ?? null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o venue confirmado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {venues.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>
+                          {v.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {candidates.length > 1 && state.venue_id == null && (
+                    <p className="text-xs text-amber-400">
+                      Vários candidatos. Escolha um venue único para confirmar.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {candidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {candidates.map((c) => (
+                        <span
+                          key={c.venue_id}
+                          className="flex items-center gap-1 rounded-full border bg-muted px-2.5 py-0.5 text-xs"
+                        >
+                          {c.venue_name}
+                          <button
+                            type="button"
+                            onClick={() => void removeCandidate(c.venue_id)}
+                            className="ml-0.5 text-muted-foreground hover:text-destructive"
+                            aria-label="Remover candidato"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <Select
+                    value="_add"
+                    onValueChange={(v) => {
+                      if (v === "_add") return;
+                      void addCandidate(Number(v));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Adicionar venue candidato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_add" disabled>Selecionar…</SelectItem>
+                      {availableVenues.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>
+                          {v.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+            </div>
 
             <Field label="Descrição">
               <Textarea
@@ -427,10 +645,21 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
             </div>
-
           </TabsContent>
 
-          {/* ===== LINEUP ===== */}
+          {/* ===== WORKFLOW (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="workflow" className="pt-2">
+              <WorkflowTab
+                partyId={party.id}
+                stages={stages}
+                tasks={tasks}
+                onReload={loadSubTabs}
+              />
+            </TabsContent>
+          )}
+
+          {/* ===== LINEUP / EQUIPE ===== */}
           <TabsContent value="lineup" className="space-y-6 pt-2">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -597,93 +826,116 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </div>
           </TabsContent>
 
-          {/* ===== CUSTOS (edit only) ===== */}
-          {isEdit && (
-            <TabsContent value="custos" className="space-y-4 pt-2">
-              <div className="grid gap-2 sm:grid-cols-4">
-                <Select value={costCategory} onValueChange={setCostCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PARTY_COST_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  placeholder="Descrição"
-                  value={costDesc}
-                  onChange={(e) => setCostDesc(e.target.value)}
-                />
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  placeholder="Valor (R$)"
-                  value={costAmount}
-                  onChange={(e) => setCostAmount(e.target.value)}
-                />
-                <div className="flex gap-2">
+          {/* ===== ORÇAMENTO (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="orcamento" className="pt-2">
+              <OrcamentoTab
+                party={party}
+                items={budgetItems}
+                tickets={tickets}
+                onReload={loadSubTabs}
+              />
+              {/* Custos legados */}
+              <div className="mt-6 space-y-4 border-t pt-4">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Custos simples (legado)
+                </Label>
+                <div className="grid gap-2 sm:grid-cols-4">
+                  <Select value={costCategory} onValueChange={setCostCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PARTY_COST_CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
-                    type="date"
-                    value={costDate}
-                    onChange={(e) => setCostDate(e.target.value)}
-                    className="flex-1"
+                    placeholder="Descrição"
+                    value={costDesc}
+                    onChange={(e) => setCostDesc(e.target.value)}
                   />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void handleAddCost()}
-                    disabled={addingCost}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-
-              {costs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum custo registrado.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {costs.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="Valor (R$)"
+                    value={costAmount}
+                    onChange={(e) => setCostAmount(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <Input
+                      type="date"
+                      value={costDate}
+                      onChange={(e) => setCostDate(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleAddCost()}
+                      disabled={addingCost}
                     >
-                      {c.category && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                          {c.category}
-                        </span>
-                      )}
-                      <span className="flex-1 truncate text-muted-foreground">
-                        {c.description ?? "—"}
-                      </span>
-                      {c.date && (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatDate(c.date)}
-                        </span>
-                      )}
-                      <span className="shrink-0 font-medium tabular-nums">
-                        {formatCurrency(c.amount)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteCost(c.id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label="Excluir custo"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  <div className="flex justify-end pt-1 text-sm font-semibold">
-                    Total: {formatCurrency(totalCosts)}
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
-              )}
+
+                {costs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum custo simples registrado.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {costs.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
+                      >
+                        {c.category && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                            {c.category}
+                          </span>
+                        )}
+                        <span className="flex-1 truncate text-muted-foreground">
+                          {c.description ?? "—"}
+                        </span>
+                        {c.date && (
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {formatDate(c.date)}
+                          </span>
+                        )}
+                        <span className="shrink-0 font-medium tabular-nums">
+                          {formatCurrency(c.amount)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteCost(c.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label="Excluir custo"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex justify-end pt-1 text-sm font-semibold">
+                      Total custos simples: {formatCurrency(totalCosts)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          )}
+
+          {/* ===== INGRESSOS (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="ingressos" className="pt-2">
+              <IngressosTab
+                partyId={party.id}
+                tickets={tickets}
+                onReload={loadSubTabs}
+              />
             </TabsContent>
           )}
 
@@ -759,6 +1011,16 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           const all = await listContacts();
           setContacts(all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t))));
           toggleLineup(id);
+        }}
+      />
+
+      <QuickVenueForm
+        open={quickVenueOpen}
+        onOpenChange={setQuickVenueOpen}
+        onCreated={async (id) => {
+          const all = await listVenues();
+          setVenues(all);
+          await addCandidate(id, all);
         }}
       />
     </Dialog>

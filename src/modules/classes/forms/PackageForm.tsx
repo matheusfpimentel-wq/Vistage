@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { createPackage, updatePackage } from "../api";
 import type { ClassPackage, ClassPackageCreateInput } from "../types";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -35,6 +36,8 @@ const EMPTY: ClassPackageCreateInput = {
 export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   const [state, setState] = useState<ClassPackageCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (pkg)
@@ -47,7 +50,16 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
         active: pkg.active,
       });
     else setState(EMPTY);
+    setDirty(false);
   }, [pkg, open]);
+
+  function set<K extends keyof ClassPackageCreateInput>(
+    key: K,
+    value: ClassPackageCreateInput[K]
+  ) {
+    setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
+  }
 
   async function handleSubmit() {
     if (!state.name.trim() || state.total_classes < 1) {
@@ -59,6 +71,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
       if (pkg) await updatePackage({ id: pkg.id, ...state });
       else await createPackage(state);
       toast.success(pkg ? "Pacote atualizado" : "Pacote criado");
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -69,7 +82,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{pkg ? "Editar pacote" : "Novo pacote"}</DialogTitle>
@@ -85,9 +98,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
             <Input
               placeholder='Ex: "Mensal 4 aulas"'
               value={state.name}
-              onChange={(e) =>
-                setState((s) => ({ ...s, name: e.target.value }))
-              }
+              onChange={(e) => set("name", e.target.value)}
             />
           </div>
 
@@ -99,10 +110,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
                 min={1}
                 value={state.total_classes}
                 onChange={(e) =>
-                  setState((s) => ({
-                    ...s,
-                    total_classes: parseInt(e.target.value) || 1,
-                  }))
+                  set("total_classes", parseInt(e.target.value) || 1)
                 }
               />
             </div>
@@ -114,10 +122,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
                 step={0.01}
                 value={state.price ?? ""}
                 onChange={(e) =>
-                  setState((s) => ({
-                    ...s,
-                    price: e.target.value ? Number(e.target.value) : null,
-                  }))
+                  set("price", e.target.value ? Number(e.target.value) : null)
                 }
               />
             </div>
@@ -128,9 +133,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
             <Textarea
               rows={2}
               value={state.description ?? ""}
-              onChange={(e) =>
-                setState((s) => ({ ...s, description: e.target.value || null }))
-              }
+              onChange={(e) => set("description", e.target.value || null)}
             />
           </div>
 
@@ -140,9 +143,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
               rows={5}
               placeholder="Aula 1: ...&#10;Aula 2: ...&#10;Aula 3: ..."
               value={state.syllabus ?? ""}
-              onChange={(e) =>
-                setState((s) => ({ ...s, syllabus: e.target.value || null }))
-              }
+              onChange={(e) => set("syllabus", e.target.value || null)}
             />
           </div>
 
@@ -150,9 +151,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
             <input
               type="checkbox"
               checked={state.active === 1}
-              onChange={(e) =>
-                setState((s) => ({ ...s, active: e.target.checked ? 1 : 0 }))
-              }
+              onChange={(e) => set("active", e.target.checked ? 1 : 0)}
               className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
             />
             Disponível para venda

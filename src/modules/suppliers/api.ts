@@ -93,6 +93,70 @@ export async function deleteSupplier(id: number): Promise<void> {
   await db.execute("DELETE FROM suppliers WHERE id = $1", [id]);
 }
 
+type PartyRow = {
+  id: number;
+  title: string;
+  date: string | null;
+  status: string;
+  team: string | null;
+};
+
+type SupplierParty = {
+  id: number;
+  title: string;
+  date: string | null;
+  status: string;
+  role: string | null;
+  amount_cents: number | null;
+};
+
+export async function listPartiesBySupplier(supplierId: number): Promise<SupplierParty[]> {
+  const db = getDb();
+  const rows = await db.select<PartyRow[]>(
+    "SELECT id, title, date, status, team FROM parties"
+  );
+
+  const result: SupplierParty[] = [];
+
+  for (const row of rows) {
+    if (!row.team) continue;
+    let members: { role?: string; amount_cents?: number; supplier_id?: number | null }[];
+    try {
+      const parsed = JSON.parse(row.team) as unknown;
+      members = Array.isArray(parsed) ? (parsed as typeof members) : [];
+    } catch {
+      continue;
+    }
+
+    const matches = members.filter((m) => m.supplier_id === supplierId);
+    if (matches.length === 0) continue;
+
+    const role = matches.find((m) => m.role != null && m.role !== "")?.role ?? null;
+    const amount_cents = matches.reduce(
+      (sum, m) => sum + (typeof m.amount_cents === "number" ? m.amount_cents : 0),
+      0
+    );
+
+    result.push({
+      id: row.id,
+      title: row.title,
+      date: row.date,
+      status: row.status,
+      role,
+      amount_cents,
+    });
+  }
+
+  result.sort((a, b) => {
+    if (a.date === b.date) return 0;
+    if (a.date == null) return 1;
+    if (b.date == null) return -1;
+    return a.date < b.date ? 1 : -1;
+  });
+
+  return result;
+}
+
 export async function listServices(supplierId: number): Promise<SupplierService[]> {
   const db = getDb();
   return db.select<SupplierService[]>(

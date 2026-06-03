@@ -43,6 +43,7 @@ import {
 } from "../api";
 import { QuickStudentForm } from "./QuickStudentForm";
 import { todayISO } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -95,6 +96,8 @@ export function ClassForm({
   const [linkPkgId, setLinkPkgId] = useState<number | null>(null);
   const [errors, setErrors] = useState<{ student?: string; date?: string }>({});
   const [quickStudentOpen, setQuickStudentOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (session) setState(toState(session));
@@ -104,6 +107,7 @@ export function ClassForm({
         student_id: defaultStudentId ?? 0,
       });
     setErrors({});
+    setDirty(false);
   }, [session, defaultStudentId, open]);
 
   useEffect(() => {
@@ -136,6 +140,7 @@ export function ClassForm({
     value: ClassSessionCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   async function handleVincularPackage() {
@@ -192,6 +197,7 @@ export function ClassForm({
       else if (newPackageId) await recalcPackageUsage(newPackageId);
 
       toast.success(session ? "Aula atualizada" : "Aula agendada");
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -206,7 +212,7 @@ export function ClassForm({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{session ? "Editar aula" : "Nova aula"}</DialogTitle>

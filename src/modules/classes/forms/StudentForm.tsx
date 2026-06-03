@@ -26,6 +26,7 @@ import {
   type StudentCreateInput,
 } from "../types";
 import { createStudent, updateStudent } from "../api";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -60,11 +61,14 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
   const [state, setState] = useState<StudentCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (student) setState(toState(student));
     else setState(EMPTY);
     setNameError(null);
+    setDirty(false);
   }, [student, open]);
 
   function set<K extends keyof StudentCreateInput>(
@@ -72,6 +76,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
     value: StudentCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   async function handleSubmit() {
@@ -86,6 +91,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
         ? (await updateStudent({ id: student.id, ...state }), student.id)
         : await createStudent(state);
       toast.success(student ? "Aluno atualizado" : "Aluno criado");
+      setDirty(false);
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -96,7 +102,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{student ? "Editar aluno" : "Novo aluno"}</DialogTitle>

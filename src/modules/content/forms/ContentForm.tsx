@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { createTask, updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
@@ -37,9 +38,16 @@ import {
   type ContentFormat,
   type ContentNetwork,
   type ContentStatus,
+  type ContentSceneInput,
 } from "../types";
-import { createContent, updateContent } from "../api";
+import {
+  createContent,
+  updateContent,
+  listScenes,
+  replaceScenes,
+} from "../api";
 import { ContentSnapshots } from "../components/ContentSnapshots";
+import { SceneEditor } from "../components/SceneEditor";
 
 type Props = {
   open: boolean;
@@ -99,13 +107,34 @@ export function ContentForm({
   onSaved,
 }: Props) {
   const [state, setState] = useState<ContentCreateInput>(EMPTY);
+  const [scenes, setScenes] = useState<ContentSceneInput[]>([]);
   const [saving, setSaving] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (content) setState(contentToState(content));
     else setState({ ...EMPTY, ...(defaults ?? {}) });
     setTitleError(null);
+    setDirty(false);
+    if (content) {
+      void listScenes(content.id).then(
+        (rows) =>
+          setScenes(
+            rows.map((r) => ({
+              title: r.title,
+              description: r.description,
+              equipment: r.equipment,
+              materials: r.materials,
+              scenery: r.scenery,
+            }))
+          ),
+        () => setScenes([])
+      );
+    } else {
+      setScenes([]);
+    }
   }, [content, defaults, open]);
 
   function set<K extends keyof ContentCreateInput>(
@@ -113,6 +142,12 @@ export function ContentForm({
     value: ContentCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
+  }
+
+  function handleScenesChange(next: ContentSceneInput[]) {
+    setScenes(next);
+    setDirty(true);
   }
 
   function toggleNetwork(n: ContentNetwork) {
@@ -122,6 +157,7 @@ export function ContentForm({
         ? s.networks.filter((x) => x !== n)
         : [...s.networks, n],
     }));
+    setDirty(true);
   }
 
   async function handleSubmit() {
@@ -169,7 +205,10 @@ export function ContentForm({
         }
       }
 
+      await replaceScenes(id, scenes);
+
       toast.success(content ? "Conteúdo atualizado" : "Conteúdo criado");
+      setDirty(false);
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -180,7 +219,7 @@ export function ContentForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{content ? "Editar conteúdo" : "Novo conteúdo"}</DialogTitle>
@@ -211,6 +250,7 @@ export function ContentForm({
             <TabsList>
               <TabsTrigger value="basico">Básico</TabsTrigger>
               <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
+              <TabsTrigger value="cenas">Cenas</TabsTrigger>
               <TabsTrigger value="metricas">Métricas</TabsTrigger>
             </TabsList>
 
@@ -337,6 +377,13 @@ export function ContentForm({
               </Field>
             </TabsContent>
 
+            <TabsContent value="cenas" className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Divida o roteiro em cenas com equipamento, materiais e cenário.
+              </p>
+              <SceneEditor scenes={scenes} onChange={handleScenesChange} />
+            </TabsContent>
+
             <TabsContent value="metricas" className="space-y-3">
               {content ? (
                 <ContentSnapshots contentId={content.id} title={content.title} />
@@ -352,7 +399,7 @@ export function ContentForm({
         <DialogFooter className="gap-2">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => confirmClose(false, () => onOpenChange(false))}
             disabled={saving}
           >
             Cancelar

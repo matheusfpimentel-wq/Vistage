@@ -73,6 +73,27 @@ export type ContentSnapshot = {
 
 export type ContentSnapshotInput = Omit<ContentSnapshot, "id" | "created_at">;
 
+/** Cena de um roteiro de conteúdo. */
+export type ContentScene = {
+  id: number;
+  content_id: number;
+  position: number;
+  title: string | null;
+  description: string | null;
+  equipment: string[];
+  materials: string[];
+  scenery: string | null;
+  created_at: string;
+};
+
+export type ContentSceneInput = {
+  title: string | null;
+  description: string | null;
+  equipment: string[];
+  materials: string[];
+  scenery: string | null;
+};
+
 export function contentStatusVariant(s: ContentStatus):
   | "default"
   | "secondary"

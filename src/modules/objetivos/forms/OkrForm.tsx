@@ -25,6 +25,7 @@ import {
   type KeyResult,
   type Okr,
 } from "../api";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -75,6 +76,8 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
   const [objective, setObjective] = useState("");
   const [krs, setKrs] = useState<KeyResult[]>([newKr()]);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   const quarter = `${year}-Q${quarterNum}`;
 
@@ -96,10 +99,12 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
       setObjective("");
       setKrs([newKr()]);
     }
+    setDirty(false);
   }, [okr, open]);
 
   function updateKr<K extends keyof KeyResult>(idx: number, key: K, value: KeyResult[K]) {
     setKrs((prev) => prev.map((kr, i) => i === idx ? { ...kr, [key]: value } : kr));
+    setDirty(true);
   }
 
   async function handleSave() {
@@ -114,6 +119,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
         await createOkr({ quarter, objective, key_results: validKrs });
         toast.success("OKR criado");
       }
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } finally {
@@ -122,7 +128,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{okr ? "Editar OKR" : "Novo OKR"}</DialogTitle>
@@ -132,7 +138,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Ano</Label>
-              <Select value={year} onValueChange={setYear}>
+              <Select value={year} onValueChange={(v) => { setYear(v); setDirty(true); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -147,7 +153,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>Trimestre</Label>
-              <Select value={quarterNum} onValueChange={setQuarterNum}>
+              <Select value={quarterNum} onValueChange={(v) => { setQuarterNum(v); setDirty(true); }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -166,7 +172,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
             <Label>Objetivo <span className="text-destructive">*</span></Label>
             <Input
               value={objective}
-              onChange={(e) => setObjective(e.target.value)}
+              onChange={(e) => { setObjective(e.target.value); setDirty(true); }}
               placeholder="Ex: Fortalecer minha presença no mercado nacional"
             />
           </div>
@@ -178,7 +184,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
                 size="sm"
                 variant="outline"
                 type="button"
-                onClick={() => setKrs((prev) => [...prev, newKr()])}
+                onClick={() => { setKrs((prev) => [...prev, newKr()]); setDirty(true); }}
                 disabled={krs.length >= 5}
               >
                 <Plus className="h-3.5 w-3.5" /> Adicionar KR
@@ -193,7 +199,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
                     size="icon"
                     variant="ghost"
                     className="ml-auto h-6 w-6"
-                    onClick={() => setKrs((prev) => prev.filter((_, j) => j !== i))}
+                    onClick={() => { setKrs((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}
                     disabled={krs.length <= 1}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />

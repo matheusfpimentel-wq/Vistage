@@ -39,6 +39,7 @@ import type { Gig } from "@/modules/gigs/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { todayISO } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -99,11 +100,14 @@ export function TransactionForm({
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [errors, setErrors] = useState<{ amount?: string; date?: string }>({});
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (transaction) setState(txToState(transaction));
     else setState(emptyState(defaultKind));
     setErrors({});
+    setDirty(false);
   }, [transaction, defaultKind, open]);
 
   async function refreshCategories() {
@@ -119,6 +123,7 @@ export function TransactionForm({
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   function validate(): boolean {
@@ -143,6 +148,7 @@ export function TransactionForm({
         await createTransaction(state);
         toast.success("Transação criada");
       }
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -155,7 +161,7 @@ export function TransactionForm({
   const isExpense = state.kind === "expense";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>

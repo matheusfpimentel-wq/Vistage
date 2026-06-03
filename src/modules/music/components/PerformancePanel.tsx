@@ -70,7 +70,7 @@ export function PerformancePanel({ trackId }: Props) {
     const d = parseSnapshotData(s.data);
     const [y, m] = s.period_yyyymm.split(/(?<=^\d{4})(?=\d{2})/);
     setForm({
-      period: `${y}-${m}`,
+      period: `${y}-${m}-01`,
       streams: d.streams?.toString() ?? "",
       saves: d.saves?.toString() ?? "",
       shares: d.shares?.toString() ?? "",
@@ -85,7 +85,7 @@ export function PerformancePanel({ trackId }: Props) {
       toast.error("Período é obrigatório");
       return;
     }
-    const period = form.period.replace("-", "");
+    const period = form.period.slice(0, 7).replace("-", "");
     const data: SnapshotData = {
       streams: form.streams ? Number(form.streams) : undefined,
       saves: form.saves ? Number(form.saves) : undefined,
@@ -232,7 +232,7 @@ export function PerformancePanel({ trackId }: Props) {
       <div className={cn("space-y-3 rounded-md border p-3")}>
         <div className="text-xs font-medium">
           {form.period && snapshots.some(
-            (s) => `${s.period_yyyymm.slice(0, 4)}-${s.period_yyyymm.slice(4)}` === form.period
+            (s) => `${s.period_yyyymm.slice(0, 4)}-${s.period_yyyymm.slice(4)}` === form.period.slice(0, 7)
           )
             ? "Editar snapshot"
             : "Novo snapshot"}
@@ -241,7 +241,7 @@ export function PerformancePanel({ trackId }: Props) {
           <div className="col-span-2 space-y-1 sm:col-span-1">
             <Label className="text-xs">Período</Label>
             <Input
-              type="month"
+              type="date"
               value={form.period}
               onChange={(e) => setForm((f) => ({ ...f, period: e.target.value }))}
             />

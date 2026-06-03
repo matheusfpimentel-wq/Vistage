@@ -1045,6 +1045,43 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE parties ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
     `,
   },
+  {
+    version: 35,
+    description: "party_venue_candidates — venues candidatos por festa (vinculados ao módulo Venues)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_venue_candidates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        venue_id INTEGER NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(party_id, venue_id),
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE,
+        FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_pvc_party ON party_venue_candidates(party_id);
+      CREATE INDEX IF NOT EXISTS idx_pvc_venue ON party_venue_candidates(venue_id);
+    `,
+  },
+  {
+    version: 36,
+    description: "content_scenes — roteiro dividido por cenas (equipamentos, materiais, cenário)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content_scenes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_id INTEGER NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        title TEXT,
+        description TEXT,
+        equipment TEXT NOT NULL DEFAULT '[]',
+        materials TEXT NOT NULL DEFAULT '[]',
+        scenery TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_scenes_content ON content_scenes(content_id);
+    `,
+  },
 ];
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */

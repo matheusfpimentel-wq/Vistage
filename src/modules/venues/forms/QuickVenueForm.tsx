@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
 import { createVenue } from "../api";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -27,9 +28,14 @@ type Props = {
 export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
-    if (open) setName("");
+    if (open) {
+      setName("");
+      setDirty(false);
+    }
   }, [open]);
 
   async function handleSave() {
@@ -53,6 +59,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
         photo_path: null,
       });
       toast.success("Venue criado");
+      setDirty(false);
       onCreated(id);
       onOpenChange(false);
     } catch (e) {
@@ -63,7 +70,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Novo venue</DialogTitle>
@@ -77,7 +84,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
           <Input
             autoFocus
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { setName(e.target.value); setDirty(true); }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && name.trim()) {
                 e.preventDefault();

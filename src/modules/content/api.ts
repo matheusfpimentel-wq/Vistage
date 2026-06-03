@@ -4,6 +4,8 @@ import type {
   ContentCreateInput,
   ContentFormat,
   ContentNetwork,
+  ContentScene,
+  ContentSceneInput,
   ContentSnapshot,
   ContentSnapshotInput,
   ContentStatus,
@@ -205,6 +207,65 @@ export async function deleteContentSnapshot(id: number): Promise<void> {
   );
   await db.execute("DELETE FROM content_snapshots WHERE id = $1", [id]);
   if (rows[0]) await syncLatestSnapshotToContent(rows[0].content_id);
+}
+
+// ============================================================
+// Cenas do roteiro
+// ============================================================
+
+type ContentSceneRow = Omit<ContentScene, "equipment" | "materials"> & {
+  equipment: string | null;
+  materials: string | null;
+};
+
+function parseStringArray(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? (v as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listScenes(contentId: number): Promise<ContentScene[]> {
+  const db = getDb();
+  const rows = await db.select<ContentSceneRow[]>(
+    "SELECT * FROM content_scenes WHERE content_id = $1 ORDER BY position ASC, id ASC",
+    [contentId]
+  );
+  return rows.map((r) => ({
+    ...r,
+    equipment: parseStringArray(r.equipment),
+    materials: parseStringArray(r.materials),
+  }));
+}
+
+export async function replaceScenes(
+  contentId: number,
+  scenes: ContentSceneInput[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM content_scenes WHERE content_id = $1", [
+    contentId,
+  ]);
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    await db.execute(
+      `INSERT INTO content_scenes
+         (content_id, position, title, description, equipment, materials, scenery)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        contentId,
+        i,
+        s.title,
+        s.description,
+        JSON.stringify(s.equipment ?? []),
+        JSON.stringify(s.materials ?? []),
+        s.scenery,
+      ]
+    );
+  }
 }
 
 /** Copia a captura mais recente pros campos metric_* do content (compat com listas). */

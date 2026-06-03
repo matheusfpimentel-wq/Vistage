@@ -23,7 +23,6 @@ import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
-import { PartyDetail } from "./PartyDetail";
 
 type StatusFilter = PartyStatus | "Todas";
 
@@ -38,9 +37,6 @@ export function PartiesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PartyDeserialized | null>(null);
-
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailParty, setDetailParty] = useState<PartyDeserialized | null>(null);
 
   const refresh = useCallback(async () => {
     const rows = await listParties();
@@ -59,13 +55,7 @@ export function PartiesPage() {
 
   useNewItemShortcut(openCreate);
 
-  function openDetail(p: PartyDeserialized) {
-    setDetailParty(p);
-    setDetailOpen(true);
-  }
-
   function openEdit(p: PartyDeserialized) {
-    setDetailOpen(false);
     setEditing(p);
     setFormOpen(true);
   }
@@ -163,12 +153,12 @@ export function PartiesPage() {
             <TabsTrigger value="lista">Lista</TabsTrigger>
           </TabsList>
           <TabsContent value="cards" className="pt-2">
-            <PartyCards parties={filtered} onEdit={openDetail} onDelete={handleDelete} />
+            <PartyCards parties={filtered} onEdit={openEdit} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="lista" className="pt-2">
             <PartyList
               parties={filtered}
-              onEdit={openDetail}
+              onEdit={openEdit}
               onDelete={handleDelete}
             />
           </TabsContent>
@@ -181,17 +171,6 @@ export function PartiesPage() {
         party={editing}
         onSaved={() => void refresh()}
       />
-
-      {detailParty && (
-        <PartyDetail
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          party={detailParty}
-          onEdit={() => openEdit(detailParty)}
-          onRefresh={() => void refresh()}
-          onDelete={() => handleDelete(detailParty!)}
-        />
-      )}
     </div>
   );
 }

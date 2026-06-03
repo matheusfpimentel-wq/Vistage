@@ -27,6 +27,7 @@ import {
   type DecisionDomain,
   type OutcomeEvaluation,
 } from "../api";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -49,6 +50,8 @@ const EMPTY = {
 export function DecisaoForm({ open, onOpenChange, decision, onSaved }: Props) {
   const [state, setState] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (decision) {
@@ -65,10 +68,12 @@ export function DecisaoForm({ open, onOpenChange, decision, onSaved }: Props) {
     } else {
       setState(EMPTY);
     }
+    setDirty(false);
   }, [decision, open]);
 
   function set<K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   async function handleSave() {
@@ -93,6 +98,7 @@ export function DecisaoForm({ open, onOpenChange, decision, onSaved }: Props) {
         await createDecision(input);
         toast.success("Decisão registrada");
       }
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } finally {
@@ -103,7 +109,7 @@ export function DecisaoForm({ open, onOpenChange, decision, onSaved }: Props) {
   const isUpdate = !!decision;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isUpdate ? "Editar decisão" : "Registrar decisão"}</DialogTitle>

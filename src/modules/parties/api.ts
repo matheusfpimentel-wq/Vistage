@@ -10,6 +10,7 @@ import type {
   PartyBudgetItem,
   PartyTicket,
   PartyTask,
+  PartyVenueCandidate,
 } from "./types";
 import { DEFAULT_STAGE_NAMES } from "./types";
 
@@ -174,6 +175,36 @@ export async function autoGeneratePartyTasks(party: PartyDeserialized): Promise<
   await db.execute(
     "UPDATE parties SET tasks_generated = 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
     [party.id]
+  );
+}
+
+// ===== VENUE CANDIDATES =====
+
+export async function listPartyVenueCandidates(partyId: number): Promise<PartyVenueCandidate[]> {
+  const db = getDb();
+  return db.select<PartyVenueCandidate[]>(
+    `SELECT pvc.*, v.name AS venue_name
+     FROM party_venue_candidates pvc
+     LEFT JOIN venues v ON v.id = pvc.venue_id
+     WHERE pvc.party_id = $1
+     ORDER BY v.name COLLATE NOCASE ASC`,
+    [partyId]
+  );
+}
+
+export async function addPartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "INSERT OR IGNORE INTO party_venue_candidates (party_id, venue_id) VALUES ($1, $2)",
+    [partyId, venueId]
+  );
+}
+
+export async function removePartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM party_venue_candidates WHERE party_id = $1 AND venue_id = $2",
+    [partyId, venueId]
   );
 }
 

@@ -131,6 +131,15 @@ export type PartyCost = {
   created_at: string;
 };
 
+export type PartyVenueCandidate = {
+  id: number;
+  party_id: number;
+  venue_id: number;
+  notes: string | null;
+  created_at: string;
+  venue_name?: string | null;
+};
+
 export function partyStatusColor(s: PartyStatus): string {
   return s==="Confirmada" ? "bg-emerald-500/20 text-emerald-400"
     : s==="Realizada" ? "bg-primary/20 text-primary"

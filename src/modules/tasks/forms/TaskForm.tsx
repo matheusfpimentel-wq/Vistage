@@ -37,6 +37,7 @@ import type { Contact } from "@/modules/crm/types";
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { formatDate } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -88,12 +89,15 @@ export function TaskForm({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (task) setState(taskToInput(task));
     else setState({ ...EMPTY, ...(defaults ?? {}) });
     setTagInput("");
     setTitleError(null);
+    setDirty(false);
   }, [task, defaults, open]);
 
   useEffect(() => {
@@ -107,6 +111,7 @@ export function TaskForm({
     value: TaskCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   function addTag() {
@@ -117,10 +122,12 @@ export function TaskForm({
     }
     setState((s) => ({ ...s, tags: [...s.tags, t] }));
     setTagInput("");
+    setDirty(true);
   }
 
   function removeTag(tag: string) {
     setState((s) => ({ ...s, tags: s.tags.filter((t) => t !== tag) }));
+    setDirty(true);
   }
 
   async function handleSubmit() {
@@ -135,6 +142,7 @@ export function TaskForm({
         ? (await updateTask({ id: task.id, ...state }), task.id)
         : await createTask(state);
       toast.success(task ? "Tarefa atualizada" : "Tarefa criada");
+      setDirty(false);
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -145,7 +153,7 @@ export function TaskForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
