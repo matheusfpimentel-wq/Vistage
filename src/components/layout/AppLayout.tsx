@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
 import { cn } from "@/lib/utils";
+import { triggerQuickCapture } from "@/lib/shortcuts";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
@@ -82,6 +83,15 @@ export function AppLayout() {
                 </kbd>
               </button>
             )}
+            <button
+              type="button"
+              onClick={triggerQuickCapture}
+              className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-accent"
+              aria-label="Captura rápida de ideia"
+              title="Captura rápida (Ctrl+I)"
+            >
+              <Zap className="h-4 w-4" />
+            </button>
             <WorkSessionWidget
               focusMode={focusMode}
               onToggleFocus={() => setFocusMode((f) => !f)}

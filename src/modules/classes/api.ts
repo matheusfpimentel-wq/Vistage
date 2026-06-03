@@ -292,6 +292,21 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
     `UPDATE classes SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sincroniza tarefa vinculada quando a aula é marcada como Realizada
+  if (input.status === "Realizada") {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM classes WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: taskId, status: "Concluída" });
+      } catch {
+        /* não interrompe */
+      }
+    }
+  }
 }
 
 export async function deleteClass(id: number): Promise<void> {

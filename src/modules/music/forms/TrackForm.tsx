@@ -86,7 +86,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   track?: Track | null;
   defaultProjectId?: number | null;
-  onSaved: () => void;
+  onSaved: (newId?: number) => void;
 };
 
 type FormState = Omit<TrackCreateInput, "project_id">;
@@ -241,7 +241,7 @@ export function TrackForm({
       }
       await setTrackCollaborators(id, collabs);
       toast.success(track ? "Track atualizada" : "Track criada");
-      onSaved();
+      onSaved(track ? undefined : id);
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);

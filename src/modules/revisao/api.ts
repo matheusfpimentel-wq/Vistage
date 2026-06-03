@@ -1,5 +1,7 @@
 import { getDb } from "@/lib/db";
 import { todayISO } from "@/lib/format";
+import { currentQuarter, listOkrs, okrProgress, quarterRange } from "@/modules/objetivos/api";
+import { parsePrepState, PREP_GROUPS } from "@/modules/gigs/prep";
 
 export type WeekStats = {
   gigsThisWeek: number;
@@ -23,6 +25,8 @@ export type WeekStats = {
   noTracksInProduction: boolean;
   unpreparedClasses: number; // aulas em <=48h sem subject
   superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
+  gigsUnprepared: number; // GIGs em <=72h com prep musical incompleta
+  okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
 };
 
 function weekRange(): { start: string; end: string } {
@@ -85,6 +89,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
     tracksInProductionRows,
     unpreparedClassesRows,
     superfasRows,
+    upcomingGigsPrepRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -185,7 +190,35 @@ export async function loadWeekStats(): Promise<WeekStats> {
           AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
       [(() => { const d = new Date(today); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); })()]
     ), []),
+    // GIGs nos próximos 72h (para verificar prep musical em JS)
+    safeSelect<{ id: number; prep_state: string | null }>(() => db.select(
+      `SELECT id, prep_state FROM gigs
+        WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
+      [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10); })()]
+    ), []),
   ]);
+
+  // GIGs com prep musical incompleta
+  const musicalGroup = PREP_GROUPS.find((g) => g.id === "musical");
+  const musicalItems = musicalGroup?.items ?? [];
+  const gigsUnprepared = (upcomingGigsPrepRows as { prep_state: string | null }[]).filter((g) => {
+    const state = parsePrepState(g.prep_state);
+    return musicalItems.some((item) => state[item.id] !== 1);
+  }).length;
+
+  // OKRs do quarter atual com progresso < 20% e faltando menos de 30 dias
+  let okrsLagging = 0;
+  try {
+    const qtr = currentQuarter();
+    const [, qEnd] = quarterRange(qtr);
+    const daysLeft = Math.round((new Date(qEnd).getTime() - new Date(today).getTime()) / 86_400_000);
+    if (daysLeft < 30) {
+      const okrs = await listOkrs();
+      okrsLagging = okrs.filter((o) => o.quarter === qtr && okrProgress(o) < 0.2).length;
+    }
+  } catch {
+    // não interrompe
+  }
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
   const tracksStalled = tracksRows.filter((t: TrackRow) => {
@@ -227,6 +260,8 @@ export async function loadWeekStats(): Promise<WeekStats> {
     noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
     unpreparedClasses: unpreparedClassesRows[0]?.c ?? 0,
     superfasSemInteracao: superfasRows[0]?.c ?? 0,
+    gigsUnprepared,
+    okrsLagging,
   };
 }
 

@@ -232,9 +232,9 @@ export function IdeasPage() {
           if (!v) setConvertingIdea(null);
         }}
         track={null}
-        onSaved={async () => {
+        onSaved={async (newId) => {
           if (convertingIdea) {
-            await markIdeaAsConverted(convertingIdea.id, "track", 0);
+            await markIdeaAsConverted(convertingIdea.id, "track", newId ?? 0);
             toast.success("Ideia convertida em track");
           }
           void refresh();

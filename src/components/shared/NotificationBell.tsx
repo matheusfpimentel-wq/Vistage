@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bell, BookOpen, Clock, Flame, Heart, Music, PartyPopper, Star } from "lucide-react";
+import { AlertTriangle, Bell, BookOpen, Clock, Flame, Heart, Music, PartyPopper, Star, Target } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
@@ -32,6 +32,10 @@ function buildAlerts(stats: WeekStats): Alert[] {
     alerts.push({ icon: <BookOpen className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.unpreparedClasses} aula${stats.unpreparedClasses > 1 ? "s" : ""} não preparada${stats.unpreparedClasses > 1 ? "s" : ""} em breve`, to: "/aulas", critical: false });
   if (stats.superfasSemInteracao > 0)
     alerts.push({ icon: <Heart className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.superfasSemInteracao} superfã${stats.superfasSemInteracao > 1 ? "s" : ""} sem interação nos últimos 30 dias`, to: "/fas", critical: false });
+  if (stats.gigsUnprepared > 0)
+    alerts.push({ icon: <Music className="h-3.5 w-3.5 text-red-500" />, label: `${stats.gigsUnprepared} GIG${stats.gigsUnprepared > 1 ? "s" : ""} em 72h sem prep musical completa`, to: "/gigs", critical: true });
+  if (stats.okrsLagging > 0)
+    alerts.push({ icon: <Target className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.okrsLagging} OKR${stats.okrsLagging > 1 ? "s" : ""} abaixo de 20% com menos de 30 dias no quarter`, to: "/objetivos", critical: false });
 
   return alerts;
 }
