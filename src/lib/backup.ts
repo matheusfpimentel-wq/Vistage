@@ -131,13 +131,37 @@ export async function pickBackupFile(): Promise<Backup | null> {
  * só então reinserimos; um erro no meio é propagado para a UI avisar.
  */
 /**
- * Colunas que criam dependências circulares entre tabelas e precisam ser
- * inseridas como NULL e depois atualizadas em uma segunda passagem.
- * Formato: { tabela: [coluna, ...] }
+ * Colunas de foreign key ANULÁVEIS que são inseridas como NULL na primeira
+ * passagem e restauradas numa segunda passagem (apenas se o id referenciado
+ * existir). Isso torna o restore imune a:
+ *  - ordem de inserção entre tabelas (inclui ciclos: gigs↔tasks)
+ *  - referências órfãs (parent ausente no backup) → ficam NULL em vez de quebrar
+ *  - PRAGMA foreign_keys instável no pool de conexões do tauri-plugin-sql
+ *
+ * Colunas FK NOT NULL / parte de PK não entram aqui: são satisfeitas pela
+ * ordem topológica de TABLES (pais antes de filhos).
+ *
+ * Formato: { tabela: { coluna: tabelaReferenciada } }
  */
-const DEFERRED_COLS: Partial<Record<TableName, string[]>> = {
-  // gigs.main_goal_task_id → tasks  (e tasks.gig_id → gigs)
-  gigs: ["main_goal_task_id"],
+const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
+  contacts: { venue_id: "venues" },
+  gigs: {
+    promoter_contact_id: "contacts",
+    venue_id: "venues",
+    main_goal_task_id: "tasks",
+  },
+  tasks: { gig_id: "gigs", contact_id: "contacts" },
+  finance_transactions: {
+    category_id: "finance_categories",
+    gig_id: "gigs",
+    contact_id: "contacts",
+  },
+  finance_recurring: { category_id: "finance_categories" },
+  equipment: { transaction_id: "finance_transactions" },
+  fan_group_members: { fan_id: "fans" },
+  student_packages: { package_id: "class_packages" },
+  classes: { student_package_id: "student_packages" },
+  music_project_costs: { project_id: "music_projects", track_id: "tracks" },
 };
 
 export async function restoreBackup(backup: Backup): Promise<{
@@ -147,8 +171,17 @@ export async function restoreBackup(backup: Backup): Promise<{
   const db = getDb();
   let restoredRows = 0;
 
-  // PRAGMA foreign_keys é por-conexão. Tentamos desligá-lo antes de cada
-  // operação, mas a correção principal é a ordem topológica + deferred cols.
+  // Conjunto de ids presentes no backup por tabela — usado na 2ª passagem
+  // para só restaurar FKs cujo parent realmente existe (descarta órfãos).
+  const idsByTable = new Map<string, Set<unknown>>();
+  for (const t of TABLES) {
+    const set = new Set<unknown>();
+    for (const row of backup.tables[t] ?? []) {
+      if (row["id"] != null) set.add(row["id"]);
+    }
+    idsByTable.set(t, set);
+  }
+
   try {
     // limpa na ordem inversa (filhos antes de pais)
     for (const t of [...TABLES].reverse()) {
@@ -156,18 +189,14 @@ export async function restoreBackup(backup: Backup): Promise<{
       await db.execute(`DELETE FROM ${t}`);
     }
 
-    // reinsere na ordem original (pais antes de filhos).
-    // Colunas com dependência circular são inseridas como NULL e restauradas
-    // depois que todas as tabelas foram inseridas.
+    // 1ª passagem: insere na ordem topológica, omitindo as colunas FK
+    // anuláveis (DEFERRED_FK) — elas entram como NULL.
     for (const t of TABLES) {
       const rows = backup.tables[t] ?? [];
-      const skipCols = DEFERRED_COLS[t] ?? [];
+      const deferred = DEFERRED_FK[t] ?? {};
       for (const row of rows) {
         await db.execute("PRAGMA foreign_keys = OFF");
-        let cols = Object.keys(row);
-        if (cols.length === 0) continue;
-        // Exclui as colunas circulares desta inserção (serão NULL por default)
-        const insertCols = cols.filter((c) => !skipCols.includes(c));
+        const insertCols = Object.keys(row).filter((c) => !(c in deferred));
         if (insertCols.length === 0) continue;
         const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
         const values = insertCols.map((c) => row[c]);
@@ -179,16 +208,19 @@ export async function restoreBackup(backup: Backup): Promise<{
       }
     }
 
-    // Segunda passagem: restaura as colunas deferidas agora que todas as
-    // tabelas-alvo já existem no banco.
-    for (const [t, cols] of Object.entries(DEFERRED_COLS) as [TableName, string[]][]) {
+    // 2ª passagem: restaura as colunas FK adiadas, somente quando o id
+    // referenciado existe na sua tabela (caso contrário, mantém NULL).
+    for (const t of TABLES) {
+      const deferred = DEFERRED_FK[t];
+      if (!deferred) continue;
       const rows = backup.tables[t] ?? [];
       for (const row of rows) {
         const id = row["id"];
         if (id == null) continue;
-        for (const col of cols) {
+        for (const [col, refTable] of Object.entries(deferred)) {
           const val = row[col];
-          if (val == null) continue; // nada a restaurar
+          if (val == null) continue;
+          if (!idsByTable.get(refTable)?.has(val)) continue; // órfão → deixa NULL
           await db.execute("PRAGMA foreign_keys = OFF");
           await db.execute(
             `UPDATE ${t} SET ${col} = $1 WHERE id = $2`,
