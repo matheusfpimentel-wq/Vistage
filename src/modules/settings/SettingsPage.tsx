@@ -16,6 +16,7 @@ import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
+import { MenuOrderSettings } from "./MenuOrderSettings";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
@@ -120,6 +121,8 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <MenuOrderSettings />
 
       <GoogleCalendarSettings />
 
