@@ -93,22 +93,11 @@ function applyOrder(items: NavItem[], order: string[]): NavItem[] {
   return [...fixed_head, ...reorderable, ...missing, ...fixed_tail];
 }
 
-const ITEM_HEIGHT = 36; // approximate height of each nav item in px
-
 export function Sidebar() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-  // active só vira true depois de passar do threshold, pra distinguir clique
-  // (navegar) de arraste. moved marca que houve arraste, pra suprimir o clique.
-  const dragState = useRef<{
-    startY: number;
-    idx: number;
-    active: boolean;
-    moved: boolean;
-  } | null>(null);
-  const DRAG_THRESHOLD = 5;
-  // marca que o último gesto foi arraste, pra suprimir o clique que vem logo após
+  // `to` do item sendo arrastado (null quando não há arraste)
+  const [draggingTo, setDraggingTo] = useState<string | null>(null);
+  // marca que houve um arraste real, pra suprimir o clique de navegação
   const justDragged = useRef(false);
 
   useEffect(() => {
@@ -122,78 +111,44 @@ export function Sidebar() {
     void saveOrder(order);
   }, []);
 
-  // Calcula o índice dentro dos reordenáveis a partir do índice global.
-  function reorderableIdx(navIdx: number, items: NavItem[]): number {
-    const reorderable = items.filter((i) => !i.fixed);
-    return reorderable.findIndex((item) => items.indexOf(item) === navIdx);
-  }
-
-  function onRowPointerDown(e: React.PointerEvent, navIdx: number, fixed?: boolean) {
-    if (fixed) return;
-    // Só botão esquerdo / toque. Não captura ainda nem preventDefault: deixa o
-    // clique normal acontecer caso não passe do threshold (navegação).
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    dragState.current = { startY: e.clientY, idx: navIdx, active: false, moved: false };
-  }
-
-  function onRowPointerMove(e: React.PointerEvent) {
-    const st = dragState.current;
-    if (!st) return;
-    const dy = e.clientY - st.startY;
-    if (!st.active) {
-      if (Math.abs(dy) < DRAG_THRESHOLD) return;
-      // passou do threshold → vira arraste de verdade
-      st.active = true;
-      st.moved = true;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-      setDraggingIdx(st.idx);
-      setOverIdx(st.idx);
-    }
-    const steps = Math.round(dy / ITEM_HEIGHT);
-    const srcNavIdx = st.idx;
-    setNav((prev) => {
-      const reorderable = prev.filter((i) => !i.fixed);
-      const srcReIdx = reorderableIdx(srcNavIdx, prev);
-      if (srcReIdx < 0) return prev;
-      const targetReIdx = Math.max(0, Math.min(reorderable.length - 1, srcReIdx + steps));
-      const targetNavIdx = prev.indexOf(reorderable[targetReIdx]);
-      setOverIdx(targetNavIdx);
-      return prev;
-    });
-  }
-
-  function onRowPointerUp(e: React.PointerEvent) {
-    const st = dragState.current;
-    if (!st) return;
-    if (!st.active) {
-      // foi só um clique: deixa o NavLink navegar
-      dragState.current = null;
-      justDragged.current = false;
+  function handleDragStart(e: React.DragEvent, item: NavItem) {
+    if (item.fixed) {
+      e.preventDefault();
       return;
     }
+    setDraggingTo(item.to);
     justDragged.current = true;
-    const dy = e.clientY - st.startY;
-    const steps = Math.round(dy / ITEM_HEIGHT);
-    const srcNavIdx = st.idx;
-    dragState.current = null;
+    e.dataTransfer.effectAllowed = "move";
+    // necessário no Firefox pra iniciar o arraste
+    e.dataTransfer.setData("text/plain", item.to);
+  }
 
+  // Reordena ao vivo conforme o item arrastado passa por cima de outro.
+  function handleDragEnter(target: NavItem) {
+    if (target.fixed || draggingTo === null || target.to === draggingTo) return;
     setNav((prev) => {
-      const reorderable = prev.filter((i) => !i.fixed);
-      const srcReIdx = reorderableIdx(srcNavIdx, prev);
-      if (srcReIdx < 0) return prev;
-      const targetReIdx = Math.max(0, Math.min(reorderable.length - 1, srcReIdx + steps));
-      if (srcReIdx === targetReIdx) return prev;
-      const next = [...reorderable];
-      const [moved] = next.splice(srcReIdx, 1);
-      next.splice(targetReIdx, 0, moved);
-      const fixed_head = prev.filter((i) => i.fixed && i.to === "/");
-      const fixed_tail = prev.filter((i) => i.fixed && i.to !== "/");
-      const result = [...fixed_head, ...next, ...fixed_tail];
-      persistOrder(result);
-      return result;
+      const fromIdx = prev.findIndex((i) => i.to === draggingTo);
+      const toIdx = prev.findIndex((i) => i.to === target.to);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, moved);
+      return next;
     });
-    setDraggingIdx(null);
-    setOverIdx(null);
+  }
+
+  function handleDragEnd() {
+    if (draggingTo !== null) {
+      setNav((prev) => {
+        persistOrder(prev);
+        return prev;
+      });
+    }
+    setDraggingTo(null);
+    // libera o clique de novo no próximo tick (o click dispara logo após o drop)
+    setTimeout(() => {
+      justDragged.current = false;
+    }, 0);
   }
 
   return (
@@ -233,22 +188,21 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto space-y-0.5 p-3">
-        {nav.map(({ to, label, icon: Icon, end, fixed }, idx) => {
-          const isDragging = draggingIdx === idx;
-          const isOver = overIdx === idx && draggingIdx !== null && draggingIdx !== idx;
+        {nav.map(({ to, label, icon: Icon, end, fixed }) => {
+          const isDragging = draggingTo === to;
           return (
             <div
               key={to}
+              draggable={!fixed}
+              onDragStart={(e) => handleDragStart(e, { to, label, icon: Icon, end, fixed })}
+              onDragEnter={() => handleDragEnter({ to, label, icon: Icon, end, fixed })}
+              onDragOver={(e) => { if (!fixed) e.preventDefault(); }}
+              onDragEnd={handleDragEnd}
               className={cn(
                 "flex items-center rounded-md transition-all",
                 !fixed && "cursor-grab active:cursor-grabbing",
-                isDragging && "opacity-50 scale-95",
-                isOver && "border-t-2 border-primary"
+                isDragging && "opacity-40"
               )}
-              onPointerDown={(e) => onRowPointerDown(e, idx, fixed)}
-              onPointerMove={onRowPointerMove}
-              onPointerUp={onRowPointerUp}
-              onPointerCancel={onRowPointerUp}
             >
               <NavLink
                 to={to}
@@ -257,7 +211,6 @@ export function Sidebar() {
                 onClick={(e) => {
                   if (justDragged.current) {
                     e.preventDefault();
-                    justDragged.current = false;
                   }
                 }}
                 className={({ isActive }) =>

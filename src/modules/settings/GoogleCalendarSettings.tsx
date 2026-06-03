@@ -103,6 +103,12 @@ export function GoogleCalendarSettings() {
       toast.error("Preencha Client ID e Client Secret antes");
       return;
     }
+    if (!/\.apps\.googleusercontent\.com\s*$/.test(cfg.clientId.trim())) {
+      toast.error(
+        "Client ID inválido. Ele deve terminar com .apps.googleusercontent.com"
+      );
+      return;
+    }
     setConnecting(true);
     try {
       await saveGcalConfig({

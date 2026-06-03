@@ -359,6 +359,14 @@ export async function createGigPrepTask(gig: Gig): Promise<number> {
   const title = gig.event_name
     ? `Preparação - ${gig.event_name}`
     : `Preparação - GIG ${gig.date ?? "sem data"}`;
+  // A preparação vence 2 dias antes da GIG, pra não aparecer empilhada com
+  // ela no mesmo dia do calendário e dar margem real de preparo.
+  let prepDue = gig.date;
+  if (gig.date) {
+    const d = new Date(`${gig.date}T00:00:00`);
+    d.setDate(d.getDate() - 2);
+    prepDue = d.toISOString().slice(0, 10);
+  }
   return createTask({
     title,
     description: gig.venue_name ?? null,
@@ -367,7 +375,7 @@ export async function createGigPrepTask(gig: Gig): Promise<number> {
     contact_id: null,
     priority: "Alta",
     status: "A fazer",
-    due_date: gig.date,
+    due_date: prepDue,
     tags: ["gig", "preparação"],
   });
 }

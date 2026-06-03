@@ -85,6 +85,15 @@ export function GoogleDriveSettings() {
       toast.error("Preencha Client ID e Client Secret antes");
       return;
     }
+    // Valida o formato do Client ID antes de abrir o fluxo OAuth. Um ID
+    // malformado faz o Google rejeitar sem retornar callback, e o app ficaria
+    // travado esperando até o timeout. Melhor barrar aqui.
+    if (!/\.apps\.googleusercontent\.com\s*$/.test(cfg.clientId.trim())) {
+      toast.error(
+        "Client ID inválido. Ele deve terminar com .apps.googleusercontent.com"
+      );
+      return;
+    }
     setConnecting(true);
     try {
       await saveDriveConfig(cfg);
