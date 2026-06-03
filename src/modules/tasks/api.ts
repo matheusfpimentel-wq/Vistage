@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Subtask,
   Task,
@@ -140,6 +141,7 @@ export async function createTask(input: TaskCreateInput): Promise<number> {
     `INSERT INTO tasks (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -157,11 +159,13 @@ export async function updateTask(input: TaskUpdateInput): Promise<void> {
     `UPDATE tasks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteTask(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM tasks WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

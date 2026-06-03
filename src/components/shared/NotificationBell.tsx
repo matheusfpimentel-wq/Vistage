@@ -3,6 +3,7 @@ import { AlertTriangle, Bell, Clock, Flame, Music, PartyPopper, Star } from "luc
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
+import { DATA_CHANGED } from "@/lib/events";
 
 type Alert = { icon: React.ReactNode; label: string; to: string; critical: boolean };
 
@@ -44,7 +45,15 @@ export function NotificationBell() {
   useEffect(() => {
     void refresh();
     const interval = setInterval(() => void refresh(), 60_000);
-    return () => clearInterval(interval);
+    // atualiza na hora quando o app sinaliza mudança de dados ou a janela volta ao foco
+    const onChange = () => void refresh();
+    window.addEventListener(DATA_CHANGED, onChange);
+    window.addEventListener("focus", onChange);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener(DATA_CHANGED, onChange);
+      window.removeEventListener("focus", onChange);
+    };
   }, [refresh]);
 
   // close on outside click
@@ -63,7 +72,10 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          void refresh();
+        }}
         className={cn(
           "relative flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-accent",
           open && "bg-accent"
