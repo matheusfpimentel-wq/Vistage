@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
+import { DriveSync } from "@/components/shared/DriveSync";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
@@ -222,6 +223,7 @@ function RoutedApp() {
       </Suspense>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
+      <DriveSync />
     </>
   );
 }

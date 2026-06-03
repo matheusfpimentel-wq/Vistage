@@ -280,8 +280,11 @@ export function GoogleDriveSettings() {
           {connected && (
             <div className="flex items-center justify-between rounded-md border p-3">
               <div className="text-sm">
-                <div className="font-medium">Backup automático ao abrir o app</div>
+                <div className="font-medium">Backup automático</div>
                 <div className="text-xs text-muted-foreground">
+                  Sobe ao abrir o app e após mudanças (no máx. 1x a cada 10 min).
+                  Ao abrir, sugere restaurar se houver backup mais novo no Drive.
+                  <br />
                   Último backup:{" "}
                   {auth?.lastBackupAt
                     ? new Date(auth.lastBackupAt).toLocaleString("pt-BR")

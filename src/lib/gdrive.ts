@@ -16,6 +16,7 @@ const K = {
   FOLDER_ID: "gdrive.folder_id",
   AUTO_BACKUP: "gdrive.auto_backup",
   LAST_BACKUP_AT: "gdrive.last_backup_at",
+  LAST_SYNC_AT: "gdrive.last_sync_at",
 } as const;
 
 // ============================================================
@@ -228,7 +229,11 @@ export async function uploadBackup(): Promise<DriveFile> {
     content,
   });
 
-  await setSetting(K.LAST_BACKUP_AT, new Date().toISOString());
+  const now = new Date().toISOString();
+  await setSetting(K.LAST_BACKUP_AT, now);
+  // marca o estado local como sincronizado para não sugerir restore do
+  // backup que nós mesmos acabamos de subir
+  await setSetting(K.LAST_SYNC_AT, file.created_time ?? now);
   return file;
 }
 
@@ -248,7 +253,37 @@ export async function downloadAndRestoreBackup(fileId: string): Promise<{ restor
     fileId,
   });
   const backup: Backup = JSON.parse(raw);
-  return restoreBackup(backup);
+  const result = await restoreBackup(backup);
+  // marca o estado local como sincronizado com este backup
+  await setSetting(K.LAST_SYNC_AT, new Date().toISOString());
+  return result;
+}
+
+/**
+ * Procura o backup mais recente no Drive. Retorna-o apenas se for mais novo
+ * que o último sync local (último backup que subimos ou restauramos). Serve
+ * para o app sugerir, ao abrir, importar dados feitos em outra máquina.
+ */
+export async function findNewerDriveBackup(): Promise<DriveFile | null> {
+  const auth = await loadAuth();
+  if (!auth) return null;
+  const files = await listBackups();
+  if (files.length === 0) return null;
+
+  // mais recente primeiro
+  const sorted = [...files].sort((a, b) => {
+    const ta = a.created_time ? Date.parse(a.created_time) : 0;
+    const tb = b.created_time ? Date.parse(b.created_time) : 0;
+    return tb - ta;
+  });
+  const newest = sorted[0];
+  const newestTime = newest.created_time ? Date.parse(newest.created_time) : 0;
+
+  const lastSync = await getSetting(K.LAST_SYNC_AT);
+  const lastSyncTime = lastSync ? Date.parse(lastSync) : 0;
+
+  // margem de 5s para evitar falso positivo por arredondamento de timestamp
+  return newestTime > lastSyncTime + 5000 ? newest : null;
 }
 
 export async function deleteBackupFile(fileId: string): Promise<void> {
@@ -263,5 +298,21 @@ export async function setAutoBackup(enabled: boolean): Promise<void> {
 export async function runAutoBackupIfEnabled(): Promise<void> {
   const auth = await loadAuth();
   if (!auth?.autoBackup) return;
+  await uploadBackup();
+}
+
+/** Intervalo mínimo entre backups automáticos disparados por mudança de dados. */
+const MIN_AUTO_BACKUP_INTERVAL_MS = 10 * 60 * 1000; // 10 min
+
+/**
+ * Sobe um backup se o automático estiver ligado e já tiver passado o intervalo
+ * mínimo desde o último. Usado após mudanças de dados para manter o Drive
+ * próximo do estado atual sem floodar a API a cada clique.
+ */
+export async function maybeAutoBackupAfterChange(): Promise<void> {
+  const auth = await loadAuth();
+  if (!auth?.autoBackup) return;
+  const last = auth.lastBackupAt ? Date.parse(auth.lastBackupAt) : 0;
+  if (Date.now() - last < MIN_AUTO_BACKUP_INTERVAL_MS) return;
   await uploadBackup();
 }
