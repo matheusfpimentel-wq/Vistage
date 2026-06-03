@@ -116,8 +116,14 @@ export async function pickBackupFile(): Promise<Backup | null> {
 
 /**
  * **Operação destrutiva**: limpa todas as tabelas e reescreve com os
- * dados do backup. Roda dentro de uma transação para que falhas no meio
- * não deixem o banco em estado quebrado.
+ * dados do backup.
+ *
+ * IMPORTANTE: nada de BEGIN/COMMIT/ROLLBACK manual aqui. O tauri-plugin-sql
+ * usa um pool de conexões; uma transação aberta numa conexão enquanto os
+ * comandos seguintes caem em outras gera "cannot rollback - no transaction
+ * is active" e deixa o banco travado ("database is locked"). Cada execute é
+ * atômico por si só. Para preservar consistência, limpamos tudo primeiro e
+ * só então reinserimos; um erro no meio é propagado para a UI avisar.
  */
 export async function restoreBackup(backup: Backup): Promise<{
   restoredTables: number;
@@ -126,9 +132,11 @@ export async function restoreBackup(backup: Backup): Promise<{
   const db = getDb();
   let restoredRows = 0;
 
-  await db.execute("BEGIN");
+  // desliga checagem de foreign keys durante a recarga para que a ordem
+  // de limpeza/inserção não dispare violações transitórias
+  await db.execute("PRAGMA foreign_keys = OFF");
   try {
-    // limpa na ordem inversa para não ferir foreign keys
+    // limpa na ordem inversa (filhos antes de pais)
     for (const t of [...TABLES].reverse()) {
       await db.execute(`DELETE FROM ${t}`);
     }
@@ -148,10 +156,8 @@ export async function restoreBackup(backup: Backup): Promise<{
         restoredRows += 1;
       }
     }
-    await db.execute("COMMIT");
-  } catch (e) {
-    await db.execute("ROLLBACK");
-    throw e;
+  } finally {
+    await db.execute("PRAGMA foreign_keys = ON");
   }
 
   return { restoredTables: TABLES.length, restoredRows };
