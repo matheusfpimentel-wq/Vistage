@@ -158,7 +158,7 @@ export function GigsPage() {
               onChange={(e) =>
                 setFilters((f) => ({ ...f, search: e.target.value }))
               }
-              className="w-72 pl-8"
+              className="w-full pl-8 sm:w-72"
             />
           </div>
           <Select
@@ -167,7 +167,7 @@ export function GigsPage() {
               setFilters((f) => ({ ...f, status: v as StatusFilter }))
             }
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -40,6 +40,11 @@ export function ObjetivosPage() {
           <p className="text-sm text-muted-foreground">
             Objetivos trimestrais com key results — bússola, não termômetro.
           </p>
+          <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />Em dia (≥70%)</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />Em risco (40–69%)</span>
+            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/60" />Atrasado (&lt;40%)</span>
+          </div>
         </div>
         <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
           <Plus className="h-4 w-4" /> Novo OKR

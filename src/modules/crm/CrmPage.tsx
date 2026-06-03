@@ -118,7 +118,7 @@ export function CrmPage() {
               onChange={(e) =>
                 setFilters((f) => ({ ...f, search: e.target.value }))
               }
-              className="w-72 pl-8"
+              className="w-full pl-8 sm:w-72"
             />
           </div>
           <Select
@@ -127,7 +127,7 @@ export function CrmPage() {
               setFilters((f) => ({ ...f, type: v as TypeFilter }))
             }
           >
-            <SelectTrigger className="w-56">
+            <SelectTrigger className="w-full sm:w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -145,7 +145,7 @@ export function CrmPage() {
             onChange={(e) =>
               setFilters((f) => ({ ...f, city: e.target.value }))
             }
-            className="w-40"
+            className="w-full sm:w-40"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ function ContactCard({
       className="group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
     >
       {/* ações no hover */}
-      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
         <Button
           size="icon"
           variant="secondary"

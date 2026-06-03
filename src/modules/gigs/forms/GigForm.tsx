@@ -209,6 +209,11 @@ export function GigForm({
     return Object.keys(e).length === 0;
   }
 
+  // Limpa o erro do campo assim que o usuário preenche
+  function clearError(field: keyof typeof errors) {
+    if (errors[field]) setErrors((e) => ({ ...e, [field]: undefined }));
+  }
+
   async function handleSubmit() {
     if (!validate()) {
       toast.error("Preencha os campos obrigatórios");
@@ -383,7 +388,7 @@ export function GigForm({
                 <Input
                   type="date"
                   value={state.date}
-                  onChange={(e) => set("date", e.target.value)}
+                  onChange={(e) => { set("date", e.target.value); clearError("date"); }}
                 />
               </Field>
               <Field label="Início">
@@ -422,6 +427,7 @@ export function GigForm({
                       setState((s) => ({ ...s, venue_id: null, venue_name: "", venue_city: null, venue_address: null }));
                     } else {
                       pickVenue(Number(v));
+                      clearError("venue_name");
                     }
                   }}
                 >

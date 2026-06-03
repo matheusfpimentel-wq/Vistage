@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -9,6 +9,7 @@ import {
   Minus,
   Music,
   PartyPopper,
+  RefreshCw,
   Star,
   TrendingDown,
   TrendingUp,
@@ -86,9 +87,12 @@ type DashData = {
 
 export function DashboardPage() {
   const [data, setData] = useState<DashData | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    try {
       const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
@@ -100,12 +104,29 @@ export function DashboardPage() {
         listClasses(),
       ]);
       setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
-    })();
+      setUpdatedAt(new Date());
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
+
+  useEffect(() => { void load(); }, [load]);
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
+        <div className="flex items-center gap-2">
+          {updatedAt && (
+            <span className="text-xs text-muted-foreground">
+              Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => void load()} disabled={refreshing} aria-label="Atualizar">
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+          </Button>
+        </div>
+      </div>
 
       {data ? (
         <>
