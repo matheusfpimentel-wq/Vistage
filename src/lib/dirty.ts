@@ -44,8 +44,12 @@ export function useUnsavedConfirm(isDirty: boolean) {
 }
 
 /**
+ * @deprecated NÃO USAR com BrowserRouter. `useBlocker` exige um data router
+ * (createBrowserRouter + RouterProvider); com `<BrowserRouter>` ele lança erro
+ * e quebra a página inteira (tela branca). Para auto-salvar ao sair de uma
+ * página, persista no cleanup de um useEffect usando refs com o estado atual.
+ *
  * Bloqueia a navegação do React Router enquanto há alterações não salvas.
- * Usa `useBlocker` do react-router-dom. Mostra o `confirmDialog` antes de prosseguir.
  */
 export function useNavigationGuard(isDirty: boolean) {
   const blocker = useBlocker(

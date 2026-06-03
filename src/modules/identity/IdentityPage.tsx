@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { useNavigationGuard } from "@/lib/dirty";
+import { useEffect, useRef, useState } from "react";
 import {
   ExternalLink,
   Loader2,
@@ -74,7 +73,6 @@ export function IdentityPage() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useNavigationGuard(dirty);
   const [templates, setTemplates] = useState<ArtistTemplate[]>([]);
   const [flyerGigs, setFlyerGigs] = useState<Gig[]>([]);
   const [tplFormOpen, setTplFormOpen] = useState(false);
@@ -97,6 +95,36 @@ export function IdentityPage() {
 
   useEffect(() => {
     void refresh();
+  }, []);
+
+  // Auto-save ao sair da página: mantemos refs com o estado mais recente e,
+  // no cleanup do efeito (desmontagem do componente), persistimos se houver
+  // alterações não salvas. Substitui o antigo guard com useBlocker, que exige
+  // data router e quebrava a página com BrowserRouter (tela branca).
+  const identityRef = useRef(identity);
+  const dirtyRef = useRef(dirty);
+  identityRef.current = identity;
+  dirtyRef.current = dirty;
+
+  useEffect(() => {
+    return () => {
+      if (!dirtyRef.current || !identityRef.current) return;
+      const i = identityRef.current;
+      void saveIdentity({
+        artist_name: i.artist_name,
+        bio_short: i.bio_short,
+        bio_long: i.bio_long,
+        socials: i.socials,
+        logo_path: i.logo_path,
+        isotype_path: i.isotype_path,
+        presskit_path: i.presskit_path,
+        palette: i.palette,
+        fonts: i.fonts,
+        notes: i.notes,
+      }).catch(() => {
+        /* silencioso — saída de página não pode interromper navegação */
+      });
+    };
   }, []);
 
   if (!identity) {
