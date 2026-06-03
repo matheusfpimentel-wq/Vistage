@@ -37,6 +37,19 @@ type CountRow = { c: number };
 type TrackRow = { standby: number; stage_entered_at: string | null };
 type RatingRow = { rating_sound: number | null; rating_crowd: number | null; rating_overall: number | null };
 
+// Roda um SELECT isolado: se a query falhar (ex.: coluna ausente em banco
+// antigo), devolve o fallback ao invés de derrubar todo o painel de alertas.
+async function safeSelect<T>(
+  fn: () => Promise<T[]>,
+  fallback: T[]
+): Promise<T[]> {
+  try {
+    return await fn();
+  } catch {
+    return fallback;
+  }
+}
+
 export async function loadWeekStats(): Promise<WeekStats> {
   const { start, end } = weekRange();
   const today = todayISO();
@@ -65,83 +78,83 @@ export async function loadWeekStats(): Promise<WeekStats> {
     undatedPartiesRows,
     confirmedFestasRows,
   ] = await Promise.all([
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
       [start, end]
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM tasks WHERE status = 'Concluída' AND updated_at >= $1`,
       [start]
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM tasks WHERE status NOT IN ('Concluída','Cancelada')`,
       []
-    ),
-    db.select<CountRow[]>(
-      `SELECT COUNT(*) as c FROM tasks WHERE status NOT IN ('Concluída','Cancelada') AND due_date < $1 AND due_date IS NOT NULL`,
+    ), []),
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM tasks WHERE status NOT IN ('Concluída','Cancelada') AND due_date IS NOT NULL AND due_date != '' AND due_date < $1`,
       [today]
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM content WHERE status = 'Publicado' AND publish_date >= $1 AND publish_date <= $2`,
       [start, end]
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM content WHERE status IN ('Roteiro','Gravando','Edição','Pronto')`,
       []
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM parties WHERE status = 'Confirmada' AND date >= $1`,
       [today]
-    ),
-    db.select<TrackRow[]>(
+    ), []),
+    safeSelect<TrackRow>(() => db.select(
       `SELECT standby, stage_entered_at FROM tracks`,
       []
-    ),
-    db.select<CountRow[]>(
+    ), []),
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE debrief_pending = 1`,
       []
-    ),
-    db.select<RatingRow[]>(
+    ), []),
+    safeSelect<RatingRow>(() => db.select(
       `SELECT rating_sound, rating_crowd, rating_overall FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
       [start, end]
-    ),
+    ), []),
     // ideias quentes (heat 3) presas em Embrião há +15 dias
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM ideas
         WHERE heat = 3 AND maturation = 'Embrião' AND substr(updated_at, 1, 10) < $1`,
       [cut15]
-    ),
+    ), []),
     // tracks ativas sem mudança de stage há +15 dias
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM tracks
         WHERE standby = 0 AND stage_entered_at IS NOT NULL
           AND substr(stage_entered_at, 1, 10) < $1`,
       [cut15]
-    ),
+    ), []),
     // festas em aberto sem movimento há +15 dias
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM parties
         WHERE status NOT IN ('Realizada','Cancelada') AND substr(updated_at, 1, 10) < $1`,
       [cut15]
-    ),
+    ), []),
     // conteúdos em produção sem movimento há +15 dias
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM content
         WHERE status NOT IN ('Publicado','Arquivado') AND substr(updated_at, 1, 10) < $1`,
       [cut15]
-    ),
+    ), []),
     // festas sem data (entram no pipeline criativo)
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM parties
         WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
       []
-    ),
+    ), []),
     // festas confirmadas ainda à frente (com data futura OU sem data marcada)
-    db.select<CountRow[]>(
+    safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM parties
         WHERE status = 'Confirmada' AND (date IS NULL OR date = '' OR date >= $1)`,
       [today]
-    ),
+    ), []),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;

@@ -68,6 +68,7 @@ import {
   autoCreateLaunchTask,
   autoCreatePreLaunchContent,
   createTrack,
+  getTopMoods,
   getTrack,
   listProjects,
   listTrackCollaborators,
@@ -126,6 +127,7 @@ export function TrackForm({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [moodInput, setMoodInput] = useState("");
+  const [topMoods, setTopMoods] = useState<string[]>([]);
   const [projects, setProjects] = useState<MusicProject[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
@@ -145,6 +147,7 @@ export function TrackForm({
     if (!open) return;
     setDirty(false);
     setMoodInput("");
+    void getTopMoods().then(setTopMoods);
     void listProjects().then(setProjects);
     setProjectId(track?.project_id ?? defaultProjectId ?? null);
     void listContacts().then((all) =>
@@ -471,6 +474,22 @@ export function TrackForm({
                   className="h-8"
                 />
               </div>
+              {topMoods.filter((m) => !state.mood_tags.includes(m)).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {topMoods
+                    .filter((m) => !state.mood_tags.includes(m))
+                    .map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => addMood(m)}
+                        className="rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary hover:text-primary"
+                      >
+                        + {m}
+                      </button>
+                    ))}
+                </div>
+              )}
             </Field>
           </TabsContent>
 

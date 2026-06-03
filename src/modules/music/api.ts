@@ -148,6 +148,27 @@ export async function listTracks(): Promise<TrackWithProject[]> {
   }));
 }
 
+// Moods mais usados em todas as tracks, do mais frequente ao menos.
+// Serve de sugestão persistente ao cadastrar uma nova track.
+export async function getTopMoods(limit = 12): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.select<{ mood_tags: string | null }[]>(
+    "SELECT mood_tags FROM tracks"
+  );
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    for (const tag of parseJsonArray<string>(r.mood_tags)) {
+      const t = tag.trim();
+      if (!t) continue;
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([tag]) => tag);
+}
+
 export async function getTrack(id: number): Promise<Track | null> {
   const db = getDb();
   const rows = await db.select<TrackRow[]>(
