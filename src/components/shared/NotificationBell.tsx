@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bell, Clock, Flame, Lightbulb, Music, PartyPopper, Star } from "lucide-react";
+import { AlertTriangle, Bell, Clock, Flame, Music, PartyPopper, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
-import { countPendingOutcomes } from "@/modules/decisoes/api";
 
 type Alert = { icon: React.ReactNode; label: string; to: string; critical: boolean };
 
-function buildAlerts(stats: WeekStats, pendingDecisions: number): Alert[] {
+function buildAlerts(stats: WeekStats): Alert[] {
   const alerts: Alert[] = [];
 
   if (stats.tasksOverdue > 0)
@@ -24,8 +23,6 @@ function buildAlerts(stats: WeekStats, pendingDecisions: number): Alert[] {
     alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-muted-foreground" />, label: `${stats.undatedParties} festa${stats.undatedParties > 1 ? "s" : ""} sem data no pipeline`, to: "/festas", critical: false });
   if (stats.noConfirmedFestas)
     alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma festa confirmada à frente", to: "/festas", critical: false });
-  if (pendingDecisions > 0)
-    alerts.push({ icon: <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />, label: `${pendingDecisions} decisão${pendingDecisions > 1 ? "ões" : ""} aguardando outcome`, to: "/decisoes", critical: false });
 
   return alerts;
 }
@@ -37,8 +34,8 @@ export function NotificationBell() {
 
   const refresh = useCallback(async () => {
     try {
-      const [stats, pd] = await Promise.all([loadWeekStats(), countPendingOutcomes()]);
-      setAlerts(buildAlerts(stats, pd));
+      const stats = await loadWeekStats();
+      setAlerts(buildAlerts(stats));
     } catch {
       // silently ignore
     }

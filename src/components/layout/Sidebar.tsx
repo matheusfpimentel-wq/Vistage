@@ -12,7 +12,7 @@ import {
   Lightbulb,
   Music,
   PartyPopper,
-  Scale,
+
   Settings,
   Sparkles,
   Store,
@@ -46,7 +46,7 @@ const DEFAULT_NAV: NavItem[] = [
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb },
   { to: "/foco", label: "Energia & Foco", icon: Zap },
   { to: "/objetivos", label: "OKRs", icon: Target },
-  { to: "/decisoes", label: "Decision Log", icon: Scale },
+
   { to: "/identidade", label: "Identidade", icon: Sparkles },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
   { to: "/financeiro", label: "Financeiro", icon: Wallet },
