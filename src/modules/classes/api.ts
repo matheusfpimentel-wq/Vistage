@@ -295,7 +295,15 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
 
 export async function deleteClass(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM classes WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM classes WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
 }
 
 /**

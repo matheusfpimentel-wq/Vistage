@@ -120,7 +120,17 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
 
 export async function deleteParty(id: number): Promise<void> {
   const db = getDb();
+  const taskRows = await db.select<{ global_task_id: number | null }[]>(
+    "SELECT global_task_id FROM party_tasks WHERE party_id = $1",
+    [id]
+  );
+  const taskIds = taskRows
+    .map((r) => r.global_task_id)
+    .filter((tid): tid is number => tid !== null);
   await db.execute("DELETE FROM parties WHERE id = $1", [id]);
+  for (const tid of taskIds) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [tid]);
+  }
 }
 
 export async function listPartyCosts(partyId: number): Promise<PartyCost[]> {

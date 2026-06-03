@@ -31,8 +31,8 @@ import { formatDate } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
-import { listContent } from "@/modules/content/api";
-import type { Content } from "@/modules/content/types";
+import { listContent, createContent } from "@/modules/content/api";
+import { CONTENT_FORMATS, CONTENT_NETWORKS, type Content } from "@/modules/content/types";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 import { listVenues } from "@/modules/venues/api";
@@ -120,6 +120,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
+  const [quickContent, setQuickContent] = useState(false);
+  const [quickContentForm, setQuickContentForm] = useState({ title: "", format: "", network: "", status: "Ideia" as string });
   const [costs, setCosts] = useState<PartyCost[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
@@ -181,6 +183,12 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     setTasks(tk);
   }, [party]);
 
+  const reloadLinkedContent = useCallback(async (title: string) => {
+    const all = await listContent();
+    const lower = title.toLowerCase();
+    setLinkedContent(all.filter((c) => c.title.toLowerCase().includes(lower)));
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     setDirty(false);
@@ -200,12 +208,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     void listVenues().then(setVenues);
 
     if (party) {
-      void listContent().then((all) => {
-        const titleLower = party.title.toLowerCase();
-        setLinkedContent(
-          all.filter((c) => c.title.toLowerCase().includes(titleLower))
-        );
-      });
+      void reloadLinkedContent(party.title);
       setState({
         title: party.title,
         date: party.date,
@@ -364,6 +367,35 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
+  }
+
+  async function handleCreateQuickContent() {
+    if (!quickContentForm.title.trim()) {
+      toast.error("Título é obrigatório");
+      return;
+    }
+    await createContent({
+      title: quickContentForm.title.trim(),
+      script: null,
+      networks: quickContentForm.network ? [quickContentForm.network as never] : [],
+      format: (quickContentForm.format as never) || null,
+      purpose: null,
+      status: quickContentForm.status as never,
+      due_date: null,
+      publish_date: null,
+      published_at: null,
+      post_url: null,
+      metric_views: null,
+      metric_likes: null,
+      metric_comments: null,
+      metric_shares: null,
+      metric_saves: null,
+      notes: null,
+      task_id: null,
+    });
+    setQuickContent(false);
+    setQuickContentForm({ title: "", format: "", network: "", status: "Ideia" });
+    await reloadLinkedContent(state.title);
   }
 
   async function handleSubmit() {
@@ -942,10 +974,66 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           {/* ===== CONTEÚDO VINCULADO ===== */}
           {isEdit && (
             <TabsContent value="conteudo" className="space-y-3 pt-2">
-              {linkedContent.length === 0 ? (
-                <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhum conteúdo com o nome desta festa encontrado. Crie posts
-                  no módulo Conteúdo mencionando "{state.title}" no título.
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {linkedContent.length} conteúdo{linkedContent.length !== 1 ? "s" : ""} vinculado{linkedContent.length !== 1 ? "s" : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickContentForm({ title: state.title + " — ", format: "", network: "", status: "Ideia" });
+                    setQuickContent(true);
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="h-3 w-3" /> Novo conteúdo
+                </button>
+              </div>
+
+              {quickContent && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-medium">Novo conteúdo</p>
+                  <Input
+                    value={quickContentForm.title}
+                    onChange={(e) => setQuickContentForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="Título do conteúdo"
+                    className="h-8 text-sm"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={quickContentForm.format}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, format: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      <option value="">Formato…</option>
+                      {CONTENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                    <select
+                      value={quickContentForm.network}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, network: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      <option value="">Rede…</option>
+                      {CONTENT_NETWORKS.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <select
+                      value={quickContentForm.status}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, status: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      {["Ideia","Roteiro","Gravando","Edição","Pronto"].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCreateQuickContent} className="h-7 text-xs">Criar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setQuickContent(false)} className="h-7 text-xs">Cancelar</Button>
+                  </div>
+                </div>
+              )}
+
+              {linkedContent.length === 0 && !quickContent ? (
+                <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Nenhum conteúdo com o nome desta festa encontrado.
                 </p>
               ) : (
                 <div className="space-y-1.5">

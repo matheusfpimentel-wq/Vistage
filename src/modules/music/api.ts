@@ -278,7 +278,15 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
 
 export async function deleteTrack(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM tracks WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM tracks WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
 }
 
 // ============================================================

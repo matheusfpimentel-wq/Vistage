@@ -119,7 +119,15 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
 
 export async function deleteContent(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM content WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM content WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
 }
 
 export type ContentStats = {

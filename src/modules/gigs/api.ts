@@ -142,13 +142,25 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
 
 export async function deleteGig(id: number): Promise<void> {
   const db = getDb();
+  // Busca prep_task_id antes de deletar
+  const gigRows = await db.select<{ prep_task_id: number | null }[]>(
+    "SELECT prep_task_id FROM gigs WHERE id = $1",
+    [id]
+  );
+  const prepTaskId = gigRows[0]?.prep_task_id ?? null;
   // mantém o financeiro integrado: ao excluir a GIG, apaga também a receita
   // vinculada (senão vira lançamento fantasma com gig_id nulo).
   await db.execute(
     "DELETE FROM finance_transactions WHERE gig_id = $1",
     [id]
   );
+  // Apaga tarefas vinculadas à GIG pelo gig_id
+  await db.execute("DELETE FROM tasks WHERE gig_id = $1", [id]);
   await db.execute("DELETE FROM gigs WHERE id = $1", [id]);
+  // Apaga a prep task da GIG se existir
+  if (prepTaskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [prepTaskId]);
+  }
 }
 
 // ============================================================
