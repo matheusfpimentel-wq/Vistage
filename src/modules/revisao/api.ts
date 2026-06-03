@@ -15,11 +15,16 @@ export type WeekStats = {
   pendingDebriefs: number;
   // sinais críticos adicionais (item 13)
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
-  stalledProductions: number; // tracks/festas/conteúdos sem movimento há +15 dias
+  stalledProductions: number; // soma legada
+  stalledTracks: number;
+  stalledParties: number;
+  stalledContent: number;
   undatedParties: number; // festas sem data definida
-  noConfirmedFestas: boolean; // nenhuma festa confirmada à frente
-  noUpcomingGigs: boolean; // nenhuma GIG marcada à frente
-  noTracksInProduction: boolean; // nenhuma música ativa sendo produzida
+  noConfirmedFestas: boolean;
+  noUpcomingGigs: boolean;
+  noTracksInProduction: boolean;
+  unpreparedClasses: number; // aulas em <=48h sem subject
+  superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
 };
 
 function weekRange(): { start: string; end: string } {
@@ -81,6 +86,8 @@ export async function loadWeekStats(): Promise<WeekStats> {
     confirmedFestasRows,
     upcomingGigsRows,
     tracksInProductionRows,
+    unpreparedClassesRows,
+    superfasRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -171,6 +178,21 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE standby = 0 AND current_stage != 'Pós-lançamento'`,
       []
     ), []),
+    // aulas em <= 48h sem matéria preenchida (subject vazio/nulo), status Agendada
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM classes
+        WHERE status = 'Agendada'
+          AND (subject IS NULL OR subject = '')
+          AND date >= $1 AND date <= $2`,
+      [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10); })()]
+    ), []),
+    // superfãs (level = 'Superfã') sem interação nos últimos 30 dias
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM fans
+        WHERE level = 'Superfã'
+          AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
+      [(() => { const d = new Date(today); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); })()]
+    ), []),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
@@ -209,10 +231,15 @@ export async function loadWeekStats(): Promise<WeekStats> {
       (stalledTracksRows[0]?.c ?? 0) +
       (stalledPartiesRows[0]?.c ?? 0) +
       (stalledContentRows[0]?.c ?? 0),
+    stalledTracks: stalledTracksRows[0]?.c ?? 0,
+    stalledParties: stalledPartiesRows[0]?.c ?? 0,
+    stalledContent: stalledContentRows[0]?.c ?? 0,
     undatedParties: undatedPartiesRows[0]?.c ?? 0,
     noConfirmedFestas: (confirmedFestasRows[0]?.c ?? 0) === 0,
     noUpcomingGigs: (upcomingGigsRows[0]?.c ?? 0) === 0,
     noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
+    unpreparedClasses: unpreparedClassesRows[0]?.c ?? 0,
+    superfasSemInteracao: superfasRows[0]?.c ?? 0,
   };
 }
 
