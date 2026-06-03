@@ -52,6 +52,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
         capacity: null,
         venue_type: null,
         star_status: null,
+        priority: null,
         owner_name: null,
         owner_role: null,
         owner_phone: null,

@@ -1147,6 +1147,11 @@ const MIGRATIONS: Migration[] = [
     description: "star_status for venues (target/played/favorite)",
     sql: `ALTER TABLE venues ADD COLUMN star_status TEXT`,
   },
+  {
+    version: 50,
+    description: "priority for venues (Alta/Media/Baixa)",
+    sql: `ALTER TABLE venues ADD COLUMN priority TEXT`,
+  },
 ];
 
 

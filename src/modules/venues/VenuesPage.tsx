@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Star, Trash2, Users } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 
 const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
@@ -12,16 +12,20 @@ import { toast } from "@/components/ui/toaster";
 import { VenueForm } from "./forms/VenueForm";
 import { VenueDetail } from "./forms/VenueDetail";
 import { deleteVenue, listVenues, updateVenue, type VenueFilters } from "./api";
-import type { Venue } from "./types";
-import { VenueStar, nextStarStatus, starSortWeight } from "./components/VenueStar";
+import type { Venue, VenueType } from "./types";
+import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
 
-type SortKey = "name" | "type" | "city" | "capacity" | "star";
+type SortKey = "name" | "type" | "city" | "capacity" | "priority";
 type SortDir = "asc" | "desc";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "cards" | "list" | "map";
+
+const CARD_GROUPS: Array<VenueType | "__other__"> = [
+  "Club", "Bar", "Espaço para eventos", "Festival", "Teatro", "Outro", "__other__",
+];
 
 export function VenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -36,6 +40,9 @@ export function VenuesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  // Frozen card order — only rebuilt when a full fetch happens
+  const cardOrderRef = useRef<Venue[]>([]);
+
   const queryFilters: VenueFilters = useMemo(
     () => ({ city: filters.city, search: filters.search }),
     [filters]
@@ -44,6 +51,10 @@ export function VenuesPage() {
   const refresh = useCallback(async () => {
     const data = await listVenues(queryFilters);
     setVenues(data);
+    cardOrderRef.current = [...data].sort((a, b) => {
+      const w = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
+      return w !== 0 ? w : a.name.localeCompare(b.name);
+    });
   }, [queryFilters]);
 
   useEffect(() => {
@@ -55,13 +66,17 @@ export function VenuesPage() {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  async function cycleStar(v: Venue) {
-    const next = nextStarStatus(v.star_status);
-    // Atualização otimista pra resposta imediata; refaz a busca em seguida.
-    setVenues((prev) => prev.map((x) => (x.id === v.id ? { ...x, star_status: next } : x)));
+  async function cyclePriority(v: Venue) {
+    const priorities: Array<Venue["priority"]> = [null, "Alta", "Média", "Baixa"];
+    const idx = priorities.indexOf(v.priority);
+    const next = priorities[(idx + 1) % priorities.length];
+    // Optimistic badge update without reordering cards
+    setVenues((prev) => prev.map((x) => (x.id === v.id ? { ...x, priority: next } : x)));
+    cardOrderRef.current = cardOrderRef.current.map((x) => (x.id === v.id ? { ...x, priority: next } : x));
     try {
-      await updateVenue({ id: v.id, star_status: next });
-    } finally {
+      await updateVenue({ id: v.id, priority: next });
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
       await refresh();
     }
   }
@@ -72,15 +87,31 @@ export function VenuesPage() {
     else if (sortKey === "type") cmp = (a.venue_type ?? "").localeCompare(b.venue_type ?? "");
     else if (sortKey === "city") cmp = (a.city ?? "").localeCompare(b.city ?? "");
     else if (sortKey === "capacity") cmp = (a.capacity ?? 0) - (b.capacity ?? 0);
-    else if (sortKey === "star") cmp = starSortWeight(a.star_status) - starSortWeight(b.star_status);
+    else if (sortKey === "priority") cmp = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  // Cards: alvos primeiro por padrão, depois ordem alfabética.
-  const cardVenues = [...venues].sort((a, b) => {
-    const w = starSortWeight(a.star_status) - starSortWeight(b.star_status);
-    return w !== 0 ? w : a.name.localeCompare(b.name);
-  });
+  const cardVenues = cardOrderRef.current.length > 0 ? cardOrderRef.current : [...venues];
+
+  const groupedCards = useMemo(() => {
+    const groups: Array<{ key: string; label: string; items: Venue[] }> = [];
+    for (const group of CARD_GROUPS) {
+      const items =
+        group === "__other__"
+          ? cardVenues.filter((v) => !v.venue_type)
+          : cardVenues.filter((v) => v.venue_type === group);
+      if (items.length === 0) continue;
+      const label =
+        group === "__other__" ? "Sem tipo" :
+        group === "Club" ? "Clubs" :
+        group === "Bar" ? "Bares" :
+        group === "Espaço para eventos" ? "Espaços para eventos" :
+        group === "Festival" ? "Festivais" :
+        group === "Teatro" ? "Teatros" : group;
+      groups.push({ key: group, label, items });
+    }
+    return groups;
+  }, [cardVenues]);
 
   function openCreate() {
     setEditing(null);
@@ -188,15 +219,6 @@ export function VenuesPage() {
         </div>
       </div>
 
-      {view !== "map" && (
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span>Clique na estrela pra alternar:</span>
-          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-red-500 text-red-500" /> Alvo</span>
-          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> Já toquei</span>
-          <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-orange-500 text-orange-500" /> Gostei</span>
-        </div>
-      )}
-
       {view === "map" ? (
         <Suspense
           fallback={
@@ -217,16 +239,28 @@ export function VenuesPage() {
           Nenhum venue cadastrado ainda.
         </div>
       ) : view === "cards" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {cardVenues.map((v) => (
-            <VenueCard
-              key={v.id}
-              venue={v}
-              onOpen={() => openDetail(v)}
-              onEdit={() => openEdit(v)}
-              onDelete={() => void handleDelete(v)}
-              onCycleStar={() => void cycleStar(v)}
-            />
+        <div className="space-y-6">
+          {groupedCards.map((group) => (
+            <div key={group.key}>
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {group.label}
+                </h3>
+                <Badge variant="outline" className="text-xs">{group.items.length}</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.items.map((v) => (
+                  <VenueCard
+                    key={v.id}
+                    venue={v}
+                    onOpen={() => openDetail(v)}
+                    onEdit={() => openEdit(v)}
+                    onDelete={() => void handleDelete(v)}
+                    onCyclePriority={() => void cyclePriority(v)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : (
@@ -236,16 +270,15 @@ export function VenuesPage() {
               <tr>
                 <th
                   className="cursor-pointer select-none px-3 py-2 text-left hover:text-foreground"
-                  onClick={() => toggleSort("star")}
-                  aria-label="Ordenar por estrela"
+                  onClick={() => toggleSort("priority")}
                 >
                   <span className="inline-flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5" />
-                    {sortKey === "star" && <ArrowUpDown className="h-3 w-3 opacity-60" />}
+                    Prioridade
+                    {sortKey === "priority" && <ArrowUpDown className="h-3 w-3 opacity-60" />}
                   </span>
                 </th>
                 {(["name", "type", "city", "capacity"] as SortKey[]).map((key) => {
-                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade", star: "" };
+                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade", priority: "" };
                   const isRight = key === "capacity";
                   return (
                     <th
@@ -272,7 +305,17 @@ export function VenuesPage() {
                   onClick={() => openDetail(v)}
                 >
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <VenueStar status={v.star_status} onCycle={() => void cycleStar(v)} size={16} />
+                    <button
+                      type="button"
+                      onClick={() => void cyclePriority(v)}
+                      title="Clique para mudar prioridade"
+                    >
+                      {v.priority ? (
+                        <VenuePriorityBadge priority={v.priority} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition">+ prioridade</span>
+                      )}
+                    </button>
                   </td>
                   <td className="px-3 py-2 font-medium">
                     {v.name}
@@ -351,13 +394,13 @@ function VenueCard({
   onOpen,
   onEdit,
   onDelete,
-  onCycleStar,
+  onCyclePriority,
 }: {
   venue: Venue;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
-  onCycleStar: () => void;
+  onCyclePriority: () => void;
 }) {
   const photoUrl = useImageUrl(v.photo_path);
   return (
@@ -370,11 +413,17 @@ function VenueCard({
       }}
       className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
     >
-      {/* estrela de status (sempre visível) */}
-      <div className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-background/80 shadow-sm backdrop-blur-sm">
-        <VenueStar status={v.star_status} onCycle={onCycleStar} size={16} />
-      </div>
-      {/* ações no hover */}
+      {v.priority && (
+        <div className="absolute left-2 top-2 z-10">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onCyclePriority(); }}
+            title="Clique para mudar prioridade"
+          >
+            <VenuePriorityBadge priority={v.priority} />
+          </button>
+        </div>
+      )}
       <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
         <Button
           size="icon"
@@ -420,7 +469,6 @@ function VenueCard({
           {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {v.venue_type && <Badge variant="secondary">{v.venue_type}</Badge>}
           {v.capacity && (
             <Badge variant="outline" className="gap-1">
               <Users className="h-3 w-3" />
@@ -428,6 +476,16 @@ function VenueCard({
             </Badge>
           )}
           {v.founded_year && <span className="tabular-nums">desde {v.founded_year}</span>}
+          {!v.priority && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCyclePriority(); }}
+              className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition"
+              title="Definir prioridade"
+            >
+              + prioridade
+            </button>
+          )}
         </div>
       </div>
     </div>

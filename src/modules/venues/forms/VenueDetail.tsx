@@ -25,6 +25,7 @@ import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { formatCurrency, formatDate, formatRating } from "@/lib/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useImageUrl } from "@/lib/uploads";
+import { VenuePriorityBadge } from "../components/VenueStar";
 
 type Props = {
   open: boolean;
@@ -75,17 +76,7 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <DialogTitle className="flex items-center gap-2">
-                    {venue.star_status && (
-                      <Star
-                        className={`h-4 w-4 ${
-                          venue.star_status === "target"
-                            ? "fill-red-500 text-red-500"
-                            : venue.star_status === "played"
-                              ? "fill-amber-400 text-amber-400"
-                              : "fill-orange-500 text-orange-500"
-                        }`}
-                      />
-                    )}
+                    {venue.priority && <VenuePriorityBadge priority={venue.priority} />}
                     {venue.name}
                   </DialogTitle>
                   <div className="text-sm text-muted-foreground">

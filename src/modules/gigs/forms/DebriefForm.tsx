@@ -440,19 +440,36 @@ export function DebriefForm({
               onNoteChange={() => undefined}
             />
             <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
-              <span className="text-sm">GIG Especial ⭐</span>
-              <button
-                type="button"
-                onClick={() => set("is_special", state.is_special ? 0 : 1)}
-                className={cn(
-                  "rounded-md border px-3 py-1 text-xs transition",
-                  state.is_special
-                    ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                    : "border-input bg-background text-muted-foreground hover:bg-accent"
-                )}
-              >
-                {state.is_special ? "Sim — GIG especial" : "Não"}
-              </button>
+              <div>
+                <span className="text-sm">GIG Especial ⭐</span>
+                <p className="text-xs text-muted-foreground">Conta como bônus na média de avaliação</p>
+              </div>
+              <div className="inline-flex rounded-md border overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => set("is_special", 0)}
+                  className={cn(
+                    "px-3 py-1.5 transition",
+                    !state.is_special
+                      ? "bg-muted text-foreground font-medium"
+                      : "bg-background text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  Não
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set("is_special", 1)}
+                  className={cn(
+                    "border-l px-3 py-1.5 transition",
+                    state.is_special
+                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium"
+                      : "bg-background text-muted-foreground hover:bg-accent"
+                  )}
+                >
+                  Sim ⭐
+                </button>
+              </div>
             </div>
             {avg !== null && (
               <div className="rounded-md border bg-muted/40 p-3 text-sm">

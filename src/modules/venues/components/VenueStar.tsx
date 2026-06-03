@@ -1,70 +1,78 @@
-import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { VenueStarStatus } from "../types";
+import type { VenuePriority } from "../types";
 
-/** Próximo estado no ciclo: none → alvo → já toquei → favorito → none. */
-export function nextStarStatus(s: VenueStarStatus | null): VenueStarStatus | null {
-  if (s === null) return "target";
-  if (s === "target") return "played";
-  if (s === "played") return "favorite";
-  return null;
-}
-
-/** Peso para ordenação: alvo primeiro, depois favorito, já toquei, e sem estrela por último. */
-export function starSortWeight(s: VenueStarStatus | null): number {
-  switch (s) {
-    case "target":
-      return 0;
-    case "favorite":
-      return 1;
-    case "played":
-      return 2;
-    default:
-      return 3;
+/** Peso para ordenação: Alta primeiro, depois Média, Baixa, e sem prioridade por último. */
+export function prioritySortWeight(p: VenuePriority | null): number {
+  switch (p) {
+    case "Alta": return 0;
+    case "Média": return 1;
+    case "Baixa": return 2;
+    default: return 3;
   }
 }
 
-export const STAR_LABEL: Record<VenueStarStatus, string> = {
-  target: "Alvo — quero tocar aqui",
-  played: "Já toquei aqui",
-  favorite: "Já toquei e gostei",
-};
-
-const STAR_CLASS: Record<VenueStarStatus, string> = {
-  target: "fill-red-500 text-red-500",
-  played: "fill-amber-400 text-amber-400",
-  favorite: "fill-orange-500 text-orange-500",
+const PRIORITY_VARIANT: Record<VenuePriority, { label: string; cls: string; dotCls: string }> = {
+  Alta:  { label: "Alta",  cls: "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400",    dotCls: "bg-red-500" },
+  Média: { label: "Média", cls: "border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400", dotCls: "bg-amber-500" },
+  Baixa: { label: "Baixa", cls: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",       dotCls: "bg-muted-foreground/60" },
 };
 
 type Props = {
-  status: VenueStarStatus | null;
-  onCycle?: () => void;
+  priority: VenuePriority | null;
   className?: string;
-  size?: number;
 };
 
-/** Estrela clicável que cicla pelos estados do venue. */
-export function VenueStar({ status, onCycle, className, size = 16 }: Props) {
+export function VenuePriorityBadge({ priority, className }: Props) {
+  if (!priority) return null;
+  const v = PRIORITY_VARIANT[priority];
   return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onCycle?.();
-      }}
-      aria-label={status ? STAR_LABEL[status] : "Marcar venue"}
-      title={status ? STAR_LABEL[status] : "Marcar como alvo"}
+    <span
       className={cn(
-        "inline-flex items-center justify-center rounded transition hover:scale-110",
+        "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium",
+        v.cls,
         className
       )}
     >
-      <Star
-        style={{ width: size, height: size }}
-        className={cn(
-          status ? STAR_CLASS[status] : "text-muted-foreground/40"
-        )}
-      />
-    </button>
+      <span className={cn("h-1.5 w-1.5 rounded-full", v.dotCls)} />
+      {v.label}
+    </span>
+  );
+}
+
+type SelectorProps = {
+  value: VenuePriority | null;
+  onChange: (v: VenuePriority | null) => void;
+};
+
+export function VenuePrioritySelector({ value, onChange }: SelectorProps) {
+  const options: Array<{ val: VenuePriority | null; label: string; cls: string }> = [
+    { val: null,    label: "Nenhuma", cls: "text-muted-foreground/60 border-input" },
+    { val: "Alta",  label: "Alta",    cls: "border-red-500/60 text-red-600 dark:text-red-400" },
+    { val: "Média", label: "Média",   cls: "border-amber-500/60 text-amber-600 dark:text-amber-400" },
+    { val: "Baixa", label: "Baixa",   cls: "border-muted-foreground/40 text-muted-foreground" },
+  ];
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((opt) => {
+        const active = value === opt.val;
+        return (
+          <button
+            key={opt.label}
+            type="button"
+            onClick={() => onChange(opt.val)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition",
+              opt.cls,
+              active ? "bg-accent font-semibold" : "bg-background hover:bg-accent"
+            )}
+          >
+            {opt.val && (
+              <span className={cn("h-1.5 w-1.5 rounded-full", PRIORITY_VARIANT[opt.val].dotCls)} />
+            )}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
