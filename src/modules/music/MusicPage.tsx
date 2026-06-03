@@ -116,7 +116,7 @@ export function MusicPage() {
             Produção Musical
           </h2>
           <p className="text-sm text-muted-foreground">
-            Tracks num pipeline Stage-Gate, da ideação ao pós-lançamento.
+            Tracks no processo Stage-Gate, da ideação ao pós-lançamento.
           </p>
         </div>
         <div className="flex gap-2">

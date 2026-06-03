@@ -230,7 +230,7 @@ function EmExecucaoCard({ data }: { data: DashData }) {
         >
           <PartyPopper className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span className="tabular-nums font-medium">{partiesPipeline}</span>
-          <span className="text-muted-foreground">Festas pipeline</span>
+          <span className="text-muted-foreground">Festas em andamento</span>
         </Link>
         {upcomingClasses > 0 && (
           <Link
@@ -464,7 +464,7 @@ function MusicCard({ data }: { data: DashData }) {
           <Music className="h-4 w-4 text-primary" />
           Produção Musical
         </CardTitle>
-        <CardDescription>Tracks ativas no pipeline.</CardDescription>
+        <CardDescription>Tracks ativas em produção.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {top3.length === 0 ? (
@@ -569,7 +569,7 @@ function ContentCard({ data }: { data: DashData }) {
           <Film className="h-4 w-4 text-primary" />
           Conteúdos
         </CardTitle>
-        <CardDescription>Pipeline editorial resumido.</CardDescription>
+        <CardDescription>Resumo editorial.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-4 gap-2">

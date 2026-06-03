@@ -16,8 +16,10 @@ export type WeekStats = {
   // sinais críticos adicionais (item 13)
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
   stalledProductions: number; // tracks/festas/conteúdos sem movimento há +15 dias
-  undatedParties: number; // festas sem data (entram no pipeline criativo)
+  undatedParties: number; // festas sem data definida
   noConfirmedFestas: boolean; // nenhuma festa confirmada à frente
+  noUpcomingGigs: boolean; // nenhuma GIG marcada à frente
+  noTracksInProduction: boolean; // nenhuma música ativa sendo produzida
 };
 
 function weekRange(): { start: string; end: string } {
@@ -77,6 +79,8 @@ export async function loadWeekStats(): Promise<WeekStats> {
     stalledContentRows,
     undatedPartiesRows,
     confirmedFestasRows,
+    upcomingGigsRows,
+    tracksInProductionRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -155,6 +159,18 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE status = 'Confirmada' AND (date IS NULL OR date = '' OR date >= $1)`,
       [today]
     ), []),
+    // GIGs marcadas ainda à frente (data futura, fora canceladas)
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM gigs
+        WHERE date >= $1 AND status != 'Cancelada'`,
+      [today]
+    ), []),
+    // músicas ativas sendo produzidas (não em stand-by, ainda não no pós-lançamento)
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM tracks
+        WHERE standby = 0 AND current_stage != 'Pós-lançamento'`,
+      []
+    ), []),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
@@ -195,6 +211,8 @@ export async function loadWeekStats(): Promise<WeekStats> {
       (stalledContentRows[0]?.c ?? 0),
     undatedParties: undatedPartiesRows[0]?.c ?? 0,
     noConfirmedFestas: (confirmedFestasRows[0]?.c ?? 0) === 0,
+    noUpcomingGigs: (upcomingGigsRows[0]?.c ?? 0) === 0,
+    noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
   };
 }
 

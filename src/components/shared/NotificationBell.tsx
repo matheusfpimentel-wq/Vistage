@@ -21,9 +21,13 @@ function buildAlerts(stats: WeekStats): Alert[] {
   if (stats.stalledProductions > 0)
     alerts.push({ icon: <Clock className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.stalledProductions} produç${stats.stalledProductions > 1 ? "ões" : "ão"} sem movimento +15 dias`, to: "/musica", critical: false });
   if (stats.undatedParties > 0)
-    alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-muted-foreground" />, label: `${stats.undatedParties} festa${stats.undatedParties > 1 ? "s" : ""} sem data no pipeline`, to: "/festas", critical: false });
+    alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-muted-foreground" />, label: `${stats.undatedParties} festa${stats.undatedParties > 1 ? "s" : ""} sem data definida`, to: "/festas", critical: false });
   if (stats.noConfirmedFestas)
     alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma festa confirmada à frente", to: "/festas", critical: false });
+  if (stats.noUpcomingGigs)
+    alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma GIG marcada à frente", to: "/gigs", critical: false });
+  if (stats.noTracksInProduction)
+    alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma música em produção", to: "/musica", critical: false });
 
   return alerts;
 }
