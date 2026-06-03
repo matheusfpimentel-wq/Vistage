@@ -14,11 +14,16 @@ import { cn } from "@/lib/utils";
  * qualquer ponto; ao soltar, descobrimos por hit-test qual coluna está sob o
  * cursor e disparamos `onMove(id, novoStatus)`. Um clique simples (sem passar
  * do threshold) continua abrindo o card normalmente.
+ *
+ * Seleção múltipla: Shift+clique marca/desmarca cards. Ao arrastar um card que
+ * faz parte da seleção, todos os selecionados se movem juntos para a coluna
+ * destino.
  */
 
 type Ctx = {
   draggingId: number | null;
   overStatus: string | null;
+  selectedIds: Set<number>;
   registerColumn: (status: string, el: HTMLElement | null) => void;
   startDrag: (
     e: React.PointerEvent,
@@ -42,6 +47,7 @@ export function KanbanBoard({
 }) {
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [overStatus, setOverStatus] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const cols = useRef<Map<string, HTMLElement>>(new Map());
   const drag = useRef<{
     id: number;
@@ -51,6 +57,9 @@ export function KanbanBoard({
     onClick?: () => void;
   } | null>(null);
   const justDragged = useRef(false);
+  // mantém a seleção acessível dentro dos handlers sem recriá-los
+  const selectedRef = useRef<Set<number>>(selectedIds);
+  selectedRef.current = selectedIds;
 
   const registerColumn = useCallback((status: string, el: HTMLElement | null) => {
     if (el) cols.current.set(status, el);
@@ -67,9 +76,24 @@ export function KanbanBoard({
     return null;
   }
 
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   const startDrag = useCallback(
     (e: React.PointerEvent, id: number, onClick?: () => void) => {
       if (e.button !== 0 && e.pointerType === "mouse") return;
+      // Shift+clique: alterna seleção, não inicia arraste nem abre o card
+      if (e.shiftKey) {
+        toggleSelect(id);
+        drag.current = null;
+        return;
+      }
       drag.current = {
         id,
         startX: e.clientX,
@@ -78,7 +102,7 @@ export function KanbanBoard({
         onClick,
       };
     },
-    []
+    [toggleSelect]
   );
 
   function onPointerMove(e: React.PointerEvent) {
@@ -101,6 +125,8 @@ export function KanbanBoard({
     drag.current = null;
     if (!d.active) {
       justDragged.current = false;
+      // clique simples num card: limpa a seleção e abre
+      if (selectedRef.current.size > 0) setSelectedIds(new Set());
       d.onClick?.();
       return;
     }
@@ -108,12 +134,21 @@ export function KanbanBoard({
     const target = columnAt(e.clientX, e.clientY);
     setDraggingId(null);
     setOverStatus(null);
-    if (target) onMove(d.id, target);
+    if (target) {
+      const selected = selectedRef.current;
+      // Se o card arrastado faz parte da seleção, move todos os selecionados.
+      if (selected.has(d.id) && selected.size > 1) {
+        for (const id of selected) onMove(id, target);
+      } else {
+        onMove(d.id, target);
+      }
+      setSelectedIds(new Set());
+    }
   }
 
   return (
     <KanbanCtx.Provider
-      value={{ draggingId, overStatus, registerColumn, startDrag }}
+      value={{ draggingId, overStatus, selectedIds, registerColumn, startDrag }}
     >
       <div
         className={className}
@@ -161,12 +196,14 @@ export function KanbanCard({
 }) {
   const ctx = useContext(KanbanCtx);
   const isDragging = ctx?.draggingId === id;
+  const isSelected = ctx?.selectedIds.has(id) ?? false;
   return (
     <div
       onPointerDown={(e) => ctx?.startDrag(e, id, onClick)}
       className={cn(
         "cursor-grab active:cursor-grabbing select-none",
         isDragging && "opacity-50",
+        isSelected && "ring-2 ring-primary ring-offset-1",
         className
       )}
     >

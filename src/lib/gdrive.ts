@@ -234,7 +234,40 @@ export async function uploadBackup(): Promise<DriveFile> {
   // marca o estado local como sincronizado para não sugerir restore do
   // backup que nós mesmos acabamos de subir
   await setSetting(K.LAST_SYNC_AT, file.created_time ?? now);
+
+  // mantém no máximo MAX_BACKUPS no Drive, apagando os mais antigos
+  await pruneOldBackups();
   return file;
+}
+
+/** Quantidade máxima de backups mantidos no Drive. */
+export const MAX_BACKUPS = 20;
+
+/**
+ * Apaga os backups mais antigos que excedem MAX_BACKUPS, mantendo os mais
+ * recentes. Falhas em deletar individualmente são ignoradas (best-effort).
+ */
+export async function pruneOldBackups(): Promise<number> {
+  const files = await listBackups();
+  if (files.length <= MAX_BACKUPS) return 0;
+
+  // mais recente primeiro
+  const sorted = [...files].sort((a, b) => {
+    const ta = a.created_time ? Date.parse(a.created_time) : 0;
+    const tb = b.created_time ? Date.parse(b.created_time) : 0;
+    return tb - ta;
+  });
+  const toDelete = sorted.slice(MAX_BACKUPS);
+  let deleted = 0;
+  for (const f of toDelete) {
+    try {
+      await deleteBackupFile(f.id);
+      deleted += 1;
+    } catch {
+      // best-effort — ignora falhas individuais
+    }
+  }
+  return deleted;
 }
 
 export async function listBackups(): Promise<DriveFile[]> {

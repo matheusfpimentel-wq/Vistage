@@ -11,6 +11,55 @@ const SETTINGS_KEYS = {
 };
 
 // ============================================================
+// Calendários por módulo
+// ============================================================
+
+/** Módulos que sincronizam com o Google Calendar. */
+export const GCAL_MODULES = ["gigs", "classes", "parties", "okrs"] as const;
+export type GcalModule = (typeof GCAL_MODULES)[number];
+
+export const GCAL_MODULE_LABELS: Record<GcalModule, string> = {
+  gigs: "GIGs",
+  classes: "Aulas",
+  parties: "Festas",
+  okrs: "OKRs",
+};
+
+function moduleCalendarKey(module: GcalModule): string {
+  return `gcal.calendar.${module}`;
+}
+
+/** Define o calendário usado por um módulo (null = usar o principal). */
+export async function setModuleCalendarId(
+  module: GcalModule,
+  calendarId: string | null
+): Promise<void> {
+  await setSetting(moduleCalendarKey(module), calendarId);
+}
+
+/** Lê o id de calendário configurado para cada módulo (null se usar o principal). */
+export async function loadModuleCalendarIds(): Promise<Record<GcalModule, string | null>> {
+  const entries = await Promise.all(
+    GCAL_MODULES.map(async (m) => [m, await getSetting(moduleCalendarKey(m))] as const)
+  );
+  return Object.fromEntries(entries) as Record<GcalModule, string | null>;
+}
+
+/**
+ * Resolve qual calendário usar para um módulo: o específico do módulo, ou o
+ * principal (gcal_auth.calendar_id) como fallback.
+ */
+async function resolveCalendarId(module: GcalModule): Promise<string> {
+  const specific = await getSetting(moduleCalendarKey(module));
+  if (specific) return specific;
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) {
+    throw new Error("Selecione um calendário nas configurações antes.");
+  }
+  return auth.calendar_id;
+}
+
+// ============================================================
 // Tipos espelhando o Rust
 // ============================================================
 
@@ -273,10 +322,7 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
 export async function pushGigToCalendar(gigId: number): Promise<void> {
   const gig = await getGig(gigId);
   if (!gig) throw new Error("GIG não encontrada");
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) {
-    throw new Error("Selecione um calendário nas configurações antes.");
-  }
+  const calendarId = await resolveCalendarId("gigs");
   const cfg = await loadGcalConfig();
   const accessToken = await getValidAccessToken();
   const event = gigToEvent(gig, cfg.timezone);
@@ -284,14 +330,14 @@ export async function pushGigToCalendar(gigId: number): Promise<void> {
   if (gig.gcal_event_id) {
     await invoke<void>("gcal_update_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: gig.gcal_event_id,
       event,
     });
   } else {
     const id = await invoke<string>("gcal_create_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       event,
     });
     await updateGig({ id: gig.id, gcal_event_id: id });
@@ -301,13 +347,12 @@ export async function pushGigToCalendar(gigId: number): Promise<void> {
 /** Deleta o evento no GCal correspondente a uma GIG (se houver). */
 export async function deleteGigFromCalendar(gig: Gig): Promise<void> {
   if (!gig.gcal_event_id) return;
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) return;
   try {
+    const calendarId = await resolveCalendarId("gigs");
     const accessToken = await getValidAccessToken();
     await invoke<void>("gcal_delete_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: gig.gcal_event_id,
     });
   } catch {
@@ -320,10 +365,7 @@ export async function syncAll(): Promise<{
   pushed: number;
   pulled: number;
 }> {
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) {
-    throw new Error("Selecione um calendário nas configurações antes.");
-  }
+  const calendarId = await resolveCalendarId("gigs");
   const accessToken = await getValidAccessToken();
   const cfg = await loadGcalConfig();
 
@@ -335,7 +377,7 @@ export async function syncAll(): Promise<{
     if (!g.gcal_event_id) {
       const id = await invoke<string>("gcal_create_event", {
         accessToken,
-        calendarId: auth.calendar_id,
+        calendarId,
         event: gigToEvent(g, cfg.timezone),
       });
       await updateGig({ id: g.id, gcal_event_id: id });
@@ -347,7 +389,7 @@ export async function syncAll(): Promise<{
     ) {
       await invoke<void>("gcal_update_event", {
         accessToken,
-        calendarId: auth.calendar_id,
+        calendarId,
         eventId: g.gcal_event_id,
         event: gigToEvent(g, cfg.timezone),
       });
@@ -358,7 +400,7 @@ export async function syncAll(): Promise<{
   // --- PULL: eventos com updatedMin maior que o último sync (ou todos se primeiro sync)
   const events = await invoke<GcalEvent[]>("gcal_list_events", {
     accessToken,
-    calendarId: auth.calendar_id,
+    calendarId,
     updatedMin: cfg.lastSyncAt,
   });
 
@@ -455,8 +497,7 @@ export async function pushClassToCalendar(classData: {
   student_name: string;
   gcal_event_id: string | null;
 }): Promise<string> {
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
+  const calendarId = await resolveCalendarId("classes");
   const cfg = await loadGcalConfig();
   const accessToken = await getValidAccessToken();
 
@@ -478,7 +519,7 @@ export async function pushClassToCalendar(classData: {
   if (classData.gcal_event_id) {
     await invoke<void>("gcal_update_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: classData.gcal_event_id,
       event,
     });
@@ -486,7 +527,7 @@ export async function pushClassToCalendar(classData: {
   } else {
     return invoke<string>("gcal_create_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       event,
     });
   }
@@ -501,9 +542,7 @@ export async function pushPartyToCalendar(partyData: {
   gcal_event_id: string | null;
 }): Promise<string> {
   if (!partyData.date) throw new Error("Festa sem data não pode ser sincronizada.");
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
-  await getValidAccessToken();
+  const calendarId = await resolveCalendarId("parties");
   const accessToken = await getValidAccessToken();
 
   const event: EventInput = {
@@ -516,7 +555,7 @@ export async function pushPartyToCalendar(partyData: {
   if (partyData.gcal_event_id) {
     await invoke<void>("gcal_update_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: partyData.gcal_event_id,
       event,
     });
@@ -524,7 +563,7 @@ export async function pushPartyToCalendar(partyData: {
   } else {
     return invoke<string>("gcal_create_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       event,
     });
   }
@@ -537,8 +576,7 @@ export async function pushOkrToCalendar(okrData: {
   objective: string;
   gcal_event_id: string | null;
 }): Promise<string> {
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) throw new Error("Selecione um calendário nas configurações antes.");
+  const calendarId = await resolveCalendarId("okrs");
   const accessToken = await getValidAccessToken();
 
   // Compute end of quarter
@@ -558,7 +596,7 @@ export async function pushOkrToCalendar(okrData: {
   if (okrData.gcal_event_id) {
     await invoke<void>("gcal_update_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: okrData.gcal_event_id,
       event,
     });
@@ -566,21 +604,29 @@ export async function pushOkrToCalendar(okrData: {
   } else {
     return invoke<string>("gcal_create_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       event,
     });
   }
 }
 
-/** Deleta um evento do GCal pelo id. */
-export async function deleteEventFromCalendar(gcalEventId: string): Promise<void> {
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) return;
+/**
+ * Deleta um evento do GCal pelo id. Recebe o módulo para resolver o calendário
+ * correto; se omitido, usa o calendário principal.
+ */
+export async function deleteEventFromCalendar(
+  gcalEventId: string,
+  module?: GcalModule
+): Promise<void> {
   try {
+    const calendarId = module
+      ? await resolveCalendarId(module)
+      : (await loadAuth())?.calendar_id;
+    if (!calendarId) return;
     const accessToken = await getValidAccessToken();
     await invoke<void>("gcal_delete_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: gcalEventId,
     });
   } catch {

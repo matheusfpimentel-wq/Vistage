@@ -415,7 +415,11 @@ pub fn gcal_update_event(
         url_encode(&calendar_id),
         url_encode(&event_id),
     );
-    ureq::request("PATCH", &url)
+    // PUT (substitui o recurso inteiro) em vez de PATCH: o PATCH faz merge e,
+    // quando um evento alterna entre dia inteiro (date) e com hora (dateTime),
+    // o evento acaba com os dois campos e a API responde 400. O PUT elimina
+    // esse conflito porque envia o recurso completo.
+    ureq::request("PUT", &url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(body)
         .map_err(|e| format!("Falha ao atualizar evento: {e}"))?;

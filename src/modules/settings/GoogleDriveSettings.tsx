@@ -57,6 +57,17 @@ export function GoogleDriveSettings() {
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState<DriveFile | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [showAllBackups, setShowAllBackups] = useState(false);
+
+  const RECENT_COUNT = 5;
+  const sortedBackups = [...backups].sort((a, b) => {
+    const ta = a.created_time ? Date.parse(a.created_time) : 0;
+    const tb = b.created_time ? Date.parse(b.created_time) : 0;
+    return tb - ta;
+  });
+  const visibleBackups = showAllBackups
+    ? sortedBackups
+    : sortedBackups.slice(0, RECENT_COUNT);
 
   async function refresh() {
     const [c, a] = await Promise.all([loadDriveConfig(), loadAuth()]);
@@ -332,8 +343,10 @@ export function GoogleDriveSettings() {
           <CardHeader>
             <CardTitle className="text-base">Backups no Drive</CardTitle>
             <CardDescription>
-              Pasta "Vistage Backups" no seu Google Drive. Restaurar é
-              destrutivo — substitui todos os dados atuais.
+              Pasta "Vistage Backups" no seu Google Drive. Mostrando os{" "}
+              {RECENT_COUNT} mais recentes. Mantemos no máximo 20 — os mais
+              antigos são apagados automaticamente. Restaurar é destrutivo —
+              substitui todos os dados atuais.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -347,7 +360,7 @@ export function GoogleDriveSettings() {
               </p>
             ) : (
               <div className="space-y-2">
-                {backups.map((file) => (
+                {visibleBackups.map((file) => (
                   <div
                     key={file.id}
                     className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
@@ -382,6 +395,18 @@ export function GoogleDriveSettings() {
                     </div>
                   </div>
                 ))}
+                {sortedBackups.length > RECENT_COUNT && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setShowAllBackups((s) => !s)}
+                  >
+                    {showAllBackups
+                      ? "Mostrar menos"
+                      : `Mostrar todos (${sortedBackups.length})`}
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
