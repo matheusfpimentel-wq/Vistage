@@ -6,7 +6,7 @@ import {
   CheckSquare,
   Film,
   GraduationCap,
-  GripVertical,
+
   Heart,
   LayoutDashboard,
   Lightbulb,
@@ -240,7 +240,7 @@ export function Sidebar() {
             <div
               key={to}
               className={cn(
-                "group/row flex items-center rounded-md transition-all",
+                "flex items-center rounded-md transition-all",
                 !fixed && "cursor-grab active:cursor-grabbing",
                 isDragging && "opacity-50 scale-95",
                 isOver && "border-t-2 border-primary"
@@ -272,18 +272,6 @@ export function Sidebar() {
                 <Icon className="h-4 w-4 shrink-0" />
                 {label}
               </NavLink>
-              {!fixed && (
-                <div
-                  className={cn(
-                    "mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded transition",
-                    draggingIdx === idx
-                      ? "opacity-60"
-                      : "opacity-0 group-hover/row:opacity-100"
-                  )}
-                >
-                  <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50" />
-                </div>
-              )}
             </div>
           );
         })}

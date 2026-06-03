@@ -112,15 +112,6 @@ export function NotificationBell() {
               ))}
             </div>
           )}
-          <div className="border-t px-3 py-2">
-            <Link
-              to="/revisao"
-              onClick={() => setOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Ver revisão completa →
-            </Link>
-          </div>
         </div>
       )}
     </div>
