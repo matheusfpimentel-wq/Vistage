@@ -423,6 +423,8 @@ export async function syncAll(): Promise<{
       rating_technique_note: null,
       rating_repertoire: null,
       rating_repertoire_note: null,
+      rating_contractor: null,
+      is_special: 0,
       gcal_event_id: ev.id,
       main_goal: null,
       prep_state: null,

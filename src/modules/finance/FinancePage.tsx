@@ -51,7 +51,8 @@ function isoDaysAgo(n: number): string {
  * Converte um "período" selecionado em filtros de data. O padrão é os últimos
  * 12 meses (não mais um único mês), com opções pra ano corrente e global.
  */
-function periodToFilter(period: string): { fromDate?: string; toDate?: string } {
+function periodToFilter(period: string, customFrom?: string, customTo?: string): { fromDate?: string; toDate?: string } {
+  if (period === "custom") return { fromDate: customFrom || undefined, toDate: customTo || undefined };
   const now = new Date();
   if (period === "all") return {};
   if (period === "last12") return { fromDate: isoDaysAgo(365) };
@@ -76,6 +77,7 @@ function periodOptions(): { value: string; label: string }[] {
     { value: "thismonth", label: "Este mês" },
     { value: "thisyear", label: "Este ano" },
     { value: "all", label: "Todo o período" },
+    { value: "custom", label: "Personalizado…" },
   ];
   const d = new Date();
   for (let i = 0; i < 12; i++) {
@@ -101,12 +103,16 @@ export function FinancePage() {
     categoryId: number | "all";
     period: string;
     search: string;
+    customFrom: string;
+    customTo: string;
   }>({
     kind: "all",
     status: "all",
     categoryId: "all",
     period: "last12",
     search: "",
+    customFrom: "",
+    customTo: "",
   });
 
   const [formOpen, setFormOpen] = useState(false);
@@ -122,7 +128,7 @@ export function FinancePage() {
       status: filters.status,
       categoryId:
         filters.categoryId === "all" ? undefined : filters.categoryId,
-      ...periodToFilter(filters.period),
+      ...periodToFilter(filters.period, filters.customFrom, filters.customTo),
       search: filters.search,
     }),
     [filters]
@@ -232,6 +238,23 @@ export function FinancePage() {
                   ))}
                 </SelectContent>
               </Select>
+              {filters.period === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-40"
+                    value={filters.customFrom}
+                    onChange={(e) => setFilters((f) => ({ ...f, customFrom: e.target.value }))}
+                  />
+                  <span className="text-muted-foreground text-sm">até</span>
+                  <Input
+                    type="date"
+                    className="w-40"
+                    value={filters.customTo}
+                    onChange={(e) => setFilters((f) => ({ ...f, customTo: e.target.value }))}
+                  />
+                </>
+              )}
               <Select
                 value={filters.categoryId.toString()}
                 onValueChange={(v) =>

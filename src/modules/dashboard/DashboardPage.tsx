@@ -457,7 +457,6 @@ function FinancePanel() {
               )}
             />
           </div>
-          <CardDescription>Receitas, despesas e patrimônio.</CardDescription>
         </CardHeader>
       </button>
       {open && (
@@ -536,6 +535,7 @@ function OkrPanel({ okrs }: { okrs: Okr[] }) {
 function GigsCard({ data }: { data: DashData }) {
   const { gigs } = data;
   const today = todayISO();
+  const lifeTimeCount = gigs.filter((g) => g.status === "Concluída").length;
 
   const upcoming = gigs
     .filter(
@@ -564,8 +564,12 @@ function GigsCard({ data }: { data: DashData }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Disc3 className="h-4 w-4 text-primary" /> GIGs
+          {lifeTimeCount > 0 && (
+            <span className="ml-auto text-xs font-normal text-muted-foreground">
+              {lifeTimeCount} realizadas
+            </span>
+          )}
         </CardTitle>
-        <CardDescription>Próximas apresentações e debriefs.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {upcoming.length === 0 ? (
@@ -650,7 +654,6 @@ function MusicCard({ data }: { data: DashData }) {
         <CardTitle className="flex items-center gap-2 text-base">
           <Music className="h-4 w-4 text-primary" /> Produção Musical
         </CardTitle>
-        <CardDescription>Tracks ativas em produção.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {top3.length === 0 ? (
@@ -754,7 +757,6 @@ function ContentCard({ data }: { data: DashData }) {
         <CardTitle className="flex items-center gap-2 text-base">
           <Film className="h-4 w-4 text-primary" /> Conteúdos
         </CardTitle>
-        <CardDescription>Resumo editorial.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-4 gap-2">
@@ -1032,9 +1034,6 @@ function WeekTimeline({ data }: { data: DashData }) {
           <CalendarClock className="h-4 w-4 text-primary" />
           Sua semana
         </CardTitle>
-        <CardDescription>
-          GIGs, tarefas e posts dos próximos 7 dias — no mesmo eixo, sem silos.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {totalItems === 0 ? (

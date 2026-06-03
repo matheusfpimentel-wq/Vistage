@@ -60,6 +60,8 @@ export function QuickContactForm({
         notes: null,
         rating: null,
         photo_path: null,
+        follower_count: null,
+        venue_id: null,
       });
       toast.success("Contato criado");
       setDirty(false);

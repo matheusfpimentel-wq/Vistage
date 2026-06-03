@@ -1,6 +1,10 @@
+export const VENUE_TYPES = ["Club", "Bar", "Espaço para eventos", "Teatro", "Festival", "Outro"] as const;
+export type VenueType = (typeof VENUE_TYPES)[number];
+
 export type Venue = {
   id: number;
   name: string;
+  venue_type: VenueType | null;
   city: string | null;
   state: string | null;
   country: string | null;

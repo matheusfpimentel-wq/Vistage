@@ -27,6 +27,7 @@ export type WeekStats = {
   superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
   gigsUnprepared: number; // GIGs em <=72h com prep musical incompleta
   okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
+  gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
 };
 
 function weekRange(): { start: string; end: string } {
@@ -90,6 +91,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
     unpreparedClassesRows,
     superfasRows,
     upcomingGigsPrepRows,
+    gigsUnpaidRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -196,6 +198,15 @@ export async function loadWeekStats(): Promise<WeekStats> {
         WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
       [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10); })()]
     ), []),
+    // GIGs concluídas há +48h com pagamento ainda não integral
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM gigs
+        WHERE status = 'Concluída'
+          AND date < $1
+          AND (payment_status IS NULL OR payment_status != 'Pago integralmente')
+          AND cache_amount IS NOT NULL AND cache_amount > 0`,
+      [(() => { const d = new Date(today); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); })()]
+    ), []),
   ]);
 
   // GIGs com prep musical incompleta
@@ -262,6 +273,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
     superfasSemInteracao: superfasRows[0]?.c ?? 0,
     gigsUnprepared,
     okrsLagging,
+    gigsUnpaidAfter48h: gigsUnpaidRows[0]?.c ?? 0,
   };
 }
 

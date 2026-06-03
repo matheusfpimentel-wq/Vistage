@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bell, BookOpen, Clock, Flame, Heart, Music, PartyPopper, Star, Target } from "lucide-react";
+import { AlertTriangle, Bell, BookOpen, Clock, DollarSign, Flame, Heart, Music, PartyPopper, Star, Target } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
@@ -36,6 +36,8 @@ function buildAlerts(stats: WeekStats): Alert[] {
     alerts.push({ icon: <Music className="h-3.5 w-3.5 text-red-500" />, label: `${stats.gigsUnprepared} GIG${stats.gigsUnprepared > 1 ? "s" : ""} em 72h sem prep musical completa`, to: "/gigs", critical: true });
   if (stats.okrsLagging > 0)
     alerts.push({ icon: <Target className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.okrsLagging} OKR${stats.okrsLagging > 1 ? "s" : ""} abaixo de 20% com menos de 30 dias no quarter`, to: "/objetivos", critical: false });
+  if (stats.gigsUnpaidAfter48h > 0)
+    alerts.push({ icon: <DollarSign className="h-3.5 w-3.5 text-red-500" />, label: `${stats.gigsUnpaidAfter48h} GIG${stats.gigsUnpaidAfter48h > 1 ? "s" : ""} concluída${stats.gigsUnpaidAfter48h > 1 ? "s" : ""} há +48h com cachê não recebido`, to: "/gigs", critical: true });
 
   return alerts;
 }

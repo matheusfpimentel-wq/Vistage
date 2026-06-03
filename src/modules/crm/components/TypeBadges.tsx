@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import type { ContactType } from "../types";
 
 const VARIANT_BY_TYPE: Record<
-  ContactType,
+  string,
   "default" | "secondary" | "outline" | "info" | "success" | "warning"
 > = {
   Contratante: "info",
@@ -13,7 +13,6 @@ const VARIANT_BY_TYPE: Record<
   Influencer: "secondary",
   "Gerente de Club": "outline",
   "Dono de Club": "outline",
-  Outros: "outline",
 };
 
 export function TypeBadges({ types }: { types: ContactType[] }) {
@@ -23,7 +22,7 @@ export function TypeBadges({ types }: { types: ContactType[] }) {
   return (
     <div className="inline-flex flex-wrap gap-1">
       {types.map((t) => (
-        <Badge key={t} variant={VARIANT_BY_TYPE[t]} className="whitespace-nowrap">
+        <Badge key={t} variant={VARIANT_BY_TYPE[t] ?? "outline"} className="whitespace-nowrap">
           {t}
         </Badge>
       ))}

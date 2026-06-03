@@ -32,6 +32,7 @@ import {
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
 import { formatRating } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { GigSetlist } from "./GigSetlist";
 
 type Props = {
@@ -59,6 +60,8 @@ type DebriefState = Pick<
   | "rating_technique_note"
   | "rating_repertoire"
   | "rating_repertoire_note"
+  | "rating_contractor"
+  | "is_special"
 >;
 
 function gigToDebrief(gig: Gig): DebriefState {
@@ -77,6 +80,8 @@ function gigToDebrief(gig: Gig): DebriefState {
     rating_technique_note: gig.rating_technique_note,
     rating_repertoire: gig.rating_repertoire,
     rating_repertoire_note: gig.rating_repertoire_note,
+    rating_contractor: gig.rating_contractor ?? null,
+    is_special: gig.is_special ?? 0,
   };
 }
 
@@ -427,6 +432,28 @@ export function DebriefForm({
               onChange={(v) => set("rating_repertoire", v)}
               onNoteChange={(n) => set("rating_repertoire_note", n)}
             />
+            <RatingSlider
+              label="Avaliação do Contratante (opcional)"
+              value={state.rating_contractor}
+              note={null}
+              onChange={(v) => set("rating_contractor", v)}
+              onNoteChange={() => undefined}
+            />
+            <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
+              <span className="text-sm">GIG Especial ⭐</span>
+              <button
+                type="button"
+                onClick={() => set("is_special", state.is_special ? 0 : 1)}
+                className={cn(
+                  "rounded-md border px-3 py-1 text-xs transition",
+                  state.is_special
+                    ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "border-input bg-background text-muted-foreground hover:bg-accent"
+                )}
+              >
+                {state.is_special ? "Sim — GIG especial" : "Não"}
+              </button>
+            </div>
             {avg !== null && (
               <div className="rounded-md border bg-muted/40 p-3 text-sm">
                 <span className="text-muted-foreground">Média geral: </span>

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 
 const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
@@ -13,6 +13,9 @@ import { VenueForm } from "./forms/VenueForm";
 import { VenueDetail } from "./forms/VenueDetail";
 import { deleteVenue, listVenues, type VenueFilters } from "./api";
 import type { Venue } from "./types";
+
+type SortKey = "name" | "type" | "city" | "capacity";
+type SortDir = "asc" | "desc";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
@@ -23,6 +26,8 @@ export function VenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [filters, setFilters] = useState({ city: "", search: "" });
   const [view, setView] = useState<ViewMode>("cards");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Venue | null>(null);
@@ -43,6 +48,20 @@ export function VenuesPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  const sortedVenues = [...venues].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "name") cmp = a.name.localeCompare(b.name);
+    else if (sortKey === "type") cmp = (a.venue_type ?? "").localeCompare(b.venue_type ?? "");
+    else if (sortKey === "city") cmp = (a.city ?? "").localeCompare(b.city ?? "");
+    else if (sortKey === "capacity") cmp = (a.capacity ?? 0) - (b.capacity ?? 0);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
 
   function openCreate() {
     setEditing(null);
@@ -171,7 +190,7 @@ export function VenuesPage() {
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {venues.map((v) => (
+          {sortedVenues.map((v) => (
             <VenueCard
               key={v.id}
               venue={v}
@@ -186,15 +205,28 @@ export function VenuesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Cidade</th>
-                <th className="px-3 py-2 text-right">Capacidade</th>
+                {(["name", "type", "city", "capacity"] as SortKey[]).map((key) => {
+                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade" };
+                  const isRight = key === "capacity";
+                  return (
+                    <th
+                      key={key}
+                      className={`cursor-pointer select-none px-3 py-2 hover:text-foreground ${isRight ? "text-right" : "text-left"}`}
+                      onClick={() => toggleSort(key)}
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {labels[key]}
+                        {sortKey === key && <ArrowUpDown className="h-3 w-3 opacity-60" />}
+                      </span>
+                    </th>
+                  );
+                })}
                 <th className="px-3 py-2 text-left">Dono</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {venues.map((v) => (
+              {sortedVenues.map((v) => (
                 <tr
                   key={v.id}
                   className="cursor-pointer border-t transition-colors hover:bg-muted/40"
@@ -208,6 +240,7 @@ export function VenuesPage() {
                       </span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-muted-foreground">{v.venue_type ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
                   </td>
@@ -339,6 +372,7 @@ function VenueCard({
           {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {v.venue_type && <Badge variant="secondary">{v.venue_type}</Badge>}
           {v.capacity && (
             <Badge variant="outline" className="gap-1">
               <Users className="h-3 w-3" />

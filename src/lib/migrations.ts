@@ -1102,6 +1102,46 @@ const MIGRATIONS: Migration[] = [
     description: "owner_role for venues",
     sql: `ALTER TABLE venues ADD COLUMN owner_role TEXT`,
   },
+  {
+    version: 41,
+    description: "venue_type for venues",
+    sql: `ALTER TABLE venues ADD COLUMN venue_type TEXT`,
+  },
+  {
+    version: 42,
+    description: "follower_count and venue_id for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN follower_count INTEGER`,
+  },
+  {
+    version: 43,
+    description: "venue_id link for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL`,
+  },
+  {
+    version: 44,
+    description: "rating_contractor and is_special for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN rating_contractor INTEGER`,
+  },
+  {
+    version: 45,
+    description: "is_special flag for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN is_special INTEGER NOT NULL DEFAULT 0`,
+  },
+  {
+    version: 46,
+    description: "quantity for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1`,
+  },
+  {
+    version: 47,
+    description: "category for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN category TEXT`,
+  },
+  {
+    version: 48,
+    description: "photo_path for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN photo_path TEXT`,
+  },
 ];
 
 

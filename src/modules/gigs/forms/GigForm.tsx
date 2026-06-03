@@ -108,6 +108,8 @@ const EMPTY: FormState = {
   rating_technique_note: null,
   rating_repertoire: null,
   rating_repertoire_note: null,
+  rating_contractor: null,
+  is_special: 0,
   gcal_event_id: null,
   main_goal: null,
   prep_state: null,
@@ -307,10 +309,11 @@ export function GigForm({
           state.payment_status === "50% pago";
         const received =
           state.payment_status === "50% pago" ? cache * 0.5 : cache;
+        const gigName = state.event_name?.trim() || state.venue_name;
         const label =
           state.payment_status === "50% pago"
-            ? `Cachê (50%) — ${state.venue_name}`
-            : `Cachê — ${state.venue_name}`;
+            ? `Cachê (50%): ${gigName} (${state.date})`
+            : `Cachê: ${gigName} (${state.date})`;
         await syncGigPaymentTransaction(
           savedId,
           paid,
@@ -657,6 +660,7 @@ export function GigForm({
             >
               <Textarea
                 rows={3}
+                placeholder="Ex: Mandar release, manter o contato, produzir música, divulgar vídeo"
                 value={state.opportunities ?? ""}
                 onChange={(e) => set("opportunities", e.target.value || null)}
               />

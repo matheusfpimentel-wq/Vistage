@@ -17,7 +17,7 @@ export const SOCIAL_NETWORKS = [
 export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
 
 export type SocialLink = {
-  network: SocialNetwork;
+  network: SocialNetwork | string;
   handle: string;
   url: string;
 };

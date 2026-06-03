@@ -70,6 +70,8 @@ export type Gig = {
   rating_technique_note: string | null;
   rating_repertoire: number | null;
   rating_repertoire_note: string | null;
+  rating_contractor: number | null;
+  is_special: number;
   debrief_completed_at: string | null;
   debrief_pending: number; // 0 ou 1
 
@@ -95,15 +97,16 @@ export type GigCreateInput = Omit<
 
 export type GigUpdateInput = Partial<GigCreateInput> & { id: number };
 
-/** Cálculo da média das 3 avaliações; retorna null se nenhuma foi preenchida. */
+/** Cálculo da média das avaliações. is_special contribui 5 se marcado, 3 se não. */
 export function averageRating(g: Pick<
   Gig,
-  "rating_charisma" | "rating_technique" | "rating_repertoire"
+  "rating_charisma" | "rating_technique" | "rating_repertoire" | "rating_contractor" | "is_special"
 >): number | null {
-  const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire]
+  const specialScore = g.is_special ? 5 : 3;
+  const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire, g.rating_contractor]
     .filter((r): r is number => typeof r === "number");
-  if (ratings.length === 0) return null;
-  return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
+  const allRatings = [...ratings, specialScore];
+  return allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
 }
 
 /** Status badge variant para cada estado. */

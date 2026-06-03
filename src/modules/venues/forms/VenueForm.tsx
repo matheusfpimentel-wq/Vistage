@@ -23,6 +23,7 @@ import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { createVenue, updateVenue } from "../api";
+import { VENUE_TYPES } from "../types";
 import type { Venue, VenueCreateInput } from "../types";
 
 type Props = {
@@ -54,6 +55,7 @@ const EMPTY: VenueCreateInput = {
   address: null,
   founded_year: null,
   capacity: null,
+  venue_type: null,
   owner_name: null,
   owner_role: null,
   owner_phone: null,
@@ -80,6 +82,7 @@ function venueToState(v: Venue): VenueCreateInput {
     address: v.address,
     founded_year: v.founded_year,
     capacity: v.capacity,
+    venue_type: v.venue_type ?? null,
     owner_name: v.owner_name,
     owner_role: v.owner_role,
     owner_phone: v.owner_phone,
@@ -337,16 +340,33 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Button>
           </div>
 
-          <Field label="Capacidade (pessoas)">
-            <Input
-              type="number"
-              min={0}
-              value={state.capacity ?? ""}
-              onChange={(e) =>
-                set("capacity", e.target.value ? Number(e.target.value) : null)
-              }
-            />
-          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Tipo">
+              <Select
+                value={state.venue_type ?? ""}
+                onValueChange={(v) => set("venue_type", (v || null) as import("../types").VenueType | null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VENUE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Capacidade (pessoas)">
+              <Input
+                type="number"
+                min={0}
+                value={state.capacity ?? ""}
+                onChange={(e) =>
+                  set("capacity", e.target.value ? Number(e.target.value) : null)
+                }
+              />
+            </Field>
+          </div>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

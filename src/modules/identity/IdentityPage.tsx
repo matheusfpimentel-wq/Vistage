@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigationGuard } from "@/lib/dirty";
 import {
   ExternalLink,
   Loader2,
@@ -70,7 +71,10 @@ import { cn } from "@/lib/utils";
 
 export function IdentityPage() {
   const [identity, setIdentity] = useState<ArtistIdentity | null>(null);
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useNavigationGuard(dirty);
   const [templates, setTemplates] = useState<ArtistTemplate[]>([]);
   const [flyerGigs, setFlyerGigs] = useState<Gig[]>([]);
   const [tplFormOpen, setTplFormOpen] = useState(false);
@@ -82,6 +86,7 @@ export function IdentityPage() {
       listGigs(),
     ]);
     setIdentity(id);
+    setDirty(false);
     setTemplates(tpls);
     setFlyerGigs(
       allGigs
@@ -107,6 +112,7 @@ export function IdentityPage() {
     value: ArtistIdentity[K]
   ) {
     setIdentity((i) => (i ? { ...i, [key]: value } : i));
+    setDirty(true);
   }
 
   async function handleSave() {
@@ -126,6 +132,7 @@ export function IdentityPage() {
         notes: identity.notes,
       });
       toast.success("Identidade salva");
+      setDirty(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -421,12 +428,31 @@ export function IdentityPage() {
                       key={s.network + idx}
                       className="grid grid-cols-1 gap-2 rounded-md border p-2 sm:grid-cols-[140px_1fr_1fr_auto]"
                     >
-                      <Badge
-                        variant="secondary"
-                        className="justify-start truncate"
-                      >
-                        {s.network}
-                      </Badge>
+                      {s.network === "Outro" ? (
+                        <Input
+                          placeholder="Nome da rede"
+                          className="text-xs"
+                          value=""
+                          onChange={(e) =>
+                            updateSocial(idx, { network: e.target.value || "Outro" })
+                          }
+                        />
+                      ) : !SOCIAL_NETWORKS.includes(s.network as (typeof SOCIAL_NETWORKS)[number]) ? (
+                        <Input
+                          className="text-xs"
+                          value={s.network}
+                          onChange={(e) =>
+                            updateSocial(idx, { network: e.target.value || "Outro" })
+                          }
+                        />
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="justify-start truncate"
+                        >
+                          {s.network}
+                        </Badge>
+                      )}
                       <Input
                         placeholder="@handle"
                         value={s.handle}

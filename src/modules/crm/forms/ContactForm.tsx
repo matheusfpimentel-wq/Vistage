@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +34,7 @@ import {
   type ContactType,
 } from "../types";
 import { createContact, updateContact } from "../api";
+import { listVenues } from "@/modules/venues/api";
 
 type Props = {
   open: boolean;
@@ -55,6 +56,8 @@ const EMPTY: FormState = {
   notes: null,
   rating: null,
   photo_path: null,
+  follower_count: null,
+  venue_id: null,
 };
 
 function contactToState(c: Contact): FormState {
@@ -69,6 +72,8 @@ function contactToState(c: Contact): FormState {
     notes: c.notes,
     rating: c.rating,
     photo_path: c.photo_path,
+    follower_count: c.follower_count ?? null,
+    venue_id: c.venue_id ?? null,
   };
 }
 
@@ -76,6 +81,9 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   const [state, setStateRaw] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
+  const [customTypeInput, setCustomTypeInput] = useState("");
+  const [showCustomTypeInput, setShowCustomTypeInput] = useState(false);
+  const [venues, setVenues] = useState<{ id: number; name: string }[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
@@ -86,10 +94,16 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   };
 
   useEffect(() => {
+    void listVenues({}).then((vs) => setVenues(vs.map((v) => ({ id: v.id, name: v.name }))));
+  }, []);
+
+  useEffect(() => {
     if (!open) return;
     if (contact) setStateRaw(contactToState(contact));
     else setStateRaw(EMPTY);
     setTagInput("");
+    setCustomTypeInput("");
+    setShowCustomTypeInput(false);
     setNameError(null);
     setDirty(false);
   }, [contact, open]);
@@ -101,6 +115,16 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
         ? s.types.filter((t) => t !== type)
         : [...s.types, type],
     }));
+  }
+
+  function addCustomType() {
+    const t = customTypeInput.trim();
+    if (!t) return;
+    if (!state.types.includes(t)) {
+      setState((s) => ({ ...s, types: [...s.types, t] }));
+    }
+    setCustomTypeInput("");
+    setShowCustomTypeInput(false);
   }
 
   function addTag() {
@@ -190,11 +214,46 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                   </button>
                 );
               })}
+              {state.types.filter((t) => !CONTACT_TYPES.includes(t as (typeof CONTACT_TYPES)[number])).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleType(t)}
+                  className="rounded-md border border-primary bg-primary px-2.5 py-1 text-xs text-primary-foreground transition"
+                >
+                  {t} <X className="inline h-3 w-3 ml-1" />
+                </button>
+              ))}
+              {showCustomTypeInput ? (
+                <div className="flex items-center gap-1">
+                  <Input
+                    autoFocus
+                    className="h-7 w-28 text-xs"
+                    placeholder="Novo tipo"
+                    value={customTypeInput}
+                    onChange={(e) => setCustomTypeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); addCustomType(); }
+                      if (e.key === "Escape") { setShowCustomTypeInput(false); setCustomTypeInput(""); }
+                    }}
+                  />
+                  <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={addCustomType}>OK</Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCustomTypeInput(true)}
+                  className="rounded-md border border-dashed border-input bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-accent"
+                >
+                  <Plus className="inline h-3 w-3 mr-0.5" />
+                  Outro
+                </button>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Telefone / WhatsApp">
+            <Field label="Telefone">
               <Input
                 value={state.phone ?? ""}
                 onChange={(e) =>
@@ -211,7 +270,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                 }
               />
             </Field>
-            <Field label="Instagram / redes">
+            <Field label="Redes sociais">
               <Input
                 placeholder="@usuario"
                 value={state.instagram ?? ""}
@@ -229,6 +288,39 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
               />
             </Field>
           </div>
+
+          {(state.types.includes("Dono de Club") || state.types.includes("Gerente de Club")) && venues.length > 0 && (
+            <Field label="Venue vinculado">
+              <Select
+                value={state.venue_id ? String(state.venue_id) : "none"}
+                onValueChange={(v) => setState((s) => ({ ...s, venue_id: v !== "none" ? Number(v) : null }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar venue" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {venues.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+
+          {state.types.includes("Influencer") && (
+            <Field label="Seguidores (total)">
+              <Input
+                type="number"
+                min={0}
+                placeholder="Ex: 50000"
+                value={state.follower_count ?? ""}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, follower_count: e.target.value ? Number(e.target.value) : null }))
+                }
+              />
+            </Field>
+          )}
 
           <div className="space-y-1.5">
             <Label>Tags</Label>

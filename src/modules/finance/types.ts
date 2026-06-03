@@ -83,6 +83,9 @@ export type Equipment = {
   state: EquipmentState;
   location: string | null;
   notes: string | null;
+  quantity: number;
+  category: string | null;
+  photo_path: string | null;
 };
 
 export type EquipmentCreateInput = Omit<Equipment, "id">;

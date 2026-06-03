@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -33,6 +33,7 @@ import {
   type EquipmentState,
 } from "../types";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { AttachmentField } from "@/components/shared/AttachmentField";
 
 const STATE_VARIANT: Record<
   EquipmentState,
@@ -107,9 +108,11 @@ export function EquipmentView() {
                 >
                   <td className="px-3 py-2">
                     <div className="font-medium">{it.name}</div>
-                    {it.notes && (
-                      <div className="text-xs text-muted-foreground">{it.notes}</div>
-                    )}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {it.category && <span>{it.category}</span>}
+                      {it.quantity > 1 && <span>× {it.quantity}</span>}
+                      {it.notes && <span>{it.notes}</span>}
+                    </div>
                   </td>
                   <td className="px-3 py-2">
                     <Badge variant={STATE_VARIANT[it.state]}>{it.state}</Badge>
@@ -158,6 +161,7 @@ export function EquipmentView() {
         onOpenChange={setOpen}
         equipment={editing}
         onSaved={refresh}
+        allItems={items}
       />
     </div>
   );
@@ -168,11 +172,13 @@ function EquipmentForm({
   onOpenChange,
   equipment,
   onSaved,
+  allItems,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   equipment: Equipment | null;
   onSaved: () => void;
+  allItems: Equipment[];
 }) {
   const [state, setState] = useState({
     name: "",
@@ -181,7 +187,15 @@ function EquipmentForm({
     eq_state: "Em uso" as EquipmentState,
     location: "",
     notes: "",
+    quantity: "1",
+    category: "",
+    photo_path: null as string | null,
   });
+
+  const categorySuggestions = useMemo(
+    () => Array.from(new Set(allItems.map((i) => i.category).filter(Boolean) as string[])),
+    [allItems]
+  );
 
   useEffect(() => {
     if (equipment) {
@@ -192,6 +206,9 @@ function EquipmentForm({
         eq_state: equipment.state,
         location: equipment.location ?? "",
         notes: equipment.notes ?? "",
+        quantity: String(equipment.quantity ?? 1),
+        category: equipment.category ?? "",
+        photo_path: equipment.photo_path ?? null,
       });
     } else {
       setState({
@@ -201,6 +218,9 @@ function EquipmentForm({
         eq_state: "Em uso",
         location: "",
         notes: "",
+        quantity: "1",
+        category: "",
+        photo_path: null,
       });
     }
   }, [equipment, open]);
@@ -213,13 +233,14 @@ function EquipmentForm({
     const payload = {
       name: state.name.trim(),
       purchase_date: state.purchase_date || null,
-      purchase_value: state.purchase_value
-        ? parseFloat(state.purchase_value)
-        : null,
+      purchase_value: state.purchase_value ? parseFloat(state.purchase_value) : null,
       state: state.eq_state,
       location: state.location || null,
       notes: state.notes || null,
       transaction_id: equipment?.transaction_id ?? null,
+      quantity: parseInt(state.quantity) || 1,
+      category: state.category || null,
+      photo_path: state.photo_path,
     };
     try {
       if (equipment) await updateEquipment({ id: equipment.id, ...payload });
@@ -246,6 +267,36 @@ function EquipmentForm({
               onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
             />
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Categoria</Label>
+              <Input
+                list="eq-categories"
+                placeholder="Ex: Controladora, Caixa, Cabo…"
+                value={state.category}
+                onChange={(e) => setState((s) => ({ ...s, category: e.target.value }))}
+              />
+              <datalist id="eq-categories">
+                {categorySuggestions.map((c) => <option key={c} value={c} />)}
+              </datalist>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Quantidade</Label>
+              <Input
+                type="number"
+                min={1}
+                value={state.quantity}
+                onChange={(e) => setState((s) => ({ ...s, quantity: e.target.value }))}
+              />
+            </div>
+          </div>
+          <AttachmentField
+            label="Foto"
+            subdir="equipment"
+            variant="image"
+            value={state.photo_path}
+            onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
+          />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Data de compra</Label>

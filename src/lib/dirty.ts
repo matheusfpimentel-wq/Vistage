@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { useBlocker } from "react-router-dom";
 import { confirmDialog } from "@/components/ui/confirm";
 
 /**
@@ -40,6 +41,31 @@ export function useUnsavedConfirm(isDirty: boolean) {
       if (ok) andDo?.();
     });
   }, []);
+}
+
+/**
+ * Bloqueia a navegação do React Router enquanto há alterações não salvas.
+ * Usa `useBlocker` do react-router-dom. Mostra o `confirmDialog` antes de prosseguir.
+ */
+export function useNavigationGuard(isDirty: boolean) {
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    void confirmDialog({
+      title: "Descartar alterações?",
+      description: "Você tem alterações não salvas. Sair mesmo assim?",
+      confirmLabel: "Descartar",
+      cancelLabel: "Continuar editando",
+      destructive: true,
+    }).then((ok) => {
+      if (ok) blocker.proceed();
+      else blocker.reset();
+    });
+  }, [blocker]);
 }
 
 /**

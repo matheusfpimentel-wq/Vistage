@@ -30,7 +30,7 @@ export function prevStage(stage: Stage): Stage | null {
 
 /** Cor (classe Tailwind) por stage — usada nos badges e colunas do kanban. */
 export const STAGE_COLOR: Record<Stage, string> = {
-  Ideação: "bg-slate-500/20 text-slate-300",
+  Ideação: "bg-slate-500/20 text-slate-500 dark:text-slate-300",
   Composição: "bg-violet-500/20 text-violet-300",
   Produção: "bg-primary/20 text-primary",
   Mix: "bg-sky-500/20 text-sky-300",

@@ -66,10 +66,10 @@ export function CsvImportExport() {
     }
   }
 
-  async function doImport(mode: "replace" | "append") {
+  async function doImport() {
     setConfirmOpen(false);
     try {
-      const res = await importCsvIntoTable(selected.table, pendingData, mode);
+      const res = await importCsvIntoTable(selected.table, pendingData, "append");
       if (res.errors.length > 0) {
         // mostra o primeiro erro real pra dar pra depurar (coluna faltando,
         // constraint, data inválida etc.)
@@ -159,21 +159,15 @@ export function CsvImportExport() {
             <DialogTitle>Importar CSV</DialogTitle>
             <DialogDescription>
               Importar {rowCount} linha{rowCount !== 1 ? "s" : ""} para{" "}
-              <strong>{selected.label}</strong>. Como deseja proceder?
+              <strong>{selected.label}</strong>. Os registros serão adicionados sem substituir os existentes.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              variant="destructive"
-              onClick={() => void doImport("replace")}
-            >
-              Substituir tudo
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); setImporting(false); setPendingData([]); }}>
+              Cancelar
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => void doImport("append")}
-            >
-              Apenas adicionar
+            <Button onClick={() => void doImport()}>
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
