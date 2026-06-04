@@ -1152,6 +1152,26 @@ const MIGRATIONS: Migration[] = [
     description: "priority for venues (Alta/Media/Baixa)",
     sql: `ALTER TABLE venues ADD COLUMN priority TEXT`,
   },
+  {
+    version: 51,
+    description: "gig_equipment JSON array of equipment IDs",
+    sql: `ALTER TABLE gigs ADD COLUMN gig_equipment TEXT NOT NULL DEFAULT '[]'`,
+  },
+  {
+    version: 52,
+    description: "is_closed flag for venues",
+    sql: `ALTER TABLE venues ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0`,
+  },
+  {
+    version: 53,
+    description: "event_category for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN event_category TEXT`,
+  },
+  {
+    version: 54,
+    description: "company field for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN company TEXT`,
+  },
 ];
 
 

@@ -79,8 +79,11 @@ export type Gig = {
   main_goal: string | null;
   /** JSON string com `{ [itemId: string]: 1 }` para itens marcados. */
   prep_state: string | null;
+  /** JSON array com IDs de equipamentos a levar. */
+  gig_equipment: string;  // JSON array, parsed to number[]
   /** ID da tarefa auto-criada a partir do objetivo principal. */
   main_goal_task_id: number | null;
+  event_category: string | null;
   prep_task_id?: number | null;
   created_at: string;
   updated_at: string;
