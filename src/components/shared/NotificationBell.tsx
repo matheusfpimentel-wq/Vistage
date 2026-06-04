@@ -1,49 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Bell, BookOpen, Clock, DollarSign, Flame, Heart, Music, PartyPopper, Star, Target } from "lucide-react";
+import { Bell } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { loadWeekStats, type WeekStats } from "@/modules/revisao/api";
+import { loadWeekStats } from "@/modules/revisao/api";
+import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
+import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
 
-type Alert = { icon: React.ReactNode; label: string; to: string; critical: boolean };
-
-function buildAlerts(stats: WeekStats): Alert[] {
-  const alerts: Alert[] = [];
-
-  if (stats.tasksOverdue > 0)
-    alerts.push({ icon: <Clock className="h-3.5 w-3.5 text-red-500" />, label: `${stats.tasksOverdue} tarefa${stats.tasksOverdue > 1 ? "s" : ""} atrasada${stats.tasksOverdue > 1 ? "s" : ""}`, to: "/tarefas", critical: true });
-  if (stats.pendingDebriefs > 0)
-    alerts.push({ icon: <Star className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.pendingDebriefs} debrief${stats.pendingDebriefs > 1 ? "s" : ""} de GIG pendente${stats.pendingDebriefs > 1 ? "s" : ""}`, to: "/gigs", critical: true });
-  if (stats.hotIdeasStuck > 0)
-    alerts.push({ icon: <Flame className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.hotIdeasStuck} ideia${stats.hotIdeasStuck > 1 ? "s" : ""} quente${stats.hotIdeasStuck > 1 ? "s" : ""} parada${stats.hotIdeasStuck > 1 ? "s" : ""} em Embrião +15d`, to: "/ideias", critical: true });
-  if (stats.stalledTracks > 0)
-    alerts.push({ icon: <Music className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.stalledTracks} track${stats.stalledTracks > 1 ? "s" : ""} sem movimento há +15 dias`, to: "/musica", critical: false });
-  if (stats.stalledParties > 0)
-    alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.stalledParties} festa${stats.stalledParties > 1 ? "s" : ""} sem movimento há +15 dias`, to: "/festas", critical: false });
-  if (stats.stalledContent > 0)
-    alerts.push({ icon: <Clock className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.stalledContent} conteúdo${stats.stalledContent > 1 ? "s" : ""} sem movimento há +15 dias`, to: "/conteudo", critical: false });
-  if (stats.undatedParties > 0)
-    alerts.push({ icon: <PartyPopper className="h-3.5 w-3.5 text-muted-foreground" />, label: `${stats.undatedParties} festa${stats.undatedParties > 1 ? "s" : ""} sem data definida`, to: "/festas", critical: false });
-  if (stats.noUpcomingGigs)
-    alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma GIG marcada à frente", to: "/gigs", critical: false });
-  if (stats.noTracksInProduction)
-    alerts.push({ icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />, label: "Nenhuma música em produção", to: "/musica", critical: false });
-  if (stats.unpreparedClasses > 0)
-    alerts.push({ icon: <BookOpen className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.unpreparedClasses} aula${stats.unpreparedClasses > 1 ? "s" : ""} não preparada${stats.unpreparedClasses > 1 ? "s" : ""} em breve`, to: "/aulas", critical: false });
-  if (stats.superfasSemInteracao > 0)
-    alerts.push({ icon: <Heart className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.superfasSemInteracao} superfã${stats.superfasSemInteracao > 1 ? "s" : ""} sem interação nos últimos 30 dias`, to: "/fas", critical: false });
-  if (stats.gigsUnprepared > 0)
-    alerts.push({ icon: <Music className="h-3.5 w-3.5 text-red-500" />, label: `${stats.gigsUnprepared} GIG${stats.gigsUnprepared > 1 ? "s" : ""} em 72h sem prep musical completa`, to: "/gigs", critical: true });
-  if (stats.okrsLagging > 0)
-    alerts.push({ icon: <Target className="h-3.5 w-3.5 text-amber-500" />, label: `${stats.okrsLagging} OKR${stats.okrsLagging > 1 ? "s" : ""} abaixo de 20% com menos de 30 dias no quarter`, to: "/objetivos", critical: false });
-  if (stats.gigsUnpaidAfter48h > 0)
-    alerts.push({ icon: <DollarSign className="h-3.5 w-3.5 text-red-500" />, label: `${stats.gigsUnpaidAfter48h} GIG${stats.gigsUnpaidAfter48h > 1 ? "s" : ""} concluída${stats.gigsUnpaidAfter48h > 1 ? "s" : ""} há +48h com cachê não recebido`, to: "/gigs", critical: true });
-
-  return alerts;
-}
-
 export function NotificationBell() {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,7 +19,7 @@ export function NotificationBell() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(buildAlerts(stats));
+        setAlerts(computeAlerts(stats));
       } catch {
         // silently ignore
       }
@@ -126,9 +91,9 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto">
-              {alerts.map((a, i) => (
+              {alerts.map((a) => (
                 <Link
-                  key={i}
+                  key={a.key}
                   to={a.to}
                   onClick={() => setOpen(false)}
                   className={cn(
@@ -136,7 +101,9 @@ export function NotificationBell() {
                     a.critical && "bg-red-500/5"
                   )}
                 >
-                  <span className="shrink-0">{a.icon}</span>
+                  <span className="shrink-0">
+                    <AlertIcon icon={a.icon} critical={a.critical} />
+                  </span>
                   <span className={cn("flex-1 leading-tight", a.critical && "font-medium")}>
                     {a.label}
                   </span>

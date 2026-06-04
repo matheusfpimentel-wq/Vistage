@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeftOpen, Search, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { MobileTabBar } from "./MobileTabBar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Toaster } from "@/components/ui/toaster";
@@ -12,6 +13,7 @@ import { triggerQuickCapture } from "@/lib/shortcuts";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
+  "/alertas": "Alertas",
   "/gigs": "GIGs",
   "/venues": "Venues",
   "/crm": "CRM",
@@ -34,6 +36,12 @@ const TITLES: Record<string, string> = {
 export function AppLayout() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Fecha o drawer mobile sempre que a rota muda.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   const title =
     TITLES[location.pathname] ??
@@ -46,17 +54,42 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <div className={cn("transition-all duration-200", sidebarCollapsed ? "w-0 overflow-hidden" : "")}>
+      {/* Sidebar fixa — só no desktop */}
+      <div className={cn("hidden md:block transition-all duration-200", sidebarCollapsed ? "w-0 overflow-hidden" : "")}>
         <Sidebar onCollapse={() => setSidebarCollapsed(true)} />
       </div>
+
+      {/* Drawer mobile — overlay + sidebar deslizante */}
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute left-0 top-0 h-full">
+            <Sidebar onNavigate={() => setMobileNavOpen(false)} />
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-between border-b px-6">
+        <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
           <div className="flex items-center gap-2">
+            {/* Hamburguer — só no mobile */}
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground md:hidden"
+              aria-label="Abrir menu"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
             {sidebarCollapsed && (
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                className="hidden md:flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
                 aria-label="Expandir painel lateral"
                 title="Expandir painel lateral"
               >
@@ -110,9 +143,11 @@ export function AppLayout() {
             <ThemeToggle />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-6">
+        {/* pb-20 no mobile reserva espaço para a barra inferior fixa */}
+        <main className="flex-1 overflow-auto p-3 pb-20 sm:p-6 md:pb-6">
           <Outlet />
         </main>
+        <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} />
       </div>
       <Toaster />
     </div>

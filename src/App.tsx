@@ -55,6 +55,9 @@ const PartiesPage = lazy(() =>
 const InsightsPage = lazy(() =>
   import("@/modules/insights/InsightsPage").then((m) => ({ default: m.InsightsPage }))
 );
+const AlertsPage = lazy(() =>
+  import("@/modules/revisao/AlertsPage").then((m) => ({ default: m.AlertsPage }))
+);
 
 const FocoPage = lazy(() =>
   import("@/modules/foco/FocoPage").then((m) => ({ default: m.FocoPage }))
@@ -198,6 +201,7 @@ function RoutedApp() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="alertas" element={<AlertsPage />} />
             <Route path="gigs" element={<GigsPage />} />
             <Route path="venues" element={<VenuesPage />} />
             <Route path="crm" element={<CrmPage />} />

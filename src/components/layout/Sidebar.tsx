@@ -9,7 +9,14 @@ import {
   type NavItem,
 } from "@/lib/nav";
 
-export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
+export function Sidebar({
+  onCollapse,
+  onNavigate,
+}: {
+  onCollapse?: () => void;
+  /** Chamado ao clicar num item — usado para fechar o drawer no mobile. */
+  onNavigate?: () => void;
+}) {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
 
   useEffect(() => {
@@ -62,6 +69,7 @@ export function Sidebar({ onCollapse }: { onCollapse?: () => void }) {
             key={to}
             to={to}
             end={end}
+            onClick={onNavigate}
             className={({ isActive }) =>
               cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
