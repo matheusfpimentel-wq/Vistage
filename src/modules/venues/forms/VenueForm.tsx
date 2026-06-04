@@ -74,6 +74,7 @@ const EMPTY: VenueCreateInput = {
   dominant_genre: null,
   rider_equipment: null,
   regular_audience: null,
+  is_closed: 0,
 };
 
 function venueToState(v: Venue): VenueCreateInput {
@@ -103,6 +104,7 @@ function venueToState(v: Venue): VenueCreateInput {
     dominant_genre: v.dominant_genre,
     rider_equipment: v.rider_equipment ?? null,
     regular_audience: v.regular_audience,
+    is_closed: v.is_closed ?? 0,
   };
 }
 
@@ -379,6 +381,16 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
               onChange={(v) => set("priority", v)}
             />
           </Field>
+
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={(state.is_closed ?? 0) === 1}
+              onChange={(e) => set("is_closed", e.target.checked ? 1 : 0)}
+              className="h-4 w-4"
+            />
+            <span className="text-sm">Venue fechado</span>
+          </label>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

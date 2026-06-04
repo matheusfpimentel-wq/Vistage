@@ -38,8 +38,8 @@ type StatusFilter = GigStatus | "Todas";
 
 export function GigsPage() {
   const [gigs, setGigs] = useState<Gig[]>([]);
-  const [filters, setFilters] = useState<{ status: StatusFilter; search: string }>(
-    { status: "Todas", search: "" }
+  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string }>(
+    { status: "Todas", search: "", eventCategory: "" }
   );
 
   const [formOpen, setFormOpen] = useState(false);
@@ -52,7 +52,11 @@ export function GigsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const queryFilters: GigFilters = useMemo(
-    () => ({ status: filters.status, search: filters.search }),
+    () => ({
+      status: filters.status,
+      search: filters.search,
+      eventCategory: filters.eventCategory || undefined,
+    }),
     [filters]
   );
 
@@ -177,6 +181,19 @@ export function GigsPage() {
                   {s}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.eventCategory}
+            onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue placeholder="Todas as categorias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Todas as categorias</SelectItem>
+              <SelectItem value="Evento Social">Evento Social</SelectItem>
+              <SelectItem value="Festa">Festa</SelectItem>
             </SelectContent>
           </Select>
         </div>

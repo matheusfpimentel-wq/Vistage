@@ -58,6 +58,7 @@ const EMPTY: FormState = {
   photo_path: null,
   follower_count: null,
   venue_id: null,
+  company: null,
 };
 
 function contactToState(c: Contact): FormState {
@@ -74,6 +75,7 @@ function contactToState(c: Contact): FormState {
     photo_path: c.photo_path,
     follower_count: c.follower_count ?? null,
     venue_id: c.venue_id ?? null,
+    company: c.company ?? null,
   };
 }
 
@@ -179,18 +181,28 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
             variant="image"
           />
 
-          <div className="space-y-1.5">
-            <Label>
-              Nome <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              value={state.name}
-              onChange={(e) => {
-                setState((s) => ({ ...s, name: e.target.value }));
-                if (nameError) setNameError(null);
-              }}
-            />
-            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>
+                Nome <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                value={state.name}
+                onChange={(e) => {
+                  setState((s) => ({ ...s, name: e.target.value }));
+                  if (nameError) setNameError(null);
+                }}
+              />
+              {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Empresa</Label>
+              <Input
+                placeholder="Nome da empresa / produtora…"
+                value={state.company ?? ""}
+                onChange={(e) => setState((s) => ({ ...s, company: e.target.value || null }))}
+              />
+            </div>
           </div>
 
           <div className="space-y-1.5">

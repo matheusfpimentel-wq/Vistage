@@ -470,6 +470,8 @@ export async function syncAll(): Promise<{
       gcal_event_id: ev.id,
       main_goal: null,
       prep_state: null,
+      gig_equipment: "[]",
+      event_category: null,
       main_goal_task_id: null,
       venue_id: null,
       event_name: ev.summary ?? null,

@@ -58,6 +58,10 @@ const GIG_COLUMNS = [
   "prep_state",
   "main_goal_task_id",
   "prep_task_id",
+  "gig_equipment",
+  "event_category",
+  "rating_contractor",
+  "is_special",
   "created_at",
   "updated_at",
 ] as const;
@@ -70,6 +74,7 @@ export type GigFilters = {
   toDate?: string;
   search?: string;
   promoterContactId?: number;
+  eventCategory?: string;
 };
 
 export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
@@ -93,12 +98,16 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
     params.push(filters.promoterContactId);
     where.push(`promoter_contact_id = $${params.length}`);
   }
+  if (filters.eventCategory && filters.eventCategory.trim().length > 0) {
+    params.push(filters.eventCategory);
+    where.push(`event_category = $${params.length}`);
+  }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
-    params.push(q, q, q);
+    params.push(q, q, q, q);
     const i = params.length;
     where.push(
-      `(venue_name LIKE $${i - 2} OR venue_city LIKE $${i - 1} OR briefing LIKE $${i})`
+      `(venue_name LIKE $${i - 3} OR venue_city LIKE $${i - 2} OR briefing LIKE $${i - 1} OR event_name LIKE $${i})`
     );
   }
 

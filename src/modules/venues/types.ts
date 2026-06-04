@@ -35,6 +35,7 @@ export type Venue = {
   lat: number | null;
   lng: number | null;
   geocoded_at: string | null;
+  is_closed: number;
   created_at: string;
   updated_at: string;
 };

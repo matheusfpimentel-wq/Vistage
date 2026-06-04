@@ -61,6 +61,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
         website: null,
         notes: null,
         photo_path: null,
+        is_closed: 0,
       });
       toast.success("Venue criado");
       setDirty(false);

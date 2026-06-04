@@ -76,7 +76,7 @@ function periodOptions(): { value: string; label: string }[] {
     { value: "last12", label: "Últimos 12 meses" },
     { value: "thismonth", label: "Este mês" },
     { value: "thisyear", label: "Este ano" },
-    { value: "all", label: "Todo o período" },
+    { value: "all", label: "Total" },
     { value: "custom", label: "Personalizado…" },
   ];
   const d = new Date();
@@ -109,7 +109,7 @@ export function FinancePage() {
     kind: "all",
     status: "all",
     categoryId: "all",
-    period: "last12",
+    period: "all",
     search: "",
     customFrom: "",
     customTo: "",

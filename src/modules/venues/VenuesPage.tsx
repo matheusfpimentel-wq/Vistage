@@ -411,7 +411,10 @@ function VenueCard({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      className={cn(
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md",
+        v.is_closed === 1 && "opacity-50"
+      )}
     >
       {v.priority && (
         <div className="absolute left-2 top-2 z-10">
@@ -464,7 +467,10 @@ function VenueCard({
         )}
       </div>
       <div className="space-y-1.5 p-3">
-        <div className="font-medium leading-tight">{v.name}</div>
+        <div className="flex items-center gap-2 leading-tight">
+          <span className="font-medium">{v.name}</span>
+          {v.is_closed === 1 && <Badge variant="destructive" className="text-xs">Fechado</Badge>}
+        </div>
         <div className="text-xs text-muted-foreground">
           {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
         </div>

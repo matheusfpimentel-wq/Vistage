@@ -29,14 +29,14 @@ import { ptBR } from "date-fns/locale";
 const INCOME_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5", "#059669", "#047857"];
 const EXPENSE_COLORS = ["#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#dc2626", "#b91c1c"];
 
-type Props = { refreshKey: number };
+type Props = { refreshKey: number; period?: string };
 
-export function FinanceDashboard({ refreshKey }: Props) {
+export function FinanceDashboard({ refreshKey, period }: Props) {
   const [data, setData] = useState<FinanceInsights | null>(null);
 
   useEffect(() => {
-    void loadFinanceInsights().then(setData);
-  }, [refreshKey]);
+    void loadFinanceInsights(period).then(setData);
+  }, [refreshKey, period]);
 
   if (!data) {
     return <div className="text-sm text-muted-foreground">Carregando dashboard…</div>;

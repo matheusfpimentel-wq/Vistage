@@ -29,7 +29,8 @@ import {
   type GigCreateInput,
 } from "../types";
 import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
-import { syncGigPaymentTransaction } from "@/modules/finance/api";
+import { syncGigPaymentTransaction, listEquipment } from "@/modules/finance/api";
+import type { Equipment } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
@@ -113,7 +114,9 @@ const EMPTY: FormState = {
   gcal_event_id: null,
   main_goal: null,
   prep_state: null,
+  gig_equipment: "[]",
   main_goal_task_id: null,
+  event_category: null,
   prep_task_id: null,
   prep: {},
 };
@@ -148,6 +151,7 @@ export function GigForm({
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [setListTrackIds, setSetListTrackIds] = useState<number[]>([]);
   const [allTracks, setAllTracks] = useState<{ id: number; title: string }[]>([]);
+  const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -167,6 +171,7 @@ export function GigForm({
     if (!open) return;
     void listContacts().then(setContacts);
     void listVenues().then(setVenues);
+    void listEquipment().then(setAllEquipment);
     void listTracks().then((ts) =>
       setAllTracks(
         ts.map((t) => ({
@@ -357,16 +362,33 @@ export function GigForm({
         <div className="space-y-4">
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
-            <Field
-              label="Nome da festa / evento"
-              hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
-            >
-              <Input
-                placeholder='Ex: "Festa de aniversário do clube"'
-                value={state.event_name ?? ""}
-                onChange={(e) => set("event_name", e.target.value || null)}
-              />
-            </Field>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                label="Nome da festa / evento"
+                hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
+              >
+                <Input
+                  placeholder='Ex: "Festa de aniversário do clube"'
+                  value={state.event_name ?? ""}
+                  onChange={(e) => set("event_name", e.target.value || null)}
+                />
+              </Field>
+              <Field label="Categoria do evento" hint="Tipo de evento para filtrar nas GIGs.">
+                <Select
+                  value={state.event_category ?? ""}
+                  onValueChange={(v) => set("event_category", v || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Padrão (GIG)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Padrão (GIG)</SelectItem>
+                    <SelectItem value="Evento Social">Evento Social</SelectItem>
+                    <SelectItem value="Festa">Festa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
 
             <Field label="Status">
               <Select
@@ -467,6 +489,14 @@ export function GigForm({
                   }}
                 />
               )}
+            </Field>
+
+            <Field label="Cidade" hint="Cidade do venue. Preenchida automaticamente ao selecionar um venue.">
+              <Input
+                placeholder="Ex: São Paulo"
+                value={state.venue_city ?? ""}
+                onChange={(e) => set("venue_city", e.target.value || null)}
+              />
             </Field>
 
             <Field label="Contratante">
@@ -699,6 +729,45 @@ export function GigForm({
                 />
               </Field>
             </div>
+
+            {allEquipment.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm">Patrimônio para levar</Label>
+                <p className="text-xs text-muted-foreground">Marque os equipamentos do patrimônio que vai usar nessa GIG.</p>
+                {Array.from(new Set(allEquipment.map((e) => e.category ?? "Sem categoria"))).map((cat) => {
+                  const items = allEquipment.filter((e) => (e.category ?? "Sem categoria") === cat);
+                  const selectedIds: number[] = (() => {
+                    try { return JSON.parse(state.gig_equipment) as number[]; } catch { return []; }
+                  })();
+                  return (
+                    <div key={cat} className="space-y-1">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{cat}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {items.map((eq) => {
+                          const checked = selectedIds.includes(eq.id);
+                          return (
+                            <label key={eq.id} className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition hover:bg-accent">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  const next = checked
+                                    ? selectedIds.filter((x) => x !== eq.id)
+                                    : [...selectedIds, eq.id];
+                                  set("gig_equipment", JSON.stringify(next));
+                                }}
+                                className="h-3.5 w-3.5"
+                              />
+                              {eq.name}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <Field label="Observações">
               <Textarea

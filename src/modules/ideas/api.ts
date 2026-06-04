@@ -116,18 +116,21 @@ export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
     `UPDATE ideas SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
-  if (input.maturation === "Pronta") {
-    const rows = await db.select<{ task_id: number | null }[]>(
-      "SELECT task_id FROM ideas WHERE id = $1", [id]
-    );
-    const taskId = rows[0]?.task_id;
-    if (taskId) {
-      try {
-        const { updateTask } = await import("@/modules/tasks/api");
-        await updateTask({ id: taskId, status: "Concluída" });
-      } catch {
-        /* não interrompe */
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM ideas WHERE id = $1", [id]
+  );
+  const taskId = rows[0]?.task_id;
+  if (taskId) {
+    try {
+      const { updateTask } = await import("@/modules/tasks/api");
+      const taskUpdate: Parameters<typeof updateTask>[0] = { id: taskId };
+      if (input.title) taskUpdate.title = `Ideia: ${input.title}`;
+      if (input.maturation === "Pronta") taskUpdate.status = "Concluída";
+      if (Object.keys(taskUpdate).length > 1) {
+        await updateTask(taskUpdate);
       }
+    } catch {
+      /* não interrompe */
     }
   }
   emitDataChanged();

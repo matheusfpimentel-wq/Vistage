@@ -471,7 +471,29 @@ function monthsAgo(n: number): string {
   return d.toISOString().slice(0, 7);
 }
 
-export async function loadFinanceInsights(): Promise<FinanceInsights> {
+function periodToDateFilter(period?: string): { fromDate?: string; toDate?: string } {
+  if (!period || period === "all") return {};
+  const now = new Date();
+  if (period === "last12") {
+    const d = new Date();
+    d.setDate(d.getDate() - 365);
+    return { fromDate: d.toISOString().slice(0, 10) };
+  }
+  if (period === "thismonth") {
+    const m = now.toISOString().slice(0, 7);
+    return { fromDate: `${m}-01`, toDate: `${m}-31` };
+  }
+  if (period === "thisyear") {
+    const y = now.toISOString().slice(0, 4);
+    return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
+  }
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    return { fromDate: `${period}-01`, toDate: `${period}-31` };
+  }
+  return {};
+}
+
+export async function loadFinanceInsights(period?: string): Promise<FinanceInsights> {
   const db = getDb();
   const month = currentMonth();
   const year = currentYear();
@@ -481,6 +503,15 @@ export async function loadFinanceInsights(): Promise<FinanceInsights> {
   const yearEnd = `${year}-12-31`;
   const today = isoToday();
   const in30 = isoNDaysFromNow(30);
+
+  const pf = periodToDateFilter(period);
+  const periodWhere = pf.fromDate && pf.toDate
+    ? `date BETWEEN '${pf.fromDate}' AND '${pf.toDate}'`
+    : pf.fromDate
+    ? `date >= '${pf.fromDate}'`
+    : pf.toDate
+    ? `date <= '${pf.toDate}'`
+    : null;
 
   // KPIs do mês
   const monthRows = await db.select<{ kind: string; total: number }[]>(
@@ -521,24 +552,26 @@ export async function loadFinanceInsights(): Promise<FinanceInsights> {
     return { month: m, income: i, expense: e, balance: i - e };
   });
 
-  // Por categoria — mês atual
+  // Por categoria — filtrado pelo período selecionado
+  const catWhere = periodWhere ? `t.kind = 'income' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'income' AND t.date BETWEEN $1 AND $2`;
+  const catExpWhere = periodWhere ? `t.kind = 'expense' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'expense' AND t.date BETWEEN $1 AND $2`;
   const incomeByCat = await db.select<{ name: string; value: number }[]>(
     `SELECT COALESCE(c.name, 'Sem categoria') as name, COALESCE(SUM(t.amount), 0) as value
        FROM finance_transactions t
        LEFT JOIN finance_categories c ON c.id = t.category_id
-      WHERE t.kind = 'income' AND t.date BETWEEN $1 AND $2
+      WHERE ${catWhere}
       GROUP BY t.category_id
       ORDER BY value DESC`,
-    [monthStart, monthEnd]
+    periodWhere ? [] : [monthStart, monthEnd]
   );
   const expenseByCat = await db.select<{ name: string; value: number }[]>(
     `SELECT COALESCE(c.name, 'Sem categoria') as name, COALESCE(SUM(t.amount), 0) as value
        FROM finance_transactions t
        LEFT JOIN finance_categories c ON c.id = t.category_id
-      WHERE t.kind = 'expense' AND t.date BETWEEN $1 AND $2
+      WHERE ${catExpWhere}
       GROUP BY t.category_id
       ORDER BY value DESC`,
-    [monthStart, monthEnd]
+    periodWhere ? [] : [monthStart, monthEnd]
   );
 
   // Top GIGs (todas as receitas vinculadas a GIG)

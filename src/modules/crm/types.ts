@@ -44,6 +44,7 @@ export type Contact = {
   photo_path: string | null;
   follower_count: number | null;
   venue_id: number | null;
+  company: string | null;
   created_at: string;
   updated_at: string;
 };

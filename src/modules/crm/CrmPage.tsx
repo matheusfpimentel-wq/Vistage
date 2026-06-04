@@ -369,7 +369,7 @@ export function CrmPage() {
 
 function PriorityBadge({ rating }: { rating: number | null }) {
   const p = ratingToPriority(rating);
-  if (!p) return <span className="text-xs text-muted-foreground">—</span>;
+  if (!p) return null;
   const variant =
     p === "Alta" ? "destructive" : p === "Média" ? "warning" : "secondary";
   return <Badge variant={variant}>{p}</Badge>;
@@ -450,6 +450,7 @@ function ContactCard({
           <span className="truncate font-medium leading-tight">{c.name}</span>
           <PriorityBadge rating={c.rating} />
         </div>
+        {c.company && <div className="truncate text-xs text-muted-foreground">{c.company}</div>}
         <TypeBadges types={c.types} />
         <div className="flex items-center justify-between text-[11px] text-muted-foreground">
           <span className="truncate">{c.city ?? "—"}</span>
