@@ -141,6 +141,24 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     `UPDATE gigs SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sync prep task due_date when gig date changes
+  if ("date" in rest) {
+    const rows = await db.select<{ prep_task_id: number | null }[]>(
+      "SELECT prep_task_id FROM gigs WHERE id = $1", [id]
+    );
+    const prepTaskId = rows[0]?.prep_task_id;
+    if (prepTaskId) {
+      const { updateTask } = await import("@/modules/tasks/api");
+      const gigDate = rest.date as string | null;
+      let prepDue: string | null = gigDate;
+      if (gigDate) {
+        const d = new Date(`${gigDate}T00:00:00`);
+        d.setDate(d.getDate() - 2);
+        prepDue = d.toISOString().slice(0, 10);
+      }
+      await updateTask({ id: prepTaskId, due_date: prepDue });
+    }
+  }
   emitDataChanged();
 }
 

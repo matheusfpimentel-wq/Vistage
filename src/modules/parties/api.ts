@@ -119,6 +119,24 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
     `UPDATE parties SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sync global_task due_date for auto-generated party tasks when party date changes
+  if ("date" in rest) {
+    const newDate = rest.date as string | null;
+    const taskRows = await db.select<{ global_task_id: number | null; due_date: string | null }[]>(
+      "SELECT global_task_id, due_date FROM party_tasks WHERE party_id = $1 AND global_task_id IS NOT NULL",
+      [id]
+    );
+    if (taskRows.length > 0) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        for (const row of taskRows) {
+          if (row.global_task_id) {
+            await updateTask({ id: row.global_task_id, due_date: newDate });
+          }
+        }
+      } catch { /* não interrompe */ }
+    }
+  }
   emitDataChanged();
 }
 

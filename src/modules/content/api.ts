@@ -118,6 +118,19 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
     `UPDATE content SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sync task due_date when content due_date changes
+  if ("due_date" in rest) {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM content WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: taskId, due_date: rest.due_date as string | null });
+      } catch { /* não interrompe */ }
+    }
+  }
   emitDataChanged();
 }
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { LayoutGrid, List, Pencil, Plus, Search, Trash2, User, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, LayoutGrid, List, Pencil, Plus, Search, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,6 +29,15 @@ import { cn } from "@/lib/utils";
 
 type TypeFilter = ContactType | "Todos";
 type ViewMode = "cards" | "list";
+type SortKey = "nome" | "tipo" | "cidade" | "ultimo_contato" | "prioridade";
+type SortDir = "asc" | "desc";
+
+function priorityWeight(rating: number | null): number {
+  if (rating === null) return -1;
+  if (rating >= 4) return 2;
+  if (rating >= 2) return 1;
+  return 0;
+}
 
 export function CrmPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -37,6 +46,8 @@ export function CrmPage() {
     city: string;
     search: string;
   }>({ type: "Todos", city: "", search: "" });
+  const [sortKey, setSortKey] = useState<SortKey>("nome");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -65,6 +76,29 @@ export function CrmPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...contacts].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "nome") cmp = a.name.localeCompare(b.name, "pt");
+      else if (sortKey === "tipo") cmp = (a.types[0] ?? "").localeCompare(b.types[0] ?? "", "pt");
+      else if (sortKey === "cidade") cmp = (a.city ?? "").localeCompare(b.city ?? "", "pt");
+      else if (sortKey === "ultimo_contato") {
+        const at = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
+        const bt = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
+        cmp = at - bt;
+      } else if (sortKey === "prioridade") {
+        cmp = priorityWeight(a.rating) - priorityWeight(b.rating);
+      }
+      return cmp * dir;
+    });
+  }, [contacts, sortKey, sortDir]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -181,14 +215,14 @@ export function CrmPage() {
         </div>
       </div>
 
-      {contacts.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Users className="mx-auto mb-2 h-8 w-8 opacity-50" />
           Nenhum contato encontrado.
         </div>
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {contacts.map((c) => (
+          {sorted.map((c) => (
             <ContactCard
               key={c.id}
               contact={c}
@@ -203,17 +237,23 @@ export function CrmPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Tipo</th>
-                <th className="px-3 py-2 text-left">Cidade</th>
+                {(["nome", "tipo", "cidade", "ultimo_contato", "prioridade"] as SortKey[]).map((key) => {
+                  const labels: Record<SortKey, string> = { nome: "Nome", tipo: "Tipo", cidade: "Cidade", ultimo_contato: "Último contato", prioridade: "Prioridade" };
+                  const Icon = sortKey === key ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+                  return (
+                    <th key={key} className="px-3 py-2 text-left">
+                      <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+                        {labels[key]}<Icon className="h-3 w-3" />
+                      </button>
+                    </th>
+                  );
+                })}
                 <th className="px-3 py-2 text-left">Contato</th>
-                <th className="px-3 py-2 text-left">Último contato</th>
-                <th className="px-3 py-2 text-left">Prioridade</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {contacts.map((c) => {
+              {sorted.map((c) => {
                 const last = c.last_interaction_at;
                 const daysAgo = last
                   ? Math.floor(
@@ -233,9 +273,6 @@ export function CrmPage() {
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {c.city ?? "—"}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground">
-                    {c.phone ?? c.email ?? c.instagram ?? "—"}
                   </td>
                   <td className="px-3 py-2">
                     {last ? (
@@ -263,6 +300,9 @@ export function CrmPage() {
                   </td>
                   <td className="px-3 py-2">
                     <PriorityBadge rating={c.rating} />
+                  </td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    {c.phone ?? c.email ?? c.instagram ?? "—"}
                   </td>
                   <td
                     className="px-3 py-2"
