@@ -39,7 +39,7 @@ type StatusFilter = GigStatus | "Todas";
 export function GigsPage() {
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string }>(
-    { status: "Todas", search: "", eventCategory: "" }
+    { status: "Todas", search: "", eventCategory: "all" }
   );
 
   const [formOpen, setFormOpen] = useState(false);
@@ -55,15 +55,19 @@ export function GigsPage() {
     () => ({
       status: filters.status,
       search: filters.search,
-      eventCategory: filters.eventCategory || undefined,
+      eventCategory: filters.eventCategory !== "all" ? filters.eventCategory : undefined,
     }),
     [filters]
   );
 
   const refresh = useCallback(async () => {
-    const data = await listGigs(queryFilters);
-    setGigs(data);
-    setRefreshKey((k) => k + 1);
+    try {
+      const data = await listGigs(queryFilters);
+      setGigs(data);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(`Erro ao carregar GIGs: ${String(e)}`);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
@@ -191,7 +195,7 @@ export function GigsPage() {
               <SelectValue placeholder="Todas as categorias" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas as categorias</SelectItem>
+              <SelectItem value="all">Todas as categorias</SelectItem>
               <SelectItem value="Evento Social">Evento Social</SelectItem>
               <SelectItem value="Festa">Festa</SelectItem>
             </SelectContent>
