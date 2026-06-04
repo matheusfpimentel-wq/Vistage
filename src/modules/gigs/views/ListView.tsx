@@ -96,8 +96,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                   <div className="font-medium flex items-center gap-1.5">
                     {gigDisplayName(g)}
                     {g.status === "Concluída" &&
-                      g.cache_amount &&
-                      g.cache_amount > 0 &&
+                      (g.cache_amount ?? 0) > 0 &&
                       g.payment_status !== "Pago integralmente" && (
                         <span
                           className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
