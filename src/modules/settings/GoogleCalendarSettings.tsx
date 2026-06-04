@@ -166,8 +166,8 @@ export function GoogleCalendarSettings() {
     }
     setSyncing(true);
     try {
-      const { pushed, pulled } = await syncAll();
-      toast.success(`Sync concluído — enviadas ${pushed}, importadas ${pulled}`);
+      const { pushed } = await syncAll();
+      toast.success(`Sync concluído — ${pushed} GIG(s) enviada(s) ao calendário`);
       await refresh();
     } catch (e) {
       toast.error(`Erro na sync: ${String(e)}`);

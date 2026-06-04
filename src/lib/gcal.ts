@@ -282,7 +282,8 @@ export async function listCalendars(): Promise<CalendarListItem[]> {
 // ============================================================
 
 import type { Gig } from "@/modules/gigs/types";
-import { getGig, listGigs, updateGig, createGig } from "@/modules/gigs/api";
+import { getGig, listGigs, updateGig } from "@/modules/gigs/api";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 
 function gigToEvent(gig: Gig, tz: string): EventInput {
   const start = gig.start_time
@@ -293,6 +294,8 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
     : gig.date;
 
   const descLines = [
+    // Quando o título é o nome da festa, registra o local no corpo também.
+    gig.event_name?.trim() && gig.venue_name && `Local: ${gig.venue_name}`,
     gig.briefing && `Briefing: ${gig.briefing}`,
     gig.day_contact_name &&
       `Contato no dia: ${gig.day_contact_name}${
@@ -306,9 +309,8 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
   const location = [gig.venue_address, gig.venue_city].filter(Boolean).join(" — ");
 
   return {
-    summary: gig.venue_city
-      ? `${gig.venue_name} (${gig.venue_city})`
-      : gig.venue_name,
+    // Prefere o nome da festa/evento (o que vai no flyer); cai pro venue.
+    summary: gigDisplayName(gig),
     description: descLines.length ? descLines.join("\n") : null,
     location: location || null,
     start,
@@ -360,7 +362,12 @@ export async function deleteGigFromCalendar(gig: Gig): Promise<void> {
   }
 }
 
-/** Sincronização completa bidirecional, manual. Retorna contadores. */
+/**
+ * Sincronização manual — **somente push** (GIGs → Google Calendar).
+ * A importação reversa (eventos da agenda virando GIGs) foi removida de
+ * propósito: o fluxo é unidirecional, a GIG é a fonte da verdade.
+ * `pulled` é mantido em 0 só pra preservar o formato de retorno.
+ */
 export async function syncAll(): Promise<{
   pushed: number;
   pulled: number;
@@ -397,91 +404,8 @@ export async function syncAll(): Promise<{
     }
   }
 
-  // --- PULL: eventos com updatedMin maior que o último sync (ou todos se primeiro sync)
-  const events = await invoke<GcalEvent[]>("gcal_list_events", {
-    accessToken,
-    calendarId,
-    updatedMin: cfg.lastSyncAt,
-  });
-
-  // mapeia gcal_event_id → gig existente
-  const existingByEventId = new Map<string, Gig>();
-  for (const g of gigs) if (g.gcal_event_id) existingByEventId.set(g.gcal_event_id, g);
-
-  let pulled = 0;
-  for (const ev of events) {
-    if (!ev.id) continue;
-    if (existingByEventId.has(ev.id)) continue; // já temos
-    if (ev.status === "cancelled") continue;
-
-    const startStr = ev.start ?? "";
-    const date = startStr.slice(0, 10);
-    const startTime = startStr.includes("T") ? startStr.slice(11, 16) : null;
-    const endTime = ev.end?.includes("T") ? ev.end.slice(11, 16) : null;
-    if (!date) continue;
-
-    await createGig({
-      date,
-      start_time: startTime,
-      end_time: endTime,
-      venue_name: ev.summary ?? "(sem título)",
-      venue_city: null,
-      venue_address: ev.location ?? null,
-      promoter_contact_id: null,
-      day_contact_name: null,
-      day_contact_phone: null,
-      estimated_audience: null,
-      cache_amount: null,
-      script_file_path: null,
-      banner_file_path: null,
-      extra_flyer_paths: null,
-      opportunities: null,
-      briefing: ev.description ?? null,
-      set_concept: null,
-      concrete_goals: null,
-      targets: null,
-      status: "Proposta",
-      transport: null,
-      departure_time: null,
-      equipment_provided: null,
-      equipment_to_bring: null,
-      related_expenses: null,
-      payment_method: null,
-      payment_status: "Pendente",
-      payment_due_date: null,
-      invoice_file_path: null,
-      general_notes: null,
-      debrief_strengths: null,
-      debrief_weaknesses: null,
-      debrief_learnings: null,
-      debrief_opportunities_used: null,
-      debrief_future_opportunities: null,
-      debrief_promoter_feedback: null,
-      debrief_technical_notes: null,
-      debrief_media_content: null,
-      rating_charisma: null,
-      rating_charisma_note: null,
-      rating_technique: null,
-      rating_technique_note: null,
-      rating_repertoire: null,
-      rating_repertoire_note: null,
-      rating_contractor: null,
-      is_special: 0,
-      gcal_event_id: ev.id,
-      main_goal: null,
-      prep_state: null,
-      gig_equipment: "[]",
-      event_category: null,
-      main_goal_task_id: null,
-      venue_id: null,
-      event_name: ev.summary ?? null,
-      fans_present: null,
-    });
-    pulled += 1;
-  }
-
   await saveGcalConfig({ lastSyncAt: new Date().toISOString() });
-  return { pushed, pulled };
+  return { pushed, pulled: 0 };
 }
 
 
