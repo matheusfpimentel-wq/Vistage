@@ -375,14 +375,14 @@ export function GigForm({
               </Field>
               <Field label="Categoria do evento" hint="Tipo de evento para filtrar nas GIGs.">
                 <Select
-                  value={state.event_category ?? ""}
-                  onValueChange={(v) => set("event_category", v || null)}
+                  value={state.event_category ?? "none"}
+                  onValueChange={(v) => set("event_category", v === "none" ? null : v)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Padrão (GIG)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Padrão (GIG)</SelectItem>
+                    <SelectItem value="none">Padrão (GIG)</SelectItem>
                     <SelectItem value="Evento Social">Evento Social</SelectItem>
                     <SelectItem value="Festa">Festa</SelectItem>
                   </SelectContent>
