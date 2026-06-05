@@ -31,6 +31,7 @@ const TITLES: Record<string, string> = {
   "/tarefas": "Tarefas",
   "/financeiro": "Financeiro",
   "/configuracoes": "Configurações",
+  "/carreira": "Linha do tempo",
 };
 
 export function AppLayout() {

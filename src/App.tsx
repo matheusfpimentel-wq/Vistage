@@ -80,6 +80,9 @@ const SettingsPage = lazy(() =>
 const SuppliersPage = lazy(() =>
   import("@/modules/suppliers/SuppliersPage").then((m) => ({ default: m.SuppliersPage }))
 );
+const CareerTimelinePage = lazy(() =>
+  import("@/modules/carreira/CareerTimelinePage").then((m) => ({ default: m.CareerTimelinePage }))
+);
 
 export default function App() {
   const { ready, config, hydrate } = useConfigStore();
@@ -220,6 +223,7 @@ function RoutedApp() {
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
+            <Route path="carreira" element={<CareerTimelinePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

@@ -9,6 +9,8 @@ export type SetlistTrack = {
   duration_sec: number | null;
   genre: string | null;
   comment: string | null;
+  /** ID da track na biblioteca de produção, se foi adicionada a partir daqui. */
+  library_track_id?: number | null;
 };
 
 export type ParsedSetlist = {
@@ -243,4 +245,16 @@ export async function saveSetlist(gigId: number, parsed: ParsedSetlist): Promise
 export async function deleteSetlist(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM gig_setlists WHERE id = $1", [id]);
+}
+
+/** Regrava as tracks de um setlist — usado para marcar vínculo com a biblioteca. */
+export async function updateSetlistTracks(
+  setlistId: number,
+  tracks: SetlistTrack[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE gig_setlists SET tracks = $1 WHERE id = $2", [
+    JSON.stringify(tracks),
+    setlistId,
+  ]);
 }
