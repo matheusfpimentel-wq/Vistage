@@ -33,7 +33,6 @@ import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
 import { formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { GigSetlist } from "./GigSetlist";
 
 type Props = {
   open: boolean;
@@ -373,7 +372,6 @@ export function DebriefForm({
               )}
             </TabsTrigger>
             <TabsTrigger value="more">Outros</TabsTrigger>
-            <TabsTrigger value="setlist">Setlist</TabsTrigger>
             <TabsTrigger value="tasks">
               Tarefas
               {tasksToCreate.length > 0 && (
@@ -511,11 +509,6 @@ export function DebriefForm({
             />
 
             <FansPresentPicker value={fansPresent} onChange={setFansPresent} />
-          </TabsContent>
-
-          {/* ============ SETLIST ============ */}
-          <TabsContent value="setlist" className="pt-2">
-            <GigSetlist gigId={gig.id} />
           </TabsContent>
 
           {/* ============ TAREFAS A PARTIR DISSO ============ */}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderOpen, FolderPlus, Music, Plus, Search } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 import type { MusicProject } from "./types";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -197,11 +198,11 @@ export function MusicPage() {
 
         <TabsContent value="projetos">
           {projects.length === 0 && tracks.length === 0 ? (
-            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-              <Music className="mx-auto mb-2 h-8 w-8 opacity-50" />
-              Nenhuma track ainda. Clica em "Nova track" — o projeto é criado
-              automaticamente.
-            </div>
+            <EmptyState
+              icon={Music}
+              title="Nenhuma track ainda."
+              description='Clica em "Nova track" — o projeto é criado automaticamente.'
+            />
           ) : (
             <ProjectsView
               projects={projects}

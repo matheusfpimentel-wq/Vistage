@@ -9,8 +9,10 @@ import {
   Plus,
   Search,
   Star,
+  Store,
   Trash2,
 } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
@@ -161,10 +163,11 @@ export function SuppliersPage() {
 
       {/* Empty state */}
       {suppliers.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p className="text-lg font-medium">Nenhum fornecedor encontrado</p>
-          <p className="text-sm">Clique em "Novo fornecedor" para começar.</p>
-        </div>
+        <EmptyState
+          icon={Store}
+          title="Nenhum fornecedor encontrado"
+          description='Clique em "Novo fornecedor" para começar.'
+        />
       )}
 
       {/* Cards view */}

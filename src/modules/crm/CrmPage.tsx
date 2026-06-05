@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { TypeBadges } from "./components/TypeBadges";
 import { ContactForm } from "./forms/ContactForm";
 import { ContactDetail } from "./forms/ContactDetail";
@@ -46,8 +47,8 @@ export function CrmPage() {
     city: string;
     search: string;
   }>({ type: "Todos", city: "", search: "" });
-  const [sortKey, setSortKey] = useState<SortKey>("nome");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortKey, setSortKey] = useState<SortKey>("ultimo_contato");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -216,10 +217,7 @@ export function CrmPage() {
       </div>
 
       {sorted.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Users className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhum contato encontrado.
-        </div>
+        <EmptyState icon={Users} title="Nenhum contato encontrado" description="Adicione um novo contato ou ajuste os filtros." />
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {sorted.map((c) => (
@@ -233,7 +231,20 @@ export function CrmPage() {
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        // No mobile, cai nos cards mesmo quando a view preferida é "lista".
+        <>
+        <div className="grid grid-cols-1 gap-3 sm:hidden">
+          {sorted.map((c) => (
+            <ContactCard
+              key={c.id}
+              contact={c}
+              onOpen={() => openDetail(c)}
+              onEdit={() => openEdit(c)}
+              onDelete={() => void handleDelete(c)}
+            />
+          ))}
+        </div>
+        <div className="hidden overflow-x-auto rounded-md border sm:block">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -333,6 +344,7 @@ export function CrmPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <ContactForm

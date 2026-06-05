@@ -1,9 +1,10 @@
-import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { FinanceTransactionWithCategory } from "../types";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 type Props = {
   transactions: FinanceTransactionWithCategory[];
@@ -14,9 +15,10 @@ type Props = {
 export function TransactionList({ transactions, onEdit, onDelete }: Props) {
   if (transactions.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Nenhuma transação encontrada.
-      </div>
+      <EmptyState
+        icon={Wallet}
+        title="Nenhuma transação encontrada."
+      />
     );
   }
 

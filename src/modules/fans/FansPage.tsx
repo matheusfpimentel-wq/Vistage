@@ -13,6 +13,7 @@ import {
   Trash2,
   User,
 } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
@@ -210,10 +211,10 @@ export function FansPage() {
       </div>
 
       {fans.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Heart className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhum fã cadastrado ainda.
-        </div>
+        <EmptyState
+          icon={Heart}
+          title="Nenhum fã cadastrado ainda."
+        />
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {fans.map((f) => (

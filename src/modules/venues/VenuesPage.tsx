@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
@@ -234,10 +235,10 @@ export function VenuesPage() {
           />
         </Suspense>
       ) : venues.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Building2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhum venue cadastrado ainda.
-        </div>
+        <EmptyState
+          icon={Building2}
+          title="Nenhum venue cadastrado ainda."
+        />
       ) : view === "cards" ? (
         <div className="space-y-6">
           {groupedCards.map((group) => (

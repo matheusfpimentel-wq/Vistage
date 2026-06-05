@@ -1,9 +1,10 @@
-import { Music, Pencil, Trash2 } from "lucide-react";
+import { Lightbulb, Music, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { heatColor, heatLabel, type Idea } from "../types";
 import { formatDate } from "@/lib/format";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 type Props = {
   items: Idea[];
@@ -15,9 +16,10 @@ type Props = {
 export function IdeaList({ items, onEdit, onDelete, onConvertToTrack }: Props) {
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Nenhuma ideia ainda.
-      </div>
+      <EmptyState
+        icon={Lightbulb}
+        title="Nenhuma ideia ainda."
+      />
     );
   }
   return (

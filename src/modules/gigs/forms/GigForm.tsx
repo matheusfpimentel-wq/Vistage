@@ -46,6 +46,7 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { parsePrepState } from "../prep";
+import { GigSetlist } from "./GigSetlist";
 
 type Props = {
   open: boolean;
@@ -368,7 +369,7 @@ export function GigForm({
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
             <TabsTrigger value="prep">Preparação</TabsTrigger>
-            {gig && allTracks.length > 0 && (
+            {gig && (
               <TabsTrigger value="setlist">Set list</TabsTrigger>
             )}
           </TabsList>
@@ -525,7 +526,7 @@ export function GigForm({
                     <SelectValue placeholder="Selecione um contato" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">— Sem vínculo —</SelectItem>
+                    <SelectItem value="none">Sem vínculo</SelectItem>
                     {contacts.map((c) => (
                       <SelectItem key={c.id} value={c.id.toString()}>
                         {c.name}
@@ -871,40 +872,42 @@ export function GigForm({
           )}
           </TabsContent>
 
-          {gig && allTracks.length > 0 && (
+          {gig && (
           <TabsContent value="setlist" className="space-y-4">
-            <Section title="Set list (tracks tocadas)">
-              <div className="flex flex-wrap gap-1.5">
-                {allTracks.map((t) => {
-                  const selected = setListTrackIds.includes(t.id);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() =>
-                        setSetListTrackIds((ids) =>
+            {allTracks.length > 0 && (
+              <Section title="Tracks do catálogo">
+                <p className="text-xs text-muted-foreground">Marque as tracks que tocou nessa GIG.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allTracks.map((t) => {
+                    const selected = setListTrackIds.includes(t.id);
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() =>
+                          setSetListTrackIds((ids) =>
+                            selected
+                              ? ids.filter((x) => x !== t.id)
+                              : [...ids, t.id]
+                          )
+                        }
+                        className={cn(
+                          "rounded-md border px-2.5 py-1 text-xs transition",
                           selected
-                            ? ids.filter((x) => x !== t.id)
-                            : [...ids, t.id]
-                        )
-                      }
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs transition",
-                        selected
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-input text-muted-foreground hover:bg-accent"
-                      )}
-                    >
-                      {t.title}
-                    </button>
-                  );
-                })}
-              </div>
-              {allTracks.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Nenhuma track cadastrada ainda.
-                </p>
-              )}
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input text-muted-foreground hover:bg-accent"
+                        )}
+                      >
+                        {t.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Section>
+            )}
+            <Section title="Setlist de arquivo">
+              <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
+              <GigSetlist gigId={gig.id} />
             </Section>
           </TabsContent>
           )}

@@ -8,6 +8,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
@@ -250,11 +251,11 @@ export function ClassesPage() {
           </div>
 
           {classes.length === 0 ? (
-            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-              {students.length === 0
-                ? "Cadastre um aluno na aba ao lado e depois agende a primeira aula."
-                : "Nenhuma aula encontrada."}
-            </div>
+            <EmptyState
+              icon={GraduationCap}
+              title={students.length === 0 ? "Nenhuma aula ainda." : "Nenhuma aula encontrada."}
+              description={students.length === 0 ? "Cadastre um aluno na aba ao lado e depois agende a primeira aula." : undefined}
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
@@ -344,10 +345,10 @@ export function ClassesPage() {
             </Button>
           </div>
           {students.length === 0 ? (
-            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-              <GraduationCap className="mx-auto mb-2 h-8 w-8 opacity-50" />
-              Nenhum aluno ainda.
-            </div>
+            <EmptyState
+              icon={GraduationCap}
+              title="Nenhum aluno ainda."
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">

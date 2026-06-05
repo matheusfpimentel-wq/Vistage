@@ -1,6 +1,7 @@
-import { CalendarClock, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarClock, CheckSquare, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { TaskStatusBadge } from "../components/TaskStatusBadge";
 import { type Task } from "../types";
@@ -31,9 +32,11 @@ export function TaskListView({
 }: Props) {
   if (tasks.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Nenhuma tarefa por aqui.
-      </div>
+      <EmptyState
+        icon={CheckSquare}
+        title="Nenhuma tarefa por aqui"
+        description="Crie uma nova tarefa ou ajuste os filtros."
+      />
     );
   }
 

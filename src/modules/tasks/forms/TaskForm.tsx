@@ -281,7 +281,7 @@ export function TaskForm({
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {gigs.map((g) => (
                     <SelectItem key={g.id} value={g.id.toString()}>
                       {g.venue_name} · {formatDate(g.date)}
@@ -301,7 +301,7 @@ export function TaskForm({
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {contacts.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
                       {c.name}

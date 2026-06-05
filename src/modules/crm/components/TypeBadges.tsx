@@ -1,19 +1,4 @@
-import { Badge } from "@/components/ui/badge";
 import type { ContactType } from "../types";
-
-const VARIANT_BY_TYPE: Record<
-  string,
-  "default" | "secondary" | "outline" | "info" | "success" | "warning"
-> = {
-  Contratante: "info",
-  Booker: "warning",
-  "Produtor de eventos": "default",
-  "DJ parceiro": "success",
-  Músico: "success",
-  Influencer: "secondary",
-  "Gerente de Club": "outline",
-  "Dono de Club": "outline",
-};
 
 export function TypeBadges({ types }: { types: ContactType[] }) {
   if (types.length === 0) {
@@ -22,9 +7,12 @@ export function TypeBadges({ types }: { types: ContactType[] }) {
   return (
     <div className="inline-flex flex-wrap gap-1">
       {types.map((t) => (
-        <Badge key={t} variant={VARIANT_BY_TYPE[t] ?? "outline"} className="whitespace-nowrap">
+        <span
+          key={t}
+          className="rounded border border-border bg-muted/60 px-1.5 py-0.5 text-xs text-muted-foreground whitespace-nowrap"
+        >
           {t}
-        </Badge>
+        </span>
       ))}
     </div>
   );
