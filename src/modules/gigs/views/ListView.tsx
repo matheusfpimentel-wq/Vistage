@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowUpDown, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
@@ -42,9 +43,11 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Nenhuma GIG encontrada com esses filtros.
-      </div>
+      <EmptyState
+        icon={CalendarRange}
+        title="Nenhuma GIG encontrada"
+        description="Ajuste os filtros ou crie uma nova GIG para começar."
+      />
     );
   }
 

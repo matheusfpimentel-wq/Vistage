@@ -1,4 +1,5 @@
 import {
+  Bell,
   Building2,
   CalendarRange,
   CheckSquare,
@@ -19,31 +20,49 @@ import {
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
+export type NavGroup = "Operação" | "Relacionamento" | "Criação" | "Gestão";
+
+/** Ordem em que os grupos aparecem na sidebar. */
+export const NAV_GROUP_ORDER: NavGroup[] = [
+  "Operação",
+  "Relacionamento",
+  "Criação",
+  "Gestão",
+];
+
 export type NavItem = {
   to: string;
   label: string;
   icon: React.ElementType;
   end?: boolean;
   fixed?: boolean;
+  /** Grupo de navegação; itens fixos (Dashboard/Alertas/Configurações) não têm. */
+  group?: NavGroup;
 };
 
 export const DEFAULT_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, fixed: true },
-  { to: "/gigs", label: "GIGs", icon: CalendarRange },
-  { to: "/venues", label: "Venues", icon: Building2 },
-  { to: "/crm", label: "CRM", icon: Users },
-  { to: "/fornecedores", label: "Fornecedores", icon: Store },
-  { to: "/fas", label: "Clube de fãs", icon: Heart },
-  { to: "/aulas", label: "Aulas", icon: GraduationCap },
-  { to: "/musica", label: "Produção Musical", icon: Music },
-  { to: "/festas", label: "Produção de Festas", icon: PartyPopper },
-  { to: "/conteudo", label: "Conteúdo", icon: Film },
-  { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb },
-  { to: "/foco", label: "Energia & Foco", icon: Zap },
-  { to: "/objetivos", label: "OKRs", icon: Target },
-  { to: "/identidade", label: "Identidade", icon: Sparkles },
-  { to: "/tarefas", label: "Tarefas", icon: CheckSquare },
-  { to: "/financeiro", label: "Financeiro", icon: Wallet },
+  { to: "/alertas", label: "Alertas", icon: Bell, fixed: true },
+
+  { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
+  { to: "/venues", label: "Venues", icon: Building2, group: "Operação" },
+  { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },
+  { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
+
+  { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
+  { to: "/fornecedores", label: "Fornecedores", icon: Store, group: "Relacionamento" },
+  { to: "/fas", label: "Clube de fãs", icon: Heart, group: "Relacionamento" },
+
+  { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
+  { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
+  { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
+  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Criação" },
+
+  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
+  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Gestão" },
+  { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
+  { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Gestão" },
+
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },
 ];
 

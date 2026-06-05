@@ -4,6 +4,7 @@ import { PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_NAV,
+  NAV_GROUP_ORDER,
   NAV_ORDER_CHANGED,
   loadOrderedNav,
   type NavItem,
@@ -26,6 +27,26 @@ export function Sidebar({
     window.addEventListener(NAV_ORDER_CHANGED, onChange);
     return () => window.removeEventListener(NAV_ORDER_CHANGED, onChange);
   }, []);
+
+  const renderLink = ({ to, label, icon: Icon, end }: NavItem) => (
+    <NavLink
+      key={to}
+      to={to}
+      end={end}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        cn(
+          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
+          isActive
+            ? "bg-accent text-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+        )
+      }
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      {label}
+    </NavLink>
+  );
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
@@ -63,26 +84,30 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto space-y-0.5 p-3">
-        {nav.map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
-                isActive
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              )
-            }
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            {label}
-          </NavLink>
-        ))}
+      <nav className="flex-1 overflow-y-auto p-3">
+        {/* Itens fixos no topo (Dashboard, Alertas) — fora dos grupos. */}
+        <div className="space-y-0.5">
+          {nav.filter((i) => i.fixed && i.to !== "/configuracoes").map(renderLink)}
+        </div>
+
+        {/* Grupos temáticos com cabeçalho. */}
+        {NAV_GROUP_ORDER.map((group) => {
+          const items = nav.filter((i) => i.group === group);
+          if (items.length === 0) return null;
+          return (
+            <div key={group} className="mt-4 space-y-0.5">
+              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                {group}
+              </div>
+              {items.map(renderLink)}
+            </div>
+          );
+        })}
+
+        {/* Configurações fixo no fim. */}
+        <div className="mt-4 space-y-0.5 border-t pt-3">
+          {nav.filter((i) => i.to === "/configuracoes").map(renderLink)}
+        </div>
       </nav>
 
       {onCollapse && (

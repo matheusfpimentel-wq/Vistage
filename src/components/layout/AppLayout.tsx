@@ -80,10 +80,10 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => setMobileNavOpen(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground md:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground md:hidden"
               aria-label="Abrir menu"
             >
-              <PanelLeftOpen className="h-4 w-4" />
+              <PanelLeftOpen className="h-5 w-5" />
             </button>
             {sidebarCollapsed && (
               <button
@@ -132,11 +132,11 @@ export function AppLayout() {
             <button
               type="button"
               onClick={triggerQuickCapture}
-              className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-accent"
+              className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-md transition hover:bg-accent"
               aria-label="Captura rápida de ideia"
               title="Captura rápida (Ctrl+I)"
             >
-              <Zap className="h-4 w-4" />
+              <Zap className="h-5 w-5 sm:h-4 sm:w-4" />
             </button>
             <WorkSessionWidget />
             <NotificationBell />
