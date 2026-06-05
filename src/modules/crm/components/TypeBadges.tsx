@@ -9,7 +9,7 @@ export function TypeBadges({ types }: { types: ContactType[] }) {
       {types.map((t) => (
         <span
           key={t}
-          className="rounded border border-border bg-muted/60 px-1.5 py-0.5 text-xs text-muted-foreground whitespace-nowrap"
+          className="rounded border border-border bg-muted/60 px-1.5 py-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200 whitespace-nowrap"
         >
           {t}
         </span>

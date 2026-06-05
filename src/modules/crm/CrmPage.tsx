@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, ChevronsUpDown, LayoutGrid, List, Pencil, Plus, Search, Trash2, User, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, LayoutGrid, List, Pencil, Plus, Search, Star, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +20,6 @@ import {
   type ContactFilters,
 } from "./api";
 import { CONTACT_TYPES, ratingToPriority, type Contact, type ContactType } from "./types";
-import { Badge } from "@/components/ui/badge";
 import { confirmDialog } from "@/components/ui/confirm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
@@ -382,9 +381,21 @@ export function CrmPage() {
 function PriorityBadge({ rating }: { rating: number | null }) {
   const p = ratingToPriority(rating);
   if (!p) return null;
-  const variant =
-    p === "Alta" ? "destructive" : p === "Média" ? "warning" : "secondary";
-  return <Badge variant={variant}>{p}</Badge>;
+  const color =
+    p === "Alta"
+      ? "text-red-500"
+      : p === "Média"
+      ? "text-orange-500"
+      : "text-yellow-500";
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+      title={`Prioridade ${p}`}
+    >
+      <Star className={cn("h-3.5 w-3.5 shrink-0 fill-current", color)} />
+      {p}
+    </span>
+  );
 }
 
 function ContactCard({

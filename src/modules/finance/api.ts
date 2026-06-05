@@ -428,6 +428,10 @@ export type FinanceInsights = {
   yearIncome: number;
   yearExpense: number;
   yearBalance: number;
+  /** Totais do período selecionado (igual ao mês atual quando period é vazio). */
+  periodIncome: number;
+  periodExpense: number;
+  periodBalance: number;
   monthly: {
     month: string;
     income: number;
@@ -559,6 +563,22 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
     return { month: m, income: i, expense: e, balance: i - e };
   });
 
+  // Totais do período selecionado (cai pro mês atual quando não há período).
+  const periodRows = await db.select<{ kind: string; total: number }[]>(
+    periodWhere
+      ? `SELECT kind, COALESCE(SUM(amount), 0) as total
+           FROM finance_transactions
+          WHERE ${periodWhere}
+          GROUP BY kind`
+      : `SELECT kind, COALESCE(SUM(amount), 0) as total
+           FROM finance_transactions
+          WHERE date BETWEEN $1 AND $2
+          GROUP BY kind`,
+    periodWhere ? [] : [monthStart, monthEnd]
+  );
+  const periodIncome = periodRows.find((r) => r.kind === "income")?.total ?? 0;
+  const periodExpense = periodRows.find((r) => r.kind === "expense")?.total ?? 0;
+
   // Por categoria — filtrado pelo período selecionado
   const catWhere = periodWhere ? `t.kind = 'income' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'income' AND t.date BETWEEN $1 AND $2`;
   const catExpWhere = periodWhere ? `t.kind = 'expense' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'expense' AND t.date BETWEEN $1 AND $2`;
@@ -619,6 +639,9 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
     yearIncome,
     yearExpense,
     yearBalance: yearIncome - yearExpense,
+    periodIncome,
+    periodExpense,
+    periodBalance: periodIncome - periodExpense,
     monthly,
     byIncomeCategory: incomeByCat,
     byExpenseCategory: expenseByCat,

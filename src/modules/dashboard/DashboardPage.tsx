@@ -27,8 +27,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
 import { cn } from "@/lib/utils";
-import { listGigs, loadInsights as loadGigInsights, type GigInsights } from "@/modules/gigs/api";
+import { listGigs } from "@/modules/gigs/api";
 import { averageRating, type Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { PrepProgressMini } from "@/modules/gigs/components/PrepChecklist";
@@ -51,9 +53,6 @@ import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { format, parse } from "date-fns";
-import { ptBR } from "date-fns/locale";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -154,7 +153,6 @@ function nextNDays(n: number): string[] {
 type DashData = {
   gigs: Gig[];
   fin: FinanceInsights;
-  gigInsights: GigInsights;
   content: Content[];
   weekTasks: Task[];
   tracks: TrackWithProject[];
@@ -171,10 +169,9 @@ export function DashboardPage() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [gigs, fin, gigInsights, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
-        loadGigInsights(),
         listContent(),
         listUpcoming(50),
         listTracks(),
@@ -182,7 +179,7 @@ export function DashboardPage() {
         listOkrs(),
         listClasses(),
       ]);
-      setData({ gigs, fin, gigInsights, content, weekTasks, tracks, parties, okrs, classes });
+      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
       setUpdatedAt(new Date());
     } finally {
       setRefreshing(false);
@@ -192,12 +189,15 @@ export function DashboardPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
+    <Tabs defaultValue="overview" className="space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <TabsList>
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+        </TabsList>
         <div className="flex items-center gap-2">
           {updatedAt && (
-            <span className="text-xs text-muted-foreground">
+            <span className="hidden text-xs text-muted-foreground sm:inline">
               Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
             </span>
           )}
@@ -207,37 +207,40 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {data ? (
-        <>
-          <KpiRow data={data} />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <GigsCard data={data} />
-            <MusicCard data={data} />
-            <ContentCard data={data} />
-            <FestasCard data={data} />
-          </div>
-          <WeekTimeline data={data} />
+      <TabsContent value="overview" className="space-y-6">
+        {data ? (
+          <>
+            <KpiRow data={data} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <GigsCard data={data} />
+              <MusicCard data={data} />
+              <ContentCard data={data} />
+              <FestasCard data={data} />
+            </div>
+            <WeekTimeline data={data} />
 
-          <div className="space-y-4">
-            <FinancePanel />
-            {data.gigInsights.byMonth.length > 0 && (
-              <GigMonthlyChart byMonth={data.gigInsights.byMonth} />
-            )}
-            <OkrPanel okrs={data.okrs} />
+            <div className="space-y-4">
+              <FinancePanel />
+              <OkrPanel okrs={data.okrs} />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+            Carregando…
           </div>
-        </>
-      ) : (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          Carregando…
-        </div>
-      )}
+        )}
 
-      <p className="pt-2 text-center text-xs text-muted-foreground/70">
-        Métricas são bússolas, não termômetros. Otimizar para o número costuma
-        deformar o resultado real.{" "}
-        <span className="italic">(Lei de Goodhart)</span>
-      </p>
-    </div>
+        <p className="pt-2 text-center text-xs text-muted-foreground/70">
+          Métricas são bússolas, não termômetros. Otimizar para o número costuma
+          deformar o resultado real.{" "}
+          <span className="italic">(Lei de Goodhart)</span>
+        </p>
+      </TabsContent>
+
+      <TabsContent value="timeline">
+        <CareerTimelinePage />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -476,50 +479,6 @@ function FinancePanel() {
           >
             <FinanceDashboard refreshKey={0} />
           </Suspense>
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-function GigMonthlyChart({ byMonth }: { byMonth: GigInsights["byMonth"] }) {
-  const [open, toggle] = useCollapsed("gig-monthly", false);
-  const data = byMonth.map((m) => {
-    let label = m.month;
-    try {
-      label = format(parse(m.month, "yyyy-MM", new Date()), "MMM/yy", { locale: ptBR });
-    } catch { /* keep raw */ }
-    return { ...m, label };
-  });
-  return (
-    <Card>
-      <button type="button" onClick={toggle} className="w-full text-left" aria-expanded={open}>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Disc3 className="h-4 w-4 text-primary" />
-              GIGs mês a mês
-            </CardTitle>
-            <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} />
-          </div>
-        </CardHeader>
-      </button>
-      {open && (
-        <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <YAxis yAxisId="left" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
-              <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v: number) => v >= 1000 ? `${Math.round(v / 1000)}k` : v.toString()} />
-              <Tooltip
-                contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, name: string) => name === "Receita" ? formatCurrency(value) : value}
-              />
-              <Bar yAxisId="left" dataKey="count" name="GIGs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="right" dataKey="revenue" name="Receita" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
         </CardContent>
       )}
     </Card>

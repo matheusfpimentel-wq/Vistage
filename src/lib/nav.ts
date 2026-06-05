@@ -6,7 +6,6 @@ import {
   Film,
   GraduationCap,
   Heart,
-  History,
   LayoutDashboard,
   Lightbulb,
   Music,
@@ -59,7 +58,6 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Criação" },
-  { to: "/carreira", label: "Linha do tempo", icon: History, group: "Criação" },
 
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
