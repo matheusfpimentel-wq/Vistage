@@ -1093,7 +1093,8 @@ function WeekTimeline({ data }: { data: DashData }) {
             Semana livre. Nada agendado nos próximos 7 dias.
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-2">
+          // Mobile: lista vertical (dias vazios escondidos). Desktop: grade de 7 colunas.
+          <div className="flex flex-col gap-2 sm:grid sm:grid-cols-7">
             {days.map((d) => {
               const items = byDay.get(d) ?? [];
               const isToday = d === todayISO();
@@ -1101,29 +1102,32 @@ function WeekTimeline({ data }: { data: DashData }) {
                 <div
                   key={d}
                   className={cn(
-                    "min-h-[6rem] space-y-1.5 rounded-md border p-2",
-                    isToday && "border-primary bg-primary/5"
+                    "flex gap-3 rounded-md border p-2 sm:block sm:min-h-[6rem] sm:gap-0 sm:space-y-1.5",
+                    isToday && "border-primary bg-primary/5",
+                    items.length === 0 && "hidden sm:block"
                   )}
                 >
-                  <div className="text-center text-[11px] font-medium uppercase text-muted-foreground">
+                  <div className="flex w-10 shrink-0 flex-col items-center justify-center text-[11px] font-medium uppercase text-muted-foreground sm:w-auto sm:justify-start">
                     {formatDate(d, "EEE")}
                     <div className="text-sm font-semibold text-foreground">
                       {formatDate(d, "dd")}
                     </div>
                   </div>
-                  {items.map((item, i) => (
-                    <Link
-                      key={i}
-                      to={item.to}
-                      title={item.label}
-                      className={cn(
-                        "block truncate rounded px-1.5 py-1 text-[11px] transition hover:opacity-80",
-                        TIMELINE_STYLES[item.kind]
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  <div className="flex-1 space-y-1.5">
+                    {items.map((item, i) => (
+                      <Link
+                        key={i}
+                        to={item.to}
+                        title={item.label}
+                        className={cn(
+                          "block truncate rounded px-1.5 py-1 text-[11px] transition hover:opacity-80",
+                          TIMELINE_STYLES[item.kind]
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               );
             })}

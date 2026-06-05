@@ -60,7 +60,96 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
   ];
 
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <>
+      {/* Mobile: cartões empilhados + seletor de ordenação. */}
+      <div className="space-y-2 sm:hidden">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <ArrowUpDown className="h-3.5 w-3.5" />
+          <span>Ordenar:</span>
+          <div className="flex flex-wrap gap-1">
+            {cols.map((col) => (
+              <button
+                key={col.key}
+                onClick={() => toggleSort(col.key)}
+                className={`rounded-full border px-2 py-0.5 transition ${
+                  sortKey === col.key
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "hover:bg-accent"
+                }`}
+              >
+                {col.label}
+                {sortKey === col.key && (sortDir === "asc" ? " ↑" : " ↓")}
+              </button>
+            ))}
+          </div>
+        </div>
+        {sorted.map((g) => {
+          const avg = averageRating(g);
+          return (
+            <div key={g.id} className="rounded-lg border p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <span className="truncate">{gigDisplayName(g)}</span>
+                    {g.status === "Concluída" &&
+                      (g.cache_amount ?? 0) > 0 &&
+                      g.payment_status !== "Pago integralmente" && (
+                        <span
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                          title="Cachê não recebido"
+                        >
+                          !
+                        </span>
+                      )}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(g.date)}
+                    {g.start_time && ` · ${g.start_time}`}
+                    {g.venue_city && ` · ${g.venue_city}`}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right tabular-nums text-sm font-medium">
+                  {formatCurrency(g.cache_amount)}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={g.status} />
+                {g.debrief_pending === 1 && (
+                  <Badge variant="warning" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Debrief pendente
+                  </Badge>
+                )}
+                {avg !== null && (
+                  <span className="text-xs text-amber-500">{formatRating(avg)}</span>
+                )}
+              </div>
+              <div className="flex justify-end gap-1 border-t pt-2">
+                {(g.status === "Concluída" ||
+                  g.debrief_pending === 1 ||
+                  g.debrief_completed_at) && (
+                  <Button
+                    size="sm"
+                    variant={g.debrief_pending === 1 ? "default" : "ghost"}
+                    onClick={() => onDebrief(g)}
+                  >
+                    Debrief
+                  </Button>
+                )}
+                <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => onDelete(g)} aria-label="Excluir">
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop: tabela. */}
+      <div className="hidden overflow-x-auto rounded-md border sm:block">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
@@ -173,6 +262,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }
