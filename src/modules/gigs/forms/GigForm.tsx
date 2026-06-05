@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
@@ -152,6 +153,7 @@ export function GigForm({
   const [setListTrackIds, setSetListTrackIds] = useState<number[]>([]);
   const [allTracks, setAllTracks] = useState<{ id: number; title: string }[]>([]);
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
+  const [activeTab, setActiveTab] = useState("geral");
 
   useEffect(() => {
     if (!open) return;
@@ -165,6 +167,7 @@ export function GigForm({
     else setState(EMPTY);
     setErrors({});
     setDirty(false);
+    setActiveTab("geral");
   }, [gig, prefillPromoter, open]);
 
   useEffect(() => {
@@ -223,6 +226,7 @@ export function GigForm({
 
   async function handleSubmit() {
     if (!validate()) {
+      setActiveTab("geral"); // campos obrigatórios vivem na aba Geral
       toast.error("Preencha os campos obrigatórios");
       return;
     }
@@ -359,7 +363,17 @@ export function GigForm({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="flex w-full justify-start overflow-x-auto">
+            <TabsTrigger value="geral">Geral</TabsTrigger>
+            <TabsTrigger value="briefing">Briefing</TabsTrigger>
+            <TabsTrigger value="prep">Preparação</TabsTrigger>
+            {gig && allTracks.length > 0 && (
+              <TabsTrigger value="setlist">Set list</TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="geral" className="space-y-4">
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -614,18 +628,12 @@ export function GigForm({
               </Field>
             </div>
           </Section>
+          </TabsContent>
 
-          {state.status === "Proposta" && (
-            <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-              Briefing e Preparação aparecem aqui assim que o status virar
-              <strong className="mx-1">Confirmada</strong>.
-            </div>
-          )}
-
-          {state.status !== "Proposta" && (
-          <>
-
-          {/* ============================ CAIXA 2: BRIEFING ============================ */}
+          <TabsContent value="briefing" className="space-y-4">
+          {state.status === "Proposta" ? (
+            <ProposalHint />
+          ) : (
           <Section title="Briefing">
             <Field
               label="Objetivo principal"
@@ -696,8 +704,13 @@ export function GigForm({
               />
             </Field>
           </Section>
+          )}
+          </TabsContent>
 
-          {/* ============================ CAIXA 3: PREPARAÇÃO ============================ */}
+          <TabsContent value="prep" className="space-y-4">
+          {state.status === "Proposta" ? (
+            <ProposalHint />
+          ) : (
           <Section
             title="Preparação"
             description="Marque o que já está pronto. O progresso aparece no Dashboard."
@@ -855,8 +868,11 @@ export function GigForm({
               )}
             </div>
           </Section>
+          )}
+          </TabsContent>
 
           {gig && allTracks.length > 0 && (
+          <TabsContent value="setlist" className="space-y-4">
             <Section title="Set list (tracks tocadas)">
               <div className="flex flex-wrap gap-1.5">
                 {allTracks.map((t) => {
@@ -890,10 +906,9 @@ export function GigForm({
                 </p>
               )}
             </Section>
+          </TabsContent>
           )}
-          </>
-          )}
-        </div>
+        </Tabs>
 
         <DialogFooter className="gap-2">
           <Button
@@ -931,6 +946,15 @@ export function GigForm({
         }}
       />
     </Dialog>
+  );
+}
+
+function ProposalHint() {
+  return (
+    <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+      Briefing e Preparação ficam disponíveis assim que o status virar
+      <strong className="mx-1">Confirmada</strong>.
+    </div>
   );
 }
 
