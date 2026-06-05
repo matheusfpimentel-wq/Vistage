@@ -370,9 +370,7 @@ export function GigForm({
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
             <TabsTrigger value="prep">Preparação</TabsTrigger>
-            {state.status !== "Proposta" && (
-              <TabsTrigger value="setlist">Set list</TabsTrigger>
-            )}
+            <TabsTrigger value="setlist">Setlist</TabsTrigger>
           </TabsList>
 
           <TabsContent value="geral" className="space-y-4">
@@ -836,56 +834,64 @@ export function GigForm({
           )}
           </TabsContent>
 
-          {state.status !== "Proposta" && (
           <TabsContent value="setlist" className="space-y-4">
-            <Section title="Pesquisa musical">
-              <p className="text-xs text-muted-foreground">Músicas que descobriu ou pensou em tocar nessa GIG.</p>
-              <ResearchList
-                value={state.gig_research}
-                onChange={(v) => set("gig_research", v)}
-              />
-            </Section>
+            {state.status === "Proposta" ? (
+              <ProposalHint />
+            ) : (
+              <>
+                <Section title="Pesquisa musical">
+                  <p className="text-xs text-muted-foreground">Músicas que descobriu ou pensou em tocar nessa GIG.</p>
+                  <ResearchList
+                    value={state.gig_research}
+                    onChange={(v) => set("gig_research", v)}
+                  />
+                </Section>
 
-            {allTracks.length > 0 && (
-              <Section title="Minhas Tracks">
-                <p className="text-xs text-muted-foreground">Marque as tracks da sua biblioteca que tocou nessa GIG.</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {allTracks.map((t) => {
-                    const selected = setListTrackIds.includes(t.id);
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() =>
-                          setSetListTrackIds((ids) =>
-                            selected
-                              ? ids.filter((x) => x !== t.id)
-                              : [...ids, t.id]
-                          )
-                        }
-                        className={cn(
-                          "rounded-md border px-2.5 py-1 text-xs transition",
-                          selected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input text-muted-foreground hover:bg-accent"
-                        )}
-                      >
-                        {t.title}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Section>
-            )}
+                {allTracks.length > 0 && (
+                  <Section title="Minhas Tracks">
+                    <p className="text-xs text-muted-foreground">Marque as tracks da sua biblioteca que tocou nessa GIG.</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {allTracks.map((t) => {
+                        const selected = setListTrackIds.includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() =>
+                              setSetListTrackIds((ids) =>
+                                selected
+                                  ? ids.filter((x) => x !== t.id)
+                                  : [...ids, t.id]
+                              )
+                            }
+                            className={cn(
+                              "rounded-md border px-2.5 py-1 text-xs transition",
+                              selected
+                                ? "border-primary bg-primary text-primary-foreground"
+                                : "border-input text-muted-foreground hover:bg-accent"
+                            )}
+                          >
+                            {t.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Section>
+                )}
 
-            {gig && (
-              <Section title="Setlist de arquivo">
-                <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
-                <GigSetlist gigId={gig.id} />
-              </Section>
+                {gig ? (
+                  <Section title="Setlist de arquivo">
+                    <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
+                    <GigSetlist gigId={gig.id} />
+                  </Section>
+                ) : (
+                  <Section title="Setlist de arquivo">
+                    <p className="text-xs text-muted-foreground">Salve a GIG primeiro para poder importar um setlist de arquivo.</p>
+                  </Section>
+                )}
+              </>
             )}
           </TabsContent>
-          )}
         </Tabs>
 
         <DialogFooter className="gap-2">
@@ -1128,7 +1134,7 @@ function EquipmentToCarry({
 function ProposalHint() {
   return (
     <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-      Briefing e Preparação ficam disponíveis assim que o status virar
+      Briefing, Setlist e Preparação ficam disponíveis assim que o status virar
       <strong className="mx-1">Confirmada</strong>.
     </div>
   );
