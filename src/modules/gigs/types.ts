@@ -81,6 +81,8 @@ export type Gig = {
   prep_state: string | null;
   /** JSON array com IDs de equipamentos a levar. */
   gig_equipment: string;  // JSON array, parsed to number[]
+  /** JSON array de músicas pesquisadas para a GIG: [{title, artist, note}] */
+  gig_research: string | null;
   /** ID da tarefa auto-criada a partir do objetivo principal. */
   main_goal_task_id: number | null;
   event_category: string | null;

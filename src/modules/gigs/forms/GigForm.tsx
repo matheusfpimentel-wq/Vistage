@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Target, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, Target, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import {
   type GigCreateInput,
 } from "../types";
 import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
-import { syncGigPaymentTransaction, listEquipment } from "@/modules/finance/api";
+import { syncGigPaymentTransaction, listEquipment, createEquipment } from "@/modules/finance/api";
 import type { Equipment } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
@@ -117,6 +117,7 @@ const EMPTY: FormState = {
   main_goal: null,
   prep_state: null,
   gig_equipment: "[]",
+  gig_research: null,
   main_goal_task_id: null,
   event_category: null,
   prep_task_id: null,
@@ -369,7 +370,7 @@ export function GigForm({
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
             <TabsTrigger value="prep">Preparação</TabsTrigger>
-            {gig && (
+            {state.status !== "Proposta" && (
               <TabsTrigger value="setlist">Set list</TabsTrigger>
             )}
           </TabsList>
@@ -721,74 +722,37 @@ export function GigForm({
               onChange={(prep) => setState((s) => ({ ...s, prep }))}
             />
 
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label="Equipamento da casa"
-                hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
-              >
-                <Textarea
-                  rows={2}
-                  value={state.equipment_provided ?? ""}
-                  onChange={(e) => set("equipment_provided", e.target.value || null)}
-                />
-              </Field>
-              <Field
-                label="O que preciso levar"
-                hint="Fone, pendrives, adaptador, cabos extras…"
-              >
-                <Textarea
-                  rows={2}
-                  value={state.equipment_to_bring ?? ""}
-                  onChange={(e) => set("equipment_to_bring", e.target.value || null)}
-                />
-              </Field>
-            </div>
+            <Field
+              label="Equipamento da casa"
+              hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
+            >
+              <Textarea
+                rows={2}
+                value={state.equipment_provided ?? ""}
+                onChange={(e) => set("equipment_provided", e.target.value || null)}
+              />
+            </Field>
 
-            {allEquipment.length > 0 && (() => {
-              const selectedIds: number[] = (() => {
+            <EquipmentToCarry
+              allEquipment={allEquipment}
+              gigEquipment={state.gig_equipment}
+              equipmentToBring={state.equipment_to_bring}
+              onEquipmentChange={(v) => set("gig_equipment", v)}
+              onBringChange={(v) => set("equipment_to_bring", v)}
+              onEquipmentAdded={async (name) => {
+                const id = await createEquipment({ name, category: null, purchase_value: null, notes: null, transaction_id: null, purchase_date: null, state: "Em uso", location: null, quantity: 1, photo_path: null });
+                const fresh = await listEquipment();
+                setAllEquipment(fresh);
+                // auto-seleciona o novo item
                 try {
                   const parsed = JSON.parse(state.gig_equipment) as unknown;
-                  return Array.isArray(parsed) ? (parsed as number[]) : [];
+                  const ids = Array.isArray(parsed) ? (parsed as number[]) : [];
+                  set("gig_equipment", JSON.stringify([...ids, id]));
                 } catch {
-                  return [];
+                  set("gig_equipment", JSON.stringify([id]));
                 }
-              })();
-              return (
-              <div className="space-y-2">
-                <Label className="text-sm">Patrimônio para levar</Label>
-                <p className="text-xs text-muted-foreground">Marque os equipamentos do patrimônio que vai usar nessa GIG.</p>
-                {Array.from(new Set(allEquipment.map((e) => e.category ?? "Sem categoria"))).map((cat) => {
-                  const items = allEquipment.filter((e) => (e.category ?? "Sem categoria") === cat);
-                  return (
-                    <div key={cat} className="space-y-1">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{cat}</div>
-                      <div className="flex flex-wrap gap-2">
-                        {items.map((eq) => {
-                          const checked = selectedIds.includes(eq.id);
-                          return (
-                            <label key={eq.id} className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition hover:bg-accent">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  const next = checked
-                                    ? selectedIds.filter((x) => x !== eq.id)
-                                    : [...selectedIds, eq.id];
-                                  set("gig_equipment", JSON.stringify(next));
-                                }}
-                                className="h-3.5 w-3.5"
-                              />
-                              {eq.name}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              );
-            })()}
+              }}
+            />
 
             <Field label="Observações">
               <Textarea
@@ -872,11 +836,19 @@ export function GigForm({
           )}
           </TabsContent>
 
-          {gig && (
+          {state.status !== "Proposta" && (
           <TabsContent value="setlist" className="space-y-4">
+            <Section title="Pesquisa musical">
+              <p className="text-xs text-muted-foreground">Músicas que descobriu ou pensou em tocar nessa GIG.</p>
+              <ResearchList
+                value={state.gig_research}
+                onChange={(v) => set("gig_research", v)}
+              />
+            </Section>
+
             {allTracks.length > 0 && (
-              <Section title="Tracks do catálogo">
-                <p className="text-xs text-muted-foreground">Marque as tracks que tocou nessa GIG.</p>
+              <Section title="Minhas Tracks">
+                <p className="text-xs text-muted-foreground">Marque as tracks da sua biblioteca que tocou nessa GIG.</p>
                 <div className="flex flex-wrap gap-1.5">
                   {allTracks.map((t) => {
                     const selected = setListTrackIds.includes(t.id);
@@ -905,10 +877,13 @@ export function GigForm({
                 </div>
               </Section>
             )}
-            <Section title="Setlist de arquivo">
-              <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
-              <GigSetlist gigId={gig.id} />
-            </Section>
+
+            {gig && (
+              <Section title="Setlist de arquivo">
+                <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
+                <GigSetlist gigId={gig.id} />
+              </Section>
+            )}
           </TabsContent>
           )}
         </Tabs>
@@ -949,6 +924,204 @@ export function GigForm({
         }}
       />
     </Dialog>
+  );
+}
+
+type ResearchItem = { title: string; artist: string; note: string };
+
+function ResearchList({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+}) {
+  const items: ResearchItem[] = (() => {
+    try {
+      const parsed = value ? (JSON.parse(value) as unknown) : [];
+      return Array.isArray(parsed) ? (parsed as ResearchItem[]) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
+
+  function save(next: ResearchItem[]) {
+    onChange(next.length > 0 ? JSON.stringify(next) : null);
+  }
+
+  function add() {
+    if (!title.trim() && !artist.trim()) return;
+    save([...items, { title: title.trim(), artist: artist.trim(), note: "" }]);
+    setTitle("");
+    setArtist("");
+  }
+
+  function remove(i: number) {
+    save(items.filter((_, j) => j !== i));
+  }
+
+  function updateNote(i: number, note: string) {
+    save(items.map((item, j) => (j === i ? { ...item, note } : item)));
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          placeholder="Título"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          className="flex-1"
+        />
+        <Input
+          placeholder="Artista"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          className="flex-1"
+        />
+        <Button type="button" size="sm" variant="outline" onClick={add}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nenhuma música pesquisada ainda. Adicione acima.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {items.map((item, i) => (
+            <li key={i} className="flex items-start gap-2 rounded-md border px-2.5 py-2">
+              <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="text-sm font-medium leading-none">
+                  {item.title || "—"}
+                  {item.artist && <span className="ml-1.5 text-xs text-muted-foreground">· {item.artist}</span>}
+                </div>
+                <Input
+                  placeholder="Nota (opcional)"
+                  value={item.note}
+                  onChange={(e) => updateNote(i, e.target.value)}
+                  className="h-6 text-xs"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => remove(i)}
+                className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function EquipmentToCarry({
+  allEquipment,
+  gigEquipment,
+  equipmentToBring,
+  onEquipmentChange,
+  onBringChange,
+  onEquipmentAdded,
+}: {
+  allEquipment: Equipment[];
+  gigEquipment: string;
+  equipmentToBring: string | null;
+  onEquipmentChange: (v: string) => void;
+  onBringChange: (v: string | null) => void;
+  onEquipmentAdded: (name: string) => Promise<void>;
+}) {
+  const [quickName, setQuickName] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const selectedIds: number[] = (() => {
+    try {
+      const parsed = JSON.parse(gigEquipment) as unknown;
+      return Array.isArray(parsed) ? (parsed as number[]) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  async function handleQuickAdd() {
+    if (!quickName.trim()) return;
+    setAdding(true);
+    try {
+      await onEquipmentAdded(quickName.trim());
+      setQuickName("");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  const categories = Array.from(new Set(allEquipment.map((e) => e.category ?? "Sem categoria")));
+
+  return (
+    <div className="space-y-3">
+      <Label className="text-sm">O que preciso levar</Label>
+      <Textarea
+        rows={2}
+        placeholder="Fone, pendrives, adaptador, cabos extras…"
+        value={equipmentToBring ?? ""}
+        onChange={(e) => onBringChange(e.target.value || null)}
+      />
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">Patrimônio cadastrado — marque o que vai usar nessa GIG:</p>
+        {categories.map((cat) => {
+          const items = allEquipment.filter((e) => (e.category ?? "Sem categoria") === cat);
+          return (
+            <div key={cat} className="space-y-1">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{cat}</div>
+              <div className="flex flex-wrap gap-2">
+                {items.map((eq) => {
+                  const checked = selectedIds.includes(eq.id);
+                  return (
+                    <label key={eq.id} className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition hover:bg-accent">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => {
+                          const next = checked
+                            ? selectedIds.filter((x) => x !== eq.id)
+                            : [...selectedIds, eq.id];
+                          onEquipmentChange(JSON.stringify(next));
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      {eq.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        <div className="flex gap-2 pt-1">
+          <Input
+            placeholder="Adicionar patrimônio rapidamente…"
+            value={quickName}
+            onChange={(e) => setQuickName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleQuickAdd(); } }}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleQuickAdd()}
+            disabled={adding || !quickName.trim()}
+          >
+            {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -1172,6 +1172,11 @@ const MIGRATIONS: Migration[] = [
     description: "company field for contacts",
     sql: `ALTER TABLE contacts ADD COLUMN company TEXT`,
   },
+  {
+    version: 55,
+    description: "gig_research JSON for musical research per gig",
+    sql: `ALTER TABLE gigs ADD COLUMN gig_research TEXT`,
+  },
 ];
 
 
