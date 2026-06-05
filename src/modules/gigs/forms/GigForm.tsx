@@ -730,15 +730,21 @@ export function GigForm({
               </Field>
             </div>
 
-            {allEquipment.length > 0 && (
+            {allEquipment.length > 0 && (() => {
+              const selectedIds: number[] = (() => {
+                try {
+                  const parsed = JSON.parse(state.gig_equipment) as unknown;
+                  return Array.isArray(parsed) ? (parsed as number[]) : [];
+                } catch {
+                  return [];
+                }
+              })();
+              return (
               <div className="space-y-2">
                 <Label className="text-sm">Patrimônio para levar</Label>
                 <p className="text-xs text-muted-foreground">Marque os equipamentos do patrimônio que vai usar nessa GIG.</p>
                 {Array.from(new Set(allEquipment.map((e) => e.category ?? "Sem categoria"))).map((cat) => {
                   const items = allEquipment.filter((e) => (e.category ?? "Sem categoria") === cat);
-                  const selectedIds: number[] = (() => {
-                    try { return JSON.parse(state.gig_equipment) as number[]; } catch { return []; }
-                  })();
                   return (
                     <div key={cat} className="space-y-1">
                       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{cat}</div>
@@ -767,7 +773,8 @@ export function GigForm({
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
 
             <Field label="Observações">
               <Textarea

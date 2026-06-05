@@ -471,6 +471,13 @@ function monthsAgo(n: number): string {
   return d.toISOString().slice(0, 7);
 }
 
+/** Último dia do mês "YYYY-MM" como "YYYY-MM-DD" (lida com fev, 30/31 dias). */
+function monthEnd(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  const day = new Date(y, m, 0).getDate(); // dia 0 do mês seguinte = último dia deste
+  return `${yyyymm}-${String(day).padStart(2, "0")}`;
+}
+
 function periodToDateFilter(period?: string): { fromDate?: string; toDate?: string } {
   if (!period || period === "all") return {};
   const now = new Date();
@@ -481,14 +488,14 @@ function periodToDateFilter(period?: string): { fromDate?: string; toDate?: stri
   }
   if (period === "thismonth") {
     const m = now.toISOString().slice(0, 7);
-    return { fromDate: `${m}-01`, toDate: `${m}-31` };
+    return { fromDate: `${m}-01`, toDate: monthEnd(m) };
   }
   if (period === "thisyear") {
     const y = now.toISOString().slice(0, 4);
     return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
   }
   if (/^\d{4}-\d{2}$/.test(period)) {
-    return { fromDate: `${period}-01`, toDate: `${period}-31` };
+    return { fromDate: `${period}-01`, toDate: monthEnd(period) };
   }
   return {};
 }
