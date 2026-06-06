@@ -19,6 +19,7 @@ import {
   triggerQuickCapture,
   useQuickCaptureEvent,
 } from "@/lib/shortcuts";
+import { useAlertNotifications } from "@/lib/notify";
 
 // Lazy-load das páginas dos módulos para que cada um vire um chunk separado.
 // O FinancePage carrega o Recharts (~150kb) só quando o usuário abre o módulo.
@@ -206,6 +207,9 @@ function RoutedApp() {
   }, []);
 
   useQuickCaptureEvent(() => setQuickCaptureOpen(true));
+
+  // Notificações locais do sistema para alertas críticos.
+  useAlertNotifications();
 
   return (
     <>

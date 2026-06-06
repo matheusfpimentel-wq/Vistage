@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, BellRing } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
+import { enableNotifications, notificationPermission } from "@/lib/notify";
 import { DATA_CHANGED } from "@/lib/events";
 
 export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
+  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() =>
+    notificationPermission()
+  );
   const ref = useRef<HTMLDivElement>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,6 +90,19 @@ export function NotificationBell() {
           <div className="border-b px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Alertas
           </div>
+          {perm === "default" && (
+            <button
+              type="button"
+              onClick={async () => {
+                await enableNotifications();
+                setPerm(notificationPermission());
+              }}
+              className="flex w-full items-center gap-2 border-b bg-primary/5 px-3 py-2 text-left text-xs text-primary transition hover:bg-primary/10"
+            >
+              <BellRing className="h-3.5 w-3.5 shrink-0" />
+              Ativar notificações do sistema para alertas críticos
+            </button>
+          )}
           {alerts.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-muted-foreground">
               Tudo em ordem.
