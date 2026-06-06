@@ -17,37 +17,38 @@ export type MonthlyReport = {
 export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
   const db = getDb();
 
-  const fin = await db.select<{ kind: string; total: number }[]>(
-    `SELECT kind, COALESCE(SUM(amount), 0) total
-       FROM finance_transactions WHERE substr(date,1,7) = $1 GROUP BY kind`,
-    [month]
-  );
+  const [fin, gigs, parties, content, tracks, tasks] = await Promise.all([
+    db.select<{ kind: string; total: number }[]>(
+      `SELECT kind, COALESCE(SUM(amount), 0) total
+         FROM finance_transactions WHERE substr(date,1,7) = $1 GROUP BY kind`,
+      [month]
+    ),
+    db.select<{ c: number; cache: number }[]>(
+      `SELECT COUNT(*) c, COALESCE(SUM(cache_amount), 0) cache
+         FROM gigs WHERE status = 'Concluída' AND substr(date,1,7) = $1`,
+      [month]
+    ),
+    db.select<{ c: number }[]>(
+      `SELECT COUNT(*) c FROM parties WHERE status = 'Realizada' AND substr(date,1,7) = $1`,
+      [month]
+    ),
+    db.select<{ c: number }[]>(
+      `SELECT COUNT(*) c FROM content WHERE status = 'Publicado' AND substr(publish_date,1,7) = $1`,
+      [month]
+    ),
+    db.select<{ c: number }[]>(
+      `SELECT COUNT(*) c FROM tracks
+        WHERE current_stage IN ('Lançamento','Pós-lançamento')
+          AND substr(stage_entered_at,1,7) = $1`,
+      [month]
+    ),
+    db.select<{ c: number }[]>(
+      `SELECT COUNT(*) c FROM tasks WHERE status = 'Concluída' AND substr(updated_at,1,7) = $1`,
+      [month]
+    ),
+  ]);
   const income = fin.find((r) => r.kind === "income")?.total ?? 0;
   const expense = fin.find((r) => r.kind === "expense")?.total ?? 0;
-
-  const gigs = await db.select<{ c: number; cache: number }[]>(
-    `SELECT COUNT(*) c, COALESCE(SUM(cache_amount), 0) cache
-       FROM gigs WHERE status = 'Concluída' AND substr(date,1,7) = $1`,
-    [month]
-  );
-  const parties = await db.select<{ c: number }[]>(
-    `SELECT COUNT(*) c FROM parties WHERE status = 'Realizada' AND substr(date,1,7) = $1`,
-    [month]
-  );
-  const content = await db.select<{ c: number }[]>(
-    `SELECT COUNT(*) c FROM content WHERE status = 'Publicado' AND substr(publish_date,1,7) = $1`,
-    [month]
-  );
-  const tracks = await db.select<{ c: number }[]>(
-    `SELECT COUNT(*) c FROM tracks
-      WHERE current_stage IN ('Lançamento','Pós-lançamento')
-        AND substr(stage_entered_at,1,7) = $1`,
-    [month]
-  );
-  const tasks = await db.select<{ c: number }[]>(
-    `SELECT COUNT(*) c FROM tasks WHERE status = 'Concluída' AND substr(updated_at,1,7) = $1`,
-    [month]
-  );
 
   return {
     month,

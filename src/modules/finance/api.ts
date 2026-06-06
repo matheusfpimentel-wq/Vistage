@@ -292,12 +292,15 @@ export async function deleteTransactionsForGig(gigId: number): Promise<void> {
 // Integração com Aulas (receita)
 // ============================================================
 
+let classIncomeCategoryIdCache: number | null | undefined;
 async function classIncomeCategoryId(): Promise<number | null> {
+  if (classIncomeCategoryIdCache !== undefined) return classIncomeCategoryIdCache;
   const db = getDb();
   const cat = await db.select<{ id: number }[]>(
     `SELECT id FROM finance_categories WHERE kind = 'income' AND name = 'Aulas / Mentorias' LIMIT 1`
   );
-  return cat[0]?.id ?? null;
+  classIncomeCategoryIdCache = cat[0]?.id ?? null;
+  return classIncomeCategoryIdCache;
 }
 
 /**
@@ -825,31 +828,32 @@ export async function loadProjectProfit(): Promise<{
 }> {
   const db = getDb();
 
-  const gigRows = await db.select<
-    { id: number; name: string; date: string; income: number; expense: number }[]
-  >(
-    `SELECT t.gig_id AS id,
-            COALESCE(NULLIF(g.event_name,''), g.venue_name) AS name,
-            g.date AS date,
-            COALESCE(SUM(CASE WHEN t.kind='income' THEN t.amount END), 0) AS income,
-            COALESCE(SUM(CASE WHEN t.kind='expense' THEN t.amount END), 0) AS expense
-       FROM finance_transactions t
-       JOIN gigs g ON g.id = t.gig_id
-      WHERE t.gig_id IS NOT NULL
-      GROUP BY t.gig_id
-      ORDER BY (income - expense) DESC`
-  );
-
-  const partyRows = await db.select<
-    { id: number; name: string; date: string | null; income: number; expense: number }[]
-  >(
-    `SELECT p.id AS id,
-            p.title AS name,
-            p.date AS date,
-            (SELECT COALESCE(SUM(price * quantity_sold), 0) FROM party_tickets WHERE party_id = p.id) AS income,
-            (SELECT COALESCE(SUM(actual_amount), 0) FROM party_budget_items WHERE party_id = p.id) AS expense
-       FROM parties p`
-  );
+  const [gigRows, partyRows] = await Promise.all([
+    db.select<
+      { id: number; name: string; date: string; income: number; expense: number }[]
+    >(
+      `SELECT t.gig_id AS id,
+              COALESCE(NULLIF(g.event_name,''), g.venue_name) AS name,
+              g.date AS date,
+              COALESCE(SUM(CASE WHEN t.kind='income' THEN t.amount END), 0) AS income,
+              COALESCE(SUM(CASE WHEN t.kind='expense' THEN t.amount END), 0) AS expense
+         FROM finance_transactions t
+         JOIN gigs g ON g.id = t.gig_id
+        WHERE t.gig_id IS NOT NULL
+        GROUP BY t.gig_id
+        ORDER BY (income - expense) DESC`
+    ),
+    db.select<
+      { id: number; name: string; date: string | null; income: number; expense: number }[]
+    >(
+      `SELECT p.id AS id,
+              p.title AS name,
+              p.date AS date,
+              (SELECT COALESCE(SUM(price * quantity_sold), 0) FROM party_tickets WHERE party_id = p.id) AS income,
+              (SELECT COALESCE(SUM(actual_amount), 0) FROM party_budget_items WHERE party_id = p.id) AS expense
+         FROM parties p`
+    ),
+  ]);
 
   const gigs: ProjectProfit[] = gigRows.map((r) => ({
     kind: "gig",

@@ -209,7 +209,7 @@ export async function deleteStudentPackage(id: number): Promise<void> {
       await import("@/modules/finance/api");
     await deleteTransactionsForStudentPackage(id);
     // Aulas que viraram avulsas podem agora gerar receita própria.
-    for (const c of affected) await syncClassTransaction(c.id);
+    await Promise.all(affected.map((c) => syncClassTransaction(c.id)));
   } catch {
     /* não interrompe */
   }

@@ -60,7 +60,26 @@ async function safeSelect<T>(
   }
 }
 
-export async function loadWeekStats(): Promise<WeekStats> {
+// Vários componentes (sino, barra mobile, tela de Alertas, notificador) chamam
+// loadWeekStats nos mesmos gatilhos (DATA_CHANGED/focus). Um cache curtíssimo
+// faz essas chamadas concorrentes compartilharem uma única consulta.
+let weekStatsCache: { at: number; promise: Promise<WeekStats> } | null = null;
+const WEEK_STATS_TTL = 1500;
+
+export function loadWeekStats(): Promise<WeekStats> {
+  const now = Date.now();
+  if (weekStatsCache && now - weekStatsCache.at < WEEK_STATS_TTL) {
+    return weekStatsCache.promise;
+  }
+  const promise = computeWeekStats().catch((e) => {
+    weekStatsCache = null;
+    throw e;
+  });
+  weekStatsCache = { at: now, promise };
+  return promise;
+}
+
+async function computeWeekStats(): Promise<WeekStats> {
   const { start, end } = weekRange();
   const today = todayISO();
   const db = getDb();
