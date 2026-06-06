@@ -12,7 +12,7 @@ export type PartyStage = {
 
 export const DEFAULT_STAGE_NAMES = ["Ideação","Viabilidade","Marketing","Execução","Concretização"] as const;
 
-export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date" }[]> = {
+export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist" }[]> = {
   "Ideação": [
     { key:"conceito", label:"Conceito da festa", type:"text" },
     { key:"tema", label:"Tema", type:"text" },
@@ -22,9 +22,8 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   ],
   "Viabilidade": [
     { key:"data_pretendida", label:"Data pretendida", type:"date" },
-    { key:"capacidade", label:"Capacidade estimada", type:"number" },
-    { key:"venue_pesquisado", label:"Venues pesquisados", type:"text" },
-    { key:"break_even", label:"Break-even estimado (R$)", type:"number" },
+    { key:"capacidade", label:"Público estimado", type:"number" },
+    { key:"custos_necessarios", label:"Custos necessários", type:"costs" },
     { key:"viabilidade_notas", label:"Observações de viabilidade", type:"text" },
   ],
   "Marketing": [
@@ -37,7 +36,7 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   "Execução": [
     { key:"equipe", label:"Equipe confirmada", type:"text" },
     { key:"rider_tecnico", label:"Rider técnico", type:"text" },
-    { key:"checklist_operacional", label:"Checklist operacional", type:"text" },
+    { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
     { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
   ],
   "Concretização": [
@@ -47,6 +46,17 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
     { key:"proximos_passos", label:"Próximos passos", type:"text" },
   ],
 };
+
+/** Categorias para os custos necessários da etapa de Viabilidade. */
+export const VIABILITY_COST_CATEGORIES = [
+  "Pessoal", "Estrutura", "Marketing", "Operacional", "Outros",
+] as const;
+
+/** Linha de custo estimado na Viabilidade (serializado em JSON no campo da etapa). */
+export type ViabilityCost = { category: string; description: string; amount: number };
+
+/** Item do checklist operacional (serializado em JSON no campo da etapa). */
+export type ChecklistItem = { text: string; done: boolean };
 
 export const BUDGET_CATEGORIES: Record<string, string[]> = {
   Pessoal: ["DJs","Seguranças","Promoters","Staff","Fotógrafo/Vídeo","MC/Apresentador","Outros"],

@@ -10,6 +10,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
@@ -18,10 +19,16 @@ import { cn } from "@/lib/utils";
 import {
   DEFAULT_STAGE_NAMES,
   STAGE_FIELD_DEFS,
+  VIABILITY_COST_CATEGORIES,
+  type ChecklistItem,
   type PartyStage,
   type PartyTask,
   type StageStatus,
+  type ViabilityCost,
 } from "../types";
+
+const fmtCurrency = (n: number) =>
+  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 import {
   createPartyStage,
   createPartyTask,
@@ -296,6 +303,33 @@ export function WorkflowTab({
                       </div>
                     );
                   }
+                  if (fd.type === "costs") {
+                    return (
+                      <div key={fd.key} className="sm:col-span-2">
+                        <CostsField
+                          label={fd.label}
+                          value={String(editFields[fd.key] ?? "")}
+                          publicoEstimado={Number(editFields["capacidade"]) || 0}
+                          onChange={(v) =>
+                            setEditFields((f) => ({ ...f, [fd.key]: v }))
+                          }
+                        />
+                      </div>
+                    );
+                  }
+                  if (fd.type === "checklist") {
+                    return (
+                      <div key={fd.key} className="sm:col-span-2">
+                        <ChecklistField
+                          label={fd.label}
+                          value={String(editFields[fd.key] ?? "")}
+                          onChange={(v) =>
+                            setEditFields((f) => ({ ...f, [fd.key]: v }))
+                          }
+                        />
+                      </div>
+                    );
+                  }
                   return (
                     <div key={fd.key} className="space-y-1">
                       <Label className="text-xs">{fd.label}</Label>
@@ -433,6 +467,222 @@ export function WorkflowTab({
           disabled={restoringDefaults}
         >
           <RotateCcw className="h-3.5 w-3.5" /> Restaurar etapas padrão
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Sistema de linhas de custos estimados + cálculo de break-even por pessoa. */
+function CostsField({
+  label,
+  value,
+  publicoEstimado,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  publicoEstimado: number;
+  onChange: (v: string | null) => void;
+}) {
+  let rows: ViabilityCost[] = [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) rows = parsed;
+  } catch { /* vazio ou legado */ }
+
+  const [cat, setCat] = useState<string>(VIABILITY_COST_CATEGORIES[0]);
+  const [desc, setDesc] = useState("");
+  const [amount, setAmount] = useState("");
+
+  const total = rows.reduce((s, r) => s + (r.amount || 0), 0);
+  const ticketMedio = publicoEstimado > 0 ? total / publicoEstimado : null;
+
+  function save(next: ViabilityCost[]) {
+    onChange(next.length ? JSON.stringify(next) : null);
+  }
+
+  function addRow() {
+    const val = parseFloat(amount);
+    if (isNaN(val) || val <= 0) {
+      toast.error("Informe um valor válido para o custo");
+      return;
+    }
+    save([...rows, { category: cat, description: desc.trim(), amount: val }]);
+    setDesc("");
+    setAmount("");
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs">{label}</Label>
+
+      {rows.length > 0 && (
+        <div className="space-y-1.5">
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+            >
+              <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.category}</span>
+              <span className="flex-1 truncate text-muted-foreground">
+                {r.description || "—"}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums">
+                {fmtCurrency(r.amount)}
+              </span>
+              <button
+                type="button"
+                onClick={() => save(rows.filter((_, j) => j !== i))}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Remover custo"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-[10rem_1fr_8rem_auto]">
+        <Select value={cat} onValueChange={setCat}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Categoria" />
+          </SelectTrigger>
+          <SelectContent>
+            {VIABILITY_COST_CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          className="h-8 text-xs"
+          placeholder="Descrição"
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addRow(); }}
+        />
+        <Input
+          className="h-8 text-xs"
+          type="number"
+          min={0}
+          step={0.01}
+          placeholder="Valor (R$)"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addRow(); }}
+        />
+        <Button type="button" size="sm" variant="outline" className="h-8" onClick={addRow}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+        <span className="text-muted-foreground">Total de custos</span>
+        <span className="font-semibold tabular-nums">{fmtCurrency(total)}</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+        <span className="text-muted-foreground">
+          Ticket médio p/ break-even
+          {publicoEstimado > 0 ? ` (${publicoEstimado} pessoas)` : ""}
+        </span>
+        <span className="font-semibold tabular-nums">
+          {ticketMedio !== null ? fmtCurrency(ticketMedio) : "informe o público estimado"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Checklist operacional: itens marcáveis com adição/remoção de linhas. */
+function ChecklistField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string | null) => void;
+}) {
+  let items: ChecklistItem[] = [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) items = parsed;
+  } catch {
+    // Migra texto legado: cada linha vira um item não-concluído.
+    if (value.trim()) {
+      items = value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+        .map((text) => ({ text, done: false }));
+    }
+  }
+
+  const [newItem, setNewItem] = useState("");
+
+  function save(next: ChecklistItem[]) {
+    onChange(next.length ? JSON.stringify(next) : null);
+  }
+
+  function addItem() {
+    const text = newItem.trim();
+    if (!text) return;
+    save([...items, { text, done: false }]);
+    setNewItem("");
+  }
+
+  const doneCount = items.filter((i) => i.done).length;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs">{label}</Label>
+        {items.length > 0 && (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {doneCount}/{items.length}
+          </span>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-1">
+          {items.map((item, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={item.done}
+                onChange={() =>
+                  save(items.map((it, j) => (j === i ? { ...it, done: !it.done } : it)))
+                }
+                className="h-4 w-4 shrink-0"
+              />
+              <span className={cn("flex-1", item.done && "line-through text-muted-foreground")}>
+                {item.text}
+              </span>
+              <button
+                type="button"
+                onClick={() => save(items.filter((_, j) => j !== i))}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Remover item"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Input
+          className="h-8 flex-1 text-xs"
+          placeholder="Novo item do checklist…"
+          value={newItem}
+          onChange={(e) => setNewItem(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addItem(); }}
+        />
+        <Button type="button" size="sm" variant="outline" className="h-8" onClick={addItem}>
+          <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>

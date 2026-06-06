@@ -27,7 +27,6 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { formatDate } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
@@ -41,10 +40,8 @@ import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
   PARTY_STATUSES,
-  PARTY_COST_CATEGORIES,
   type PartyDeserialized,
   type PartyStatus,
-  type PartyCost,
   type PartyTeamMember,
   type PartyStage,
   type PartyBudgetItem,
@@ -54,9 +51,6 @@ import {
 import {
   createParty,
   updateParty,
-  listPartyCosts,
-  createPartyCost,
-  deletePartyCost,
   autoGeneratePartyTasks,
   listPartyVenueCandidates,
   addPartyVenueCandidate,
@@ -123,7 +117,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
   const [quickContent, setQuickContent] = useState(false);
   const [quickContentForm, setQuickContentForm] = useState({ title: "", format: "", network: "", status: "Ideia" as string });
-  const [costs, setCosts] = useState<PartyCost[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -145,23 +138,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [teamRole, setTeamRole] = useState("");
   const [teamAmount, setTeamAmount] = useState("");
 
-  const [costCategory, setCostCategory] = useState<string>("");
-  const [costDesc, setCostDesc] = useState("");
-  const [costAmount, setCostAmount] = useState("");
-  const [costDate, setCostDate] = useState("");
-  const [addingCost, setAddingCost] = useState(false);
-
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!party;
-
-  const loadCosts = useCallback(async () => {
-    if (!party) return;
-    const rows = await listPartyCosts(party.id);
-    setCosts(rows);
-  }, [party]);
 
   const loadCandidates = useCallback(async () => {
     if (!party) return;
@@ -193,10 +174,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   useEffect(() => {
     if (!open) return;
     setDirty(false);
-    setCostCategory("");
-    setCostDesc("");
-    setCostAmount("");
-    setCostDate("");
     setSponsorName("");
     setSponsorAmount("");
 
@@ -224,19 +201,17 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         team: party.team,
         notes: party.notes,
       });
-      void loadCosts();
       void loadCandidates();
       void loadSubTabs();
     } else {
       setState(EMPTY);
-      setCosts([]);
       setCandidates([]);
       setStages([]);
       setBudgetItems([]);
       setTickets([]);
       setTasks([]);
     }
-  }, [open, party, loadCosts, loadCandidates, loadSubTabs]);
+  }, [open, party, loadCandidates, loadSubTabs]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -331,43 +306,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
   function removeTeamMember(idx: number) {
     set("team", state.team.filter((_, i) => i !== idx));
-  }
-
-  async function handleAddCost() {
-    if (!party) return;
-    const amount = parseFloat(costAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error("Informe um valor válido para o custo");
-      return;
-    }
-    setAddingCost(true);
-    try {
-      await createPartyCost(
-        party.id,
-        costCategory || null,
-        costDesc.trim() || null,
-        amount,
-        costDate || null
-      );
-      setCostCategory("");
-      setCostDesc("");
-      setCostAmount("");
-      setCostDate("");
-      await loadCosts();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setAddingCost(false);
-    }
-  }
-
-  async function handleDeleteCost(id: number) {
-    try {
-      await deletePartyCost(id);
-      await loadCosts();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
   }
 
   async function handleCreateQuickContent() {
@@ -517,7 +455,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     }
   }
 
-  const totalCosts = costs.reduce((acc, c) => acc + c.amount, 0);
   const candidateVenueIds = new Set(candidates.map((c) => c.venue_id));
   const availableVenues = venues.filter((v) => !candidateVenueIds.has(v.id));
 
@@ -901,96 +838,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 tickets={tickets}
                 onReload={loadSubTabs}
               />
-              {/* Custos legados */}
-              <div className="mt-6 space-y-4 border-t pt-4">
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Custos simples (legado)
-                </Label>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  <Select value={costCategory} onValueChange={setCostCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PARTY_COST_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Descrição"
-                    value={costDesc}
-                    onChange={(e) => setCostDesc(e.target.value)}
-                  />
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="Valor (R$)"
-                    value={costAmount}
-                    onChange={(e) => setCostAmount(e.target.value)}
-                  />
-                  <div className="flex gap-2">
-                    <Input
-                      type="date"
-                      value={costDate}
-                      onChange={(e) => setCostDate(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void handleAddCost()}
-                      disabled={addingCost}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-
-                {costs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum custo simples registrado.</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {costs.map((c) => (
-                      <div
-                        key={c.id}
-                        className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
-                      >
-                        {c.category && (
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                            {c.category}
-                          </span>
-                        )}
-                        <span className="flex-1 truncate text-muted-foreground">
-                          {c.description ?? "—"}
-                        </span>
-                        {c.date && (
-                          <span className="shrink-0 text-xs text-muted-foreground">
-                            {formatDate(c.date)}
-                          </span>
-                        )}
-                        <span className="shrink-0 font-medium tabular-nums">
-                          {formatCurrency(c.amount)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteCost(c.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label="Excluir custo"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                    <div className="flex justify-end pt-1 text-sm font-semibold">
-                      Total custos simples: {formatCurrency(totalCosts)}
-                    </div>
-                  </div>
-                )}
-              </div>
             </TabsContent>
           )}
 
