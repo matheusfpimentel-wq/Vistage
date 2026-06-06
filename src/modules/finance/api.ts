@@ -442,6 +442,7 @@ export type FinanceInsights = {
   byExpenseCategory: { name: string; value: number }[];
   topGigs: {
     gig_id: number;
+    event_name: string | null;
     venue_name: string;
     date: string;
     revenue: number;
@@ -603,9 +604,9 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
 
   // Top GIGs (todas as receitas vinculadas a GIG)
   const topGigs = await db.select<
-    { gig_id: number; venue_name: string; date: string; revenue: number }[]
+    { gig_id: number; event_name: string | null; venue_name: string; date: string; revenue: number }[]
   >(
-    `SELECT t.gig_id, g.venue_name, g.date, SUM(t.amount) as revenue
+    `SELECT t.gig_id, g.event_name, g.venue_name, g.date, SUM(t.amount) as revenue
        FROM finance_transactions t
        JOIN gigs g ON g.id = t.gig_id
       WHERE t.kind = 'income' AND t.gig_id IS NOT NULL

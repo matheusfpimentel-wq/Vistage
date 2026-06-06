@@ -86,8 +86,9 @@ export async function updateVenue(input: VenueUpdateInput): Promise<void> {
 
 export async function deleteVenue(id: number): Promise<void> {
   const db = getDb();
-  // GIGs vinculadas perdem o venue_id (mantemos venue_name como fallback).
+  // GIGs e festas vinculadas perdem venue_id (venue_name já está salvo e não é apagado).
   await db.execute("UPDATE gigs SET venue_id = NULL WHERE venue_id = $1", [id]);
+  await db.execute("UPDATE parties SET venue_id = NULL WHERE venue_id = $1", [id]);
   await db.execute("DELETE FROM venues WHERE id = $1", [id]);
 }
 

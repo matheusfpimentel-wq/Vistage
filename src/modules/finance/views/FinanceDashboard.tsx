@@ -201,7 +201,7 @@ export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
                   >
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">#{i + 1}</Badge>
-                      <span className="font-medium">{g.venue_name}</span>
+                      <span className="font-medium">{g.event_name?.trim() || g.venue_name}</span>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(g.date)}
                       </span>
