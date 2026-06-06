@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { ChevronRight, PanelLeftClose } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_NAV,
@@ -20,6 +20,13 @@ export function Sidebar({
   onNavigate?: () => void;
 }) {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("sidebar_collapsed_groups") ?? "{}");
+    } catch {
+      return {};
+    }
+  });
 
   useEffect(() => {
     void loadOrderedNav().then(setNav);
@@ -27,6 +34,14 @@ export function Sidebar({
     const onChange = () => void loadOrderedNav().then(setNav);
     window.addEventListener(NAV_ORDER_CHANGED, onChange);
     return () => window.removeEventListener(NAV_ORDER_CHANGED, onChange);
+  }, []);
+
+  const toggleGroup = useCallback((group: string) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [group]: !prev[group] };
+      localStorage.setItem("sidebar_collapsed_groups", JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   const renderLink = ({ to, label, icon: Icon, end }: NavItem) => (
@@ -91,31 +106,49 @@ export function Sidebar({
           {nav.filter((i) => i.fixed && i.to !== "/configuracoes").map(renderLink)}
         </div>
 
-        {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo. */}
+        {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo;
+            o chevron recolhe/expande a seção (estado lembrado). */}
         {NAV_GROUP_ORDER.map((group) => {
           const items = nav.filter((i) => i.group === group);
           if (items.length === 0) return null;
           const meta = NAV_GROUP_META[group];
+          const isCollapsed = collapsed[group];
           return (
             <div key={group} className="mt-4 space-y-0.5">
-              <NavLink
-                to={meta.to}
-                end
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    "group/header flex items-center gap-1 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-                    isActive
-                      ? "text-primary"
-                      : "text-muted-foreground/50 hover:text-foreground"
-                  )
-                }
-                title={`Abrir dashboard de ${group}`}
-              >
-                {group}
-                <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
-              </NavLink>
-              {items.map(renderLink)}
+              <div className="flex items-center">
+                <NavLink
+                  to={meta.to}
+                  end
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      "group/header flex flex-1 items-center gap-1 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                      isActive
+                        ? "text-primary"
+                        : "text-muted-foreground/50 hover:text-foreground"
+                    )
+                  }
+                  title={`Abrir dashboard de ${group}`}
+                >
+                  {group}
+                  <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/50 transition hover:bg-accent hover:text-foreground"
+                  aria-label={isCollapsed ? `Expandir ${group}` : `Recolher ${group}`}
+                  aria-expanded={!isCollapsed}
+                >
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 transition-transform",
+                      isCollapsed && "-rotate-90"
+                    )}
+                  />
+                </button>
+              </div>
+              {!isCollapsed && items.map(renderLink)}
             </div>
           );
         })}

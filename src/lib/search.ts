@@ -7,6 +7,7 @@ export type SearchHit = {
     | "task"
     | "transaction"
     | "venue"
+    | "supplier"
     | "fan"
     | "content"
     | "idea"
@@ -32,7 +33,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks, parties] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -78,6 +79,14 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
     >(
       `SELECT id, name, city, capacity FROM venues
         WHERE name LIKE $1 OR city LIKE $1 OR owner_name LIKE $1
+        ORDER BY name LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; category: string | null; city: string | null }[]
+    >(
+      `SELECT id, name, category, city FROM suppliers
+        WHERE name LIKE $1 OR contact_name LIKE $1 OR category LIKE $1 OR notes LIKE $1
         ORDER BY name LIMIT $2`,
       [like, limit]
     ),
@@ -188,6 +197,15 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/venues",
     });
   }
+  for (const s of suppliers) {
+    hits.push({
+      kind: "supplier",
+      id: s.id,
+      title: s.name,
+      subtitle: [s.category, s.city].filter(Boolean).join(" · ") || "Fornecedor",
+      route: "/fornecedores",
+    });
+  }
   for (const f of fans) {
     hits.push({
       kind: "fan",
@@ -252,6 +270,7 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   task: "Tarefa",
   transaction: "Financeiro",
   venue: "Venue",
+  supplier: "Fornecedor",
   fan: "Fã",
   content: "Conteúdo",
   idea: "Ideia",

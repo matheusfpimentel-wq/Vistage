@@ -137,10 +137,10 @@ async function countsForRange(
   }
   if (needs.has("finance_revenue")) {
     const rows = await db.select<{ total: number }[]>(
-      `SELECT COALESCE(SUM(amount_cents),0) as total FROM finance_transactions WHERE type='income' AND date >= $1 AND date <= $2`,
+      `SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE kind='income' AND date >= $1 AND date <= $2`,
       [qStart, qEnd]
     );
-    counts.finance_revenue = Math.round((rows[0]?.total ?? 0) / 100);
+    counts.finance_revenue = Math.round(rows[0]?.total ?? 0);
   }
 
   return counts;
