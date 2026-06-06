@@ -37,6 +37,12 @@ const CriacaoDashboard = lazy(() =>
 const GestaoDashboard = lazy(() =>
   import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.GestaoDashboard }))
 );
+const TodayPage = lazy(() =>
+  import("@/modules/dashboard/TodayPage").then((m) => ({ default: m.TodayPage }))
+);
+const MonthlyReportPage = lazy(() =>
+  import("@/modules/dashboard/MonthlyReportPage").then((m) => ({ default: m.MonthlyReportPage }))
+);
 const GigsPage = lazy(() =>
   import("@/modules/gigs/GigsPage").then((m) => ({ default: m.GigsPage }))
 );
@@ -213,6 +219,8 @@ function RoutedApp() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="hoje" element={<TodayPage />} />
+            <Route path="relatorio" element={<MonthlyReportPage />} />
             <Route path="operacao" element={<OperacaoDashboard />} />
             <Route path="relacionamento" element={<RelacionamentoDashboard />} />
             <Route path="criacao" element={<CriacaoDashboard />} />

@@ -59,6 +59,7 @@ const MODULE_DESC: Record<string, string> = {
   "/ideias": "Ideias, insights e captura",
   "/financeiro": "Receitas, despesas e fluxo",
   "/objetivos": "OKRs e metas do trimestre",
+  "/relatorio": "Resumo mensal do projeto",
   "/foco": "Sessões de energia e foco",
   "/identidade": "Marca e identidade artística",
 };

@@ -5,6 +5,7 @@ import {
   CalendarRange,
   CheckSquare,
   Film,
+  FileText,
   Gauge,
   GraduationCap,
   Handshake,
@@ -17,6 +18,7 @@ import {
   Settings,
   Sparkles,
   Store,
+  Sunrise,
   Target,
   Users,
   Wallet,
@@ -57,6 +59,7 @@ export type NavItem = {
 
 export const DEFAULT_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, fixed: true },
+  { to: "/hoje", label: "Hoje", icon: Sunrise, fixed: true },
   { to: "/alertas", label: "Alertas", icon: Bell, fixed: true },
 
   { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
@@ -75,6 +78,7 @@ export const DEFAULT_NAV: NavItem[] = [
 
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
+  { to: "/relatorio", label: "Relatório mensal", icon: FileText, group: "Gestão" },
   { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Gestão" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
