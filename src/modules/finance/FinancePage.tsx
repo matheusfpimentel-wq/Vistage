@@ -21,6 +21,7 @@ import { CategoryManager } from "./forms/CategoryManager";
 import { TransactionList } from "./views/TransactionList";
 import { EquipmentView } from "./views/EquipmentView";
 import { RecurringView } from "./views/RecurringView";
+import { ProjectProfitView } from "./views/ProjectProfitView";
 import {
   deleteTransaction,
   listCategories,
@@ -188,6 +189,7 @@ export function FinancePage() {
       <Tabs defaultValue="transactions">
         <TabsList>
           <TabsTrigger value="transactions">Transações</TabsTrigger>
+          <TabsTrigger value="profit">Lucro por projeto</TabsTrigger>
           <TabsTrigger value="recurring">Recorrentes</TabsTrigger>
           <TabsTrigger value="equipment">Patrimônio</TabsTrigger>
         </TabsList>
@@ -328,6 +330,10 @@ export function FinancePage() {
             onEdit={openEdit}
             onDelete={handleDelete}
           />
+        </TabsContent>
+
+        <TabsContent value="profit">
+          <ProjectProfitView />
         </TabsContent>
 
         <TabsContent value="recurring">

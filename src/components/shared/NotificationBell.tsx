@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
+import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
 
@@ -19,7 +20,7 @@ export function NotificationBell() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(computeAlerts(stats));
+        setAlerts(filterSnoozed(computeAlerts(stats)));
       } catch {
         // silently ignore
       }

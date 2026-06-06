@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { computeAlerts, type AlertItem } from "./alerts";
+import { filterSnoozed, snoozeAlert } from "./snooze";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
 
@@ -22,7 +23,7 @@ export function AlertsPage() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(computeAlerts(stats));
+        setAlerts(filterSnoozed(computeAlerts(stats)));
       } catch {
         /* silently ignore */
       } finally {
@@ -42,6 +43,10 @@ export function AlertsPage() {
       window.removeEventListener("focus", onChange);
     };
   }, [refresh]);
+
+  const dismiss = useCallback((key: string) => {
+    snoozeAlert(key);
+  }, []);
 
   const critical = alerts.filter((a) => a.critical);
   const recommendations = alerts.filter((a) => !a.critical);
@@ -83,10 +88,10 @@ export function AlertsPage() {
       ) : (
         <div className="space-y-6">
           {critical.length > 0 && (
-            <AlertSection title="Críticos" items={critical} />
+            <AlertSection title="Críticos" items={critical} onDismiss={dismiss} />
           )}
           {recommendations.length > 0 && (
-            <AlertSection title="Recomendações" items={recommendations} />
+            <AlertSection title="Recomendações" items={recommendations} onDismiss={dismiss} />
           )}
         </div>
       )}
@@ -94,7 +99,15 @@ export function AlertsPage() {
   );
 }
 
-function AlertSection({ title, items }: { title: string; items: AlertItem[] }) {
+function AlertSection({
+  title,
+  items,
+  onDismiss,
+}: {
+  title: string;
+  items: AlertItem[];
+  onDismiss: (key: string) => void;
+}) {
   return (
     <section className="space-y-2">
       <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -102,22 +115,35 @@ function AlertSection({ title, items }: { title: string; items: AlertItem[] }) {
       </h2>
       <div className="overflow-hidden rounded-lg border">
         {items.map((a) => (
-          <Link
+          <div
             key={a.key}
-            to={a.to}
             className={cn(
-              "flex items-center gap-3 border-b px-4 py-3.5 text-sm transition last:border-0 hover:bg-accent active:bg-accent",
+              "flex items-center border-b last:border-0",
               a.critical && "bg-red-500/5"
             )}
           >
-            <span className="shrink-0">
-              <AlertIcon icon={a.icon} critical={a.critical} className="h-5 w-5" />
-            </span>
-            <span className={cn("flex-1 leading-snug", a.critical && "font-medium")}>
-              {a.label}
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-          </Link>
+            <Link
+              to={a.to}
+              className="flex flex-1 items-center gap-3 px-4 py-3.5 text-sm transition hover:bg-accent active:bg-accent"
+            >
+              <span className="shrink-0">
+                <AlertIcon icon={a.icon} critical={a.critical} className="h-5 w-5" />
+              </span>
+              <span className={cn("flex-1 leading-snug", a.critical && "font-medium")}>
+                {a.label}
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => onDismiss(a.key)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center self-stretch text-muted-foreground/60 transition hover:text-foreground"
+              title="Dispensar por 24h"
+              aria-label="Dispensar alerta por 24 horas"
+            >
+              <BellOff className="h-4 w-4" />
+            </button>
+          </div>
         ))}
       </div>
     </section>

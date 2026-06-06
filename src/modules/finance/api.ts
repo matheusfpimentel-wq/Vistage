@@ -652,3 +652,80 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
     next30Payable,
   };
 }
+
+// ============================================================
+// Lucro por projeto (GIGs e festas)
+// ============================================================
+
+export type ProjectProfit = {
+  kind: "gig" | "party";
+  id: number;
+  name: string;
+  date: string | null;
+  income: number;
+  expense: number;
+  profit: number;
+};
+
+/**
+ * Lucro consolidado por projeto:
+ *  - GIGs: receitas − despesas vinculadas via gig_id em finance_transactions.
+ *  - Festas: bilheteria (price × quantity_sold) − custos reais do orçamento.
+ */
+export async function loadProjectProfit(): Promise<{
+  gigs: ProjectProfit[];
+  parties: ProjectProfit[];
+}> {
+  const db = getDb();
+
+  const gigRows = await db.select<
+    { id: number; name: string; date: string; income: number; expense: number }[]
+  >(
+    `SELECT t.gig_id AS id,
+            COALESCE(NULLIF(g.event_name,''), g.venue_name) AS name,
+            g.date AS date,
+            COALESCE(SUM(CASE WHEN t.kind='income' THEN t.amount END), 0) AS income,
+            COALESCE(SUM(CASE WHEN t.kind='expense' THEN t.amount END), 0) AS expense
+       FROM finance_transactions t
+       JOIN gigs g ON g.id = t.gig_id
+      WHERE t.gig_id IS NOT NULL
+      GROUP BY t.gig_id
+      ORDER BY (income - expense) DESC`
+  );
+
+  const partyRows = await db.select<
+    { id: number; name: string; date: string | null; income: number; expense: number }[]
+  >(
+    `SELECT p.id AS id,
+            p.title AS name,
+            p.date AS date,
+            (SELECT COALESCE(SUM(price * quantity_sold), 0) FROM party_tickets WHERE party_id = p.id) AS income,
+            (SELECT COALESCE(SUM(actual_amount), 0) FROM party_budget_items WHERE party_id = p.id) AS expense
+       FROM parties p`
+  );
+
+  const gigs: ProjectProfit[] = gigRows.map((r) => ({
+    kind: "gig",
+    id: r.id,
+    name: r.name,
+    date: r.date,
+    income: r.income,
+    expense: r.expense,
+    profit: r.income - r.expense,
+  }));
+
+  const parties: ProjectProfit[] = partyRows
+    .map((r) => ({
+      kind: "party" as const,
+      id: r.id,
+      name: r.name,
+      date: r.date,
+      income: r.income,
+      expense: r.expense,
+      profit: r.income - r.expense,
+    }))
+    .filter((p) => p.income !== 0 || p.expense !== 0)
+    .sort((a, b) => b.profit - a.profit);
+
+  return { gigs, parties };
+}
