@@ -1177,6 +1177,35 @@ const MIGRATIONS: Migration[] = [
     description: "gig_research JSON for musical research per gig",
     sql: `ALTER TABLE gigs ADD COLUMN gig_research TEXT`,
   },
+  {
+    version: 56,
+    description: "Link finance transactions to classes and student packages (+ backfill)",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN class_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN student_package_id INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_tx_class ON finance_transactions(class_id);
+      CREATE INDEX IF NOT EXISTS idx_tx_student_package ON finance_transactions(student_package_id);
+
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
+      SELECT 'income', c.amount, c.date,
+             'Aula avulsa — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             c.id, 'Recebido/Pago'
+        FROM classes c LEFT JOIN students s ON s.id = c.student_id
+       WHERE c.status = 'Realizada' AND c.amount IS NOT NULL AND c.amount > 0
+         AND c.student_package_id IS NULL;
+
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, student_package_id, status)
+      SELECT 'income', cp.price, sp.purchased_at,
+             'Pacote ' || COALESCE(cp.name, '') || ' — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             sp.id, 'Recebido/Pago'
+        FROM student_packages sp
+        LEFT JOIN class_packages cp ON cp.id = sp.package_id
+        LEFT JOIN students s ON s.id = sp.student_id
+       WHERE cp.price IS NOT NULL AND cp.price > 0 AND sp.status <> 'Cancelado';
+    `,
+  },
 ];
 
 

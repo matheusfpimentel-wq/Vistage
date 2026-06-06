@@ -162,7 +162,15 @@ export async function createStudentPackage(
     `INSERT INTO student_packages (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  try {
+    const { syncStudentPackageTransaction } = await import("@/modules/finance/api");
+    await syncStudentPackageTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
+  return id;
 }
 
 export async function setStudentPackageStatus(
@@ -174,11 +182,38 @@ export async function setStudentPackageStatus(
     "UPDATE student_packages SET status = $1 WHERE id = $2",
     [status, id]
   );
+  // Cancelar/reativar reflete na receita lançada.
+  try {
+    const { syncStudentPackageTransaction } = await import("@/modules/finance/api");
+    await syncStudentPackageTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 export async function deleteStudentPackage(id: number): Promise<void> {
   const db = getDb();
+  // As aulas vinculadas viram avulsas (mantém o histórico do aluno).
+  const affected = await db.select<{ id: number }[]>(
+    "SELECT id FROM classes WHERE student_package_id = $1",
+    [id]
+  );
+  await db.execute(
+    "UPDATE classes SET student_package_id = NULL WHERE student_package_id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM student_packages WHERE id = $1", [id]);
+  try {
+    const { deleteTransactionsForStudentPackage, syncClassTransaction } =
+      await import("@/modules/finance/api");
+    await deleteTransactionsForStudentPackage(id);
+    // Aulas que viraram avulsas podem agora gerar receita própria.
+    for (const c of affected) await syncClassTransaction(c.id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 // ============================================================
@@ -277,6 +312,12 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
       /* não interrompe */
     }
   }
+  try {
+    const { syncClassTransaction } = await import("@/modules/finance/api");
+    await syncClassTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
   emitDataChanged();
   return id;
 }
@@ -311,6 +352,12 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
       }
     }
   }
+  try {
+    const { syncClassTransaction } = await import("@/modules/finance/api");
+    await syncClassTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
   emitDataChanged();
 }
 
@@ -324,6 +371,12 @@ export async function deleteClass(id: number): Promise<void> {
   await db.execute("DELETE FROM classes WHERE id = $1", [id]);
   if (taskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
+  try {
+    const { deleteTransactionsForClass } = await import("@/modules/finance/api");
+    await deleteTransactionsForClass(id);
+  } catch {
+    /* não interrompe */
   }
   emitDataChanged();
 }

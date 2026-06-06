@@ -289,6 +289,153 @@ export async function deleteTransactionsForGig(gigId: number): Promise<void> {
 }
 
 // ============================================================
+// Integração com Aulas (receita)
+// ============================================================
+
+async function classIncomeCategoryId(): Promise<number | null> {
+  const db = getDb();
+  const cat = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_categories WHERE kind = 'income' AND name = 'Aulas / Mentorias' LIMIT 1`
+  );
+  return cat[0]?.id ?? null;
+}
+
+/**
+ * Sincroniza a receita de uma AULA AVULSA com o Financeiro.
+ * Só gera receita quando a aula está "Realizada", tem valor e NÃO pertence a
+ * um pacote (pacotes já são cobrados na venda). Senão, remove o lançamento.
+ */
+export async function syncClassTransaction(classId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<
+    {
+      amount: number | null;
+      status: string;
+      student_package_id: number | null;
+      date: string;
+      subject: string | null;
+      student_name: string | null;
+    }[]
+  >(
+    `SELECT c.amount, c.status, c.student_package_id, c.date, c.subject, s.name AS student_name
+       FROM classes c LEFT JOIN students s ON s.id = c.student_id
+      WHERE c.id = $1`,
+    [classId]
+  );
+  const c = rows[0];
+  const existing = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_transactions WHERE class_id = $1`,
+    [classId]
+  );
+
+  const shouldHave =
+    !!c &&
+    c.status === "Realizada" &&
+    c.student_package_id == null &&
+    (c.amount ?? 0) > 0;
+
+  if (!shouldHave) {
+    if (existing.length > 0) {
+      await db.execute(`DELETE FROM finance_transactions WHERE class_id = $1`, [classId]);
+    }
+    return;
+  }
+
+  const desc = `Aula avulsa — ${c.student_name ?? "Aluno"}`;
+  if (existing.length > 0) {
+    await db.execute(
+      `UPDATE finance_transactions
+          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4`,
+      [c.amount, c.date, desc, existing[0].id]
+    );
+    return;
+  }
+  const categoryId = await classIncomeCategoryId();
+  await db.execute(
+    `INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
+     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
+    [c.amount, c.date, desc, categoryId, classId]
+  );
+}
+
+/**
+ * Sincroniza a receita da VENDA DE UM PACOTE com o Financeiro.
+ * Usa o preço do template do pacote; sem preço, não gera lançamento.
+ */
+export async function syncStudentPackageTransaction(
+  studentPackageId: number
+): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<
+    {
+      purchased_at: string;
+      status: string;
+      price: number | null;
+      pkg_name: string | null;
+      student_name: string | null;
+    }[]
+  >(
+    `SELECT sp.purchased_at, sp.status, cp.price, cp.name AS pkg_name, s.name AS student_name
+       FROM student_packages sp
+       LEFT JOIN class_packages cp ON cp.id = sp.package_id
+       LEFT JOIN students s ON s.id = sp.student_id
+      WHERE sp.id = $1`,
+    [studentPackageId]
+  );
+  const p = rows[0];
+  const existing = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_transactions WHERE student_package_id = $1`,
+    [studentPackageId]
+  );
+
+  const shouldHave = !!p && p.status !== "Cancelado" && (p.price ?? 0) > 0;
+  if (!shouldHave) {
+    if (existing.length > 0) {
+      await db.execute(
+        `DELETE FROM finance_transactions WHERE student_package_id = $1`,
+        [studentPackageId]
+      );
+    }
+    return;
+  }
+
+  const desc = `Pacote ${p.pkg_name ?? ""} — ${p.student_name ?? "Aluno"}`.trim();
+  if (existing.length > 0) {
+    await db.execute(
+      `UPDATE finance_transactions
+          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4`,
+      [p.price, p.purchased_at, desc, existing[0].id]
+    );
+    return;
+  }
+  const categoryId = await classIncomeCategoryId();
+  await db.execute(
+    `INSERT INTO finance_transactions (kind, amount, date, description, category_id, student_package_id, status)
+     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
+    [p.price, p.purchased_at, desc, categoryId, studentPackageId]
+  );
+}
+
+export async function deleteTransactionsForClass(classId: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM finance_transactions WHERE class_id = $1", [classId]);
+}
+
+export async function deleteTransactionsForStudentPackage(
+  studentPackageId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM finance_transactions WHERE student_package_id = $1",
+    [studentPackageId]
+  );
+}
+
+// ============================================================
 // Recorrentes
 // ============================================================
 
