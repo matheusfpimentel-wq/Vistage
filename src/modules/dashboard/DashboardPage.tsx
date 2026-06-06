@@ -52,7 +52,9 @@ import { gateAfter } from "@/modules/music/gates";
 import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
+import { loadRecentlyEdited, RECENT_KIND_LABEL, type RecentItem } from "@/lib/recent";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { History } from "lucide-react";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -159,6 +161,7 @@ type DashData = {
   parties: PartyDeserialized[];
   okrs: Okr[];
   classes: ClassSession[];
+  recent: RecentItem[];
 };
 
 export function DashboardPage() {
@@ -169,7 +172,7 @@ export function DashboardPage() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes, recent] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
@@ -178,8 +181,9 @@ export function DashboardPage() {
         listParties(),
         listOkrs(),
         listClasses(),
+        loadRecentlyEdited(6),
       ]);
-      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
+      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes, recent });
       setUpdatedAt(new Date());
     } finally {
       setRefreshing(false);
@@ -211,6 +215,7 @@ export function DashboardPage() {
         {data ? (
           <>
             <KpiRow data={data} />
+            <RecentCard items={data.recent} />
             <div className="grid gap-4 lg:grid-cols-2">
               <GigsCard data={data} />
               <MusicCard data={data} />
@@ -443,6 +448,56 @@ function TrendIndicator({ delta }: { delta: number }) {
       {up ? "+" : "−"}
       {formatCurrency(Math.abs(delta))} vs mês anterior
     </span>
+  );
+}
+
+// ============================================================
+// Continuar de onde parei
+// ============================================================
+
+function timeAgo(iso: string): string {
+  const then = new Date(iso.replace(" ", "T") + (iso.includes("Z") ? "" : "Z")).getTime();
+  const diff = Date.now() - then;
+  if (Number.isNaN(diff)) return "";
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min}min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `há ${d}d`;
+  return formatDate(iso.slice(0, 10));
+}
+
+function RecentCard({ items }: { items: RecentItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <History className="h-4 w-4 text-primary" />
+          Continuar de onde parei
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-2">
+          {items.map((it) => (
+            <Link
+              key={`${it.kind}-${it.id}`}
+              to={it.route}
+              className="group flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition hover:border-primary hover:bg-accent/40"
+              title={it.title}
+            >
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {RECENT_KIND_LABEL[it.kind]}
+              </span>
+              <span className="max-w-[14rem] truncate font-medium">{it.title}</span>
+              <span className="text-muted-foreground">· {timeAgo(it.updated_at)}</span>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

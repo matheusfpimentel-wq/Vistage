@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, GripVertical, RotateCcw } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
 import {
   DEFAULT_NAV,
   NAV_GROUP_ORDER,
@@ -20,6 +21,7 @@ import {
 
 export function MenuOrderSettings() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
+  const [drag, setDrag] = useState<{ group: NavGroup; to: string } | null>(null);
 
   useEffect(() => {
     void loadOrderedNav().then(setNav);
@@ -36,7 +38,15 @@ export function MenuOrderSettings() {
     await saveNavOrder(nextReorderable.map((i) => i.to));
   }
 
-  /** Move um item dentro do seu próprio grupo e reconstrói a ordem global. */
+  /** Reconstrói o flat list a partir da nova ordem interna de um grupo. */
+  function persistGroup(group: NavGroup, reordered: NavItem[]) {
+    const next = NAV_GROUP_ORDER.flatMap((g) =>
+      g === group ? reordered : reorderable.filter((i) => i.group === g)
+    );
+    void persist(next);
+  }
+
+  /** Move um item uma posição (setas). */
   function move(group: NavGroup, to: string, dir: -1 | 1) {
     const groupItems = reorderable.filter((i) => i.group === group);
     const idx = groupItems.findIndex((i) => i.to === to);
@@ -45,11 +55,20 @@ export function MenuOrderSettings() {
     const reordered = [...groupItems];
     const [moved] = reordered.splice(idx, 1);
     reordered.splice(target, 0, moved);
-    // Reconstrói o flat list mantendo a ordem dos grupos e a nova ordem interna.
-    const next = NAV_GROUP_ORDER.flatMap((g) =>
-      g === group ? reordered : reorderable.filter((i) => i.group === g)
-    );
-    void persist(next);
+    persistGroup(group, reordered);
+  }
+
+  /** Reposiciona via drag-and-drop (dentro do mesmo grupo). */
+  function reorder(group: NavGroup, fromTo: string, toTo: string) {
+    if (fromTo === toTo) return;
+    const groupItems = reorderable.filter((i) => i.group === group);
+    const from = groupItems.findIndex((i) => i.to === fromTo);
+    const to = groupItems.findIndex((i) => i.to === toTo);
+    if (from < 0 || to < 0) return;
+    const reordered = [...groupItems];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(to, 0, moved);
+    persistGroup(group, reordered);
   }
 
   async function reset() {
@@ -65,8 +84,8 @@ export function MenuOrderSettings() {
           <div>
             <CardTitle className="text-base">Ordem do menu lateral</CardTitle>
             <CardDescription>
-              Reordene os módulos dentro de cada grupo. Dashboard fica sempre no
-              topo e Configurações sempre no fim.
+              Arraste pela alça ou use as setas para reordenar os módulos dentro
+              de cada grupo. Dashboard fica sempre no topo e Configurações no fim.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={reset}>
@@ -87,8 +106,21 @@ export function MenuOrderSettings() {
                 {groupItems.map(({ to, label, icon: Icon }, i) => (
                   <li
                     key={to}
-                    className="flex items-center gap-3 rounded-md border bg-card px-3 py-2"
+                    draggable
+                    onDragStart={() => setDrag({ group, to })}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (drag && drag.group === group) reorder(group, drag.to, to);
+                      setDrag(null);
+                    }}
+                    onDragEnd={() => setDrag(null)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md border bg-card px-3 py-2 transition",
+                      drag?.to === to && "opacity-50",
+                      drag && drag.group === group && drag.to !== to && "hover:border-primary"
+                    )}
                   >
+                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
                     <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <span className="flex-1 text-sm">{label}</span>
                     <div className="flex gap-1">
