@@ -1,14 +1,18 @@
 import {
   Bell,
+  Briefcase,
   Building2,
   CalendarRange,
   CheckSquare,
   Film,
+  Gauge,
   GraduationCap,
+  Handshake,
   Heart,
   LayoutDashboard,
   Lightbulb,
   Music,
+  Palette,
   PartyPopper,
   Settings,
   Sparkles,
@@ -30,6 +34,17 @@ export const NAV_GROUP_ORDER: NavGroup[] = [
   "Gestão",
 ];
 
+/** Metadados de cada grupo — usados no cabeçalho clicável da sidebar e na dash própria do grupo. */
+export const NAV_GROUP_META: Record<
+  NavGroup,
+  { to: string; icon: React.ElementType; tagline: string }
+> = {
+  "Operação": { to: "/operacao", icon: Briefcase, tagline: "Execução do dia a dia" },
+  "Relacionamento": { to: "/relacionamento", icon: Handshake, tagline: "Pessoas, parcerias e fãs" },
+  "Criação": { to: "/criacao", icon: Palette, tagline: "Pipeline criativo" },
+  "Gestão": { to: "/gestao", icon: Gauge, tagline: "Números e direção do projeto" },
+};
+
 export type NavItem = {
   to: string;
   label: string;
@@ -45,23 +60,23 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/alertas", label: "Alertas", icon: Bell, fixed: true },
 
   { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
-  { to: "/venues", label: "Venues", icon: Building2, group: "Operação" },
   { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Operação" },
 
   { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
+  { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },
   { to: "/fornecedores", label: "Fornecedores", icon: Store, group: "Relacionamento" },
   { to: "/fas", label: "Clube de fãs", icon: Heart, group: "Relacionamento" },
 
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
-  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Criação" },
 
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
   { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Gestão" },
+  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },
 ];
@@ -115,4 +130,9 @@ export function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
 export async function loadOrderedNav(): Promise<NavItem[]> {
   const order = await loadNavOrder();
   return order ? applyNavOrder(DEFAULT_NAV, order) : DEFAULT_NAV;
+}
+
+/** Módulos que pertencem a um grupo, na ordem salva (ou padrão). */
+export function modulesInGroup(nav: NavItem[], group: NavGroup): NavItem[] {
+  return nav.filter((i) => i.group === group);
 }

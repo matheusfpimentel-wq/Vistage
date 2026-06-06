@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import {
   DEFAULT_NAV,
+  NAV_GROUP_ORDER,
   loadOrderedNav,
   saveNavOrder,
+  type NavGroup,
   type NavItem,
 } from "@/lib/nav";
 
@@ -26,23 +28,28 @@ export function MenuOrderSettings() {
   // Só os itens reordenáveis (Dashboard e Configurações são fixos).
   const reorderable = nav.filter((i) => !i.fixed);
 
-  async function persist(next: NavItem[]) {
-    setNav(next);
-    await saveNavOrder(next.filter((i) => !i.fixed).map((i) => i.to));
-  }
-
-  function move(to: string, dir: -1 | 1) {
-    const idxInReorderable = reorderable.findIndex((i) => i.to === to);
-    const targetIdx = idxInReorderable + dir;
-    if (targetIdx < 0 || targetIdx >= reorderable.length) return;
-    const newReorderable = [...reorderable];
-    const [moved] = newReorderable.splice(idxInReorderable, 1);
-    newReorderable.splice(targetIdx, 0, moved);
-    // Reconstrói o nav completo: Dashboard fixo no topo, restante reordenado,
-    // Configurações fixo no fim (mantém a ordem original dos fixos).
+  async function persist(nextReorderable: NavItem[]) {
     const head = nav.filter((i) => i.fixed && i.to === "/");
     const tail = nav.filter((i) => i.fixed && i.to !== "/");
-    void persist([...head, ...newReorderable, ...tail]);
+    const next = [...head, ...nextReorderable, ...tail];
+    setNav(next);
+    await saveNavOrder(nextReorderable.map((i) => i.to));
+  }
+
+  /** Move um item dentro do seu próprio grupo e reconstrói a ordem global. */
+  function move(group: NavGroup, to: string, dir: -1 | 1) {
+    const groupItems = reorderable.filter((i) => i.group === group);
+    const idx = groupItems.findIndex((i) => i.to === to);
+    const target = idx + dir;
+    if (target < 0 || target >= groupItems.length) return;
+    const reordered = [...groupItems];
+    const [moved] = reordered.splice(idx, 1);
+    reordered.splice(target, 0, moved);
+    // Reconstrói o flat list mantendo a ordem dos grupos e a nova ordem interna.
+    const next = NAV_GROUP_ORDER.flatMap((g) =>
+      g === group ? reordered : reorderable.filter((i) => i.group === g)
+    );
+    void persist(next);
   }
 
   async function reset() {
@@ -58,7 +65,7 @@ export function MenuOrderSettings() {
           <div>
             <CardTitle className="text-base">Ordem do menu lateral</CardTitle>
             <CardDescription>
-              Use as setas para reordenar os módulos. Dashboard fica sempre no
+              Reordene os módulos dentro de cada grupo. Dashboard fica sempre no
               topo e Configurações sempre no fim.
             </CardDescription>
           </div>
@@ -67,40 +74,51 @@ export function MenuOrderSettings() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
-        <ul className="space-y-1">
-          {reorderable.map(({ to, label, icon: Icon }, i) => (
-            <li
-              key={to}
-              className="flex items-center gap-3 rounded-md border bg-card px-3 py-2"
-            >
-              <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-sm">{label}</span>
-              <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={i === 0}
-                  onClick={() => move(to, -1)}
-                  aria-label={`Mover ${label} para cima`}
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={i === reorderable.length - 1}
-                  onClick={() => move(to, 1)}
-                  aria-label={`Mover ${label} para baixo`}
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </Button>
+      <CardContent className="space-y-5">
+        {NAV_GROUP_ORDER.map((group) => {
+          const groupItems = reorderable.filter((i) => i.group === group);
+          if (groupItems.length === 0) return null;
+          return (
+            <div key={group} className="space-y-1">
+              <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {group}
               </div>
-            </li>
-          ))}
-        </ul>
+              <ul className="space-y-1">
+                {groupItems.map(({ to, label, icon: Icon }, i) => (
+                  <li
+                    key={to}
+                    className="flex items-center gap-3 rounded-md border bg-card px-3 py-2"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 text-sm">{label}</span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={i === 0}
+                        onClick={() => move(group, to, -1)}
+                        aria-label={`Mover ${label} para cima`}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        disabled={i === groupItems.length - 1}
+                        onClick={() => move(group, to, 1)}
+                        aria-label={`Mover ${label} para baixo`}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );

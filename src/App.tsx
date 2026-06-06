@@ -25,6 +25,18 @@ import {
 const DashboardPage = lazy(() =>
   import("@/modules/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage }))
 );
+const OperacaoDashboard = lazy(() =>
+  import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.OperacaoDashboard }))
+);
+const RelacionamentoDashboard = lazy(() =>
+  import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.RelacionamentoDashboard }))
+);
+const CriacaoDashboard = lazy(() =>
+  import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.CriacaoDashboard }))
+);
+const GestaoDashboard = lazy(() =>
+  import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.GestaoDashboard }))
+);
 const GigsPage = lazy(() =>
   import("@/modules/gigs/GigsPage").then((m) => ({ default: m.GigsPage }))
 );
@@ -201,6 +213,10 @@ function RoutedApp() {
         <Routes>
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="operacao" element={<OperacaoDashboard />} />
+            <Route path="relacionamento" element={<RelacionamentoDashboard />} />
+            <Route path="criacao" element={<CriacaoDashboard />} />
+            <Route path="gestao" element={<GestaoDashboard />} />
             <Route path="alertas" element={<AlertsPage />} />
             <Route path="gigs" element={<GigsPage />} />
             <Route path="venues" element={<VenuesPage />} />

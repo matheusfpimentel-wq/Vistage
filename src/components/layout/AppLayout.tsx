@@ -13,6 +13,10 @@ import { triggerQuickCapture } from "@/lib/shortcuts";
 
 const TITLES: Record<string, string> = {
   "/": "Dashboard",
+  "/operacao": "Operação",
+  "/relacionamento": "Relacionamento",
+  "/criacao": "Criação",
+  "/gestao": "Gestão",
   "/alertas": "Alertas",
   "/gigs": "GIGs",
   "/venues": "Venues",

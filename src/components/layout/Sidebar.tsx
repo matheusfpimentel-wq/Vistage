@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { PanelLeftClose } from "lucide-react";
+import { ChevronRight, PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_NAV,
+  NAV_GROUP_META,
   NAV_GROUP_ORDER,
   NAV_ORDER_CHANGED,
   loadOrderedNav,
@@ -90,15 +91,30 @@ export function Sidebar({
           {nav.filter((i) => i.fixed && i.to !== "/configuracoes").map(renderLink)}
         </div>
 
-        {/* Grupos temáticos com cabeçalho. */}
+        {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo. */}
         {NAV_GROUP_ORDER.map((group) => {
           const items = nav.filter((i) => i.group === group);
           if (items.length === 0) return null;
+          const meta = NAV_GROUP_META[group];
           return (
             <div key={group} className="mt-4 space-y-0.5">
-              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+              <NavLink
+                to={meta.to}
+                end
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  cn(
+                    "group/header flex items-center gap-1 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                    isActive
+                      ? "text-primary"
+                      : "text-muted-foreground/50 hover:text-foreground"
+                  )
+                }
+                title={`Abrir dashboard de ${group}`}
+              >
                 {group}
-              </div>
+                <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
+              </NavLink>
               {items.map(renderLink)}
             </div>
           );
