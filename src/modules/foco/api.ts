@@ -8,6 +8,8 @@ export const ACTIVITY_TYPES = [
   "Comunicação",
   "Produção de festa",
   "Estudo",
+  "Tempo de palco",
+  "Treino",
   "Outro",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];

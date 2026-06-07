@@ -75,11 +75,11 @@ export const DEFAULT_NAV: NavItem[] = [
 
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
+  { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Criação" },
 
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
   { to: "/relatorio", label: "Relatório mensal", icon: FileText, group: "Gestão" },
-  { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Gestão" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },

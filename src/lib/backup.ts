@@ -26,12 +26,19 @@ const TABLES = [
   "decisions",
   "ideas",
   "content",
+  "suppliers",
   // ── dependem do nível anterior ────────────────────────────────────────────
   "contacts",        // venue_id → venues
   "fan_interactions",        // fan_id → fans
   "fan_group_members",       // fan_id → fans, group_id → fan_groups
   "student_packages",        // student_id → students, package_id → class_packages
   "party_costs",             // party_id → parties
+  "party_stages",            // party_id → parties
+  "party_budget_items",      // party_id → parties
+  "party_tickets",           // party_id → parties
+  "party_venue_candidates",  // party_id → parties, venue_id → venues
+  "supplier_services",       // supplier_id → suppliers
+  "content_scenes",          // content_id → content
   "tracks",                  // project_id → music_projects
   "music_project_costs",     // project_id → music_projects
   "finance_transactions",    // category_id → finance_categories
@@ -41,12 +48,15 @@ const TABLES = [
   "contact_interactions",    // contact_id → contacts
   "gigs",                    // venue_id → venues, promoter_contact_id → contacts
   "classes",                 // student_id → students
+  "party_tasks",             // party_id → parties, stage_id → party_stages
   "track_collaborators",     // track_id → tracks
   "track_flow_sessions",     // track_id → tracks
   "track_media_targets",     // track_id → tracks
   "track_performance_snapshots", // track_id → tracks
   // ── dependem do nível anterior ────────────────────────────────────────────
   "gig_debrief_drafts",      // gig_id → gigs
+  "gig_setlists",            // gig_id → gigs
+  "gig_tracks",              // gig_id → gigs, track_id → tracks
   "tasks",                   // gig_id → gigs, contact_id → contacts
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks
@@ -161,6 +171,7 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   fan_group_members: { fan_id: "fans" },
   student_packages: { package_id: "class_packages" },
   classes: { student_package_id: "student_packages" },
+  party_tasks: { stage_id: "party_stages" },
   music_project_costs: { project_id: "music_projects", track_id: "tracks" },
 };
 
