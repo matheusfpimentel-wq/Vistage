@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Plus, Target, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Link2, Link2Off, Pencil, Plus, Target, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -11,16 +19,26 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
-import { listOkrs, deleteOkr, okrProgress, type Okr, type KeyResult } from "./api";
+import { listOkrs, deleteOkr, okrProgress, listOkrTasks, linkTaskToOkr, unlinkTaskFromOkr, type Okr, type KeyResult, type OkrLinkedTask } from "./api";
+import { listTasks } from "@/modules/tasks/api";
+import type { Task } from "@/modules/tasks/types";
 import { OkrForm } from "./forms/OkrForm";
 
 export function ObjetivosPage() {
   const [okrs, setOkrs] = useState<Okr[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Okr | null>(null);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
 
   async function refresh() {
-    setOkrs(await listOkrs());
+    const [okrList, tasks] = await Promise.all([
+      listOkrs(),
+      listTasks({ status: "A fazer" }).then((a) =>
+        listTasks({ status: "Em andamento" }).then((b) => [...a, ...b])
+      ),
+    ]);
+    setOkrs(okrList);
+    setAllTasks(tasks);
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -62,6 +80,7 @@ export function ObjetivosPage() {
                   <OkrCard
                     key={okr.id}
                     okr={okr}
+                    allTasks={allTasks}
                     onEdit={() => { setEditing(okr); setFormOpen(true); }}
                     onDelete={async () => {
                       if (!(await confirmDialog({ title: "Excluir", description: "Excluir este OKR?", confirmLabel: "Excluir", destructive: true }))) return;
@@ -89,16 +108,53 @@ export function ObjetivosPage() {
 
 function OkrCard({
   okr,
+  allTasks,
   onEdit,
   onDelete,
 }: {
   okr: Okr;
+  allTasks: Task[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [tasksExpanded, setTasksExpanded] = useState(false);
+  const [linkedTasks, setLinkedTasks] = useState<OkrLinkedTask[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string>("none");
   const progress = okrProgress(okr);
   const pct = Math.round(progress * 100);
+
+  async function refreshLinked() {
+    const tasks = await listOkrTasks(okr.id);
+    setLinkedTasks(tasks);
+  }
+
+  useEffect(() => {
+    if (tasksExpanded) void refreshLinked();
+  }, [tasksExpanded]);
+
+  async function handleLink() {
+    if (selectedTaskId === "none") return;
+    await linkTaskToOkr(okr.id, Number(selectedTaskId));
+    setSelectedTaskId("none");
+    void refreshLinked();
+    toast.success("Tarefa vinculada");
+  }
+
+  async function handleUnlink(taskId: number) {
+    await unlinkTaskFromOkr(okr.id, taskId);
+    void refreshLinked();
+    toast.success("Tarefa desvinculada");
+  }
+
+  const linkedIds = new Set(linkedTasks.map((t) => t.task_id));
+  const available = allTasks.filter((t) => !linkedIds.has(t.id));
+
+  function taskStatusVariant(status: string): "default" | "secondary" | "outline" | "success" | "warning" {
+    if (status === "Concluída") return "success";
+    if (status === "Em andamento") return "warning";
+    return "secondary";
+  }
 
   return (
     <Card>
@@ -129,6 +185,63 @@ function OkrCard({
           ))}
         </CardContent>
       )}
+
+      <CardContent className="pt-0">
+        <button
+          type="button"
+          onClick={() => setTasksExpanded((v) => !v)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Link2 className="h-3.5 w-3.5" />
+          Tarefas vinculadas
+          {tasksExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        </button>
+
+        {tasksExpanded && (
+          <div className="mt-2 space-y-2">
+            {linkedTasks.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nenhuma tarefa vinculada.</p>
+            ) : (
+              <div className="space-y-1">
+                {linkedTasks.map((t) => (
+                  <div key={t.task_id} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+                    <span className="flex-1 truncate">{t.title}</span>
+                    <Badge variant={taskStatusVariant(t.status)} className="text-xs">{t.status}</Badge>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 shrink-0"
+                      onClick={() => void handleUnlink(t.task_id)}
+                      aria-label="Desvincular"
+                    >
+                      <Link2Off className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Select value={selectedTaskId} onValueChange={setSelectedTaskId}>
+                <SelectTrigger className="flex-1 h-8 text-xs">
+                  <SelectValue placeholder="Selecionar tarefa…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecionar tarefa…</SelectItem>
+                  {available.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => void handleLink()} disabled={selectedTaskId === "none"}>
+                <Link2 className="h-3.5 w-3.5" /> Vincular
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }

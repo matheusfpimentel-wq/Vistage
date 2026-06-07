@@ -206,6 +206,40 @@ export function okrProgress(okr: Okr): number {
   return total / okr.key_results.length;
 }
 
+export type OkrLinkedTask = {
+  task_id: number;
+  title: string;
+  status: string;
+};
+
+export async function listOkrTasks(okrId: number): Promise<OkrLinkedTask[]> {
+  const db = getDb();
+  return db.select<OkrLinkedTask[]>(
+    `SELECT t.id as task_id, t.title, t.status
+       FROM okr_kr_tasks o
+       JOIN tasks t ON t.id = o.task_id
+      WHERE o.okr_id = $1 AND o.kr_index IS NULL
+      ORDER BY t.created_at DESC`,
+    [okrId]
+  );
+}
+
+export async function linkTaskToOkr(okrId: number, taskId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `INSERT OR IGNORE INTO okr_kr_tasks (okr_id, task_id) VALUES ($1, $2)`,
+    [okrId, taskId]
+  );
+}
+
+export async function unlinkTaskFromOkr(okrId: number, taskId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `DELETE FROM okr_kr_tasks WHERE okr_id = $1 AND task_id = $2 AND kr_index IS NULL`,
+    [okrId, taskId]
+  );
+}
+
 export async function syncOkrKrTasks(okr: Okr): Promise<void> {
   const db = getDb();
   const [, endDate] = quarterRange(okr.quarter);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  BookOpen,
   CalendarClock,
   CheckCircle2,
   Circle,
@@ -24,6 +25,9 @@ import { listTasks, updateTask } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
 import { listContent } from "@/modules/content/api";
 import type { Content } from "@/modules/content/types";
+import { listClasses } from "@/modules/classes/api";
+import type { ClassWithStudent } from "@/modules/classes/api";
+import { Badge } from "@/components/ui/badge";
 import { DATA_CHANGED } from "@/lib/events";
 import { triggerQuickCapture } from "@/lib/shortcuts";
 import { formatDate, todayISO } from "@/lib/format";
@@ -36,18 +40,19 @@ function greeting(): string {
   return "Boa noite";
 }
 
-type Data = { gigs: Gig[]; tasks: Task[]; content: Content[] };
+type Data = { gigs: Gig[]; tasks: Task[]; content: Content[]; classes: ClassWithStudent[] };
 
 export function TodayPage() {
   const [data, setData] = useState<Data | null>(null);
 
   const load = useCallback(async () => {
-    const [gigs, tasks, content] = await Promise.all([
+    const [gigs, tasks, content, classes] = await Promise.all([
       listGigs(),
       listTasks(),
       listContent(),
+      listClasses({ fromDate: todayISO(), toDate: todayISO() }),
     ]);
-    setData({ gigs, tasks, content });
+    setData({ gigs, tasks, content, classes });
   }, []);
 
   useEffect(() => {
@@ -114,6 +119,8 @@ export function TodayPage() {
               c.status !== "Arquivado"
           );
 
+          const todaysClasses = data.classes.filter((c) => c.status !== "Cancelada");
+
           return (
             <>
               {/* GIGs de hoje / próxima */}
@@ -146,6 +153,39 @@ export function TodayPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Aulas de hoje */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                    Aulas de hoje
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {todaysClasses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhuma aula hoje.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {todaysClasses.map((c) => (
+                        <Link
+                          key={c.id}
+                          to="/aulas"
+                          className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate font-medium text-sm">{c.student_name}</div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {c.start_time ? `${c.start_time} · ` : ""}{c.subject ?? "—"}
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="shrink-0 text-xs">{c.status}</Badge>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Tarefas para focar hoje */}
               <Card>

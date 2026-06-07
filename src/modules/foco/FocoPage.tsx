@@ -130,6 +130,9 @@ export function FocoPage() {
                   <div key={s.id} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
                     <div className="flex-1 min-w-0">
                       <span className="font-medium">{s.activity_type}</span>
+                      {s.context && (
+                        <span className="ml-2 truncate text-xs text-primary/80">{s.context}</span>
+                      )}
                       {s.notes && (
                         <span className="ml-2 truncate text-xs text-muted-foreground">{s.notes}</span>
                       )}

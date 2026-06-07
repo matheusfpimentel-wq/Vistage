@@ -23,6 +23,7 @@ export type WorkSession = {
   energy_level: number | null;
   focus_level: number | null;
   notes: string | null;
+  context: string | null;
   created_at: string;
 };
 
@@ -41,13 +42,14 @@ export async function endSession(
   id: number,
   energy_level: number,
   focus_level: number,
-  notes: string | null
+  notes: string | null,
+  context: string | null = null
 ): Promise<void> {
   const db = getDb();
   const ended_at = new Date().toISOString();
   await db.execute(
-    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4 WHERE id=$5`,
-    [ended_at, energy_level, focus_level, notes, id]
+    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5 WHERE id=$6`,
+    [ended_at, energy_level, focus_level, notes, context, id]
   );
   emitDataChanged();
 }

@@ -196,6 +196,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
           metric_shares: null,
           metric_saves: null,
           notes: null,
+          engagement_notes: null,
           task_id: null,
         });
         await markIdeaAsConverted(idea.id, "content", contentId);

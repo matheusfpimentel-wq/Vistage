@@ -55,12 +55,13 @@ export type Content = {
   metric_shares: number | null;
   metric_saves: number | null;
   notes: string | null;
+  engagement_notes: string | null;
   task_id: number | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ContentCreateInput = Omit<Content, "id" | "created_at" | "updated_at">;
+export type ContentCreateInput = Omit<Content, "id" | "created_at" | "updated_at" | "engagement_notes"> & { engagement_notes?: string | null };
 export type ContentUpdateInput = Partial<ContentCreateInput> & { id: number };
 
 /** Retrato de métricas num dado momento (captura). */

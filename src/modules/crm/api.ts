@@ -44,6 +44,10 @@ export async function listContacts(
   const where: string[] = [];
   const params: unknown[] = [];
 
+  if (filters.type && filters.type !== "Todos") {
+    params.push(`%${filters.type}%`);
+    where.push(`(types LIKE $${params.length})`);
+  }
   if (filters.city && filters.city.trim().length > 0) {
     params.push(`%${filters.city.trim()}%`);
     where.push(`city LIKE $${params.length}`);
@@ -62,13 +66,7 @@ export async function listContacts(
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
     " ORDER BY name COLLATE NOCASE ASC";
   const rows = await db.select<ContactRow[]>(sql, params);
-  const contacts = rows.map(rowToContact);
-
-  // filtro por tipo (multi-valor JSON) feito em JS pra simplicidade
-  if (filters.type && filters.type !== "Todos") {
-    return contacts.filter((c) => c.types.includes(filters.type as ContactType));
-  }
-  return contacts;
+  return rows.map(rowToContact);
 }
 
 export async function getContact(id: number): Promise<Contact | null> {

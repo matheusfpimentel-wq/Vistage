@@ -75,6 +75,7 @@ const EMPTY: ContentCreateInput = {
   metric_shares: null,
   metric_saves: null,
   notes: null,
+  engagement_notes: null,
   task_id: null,
 };
 
@@ -96,6 +97,7 @@ function contentToState(c: Content): ContentCreateInput {
     metric_shares: c.metric_shares,
     metric_saves: c.metric_saves,
     notes: c.notes,
+    engagement_notes: c.engagement_notes,
     task_id: c.task_id,
   };
 }
@@ -411,6 +413,16 @@ export function ContentForm({
                   onChange={(e) => set("notes", e.target.value || null)}
                 />
               </Field>
+              {state.status === "Publicado" && (
+                <Field label="Resultado / engajamento">
+                  <Textarea
+                    rows={3}
+                    placeholder="O que funcionou? Alcance, comentários, resultado…"
+                    value={state.engagement_notes ?? ""}
+                    onChange={(e) => set("engagement_notes", e.target.value || null)}
+                  />
+                </Field>
+              )}
             </TabsContent>
 
             <TabsContent value="cenas" className="space-y-3">

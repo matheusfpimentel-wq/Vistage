@@ -72,6 +72,7 @@ export type ArtistTemplate = {
   category: TemplateCategory | null;
   file_path: string | null;
   thumbnail_path: string | null;
+  content: string | null;
   notes: string | null;
   created_at: string;
 };

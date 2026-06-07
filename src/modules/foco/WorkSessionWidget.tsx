@@ -47,6 +47,7 @@ export function WorkSessionWidget() {
   const [energy, setEnergy] = useState(3);
   const [focus, setFocus] = useState(3);
   const [notes, setNotes] = useState("");
+  const [context, setContext] = useState("");
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -90,6 +91,7 @@ export function WorkSessionWidget() {
         energy_level: null,
         focus_level: null,
         notes: null,
+        context: null,
         created_at: new Date().toISOString(),
       });
       setStartOpen(false);
@@ -103,11 +105,12 @@ export function WorkSessionWidget() {
     if (!session) return;
     setSaving(true);
     try {
-      await endSession(session.id, energy, focus, notes || null);
+      await endSession(session.id, energy, focus, notes || null, context || null);
       void closeSessionOverlay();
       setSession(null);
       setEndOpen(false);
       setNotes("");
+      setContext("");
       setEnergy(3);
       setFocus(3);
       toast.success("Sessão encerrada e dados salvos!");
@@ -206,6 +209,15 @@ export function WorkSessionWidget() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="O que rolou? O que travou?"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Contexto (opcional)</Label>
+              <Textarea
+                rows={2}
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                placeholder="Ex: projeto, GIG, faixa específica…"
               />
             </div>
           </div>

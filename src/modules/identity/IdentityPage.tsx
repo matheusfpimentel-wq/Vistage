@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Clipboard,
   ExternalLink,
   Loader2,
   Palette,
@@ -552,6 +553,7 @@ export function IdentityPage() {
                 <TemplateCard
                   key={t.id}
                   template={t}
+                  artistName={identity.artist_name}
                   onDeleted={() => void refresh()}
                 />
               ))}
@@ -562,6 +564,7 @@ export function IdentityPage() {
             open={tplFormOpen}
             onOpenChange={setTplFormOpen}
             onSaved={() => void refresh()}
+            artistName={identity.artist_name}
           />
         </TabsContent>
       </Tabs>
@@ -569,17 +572,34 @@ export function IdentityPage() {
   );
 }
 
+function substituteVars(text: string, artistName: string | null): string {
+  const today = new Date();
+  const dd = String(today.getDate()).padStart(2, "0");
+  const mm = String(today.getMonth() + 1).padStart(2, "0");
+  const yyyy = today.getFullYear();
+  return text
+    .replaceAll("{artista}", artistName ?? "{artista}")
+    .replaceAll("{data}", `${dd}/${mm}/${yyyy}`)
+    .replaceAll("{venue}", "[venue]")
+    .replaceAll("{evento}", "[evento]");
+}
+
+const VARS_HINT = "{artista}, {data}, {venue}, {evento}";
+
 function TemplateForm({
   open,
   onOpenChange,
   onSaved,
+  artistName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  artistName: string | null;
 }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<TemplateCategory | "">("");
+  const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
   const [thumbnailPath, setThumbnailPath] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
@@ -589,11 +609,14 @@ function TemplateForm({
     if (open) {
       setName("");
       setCategory("");
+      setContent("");
       setFilePath(null);
       setThumbnailPath(null);
       setNotes("");
     }
   }, [open]);
+
+  const preview = content.trim() ? substituteVars(content, artistName) : null;
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -605,6 +628,7 @@ function TemplateForm({
       await createTemplate({
         name: name.trim(),
         category: (category || null) as TemplateCategory | null,
+        content: content.trim() || null,
         file_path: filePath,
         thumbnail_path: thumbnailPath,
         notes: notes.trim() || null,
@@ -652,6 +676,36 @@ function TemplateForm({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-1.5">
+            <Label>Texto do template</Label>
+            <Textarea
+              rows={4}
+              placeholder={`Ex: Oi! Sou {artista} e vou tocar em {venue} no dia {data}…`}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Variáveis disponíveis: <code className="font-mono">{VARS_HINT}</code>
+            </p>
+          </div>
+          {preview && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs text-muted-foreground">Preview com variáveis</Label>
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard.writeText(preview); toast.success("Copiado!"); }}
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <Clipboard className="h-3 w-3" />
+                  Copiar com variáveis
+                </button>
+              </div>
+              <div className="rounded-md border bg-muted/40 p-3 text-sm whitespace-pre-wrap">
+                {preview}
+              </div>
+            </div>
+          )}
           <AttachmentField
             label="Arquivo (PSD, Figma, PNG, MP4…)"
             value={filePath}
@@ -695,9 +749,11 @@ function TemplateForm({
 
 function TemplateCard({
   template: t,
+  artistName,
   onDeleted,
 }: {
   template: ArtistTemplate;
+  artistName: string | null;
   onDeleted: () => void;
 }) {
   const thumb = useImageUrl(t.thumbnail_path ?? t.file_path);
@@ -741,6 +797,21 @@ function TemplateCard({
         </div>
         {t.notes && (
           <p className="line-clamp-2 text-xs text-muted-foreground">{t.notes}</p>
+        )}
+        {t.content && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              const substituted = substituteVars(t.content!, artistName);
+              void navigator.clipboard.writeText(substituted);
+              toast.success("Copiado com variáveis!");
+            }}
+          >
+            <Clipboard className="h-3.5 w-3.5" />
+            Copiar com variáveis
+          </Button>
         )}
         {t.file_path && (
           <Button
