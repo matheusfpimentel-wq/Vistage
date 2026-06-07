@@ -6,6 +6,8 @@ import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { DriveSync } from "@/components/shared/DriveSync";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
+import { SessionOverlay } from "@/modules/foco/SessionOverlay";
+import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
@@ -101,6 +103,15 @@ const SuppliersPage = lazy(() =>
 );
 
 export default function App() {
+  // A mini-janela flutuante da sessão é puramente apresentacional:
+  // não carrega config nem banco, só mostra atividade + cronômetro.
+  if (isOverlayWindow()) {
+    return <SessionOverlay />;
+  }
+  return <MainApp />;
+}
+
+function MainApp() {
   const { ready, config, hydrate } = useConfigStore();
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const [booting, setBooting] = useState(true);

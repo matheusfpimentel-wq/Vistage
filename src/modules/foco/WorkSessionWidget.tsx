@@ -27,6 +27,7 @@ import {
   getActiveSession,
   startSession,
 } from "./api";
+import { closeSessionOverlay, openSessionOverlay } from "./overlay";
 
 function elapsed(startedAt: string): string {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
@@ -52,6 +53,8 @@ export function WorkSessionWidget() {
   const refresh = useCallback(async () => {
     const s = await getActiveSession();
     setSession(s);
+    // Reabre a mini-janela se houver sessão ativa (ex.: app reaberto).
+    if (s) void openSessionOverlay(s);
   }, []);
 
   useEffect(() => {
@@ -75,8 +78,20 @@ export function WorkSessionWidget() {
   async function handleStart() {
     setSaving(true);
     try {
-      await startSession(activityType);
-      await refresh();
+      const id = await startSession(activityType);
+      const fresh = await getActiveSession();
+      setSession(fresh);
+      if (fresh) void openSessionOverlay(fresh);
+      else if (id) void openSessionOverlay({
+        id,
+        started_at: new Date().toISOString(),
+        ended_at: null,
+        activity_type: activityType,
+        energy_level: null,
+        focus_level: null,
+        notes: null,
+        created_at: new Date().toISOString(),
+      });
       setStartOpen(false);
       toast.success(`Sessão iniciada: ${activityType}`);
     } finally {
@@ -89,12 +104,13 @@ export function WorkSessionWidget() {
     setSaving(true);
     try {
       await endSession(session.id, energy, focus, notes || null);
+      void closeSessionOverlay();
       setSession(null);
       setEndOpen(false);
       setNotes("");
       setEnergy(3);
       setFocus(3);
-      toast.success("Sessão encerrada — dados salvos!");
+      toast.success("Sessão encerrada e dados salvos!");
     } finally {
       setSaving(false);
     }
