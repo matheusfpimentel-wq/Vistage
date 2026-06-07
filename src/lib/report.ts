@@ -23,13 +23,18 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
          FROM finance_transactions WHERE substr(date,1,7) = $1 GROUP BY kind`,
       [month]
     ),
+    // "Realizadas" = aconteceram no mês. Conta Confirmada + Concluída, pois
+    // muitas GIGs ficam como Confirmada mesmo após o evento (não são marcadas
+    // como Concluída manualmente). Cancelada/Proposta ficam de fora.
     db.select<{ c: number; cache: number }[]>(
       `SELECT COUNT(*) c, COALESCE(SUM(cache_amount), 0) cache
-         FROM gigs WHERE status = 'Concluída' AND substr(date,1,7) = $1`,
+         FROM gigs
+        WHERE status IN ('Concluída', 'Confirmada') AND substr(date,1,7) = $1`,
       [month]
     ),
     db.select<{ c: number }[]>(
-      `SELECT COUNT(*) c FROM parties WHERE status = 'Realizada' AND substr(date,1,7) = $1`,
+      `SELECT COUNT(*) c FROM parties
+        WHERE status IN ('Realizada', 'Confirmada') AND substr(date,1,7) = $1`,
       [month]
     ),
     db.select<{ c: number }[]>(
