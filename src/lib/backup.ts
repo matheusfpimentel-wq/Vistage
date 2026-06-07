@@ -182,9 +182,16 @@ export async function restoreBackup(backup: Backup): Promise<{
     idsByTable.set(t, set);
   }
 
+  // Apenas tabelas presentes no backup (chave existe). Tabelas ausentes são
+  // ignoradas na limpeza e inserção para não apagar dados de versões mais novas.
+  const tablesInBackup = new Set(
+    TABLES.filter((t) => Object.prototype.hasOwnProperty.call(backup.tables, t))
+  );
+
   try {
-    // limpa na ordem inversa (filhos antes de pais)
+    // limpa na ordem inversa (filhos antes de pais) — só tabelas do backup
     for (const t of [...TABLES].reverse()) {
+      if (!tablesInBackup.has(t)) continue;
       await db.execute("PRAGMA foreign_keys = OFF");
       await db.execute(`DELETE FROM ${t}`);
     }
@@ -192,6 +199,7 @@ export async function restoreBackup(backup: Backup): Promise<{
     // 1ª passagem: insere na ordem topológica, omitindo as colunas FK
     // anuláveis (DEFERRED_FK) — elas entram como NULL.
     for (const t of TABLES) {
+      if (!tablesInBackup.has(t)) continue;
       const rows = backup.tables[t] ?? [];
       const deferred = DEFERRED_FK[t] ?? {};
       for (const row of rows) {
@@ -211,6 +219,7 @@ export async function restoreBackup(backup: Backup): Promise<{
     // 2ª passagem: restaura as colunas FK adiadas, somente quando o id
     // referenciado existe na sua tabela (caso contrário, mantém NULL).
     for (const t of TABLES) {
+      if (!tablesInBackup.has(t)) continue;
       const deferred = DEFERRED_FK[t];
       if (!deferred) continue;
       const rows = backup.tables[t] ?? [];
@@ -233,5 +242,5 @@ export async function restoreBackup(backup: Backup): Promise<{
     await db.execute("PRAGMA foreign_keys = ON");
   }
 
-  return { restoredTables: TABLES.length, restoredRows };
+  return { restoredTables: tablesInBackup.size, restoredRows };
 }
