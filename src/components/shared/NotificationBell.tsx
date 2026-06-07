@@ -24,7 +24,7 @@ export function NotificationBell() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(filterSnoozed(computeAlerts(stats)));
+        setAlerts(await filterSnoozed(computeAlerts(stats)));
       } catch {
         // silently ignore
       }

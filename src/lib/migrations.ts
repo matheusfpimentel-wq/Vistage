@@ -1254,6 +1254,21 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE student_packages ADD COLUMN used_minutes INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 63,
+    description: "tracks: standby_until — data de retorno do standby",
+    sql: `ALTER TABLE tracks ADD COLUMN standby_until TEXT;`,
+  },
+  {
+    version: 64,
+    description: "work_sessions: context — contexto opcional da sessão",
+    sql: `ALTER TABLE work_sessions ADD COLUMN context TEXT;`,
+  },
+  {
+    version: 65,
+    description: "content: engagement_notes — resultado pós-publicação",
+    sql: `ALTER TABLE content ADD COLUMN engagement_notes TEXT;`,
+  },
 ];
 
 

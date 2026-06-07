@@ -23,7 +23,7 @@ export function AlertsPage() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(filterSnoozed(computeAlerts(stats)));
+        setAlerts(await filterSnoozed(computeAlerts(stats)));
       } catch {
         /* silently ignore */
       } finally {
@@ -45,7 +45,7 @@ export function AlertsPage() {
   }, [refresh]);
 
   const dismiss = useCallback((key: string) => {
-    snoozeAlert(key);
+    void snoozeAlert(key);
   }, []);
 
   const critical = alerts.filter((a) => a.critical);

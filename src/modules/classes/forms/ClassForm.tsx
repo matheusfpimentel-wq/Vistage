@@ -210,9 +210,7 @@ export function ClassForm({
 
       // recalcula saldo do pacote afetado (anterior e novo, se mudaram)
       if (prevPackageId) await recalcPackageUsage(prevPackageId);
-      if (newPackageId && newPackageId !== prevPackageId)
-        await recalcPackageUsage(newPackageId);
-      else if (newPackageId) await recalcPackageUsage(newPackageId);
+      if (newPackageId && newPackageId !== prevPackageId) await recalcPackageUsage(newPackageId);
 
       // Sync com Google Calendar
       try {

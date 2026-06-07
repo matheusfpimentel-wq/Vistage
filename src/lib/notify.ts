@@ -57,7 +57,7 @@ export async function syncAlertNotifications(): Promise<void> {
   let critical;
   try {
     const stats = await loadWeekStats();
-    critical = filterSnoozed(computeAlerts(stats)).filter((a) => a.critical);
+    critical = (await filterSnoozed(computeAlerts(stats))).filter((a) => a.critical);
   } catch {
     return;
   }

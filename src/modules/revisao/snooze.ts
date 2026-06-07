@@ -1,18 +1,24 @@
+import { getDb } from "@/lib/db";
 import { DATA_CHANGED } from "@/lib/events";
 import type { AlertItem } from "./alerts";
 
 /**
- * "Dispensar" alertas por um tempo. Guardado em localStorage como
+ * "Dispensar" alertas por um tempo. Guardado em app_settings como
  * { [alertKey]: expiryMs }. Compartilhado entre o sininho e a tela de Alertas
  * para que dispensar num lugar reflita no outro.
  */
-const KEY = "vistage:snoozed-alerts";
+const DB_KEY = "alerts.snooze";
 
 type Snoozed = Record<string, number>;
 
-export function loadSnoozed(): Snoozed {
+export async function loadSnoozed(): Promise<Snoozed> {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Snoozed;
+    const db = getDb();
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [DB_KEY]
+    );
+    const raw = rows.length > 0 ? (JSON.parse(rows[0].value) as Snoozed) : {};
     const now = Date.now();
     // limpa entradas expiradas no carregamento
     const clean: Snoozed = {};
@@ -25,21 +31,26 @@ export function loadSnoozed(): Snoozed {
   }
 }
 
-export function isSnoozed(key: string, snoozed: Snoozed = loadSnoozed()): boolean {
-  const exp = snoozed[key];
+export async function isSnoozed(key: string, snoozed?: Snoozed): Promise<boolean> {
+  const s = snoozed ?? (await loadSnoozed());
+  const exp = s[key];
   return !!exp && exp > Date.now();
 }
 
 /** Dispensa um alerta por N horas (padrão 24h) e avisa o resto do app. */
-export function snoozeAlert(key: string, hours = 24): void {
-  const snoozed = loadSnoozed();
+export async function snoozeAlert(key: string, hours = 24): Promise<void> {
+  const snoozed = await loadSnoozed();
   snoozed[key] = Date.now() + hours * 3_600_000;
-  localStorage.setItem(KEY, JSON.stringify(snoozed));
+  const db = getDb();
+  await db.execute(
+    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+    [DB_KEY, JSON.stringify(snoozed)]
+  );
   window.dispatchEvent(new Event(DATA_CHANGED));
 }
 
 /** Remove os alertas atualmente dispensados de uma lista. */
-export function filterSnoozed(alerts: AlertItem[]): AlertItem[] {
-  const snoozed = loadSnoozed();
-  return alerts.filter((a) => !isSnoozed(a.key, snoozed));
+export async function filterSnoozed(alerts: AlertItem[]): Promise<AlertItem[]> {
+  const snoozed = await loadSnoozed();
+  return alerts.filter((a) => !snoozed[a.key] || snoozed[a.key]! <= Date.now());
 }
