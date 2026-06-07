@@ -1206,6 +1206,22 @@ const MIGRATIONS: Migration[] = [
        WHERE cp.price IS NOT NULL AND cp.price > 0 AND sp.status <> 'Cancelado';
     `,
   },
+  {
+    version: 57,
+    description: "Backfill: receita de toda aula realizada com valor (inclui aulas de pacote com valor próprio)",
+    sql: `
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
+      SELECT 'income', c.amount, c.date,
+             'Aula — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             c.id, 'Recebido/Pago'
+        FROM classes c LEFT JOIN students s ON s.id = c.student_id
+       WHERE c.status = 'Realizada' AND c.amount IS NOT NULL AND c.amount > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM finance_transactions t WHERE t.class_id = c.id
+         );
+    `,
+  },
 ];
 
 

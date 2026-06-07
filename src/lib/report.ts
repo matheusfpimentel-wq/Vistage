@@ -17,7 +17,7 @@ export type MonthlyReport = {
 export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
   const db = getDb();
 
-  const [fin, gigs, parties, content, tracks, tasks] = await Promise.all([
+  const [fin, gigs, parties, content, trackRows, tasks] = await Promise.all([
     db.select<{ kind: string; total: number }[]>(
       `SELECT kind, COALESCE(SUM(amount), 0) total
          FROM finance_transactions WHERE substr(date,1,7) = $1 GROUP BY kind`,
@@ -36,11 +36,10 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
       `SELECT COUNT(*) c FROM content WHERE status = 'Publicado' AND substr(publish_date,1,7) = $1`,
       [month]
     ),
-    db.select<{ c: number }[]>(
-      `SELECT COUNT(*) c FROM tracks
-        WHERE current_stage IN ('Lançamento','Pós-lançamento')
-          AND substr(stage_entered_at,1,7) = $1`,
-      [month]
+    // tracks não tem coluna de data por stage; o histórico fica em stage_history (JSON).
+    db.select<{ stage_history: string | null }[]>(
+      `SELECT stage_history FROM tracks
+        WHERE current_stage IN ('Lançamento','Pós-lançamento')`
     ),
     db.select<{ c: number }[]>(
       `SELECT COUNT(*) c FROM tasks WHERE status = 'Concluída' AND substr(updated_at,1,7) = $1`,
@@ -49,6 +48,23 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
   ]);
   const income = fin.find((r) => r.kind === "income")?.total ?? 0;
   const expense = fin.find((r) => r.kind === "expense")?.total ?? 0;
+
+  // Conta tracks que entraram em "Lançamento" dentro do mês selecionado.
+  let tracksReleased = 0;
+  for (const row of trackRows) {
+    try {
+      const hist = JSON.parse(row.stage_history || "[]") as {
+        stage: string;
+        entered_at: string;
+      }[];
+      const launched = hist.some(
+        (h) => h.stage === "Lançamento" && h.entered_at?.slice(0, 7) === month
+      );
+      if (launched) tracksReleased++;
+    } catch {
+      // ignora histórico malformado
+    }
+  }
 
   return {
     month,
@@ -59,7 +75,7 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
     gigsCache: gigs[0]?.cache ?? 0,
     partiesRealized: parties[0]?.c ?? 0,
     contentPublished: content[0]?.c ?? 0,
-    tracksReleased: tracks[0]?.c ?? 0,
+    tracksReleased,
     tasksCompleted: tasks[0]?.c ?? 0,
   };
 }

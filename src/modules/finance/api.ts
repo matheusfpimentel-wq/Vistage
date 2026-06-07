@@ -304,9 +304,11 @@ async function classIncomeCategoryId(): Promise<number | null> {
 }
 
 /**
- * Sincroniza a receita de uma AULA AVULSA com o Financeiro.
- * Só gera receita quando a aula está "Realizada", tem valor e NÃO pertence a
- * um pacote (pacotes já são cobrados na venda). Senão, remove o lançamento.
+ * Sincroniza a receita de uma AULA com o Financeiro.
+ * Gera receita quando a aula está "Realizada" e tem valor (`amount > 0`).
+ * Aulas de pacote normalmente têm `amount = null` (a receita vem da venda do
+ * pacote), então não há duplicidade; mas se o usuário definir um valor na aula,
+ * ela conta. Senão, remove o lançamento.
  */
 export async function syncClassTransaction(classId: number): Promise<void> {
   const db = getDb();
@@ -314,13 +316,12 @@ export async function syncClassTransaction(classId: number): Promise<void> {
     {
       amount: number | null;
       status: string;
-      student_package_id: number | null;
       date: string;
       subject: string | null;
       student_name: string | null;
     }[]
   >(
-    `SELECT c.amount, c.status, c.student_package_id, c.date, c.subject, s.name AS student_name
+    `SELECT c.amount, c.status, c.date, c.subject, s.name AS student_name
        FROM classes c LEFT JOIN students s ON s.id = c.student_id
       WHERE c.id = $1`,
     [classId]
@@ -331,11 +332,7 @@ export async function syncClassTransaction(classId: number): Promise<void> {
     [classId]
   );
 
-  const shouldHave =
-    !!c &&
-    c.status === "Realizada" &&
-    c.student_package_id == null &&
-    (c.amount ?? 0) > 0;
+  const shouldHave = !!c && c.status === "Realizada" && (c.amount ?? 0) > 0;
 
   if (!shouldHave) {
     if (existing.length > 0) {
@@ -344,7 +341,7 @@ export async function syncClassTransaction(classId: number): Promise<void> {
     return;
   }
 
-  const desc = `Aula avulsa — ${c.student_name ?? "Aluno"}`;
+  const desc = `Aula — ${c.student_name ?? "Aluno"}`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions

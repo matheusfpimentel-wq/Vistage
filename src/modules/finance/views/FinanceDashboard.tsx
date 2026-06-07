@@ -47,7 +47,8 @@ function periodOptions(): { value: string; label: string }[] {
   const d = new Date();
   for (let i = 0; i < 12; i++) {
     const month = d.toISOString().slice(0, 7);
-    const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const raw = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1);
     opts.push({ value: month, label });
     d.setMonth(d.getMonth() - 1);
   }
@@ -93,10 +94,10 @@ export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-muted-foreground">Período do painel</span>
         <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-48 capitalize">
+          <SelectTrigger className="w-48">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="capitalize">
+          <SelectContent>
             {options.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}

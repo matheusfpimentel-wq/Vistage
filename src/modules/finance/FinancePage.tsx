@@ -83,10 +83,11 @@ function periodOptions(): { value: string; label: string }[] {
   const d = new Date();
   for (let i = 0; i < 12; i++) {
     const month = d.toISOString().slice(0, 7);
-    const label = d.toLocaleDateString("pt-BR", {
+    const raw = d.toLocaleDateString("pt-BR", {
       month: "long",
       year: "numeric",
     });
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1);
     opts.push({ value: month, label });
     d.setMonth(d.getMonth() - 1);
   }
@@ -229,10 +230,10 @@ export function FinancePage() {
                   setFilters((f) => ({ ...f, period: v }))
                 }
               >
-                <SelectTrigger className="w-48 capitalize">
+                <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="capitalize">
+                <SelectContent>
                   {periodOptions().map((m) => (
                     <SelectItem key={m.value} value={m.value}>
                       {m.label}
