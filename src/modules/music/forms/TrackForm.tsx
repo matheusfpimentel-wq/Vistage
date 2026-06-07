@@ -133,6 +133,7 @@ export function TrackForm({
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
   const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
   const [trackGigs, setTrackGigs] = useState<{ id: number; event_name: string | null; venue_name: string; date: string }[]>([]);
+  const [standbyUntil, setStandbyUntil] = useState<string>("");
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!track;
@@ -175,11 +176,13 @@ export function TrackForm({
         stage_notes: track.stage_notes,
         creative_block_notes: track.creative_block_notes,
       });
+      setStandbyUntil(track.standby_until ?? "");
       setLoaded(track);
       void listTrackCollaborators(track.id).then(setCollabs);
       void listTrackGigs(track.id).then(setTrackGigs);
     } else {
       setState(EMPTY);
+      setStandbyUntil("");
       setLoaded(null);
       setCollabs([]);
     }
@@ -234,7 +237,12 @@ export function TrackForm({
     try {
       let id: number;
       if (track) {
-        await updateTrack({ id: track.id, ...state, project_id: projectId });
+        await updateTrack({
+          id: track.id,
+          ...state,
+          project_id: projectId,
+          standby_until: standbyUntil || null,
+        });
         id = track.id;
       } else {
         id = await createTrack({ ...state, project_id: projectId });
@@ -594,6 +602,20 @@ export function TrackForm({
                   )}
                 </div>
               </div>
+
+              {loaded.standby && (
+                <Field label="Retornar em">
+                  <Input
+                    type="date"
+                    value={standbyUntil}
+                    onChange={(e) => {
+                      setStandbyUntil(e.target.value);
+                      setDirty(true);
+                    }}
+                    placeholder="Data de retorno do standby"
+                  />
+                </Field>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <AttachmentField

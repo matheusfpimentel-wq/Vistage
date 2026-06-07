@@ -189,12 +189,12 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <h4 className="text-sm font-medium">GIGs nesta casa</h4>
+                <h4 className="text-sm font-medium">Histórico de GIGs</h4>
                 <Badge variant="outline">{gigs.length}</Badge>
               </div>
               {gigs.length === 0 ? (
                 <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhuma GIG vinculada ainda.
+                  Nenhuma GIG registrada nesta venue.
                 </div>
               ) : (
                 <div className="space-y-1.5">
@@ -205,12 +205,10 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
                     >
                       <div>
                         <div className="font-medium">
-                          {formatDate(g.date)}
-                          {g.main_goal && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              🎯 {g.main_goal}
-                            </span>
-                          )}
+                          {g.event_name ? g.event_name : "GIG"}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            {formatDate(g.date)}
+                          </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {g.start_time && `${g.start_time}–${g.end_time ?? "?"}`}
@@ -219,9 +217,11 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className="tabular-nums text-muted-foreground">
-                          {formatCurrency(g.cache_amount)}
-                        </span>
+                        {g.cache_amount ? (
+                          <span className="tabular-nums text-muted-foreground">
+                            {formatCurrency(g.cache_amount)}
+                          </span>
+                        ) : null}
                         <StatusBadge status={g.status} />
                       </div>
                     </div>

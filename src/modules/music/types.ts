@@ -58,6 +58,7 @@ export type TrackRow = {
   stage_notes: string | null;
   creative_block_notes: string | null;
   standby: number;
+  standby_until: string | null;
   task_id: number | null;
   created_at: string;
   updated_at: string;
@@ -72,6 +73,7 @@ export type Track = Omit<
   references: string[];
   stage_history: StageHistoryEntry[];
   standby: boolean;
+  standby_until: string | null;
 };
 
 export type TrackCreateInput = {
@@ -95,7 +97,7 @@ export type TrackCreateInput = {
   creative_block_notes: string | null;
 };
 
-export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number };
+export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number; standby_until?: string | null };
 
 /** Track com dados do projeto agregados (pro dashboard e listas). */
 export type TrackWithProject = Track & {

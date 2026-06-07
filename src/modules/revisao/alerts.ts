@@ -156,5 +156,15 @@ export function computeAlerts(stats: WeekStats): AlertItem[] {
       label: `${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de 20% com menos de 30 dias no quarter`,
     });
 
+  for (const t of stats.tracksStandbyOverdue ?? []) {
+    alerts.push({
+      key: `track-standby-overdue-${t.id}`,
+      icon: "music",
+      to: "/musica",
+      critical: false,
+      label: `Track "${t.title}" estava em standby e já passou da data de retorno.`,
+    });
+  }
+
   return alerts;
 }

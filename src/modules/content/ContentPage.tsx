@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Film, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -40,6 +41,7 @@ type FormatFilter = ContentFormat | "Todos";
 type NetworkFilter = ContentNetwork | "Todas";
 
 export function ContentPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Content[]>([]);
   const [stats, setStats] = useState<ContentStats | null>(null);
   const [filters, setFilters] = useState<{
@@ -51,6 +53,7 @@ export function ContentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Content | null>(null);
+  const [formDefaults, setFormDefaults] = useState<{ title?: string } | null>(null);
   const [networkOptions, setNetworkOptions] = useState<string[]>([
     ...CONTENT_NETWORKS,
   ]);
@@ -78,6 +81,17 @@ export function ContentPage() {
     void refresh();
   }, [refresh]);
 
+  // Pre-fill form when navigated with ?title=...
+  useEffect(() => {
+    const prefillTitle = searchParams.get("title");
+    if (prefillTitle) {
+      setFormDefaults({ title: prefillTitle });
+      setEditing(null);
+      setFormOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
+
   useEffect(() => {
     void loadIdentity().then((identity) => {
       const fromIdentity = Array.from(
@@ -89,6 +103,7 @@ export function ContentPage() {
 
   function openCreate() {
     setEditing(null);
+    setFormDefaults(null);
     setFormOpen(true);
   }
 
@@ -248,8 +263,9 @@ export function ContentPage() {
 
       <ContentForm
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(v) => { setFormOpen(v); if (!v) setFormDefaults(null); }}
         content={editing}
+        defaults={formDefaults ?? undefined}
         onSaved={() => void refresh()}
       />
     </div>

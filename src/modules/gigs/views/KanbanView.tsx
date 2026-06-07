@@ -1,8 +1,8 @@
 import { AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { GIG_STATUSES, type Gig, type GigStatus } from "../types";
+import { GIG_STATUSES, averageRating, type Gig, type GigStatus } from "../types";
 import { gigDisplayName } from "../displayName";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatRating } from "@/lib/format";
 import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
 
 type Props = {
@@ -71,12 +71,20 @@ function Column({
               <span className="text-xs tabular-nums">
                 {formatCurrency(g.cache_amount)}
               </span>
-              {g.debrief_pending === 1 && (
-                <Badge variant="warning" className="gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Debrief
-                </Badge>
-              )}
+              <div className="flex items-center gap-1">
+                {g.debrief_completed_at && (() => {
+                  const avg = averageRating(g);
+                  return avg !== null ? (
+                    <span className="text-xs text-amber-500">{formatRating(avg)}</span>
+                  ) : null;
+                })()}
+                {g.debrief_pending === 1 && (
+                  <Badge variant="warning" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Debrief
+                  </Badge>
+                )}
+              </div>
             </div>
           </KanbanCard>
         ))}

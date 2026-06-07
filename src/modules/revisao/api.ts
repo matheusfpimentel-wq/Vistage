@@ -28,6 +28,7 @@ export type WeekStats = {
   gigsUnprepared: number; // GIGs em <=72h com prep musical incompleta
   okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
   gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
+  tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
 };
 
 function weekRange(): { start: string; end: string } {
@@ -111,6 +112,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     superfasRows,
     upcomingGigsPrepRows,
     gigsUnpaidRows,
+    standbyOverdueRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -226,6 +228,12 @@ async function computeWeekStats(): Promise<WeekStats> {
           AND cache_amount IS NOT NULL AND cache_amount > 0`,
       [(() => { const d = new Date(today); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); })()]
     ), []),
+    // tracks em standby com data de retorno já vencida
+    safeSelect<{ id: number; title: string }>(() => db.select(
+      `SELECT id, title_working as title FROM tracks
+        WHERE standby = 1 AND standby_until IS NOT NULL AND standby_until <= $1`,
+      [today]
+    ), []),
   ]);
 
   // GIGs com prep musical incompleta
@@ -293,6 +301,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     gigsUnprepared,
     okrsLagging,
     gigsUnpaidAfter48h: gigsUnpaidRows[0]?.c ?? 0,
+    tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],
   };
 }
 
