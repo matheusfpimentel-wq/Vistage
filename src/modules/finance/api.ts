@@ -341,7 +341,10 @@ export async function syncClassTransaction(classId: number): Promise<void> {
     return;
   }
 
-  const desc = `Aula — ${c.student_name ?? "Aluno"}`;
+  const subject = c.subject?.trim();
+  const desc = subject
+    ? `Aula: ${subject} (${c.student_name ?? "Aluno"})`
+    : `Aula: ${c.student_name ?? "Aluno"}`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
@@ -401,7 +404,8 @@ export async function syncStudentPackageTransaction(
     return;
   }
 
-  const desc = `Pacote ${p.pkg_name ?? ""} — ${p.student_name ?? "Aluno"}`.trim();
+  const pkgLabel = p.pkg_name?.trim() ? p.pkg_name.trim() : "Pacote";
+  const desc = `${pkgLabel}: ${p.student_name ?? "Aluno"}`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
@@ -597,6 +601,8 @@ export type FinanceInsights = {
   fixedMonthlyExpenses: number;
   next30Receivable: number;
   next30Payable: number;
+  /** Receita agrupada por fonte: GIG, Festa, Aulas, Outros (período selecionado). */
+  incomeBySource: { name: string; value: number }[];
 };
 
 function currentMonth(): string {
@@ -780,6 +786,26 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
   const next30Receivable = next30.find((r) => r.kind === "income")?.total ?? 0;
   const next30Payable = next30.find((r) => r.kind === "expense")?.total ?? 0;
 
+  // Receita por fonte (GIG / Festa / Aulas / Outros) no período selecionado
+  const sourceWhere = periodWhere
+    ? `kind = 'income' AND ${periodWhere}`
+    : `kind = 'income' AND date BETWEEN '${monthStart}' AND '${monthEnd}'`;
+  const sourceRows = await db.select<{ source: string; total: number }[]>(
+    `SELECT
+       CASE
+         WHEN gig_id IS NOT NULL THEN 'GIG'
+         WHEN party_id IS NOT NULL THEN 'Festa'
+         WHEN class_id IS NOT NULL OR student_package_id IS NOT NULL THEN 'Aulas'
+         ELSE 'Outros'
+       END AS source,
+       COALESCE(SUM(amount), 0) AS total
+     FROM finance_transactions
+     WHERE ${sourceWhere}
+     GROUP BY source
+     ORDER BY total DESC`
+  );
+  const incomeBySource = sourceRows.map((r) => ({ name: r.source, value: r.total }));
+
   return {
     monthIncome,
     monthExpense,
@@ -797,6 +823,7 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
     fixedMonthlyExpenses,
     next30Receivable,
     next30Payable,
+    incomeBySource,
   };
 }
 
@@ -805,7 +832,7 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
 // ============================================================
 
 export type ProjectProfit = {
-  kind: "gig" | "party";
+  kind: "gig" | "party" | "student";
   id: number;
   name: string;
   date: string | null;
@@ -816,16 +843,18 @@ export type ProjectProfit = {
 
 /**
  * Lucro consolidado por projeto:
- *  - GIGs: receitas − despesas vinculadas via gig_id em finance_transactions.
- *  - Festas: bilheteria (price × quantity_sold) − custos reais do orçamento.
+ *  - GIGs: receitas e despesas vinculadas via gig_id.
+ *  - Festas: bilheteria (price × quantity_sold) e custos do orçamento.
+ *  - Alunos: soma de aulas realizadas com valor + pacotes vendidos.
  */
 export async function loadProjectProfit(): Promise<{
   gigs: ProjectProfit[];
   parties: ProjectProfit[];
+  students: ProjectProfit[];
 }> {
   const db = getDb();
 
-  const [gigRows, partyRows] = await Promise.all([
+  const [gigRows, partyRows, studentRows] = await Promise.all([
     db.select<
       { id: number; name: string; date: string; income: number; expense: number }[]
     >(
@@ -849,6 +878,23 @@ export async function loadProjectProfit(): Promise<{
               (SELECT COALESCE(SUM(price * quantity_sold), 0) FROM party_tickets WHERE party_id = p.id) AS income,
               (SELECT COALESCE(SUM(actual_amount), 0) FROM party_budget_items WHERE party_id = p.id) AS expense
          FROM parties p`
+    ),
+    db.select<{ id: number; name: string; income: number }[]>(
+      `SELECT s.id, s.name,
+              COALESCE(
+                (SELECT SUM(c.amount) FROM classes c
+                  WHERE c.student_id = s.id AND c.status='Realizada' AND c.amount > 0),
+                0
+              ) +
+              COALESCE(
+                (SELECT SUM(cp.price) FROM student_packages sp
+                  JOIN class_packages cp ON cp.id = sp.package_id
+                  WHERE sp.student_id = s.id AND sp.status <> 'Cancelado' AND cp.price > 0),
+                0
+              ) AS income
+         FROM students s
+        HAVING income > 0
+        ORDER BY income DESC`
     ),
   ]);
 
@@ -875,5 +921,15 @@ export async function loadProjectProfit(): Promise<{
     .filter((p) => p.income !== 0 || p.expense !== 0)
     .sort((a, b) => b.profit - a.profit);
 
-  return { gigs, parties };
+  const students: ProjectProfit[] = studentRows.map((r) => ({
+    kind: "student",
+    id: r.id,
+    name: r.name,
+    date: null,
+    income: r.income,
+    expense: 0,
+    profit: r.income,
+  }));
+
+  return { gigs, parties, students };
 }

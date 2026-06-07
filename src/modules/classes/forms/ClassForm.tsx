@@ -117,7 +117,7 @@ export function ClassForm({
     void listPackages(true).then(setAllPackages);
   }, [open]);
 
-  // Quando muda o aluno, busca os pacotes ativos dele e tenta auto-vincular
+  // Quando muda o aluno, busca pacotes ativos e pré-preenche o valor padrão
   useEffect(() => {
     if (!open || !state.student_id) {
       setStudentPackages([]);
@@ -126,11 +126,16 @@ export function ClassForm({
     (async () => {
       const pkgs = await listStudentPackages(state.student_id);
       setStudentPackages(pkgs);
-      // Pré-seleciona o pacote ativo só na criação
-      if (!session && state.student_package_id === null) {
+      if (!session) {
         const active = await getActiveStudentPackage(state.student_id);
         if (active) {
           setState((s) => ({ ...s, student_package_id: active.id }));
+        } else {
+          // Aula avulsa: pré-preenche valor padrão do aluno
+          const student = students.find((s) => s.id === state.student_id);
+          if (student?.default_rate && state.amount === null) {
+            setState((s) => ({ ...s, amount: student.default_rate }));
+          }
         }
       }
     })();

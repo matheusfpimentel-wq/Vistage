@@ -43,6 +43,7 @@ const EMPTY: StudentCreateInput = {
   city: null,
   acquisition: null,
   notes: null,
+  default_rate: null,
 };
 
 function toState(s: Student): StudentCreateInput {
@@ -54,6 +55,7 @@ function toState(s: Student): StudentCreateInput {
     city: s.city,
     acquisition: s.acquisition,
     notes: s.notes,
+    default_rate: s.default_rate,
   };
 }
 
@@ -148,6 +150,18 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
               <Input
                 value={state.city ?? ""}
                 onChange={(e) => set("city", e.target.value || null)}
+              />
+            </Field>
+            <Field label="Valor padrão por aula (R$)">
+              <Input
+                type="number"
+                min={0}
+                step={10}
+                placeholder="Ex: 150"
+                value={state.default_rate ?? ""}
+                onChange={(e) =>
+                  set("default_rate", e.target.value ? Number(e.target.value) : null)
+                }
               />
             </Field>
           </div>

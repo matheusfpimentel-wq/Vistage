@@ -133,6 +133,15 @@ export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
         />
       </div>
 
+      {/* Receita por fonte */}
+      {data.incomeBySource.length > 0 && (
+        <CategoryPie
+          title={`Receita por fonte (${label.toLowerCase()})`}
+          data={data.incomeBySource}
+          colors={INCOME_COLORS}
+        />
+      )}
+
       {/* Receitas vs despesas — 12 meses */}
       <Card>
         <CardHeader>

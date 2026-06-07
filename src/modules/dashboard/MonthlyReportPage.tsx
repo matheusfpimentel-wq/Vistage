@@ -223,6 +223,14 @@ function ReportKpi({
   );
 }
 
+const ACTIVITY_HINTS: Record<string, string> = {
+  "GIGs realizadas": "Registre suas GIGs em /gigs",
+  "Festas realizadas": "Produza festas em /festas",
+  "Conteúdos publicados": "Gerencie conteúdo em /conteudo",
+  "Tracks lançadas": "Acompanhe lançamentos em /musica",
+  "Tarefas concluídas": "Veja tarefas em /tarefas",
+};
+
 function ActivityStat({
   label,
   value,
@@ -237,6 +245,11 @@ function ActivityStat({
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
       <div className="text-xs text-muted-foreground">{label}</div>
       {sub && <div className="text-[11px] text-muted-foreground/80">{sub}</div>}
+      {value === 0 && ACTIVITY_HINTS[label] && (
+        <div className="mt-1 text-[10px] italic text-muted-foreground/60">
+          {ACTIVITY_HINTS[label]}
+        </div>
+      )}
     </div>
   );
 }

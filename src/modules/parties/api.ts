@@ -137,6 +137,25 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
       } catch { /* não interrompe */ }
     }
   }
+  // Auto-sync financeiro ao marcar como Realizada
+  if ("status" in rest && rest.status === "Realizada") {
+    try {
+      const partyRows = await db.select<{ financial_synced: number }[]>(
+        "SELECT financial_synced FROM parties WHERE id = $1",
+        [id]
+      );
+      if (partyRows[0]?.financial_synced === 0) {
+        const [full] = await Promise.all([getParty(id)]);
+        if (full) {
+          const [tickets, budgetItems] = await Promise.all([
+            db.select<PartyTicket[]>("SELECT * FROM party_tickets WHERE party_id = $1", [id]),
+            db.select<PartyBudgetItem[]>("SELECT * FROM party_budget_items WHERE party_id = $1", [id]),
+          ]);
+          await syncPartyToFinanceiro(full, tickets, budgetItems);
+        }
+      }
+    } catch { /* não interrompe */ }
+  }
   emitDataChanged();
 }
 
@@ -456,27 +475,34 @@ export async function syncPartyToFinanceiro(
   const db = getDb();
   const dateStr = party.date ?? todayISO();
 
+  const incCat = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_categories WHERE kind='income' AND name='Produção de Festas' LIMIT 1`
+  );
+  const expCat = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_categories WHERE kind='expense' AND name='Produção de Festas' LIMIT 1`
+  );
+  const incomeCatId = incCat[0]?.id ?? null;
+  const expenseCatId = expCat[0]?.id ?? null;
+
   for (const ticket of tickets) {
     if (ticket.quantity_sold <= 0) continue;
     const amount = ticket.price * ticket.quantity_sold;
     await db.execute(
-      `INSERT INTO finance_transactions (kind, amount, date, description, gig_id, category_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      ["income", amount, dateStr, `Ingressos: ${ticket.name} — ${party.title}`, null, null]
+      `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido/Pago')`,
+      ["income", amount, dateStr, `${party.title}: ingressos ${ticket.name}`, party.id, incomeCatId]
     );
   }
 
   for (const item of budgetItems) {
     if (!item.actual_amount || item.actual_amount <= 0) continue;
-    const desc =
-      item.category +
-      (item.subcategory ? ` / ${item.subcategory}` : "") +
-      ` — ${party.title}`;
+    const subcat = item.subcategory ? ` / ${item.subcategory}` : "";
+    const desc = `${party.title}: ${item.category}${subcat}`;
     const dateUsed = item.date_paid ?? party.date ?? todayISO();
     await db.execute(
-      `INSERT INTO finance_transactions (kind, amount, date, description, gig_id, category_id)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      ["expense", item.actual_amount, dateUsed, desc, null, null]
+      `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido/Pago')`,
+      ["expense", item.actual_amount, dateUsed, desc, party.id, expenseCatId]
     );
   }
 

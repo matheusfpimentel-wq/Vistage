@@ -1208,6 +1208,11 @@ const MIGRATIONS: Migration[] = [
   },
   {
     version: 57,
+    description: "default_rate on students for class pre-fill",
+    sql: `ALTER TABLE students ADD COLUMN default_rate REAL`,
+  },
+  {
+    version: 59,
     description: "Backfill: receita de toda aula realizada com valor (inclui aulas de pacote com valor próprio)",
     sql: `
       INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
@@ -1220,6 +1225,25 @@ const MIGRATIONS: Migration[] = [
          AND NOT EXISTS (
            SELECT 1 FROM finance_transactions t WHERE t.class_id = c.id
          );
+    `,
+  },
+  {
+    version: 60,
+    description: "party_id column on finance_transactions for party profit tracking",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN party_id INTEGER`,
+  },
+  {
+    version: 61,
+    description: "Fix existing GIG transaction descriptions to use event_name; fix party sync descriptions",
+    sql: `
+      UPDATE finance_transactions
+         SET description = 'Cachê: ' || COALESCE(NULLIF(g.event_name,''), g.venue_name)
+               || ' (' || g.date || ')'
+        FROM gigs g
+       WHERE finance_transactions.gig_id = g.id
+         AND finance_transactions.kind = 'income'
+         AND (finance_transactions.description LIKE '%—%'
+              OR finance_transactions.description LIKE 'GIG %');
     `,
   },
 ];

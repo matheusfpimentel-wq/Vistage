@@ -65,6 +65,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
   { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
+  { to: "/musica", label: "Produção Musical", icon: Music, group: "Operação" },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Operação" },
 
   { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
@@ -72,7 +73,6 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/fornecedores", label: "Fornecedores", icon: Store, group: "Relacionamento" },
   { to: "/fas", label: "Clube de fãs", icon: Heart, group: "Relacionamento" },
 
-  { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
 
