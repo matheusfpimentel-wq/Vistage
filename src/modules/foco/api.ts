@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 
 export const ACTIVITY_TYPES = [
   "Criação musical",
@@ -32,6 +33,7 @@ export async function startSession(activity_type: ActivityType): Promise<number>
     `INSERT INTO work_sessions (started_at, activity_type) VALUES ($1, $2)`,
     [started_at, activity_type]
   );
+  emitDataChanged();
   return res.lastInsertId as number;
 }
 
@@ -47,6 +49,7 @@ export async function endSession(
     `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4 WHERE id=$5`,
     [ended_at, energy_level, focus_level, notes, id]
   );
+  emitDataChanged();
 }
 
 export async function getActiveSession(): Promise<WorkSession | null> {
@@ -68,6 +71,7 @@ export async function listSessions(limit = 50): Promise<WorkSession[]> {
 export async function deleteSession(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM work_sessions WHERE id = $1`, [id]);
+  emitDataChanged();
 }
 
 export type HeatmapCell = {
@@ -143,10 +147,12 @@ export async function createHighlight(input: {
     `INSERT INTO highlights (title, date, body) VALUES ($1, $2, $3)`,
     [input.title, input.date, input.body]
   );
+  emitDataChanged();
   return res.lastInsertId as number;
 }
 
 export async function deleteHighlight(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM highlights WHERE id=$1`, [id]);
+  emitDataChanged();
 }

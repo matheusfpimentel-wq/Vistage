@@ -343,14 +343,12 @@ export async function restoreLatestBackupSilently(): Promise<boolean> {
   try {
     const auth = await loadAuth();
     if (!auth) return false;
-    const files = await listBackups();
-    if (files.length === 0) return false;
-    const sorted = [...files].sort((a, b) => {
-      const ta = a.created_time ? Date.parse(a.created_time) : 0;
-      const tb = b.created_time ? Date.parse(b.created_time) : 0;
-      return tb - ta;
-    });
-    await downloadAndRestoreBackup(sorted[0].id);
+    // Só restaura se o Drive tiver um backup MAIS NOVO que o último sync local.
+    // Isso evita sobrescrever dados criados nesta máquina que ainda não subiram
+    // (ex.: sessões/highlights/pacotes recém-criados antes de fechar o app).
+    const newer = await findNewerDriveBackup();
+    if (!newer) return false;
+    await downloadAndRestoreBackup(newer.id);
     return true;
   } catch {
     return false;
