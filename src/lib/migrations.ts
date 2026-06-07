@@ -1246,6 +1246,14 @@ const MIGRATIONS: Migration[] = [
               OR finance_transactions.description LIKE 'GIG %');
     `,
   },
+  {
+    version: 62,
+    description: "class_packages: total_hours; student_packages: used_minutes",
+    sql: `
+      ALTER TABLE class_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE student_packages ADD COLUMN used_minutes INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 

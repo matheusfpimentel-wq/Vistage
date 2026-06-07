@@ -52,6 +52,12 @@ import {
 } from "../types";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 
+function minutesToHoursStr(min: number | null): string {
+  if (min == null) return "";
+  const h = min / 60;
+  return h.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -100,7 +106,9 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
         student_id: studentId,
         package_id: tpl.id,
         total_classes: tpl.total_classes,
+        total_hours: tpl.total_hours,
         used_classes: 0,
+        used_minutes: 0,
         purchased_at: todayISO(),
         status: "Ativo",
         notes: null,
@@ -276,11 +284,18 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                 ) : (
                   <div className="space-y-2">
                     {packages.map((p) => {
-                      const remaining = p.total_classes - p.used_classes;
-                      const pct =
-                        p.total_classes > 0
-                          ? (p.used_classes / p.total_classes) * 100
-                          : 0;
+                      const tpl = templates.find((t) => t.id === p.package_id);
+                      const isHoursBased = tpl?.total_hours != null;
+                      const totalMin = isHoursBased ? Math.round(tpl!.total_hours! * 60) : null;
+                      const usedPct = isHoursBased
+                        ? totalMin! > 0 ? (p.used_minutes / totalMin!) * 100 : 0
+                        : p.total_classes > 0 ? (p.used_classes / p.total_classes) * 100 : 0;
+                      const usedLabel = isHoursBased
+                        ? `${minutesToHoursStr(p.used_minutes)}h / ${tpl!.total_hours}h`
+                        : `${p.used_classes}/${p.total_classes} aulas`;
+                      const remainingLabel = isHoursBased
+                        ? `${minutesToHoursStr(totalMin! - p.used_minutes)}h restantes`
+                        : `${p.total_classes - p.used_classes} restantes`;
                       return (
                         <div
                           key={p.id}
@@ -309,16 +324,16 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-muted-foreground">
-                                {p.used_classes}/{p.total_classes} usadas
+                                {usedLabel}
                               </span>
                               <span className="tabular-nums">
-                                {remaining} restantes
+                                {remainingLabel}
                               </span>
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-muted">
                               <div
                                 className="h-full bg-primary-gradient"
-                                style={{ width: `${pct}%` }}
+                                style={{ width: `${usedPct}%` }}
                               />
                             </div>
                           </div>

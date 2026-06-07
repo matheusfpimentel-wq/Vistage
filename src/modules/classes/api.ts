@@ -143,9 +143,20 @@ export async function getActiveStudentPackage(
 ): Promise<StudentPackage | null> {
   const db = getDb();
   const rows = await db.select<StudentPackage[]>(
-    `SELECT * FROM student_packages
-      WHERE student_id = $1 AND status = 'Ativo' AND used_classes < total_classes
-      ORDER BY purchased_at ASC LIMIT 1`,
+    `SELECT sp.* FROM student_packages sp
+      LEFT JOIN class_packages cp ON cp.id = sp.package_id
+      WHERE sp.student_id = $1 AND sp.status = 'Ativo'
+        AND (
+          -- horas: ainda tem saldo
+          (cp.total_hours IS NOT NULL AND sp.used_minutes < cp.total_hours * 60)
+          OR
+          -- nº de aulas: ainda tem saldo
+          (cp.total_hours IS NULL AND sp.used_classes < sp.total_classes)
+          OR
+          -- sem template vinculado: sempre ativo
+          cp.id IS NULL
+        )
+      ORDER BY sp.purchased_at ASC LIMIT 1`,
     [studentId]
   );
   return rows[0] ?? null;
@@ -388,20 +399,41 @@ export async function deleteClass(id: number): Promise<void> {
  */
 export async function recalcPackageUsage(studentPackageId: number): Promise<void> {
   const db = getDb();
-  const rows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM classes
-      WHERE student_package_id = $1 AND status = 'Realizada'`,
+  // Conta aulas Agendada + Realizada (já descontam do saldo)
+  const rows = await db.select<{ n: number; total_min: number }[]>(
+    `SELECT COUNT(*) as n, COALESCE(SUM(duration_min), 0) as total_min
+       FROM classes
+      WHERE student_package_id = $1 AND status IN ('Agendada', 'Realizada')`,
     [studentPackageId]
   );
   const used = rows[0]?.n ?? 0;
+  const usedMin = rows[0]?.total_min ?? 0;
   await db.execute(
-    "UPDATE student_packages SET used_classes = $1 WHERE id = $2",
-    [used, studentPackageId]
+    "UPDATE student_packages SET used_classes = $1, used_minutes = $2 WHERE id = $3",
+    [used, usedMin, studentPackageId]
   );
-  // Marca como Concluído automaticamente quando atinge o total
+  // Pacote baseado em horas: conclui quando esgota horas
   await db.execute(
     `UPDATE student_packages SET status = 'Concluído'
-      WHERE id = $1 AND used_classes >= total_classes AND status = 'Ativo'`,
+      WHERE id = $1 AND status = 'Ativo' AND (
+        SELECT total_hours FROM class_packages WHERE id = (
+          SELECT package_id FROM student_packages WHERE id = $1
+        )
+      ) IS NOT NULL
+      AND used_minutes >= (
+        SELECT total_hours * 60 FROM class_packages WHERE id = (
+          SELECT package_id FROM student_packages WHERE id = $1
+        )
+      )`,
+    [studentPackageId]
+  );
+  // Pacote baseado em nº de aulas: conclui quando atinge o total
+  await db.execute(
+    `UPDATE student_packages SET status = 'Concluído'
+      WHERE id = $1 AND status = 'Ativo' AND used_classes >= total_classes
+      AND (SELECT total_hours FROM class_packages WHERE id = (
+        SELECT package_id FROM student_packages WHERE id = $1
+      )) IS NULL`,
     [studentPackageId]
   );
 }

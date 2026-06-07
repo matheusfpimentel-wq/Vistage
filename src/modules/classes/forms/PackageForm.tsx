@@ -27,6 +27,7 @@ type Props = {
 const EMPTY: ClassPackageCreateInput = {
   name: "",
   total_classes: 4,
+  total_hours: null,
   price: null,
   description: null,
   syllabus: null,
@@ -35,21 +36,28 @@ const EMPTY: ClassPackageCreateInput = {
 
 export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   const [state, setState] = useState<ClassPackageCreateInput>(EMPTY);
+  const [useHours, setUseHours] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
-    if (pkg)
+    if (pkg) {
+      const byHours = pkg.total_hours != null;
+      setUseHours(byHours);
       setState({
         name: pkg.name,
         total_classes: pkg.total_classes,
+        total_hours: pkg.total_hours,
         price: pkg.price,
         description: pkg.description,
         syllabus: pkg.syllabus,
         active: pkg.active,
       });
-    else setState(EMPTY);
+    } else {
+      setUseHours(false);
+      setState(EMPTY);
+    }
     setDirty(false);
   }, [pkg, open]);
 
@@ -62,14 +70,27 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   }
 
   async function handleSubmit() {
-    if (!state.name.trim() || state.total_classes < 1) {
-      toast.error("Preencha nome e número de aulas");
+    if (!state.name.trim()) {
+      toast.error("Nome obrigatório");
       return;
     }
+    if (useHours && (!state.total_hours || state.total_hours <= 0)) {
+      toast.error("Informe a carga horária total");
+      return;
+    }
+    if (!useHours && state.total_classes < 1) {
+      toast.error("Informe o número de aulas");
+      return;
+    }
+    const payload: ClassPackageCreateInput = {
+      ...state,
+      total_hours: useHours ? state.total_hours : null,
+      total_classes: useHours ? 999 : state.total_classes,
+    };
     setSaving(true);
     try {
-      if (pkg) await updatePackage({ id: pkg.id, ...state });
-      else await createPackage(state);
+      if (pkg) await updatePackage({ id: pkg.id, ...payload });
+      else await createPackage(payload);
       toast.success(pkg ? "Pacote atualizado" : "Pacote criado");
       setDirty(false);
       onSaved();
@@ -87,8 +108,8 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
         <DialogHeader>
           <DialogTitle>{pkg ? "Editar pacote" : "Novo pacote"}</DialogTitle>
           <DialogDescription>
-            Template reutilizável. Ao vender pra um aluno, é gerada uma instância
-            com o saldo de aulas e o status Ativo.
+            Template reutilizável. Ao vender para um aluno, é gerada uma instância
+            com o saldo e status Ativo.
           </DialogDescription>
         </DialogHeader>
 
@@ -96,36 +117,77 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
           <div className="space-y-1.5">
             <Label>Nome</Label>
             <Input
-              placeholder='Ex: "Mensal 4 aulas"'
+              placeholder='Ex: "Mensal 4 aulas" ou "Pacote 10h"'
               value={state.name}
               onChange={(e) => set("name", e.target.value)}
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Nº de aulas</Label>
-              <Input
-                type="number"
-                min={1}
-                value={state.total_classes}
-                onChange={(e) =>
-                  set("total_classes", parseInt(e.target.value) || 1)
-                }
-              />
+          <div className="space-y-2">
+            <Label>Limite de uso</Label>
+            <div className="flex gap-3">
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="limit_type"
+                  checked={!useHours}
+                  onChange={() => { setUseHours(false); setDirty(true); }}
+                  className="accent-primary"
+                />
+                Nº de aulas
+              </label>
+              <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="limit_type"
+                  checked={useHours}
+                  onChange={() => { setUseHours(true); setDirty(true); }}
+                  className="accent-primary"
+                />
+                Carga horária total
+              </label>
             </div>
-            <div className="space-y-1.5">
-              <Label>Preço (R$)</Label>
-              <Input
-                type="number"
-                min={0}
-                step={0.01}
-                value={state.price ?? ""}
-                onChange={(e) =>
-                  set("price", e.target.value ? Number(e.target.value) : null)
-                }
-              />
-            </div>
+            {useHours ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Total de horas</Label>
+                <div className="relative max-w-[140px]">
+                  <Input
+                    placeholder="Ex: 10"
+                    value={state.total_hours != null ? String(state.total_hours).replace(".", ",") : ""}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(",", ".");
+                      set("total_hours", v ? parseFloat(v) || null : null);
+                    }}
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">h</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Nº de aulas</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="max-w-[140px]"
+                  value={state.total_classes}
+                  onChange={(e) => set("total_classes", parseInt(e.target.value) || 1)}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Preço (R$)</Label>
+            <Input
+              type="number"
+              min={0}
+              step={0.01}
+              className="max-w-[200px]"
+              value={state.price ?? ""}
+              onChange={(e) =>
+                set("price", e.target.value ? Number(e.target.value) : null)
+              }
+            />
           </div>
 
           <div className="space-y-1.5">

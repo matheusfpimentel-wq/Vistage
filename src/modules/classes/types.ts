@@ -30,6 +30,7 @@ export type ClassPackage = {
   id: number;
   name: string;
   total_classes: number;
+  total_hours: number | null;
   price: number | null;
   description: string | null;
   syllabus: string | null;
@@ -48,7 +49,9 @@ export type StudentPackage = {
   student_id: number;
   package_id: number | null;
   total_classes: number;
+  total_hours: number | null;
   used_classes: number;
+  used_minutes: number;
   purchased_at: string;
   status: StudentPackageStatus;
   notes: string | null;

@@ -46,6 +46,16 @@ import { todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { loadAuth, pushClassToCalendar } from "@/lib/gcal";
 
+function hoursToMinutes(val: string): number | null {
+  const n = parseFloat(val.replace(",", "."));
+  return isNaN(n) || n <= 0 ? null : Math.round(n * 60);
+}
+function minutesToHoursStr(min: number | null): string {
+  if (min == null) return "";
+  const h = min / 60;
+  return h.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -157,7 +167,9 @@ export function ClassForm({
       student_id: state.student_id,
       package_id: linkPkgId,
       total_classes: template.total_classes,
+      total_hours: template.total_hours,
       used_classes: 0,
+      used_minutes: 0,
       purchased_at: todayISO(),
       status: "Ativo",
       notes: null,
@@ -246,7 +258,7 @@ export function ClassForm({
         <DialogHeader>
           <DialogTitle>{session ? "Editar aula" : "Nova aula"}</DialogTitle>
           <DialogDescription>
-            Marque como "Realizada" pra consumir uma aula do pacote selecionado.
+            Aulas agendadas já descontam do saldo do pacote.
           </DialogDescription>
         </DialogHeader>
 
@@ -303,21 +315,36 @@ export function ClassForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="avulsa">Aula avulsa</SelectItem>
-                {studentPackages.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    Pacote #{p.id} — {p.used_classes}/{p.total_classes} usadas ·{" "}
-                    {p.status}
-                  </SelectItem>
-                ))}
+                {studentPackages.map((p) => {
+                  const tpl = allPackages.find(t => t.id === p.package_id);
+                  const isHours = tpl?.total_hours != null;
+                  const used = isHours ? `${minutesToHoursStr(p.used_minutes)}h` : `${p.used_classes}`;
+                  const total = isHours ? `${String(tpl!.total_hours).replace(".", ",")}h` : `${p.total_classes}`;
+                  return (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      Pacote #{p.id} — {used}/{total} usadas · {p.status}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-            {selectedPkg && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">
-                  Saldo: {selectedPkg.total_classes - selectedPkg.used_classes} aulas
-                </Badge>
-              </div>
-            )}
+            {selectedPkg && (() => {
+              const tpl = allPackages.find(p => p.id === selectedPkg.package_id);
+              const isHoursBased = tpl?.total_hours != null;
+              const remainingMin = isHoursBased
+                ? Math.round(tpl!.total_hours! * 60) - selectedPkg.used_minutes
+                : null;
+              const remainingClasses = !isHoursBased ? selectedPkg.total_classes - selectedPkg.used_classes : null;
+              return (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">
+                    {isHoursBased
+                      ? `Saldo: ${minutesToHoursStr(remainingMin)}h`
+                      : `Saldo: ${remainingClasses} aulas`}
+                  </Badge>
+                </div>
+              );
+            })()}
             {state.student_id > 0 && studentPackages.length === 0 && allPackages.length > 0 && (
               <div className="space-y-1.5 rounded-md border border-dashed p-3">
                 <p className="text-xs text-muted-foreground">Este aluno não tem pacote ativo.</p>
@@ -374,16 +401,15 @@ export function ClassForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Duração (min)</Label>
-              <Input
-                type="number"
-                min={15}
-                step={15}
-                value={state.duration_min ?? ""}
-                onChange={(e) =>
-                  set("duration_min", e.target.value ? Number(e.target.value) : null)
-                }
-              />
+              <Label>Duração (h)</Label>
+              <div className="relative">
+                <Input
+                  placeholder="Ex: 1,5"
+                  value={minutesToHoursStr(state.duration_min)}
+                  onChange={(e) => set("duration_min", hoursToMinutes(e.target.value))}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">h</span>
+              </div>
             </div>
           </div>
 
