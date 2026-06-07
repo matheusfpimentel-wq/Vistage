@@ -10,7 +10,8 @@ export type RecentKind =
   | "contact"
   | "task"
   | "venue"
-  | "supplier";
+  | "supplier"
+  | "class";
 
 export type RecentItem = {
   kind: RecentKind;
@@ -30,6 +31,7 @@ const ROUTE: Record<RecentKind, string> = {
   task: "/tarefas",
   venue: "/venues",
   supplier: "/fornecedores",
+  class: "/aulas",
 };
 
 export const RECENT_KIND_LABEL: Record<RecentKind, string> = {
@@ -42,6 +44,7 @@ export const RECENT_KIND_LABEL: Record<RecentKind, string> = {
   task: "Tarefa",
   venue: "Venue",
   supplier: "Fornecedor",
+  class: "Aula",
 };
 
 /**
@@ -63,6 +66,8 @@ export async function loadRecentlyEdited(limit = 6): Promise<RecentItem[]> {
        UNION ALL SELECT 'task', id, title, updated_at FROM tasks
        UNION ALL SELECT 'venue', id, name, updated_at FROM venues
        UNION ALL SELECT 'supplier', id, name, updated_at FROM suppliers
+       UNION ALL SELECT 'class', c.id, COALESCE(NULLIF(c.subject,''), s.name), c.updated_at
+         FROM classes c LEFT JOIN students s ON s.id = c.student_id
      )
      WHERE updated_at IS NOT NULL
      ORDER BY updated_at DESC

@@ -32,13 +32,17 @@ export function MonthlyReportPage() {
   const [report, setReport] = useState<MonthlyReport | null>(null);
   const [okrs, setOkrs] = useState<Okr[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (m: string) => {
     setLoading(true);
+    setError(null);
     try {
       const [r, allOkrs] = await Promise.all([loadMonthlyReport(m), listOkrs()]);
       setReport(r);
       setOkrs(allOkrs.filter((o) => o.quarter === quarterOfMonth(m)));
+    } catch (e) {
+      setError(String(e));
     } finally {
       setLoading(false);
     }
@@ -95,12 +99,12 @@ export function MonthlyReportPage() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger className="w-44 capitalize">
+            <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {months.map((m) => (
-                <SelectItem key={m.value} value={m.value} className="capitalize">
+                <SelectItem key={m.value} value={m.value}>
                   {m.label}
                 </SelectItem>
               ))}
@@ -112,11 +116,15 @@ export function MonthlyReportPage() {
         </div>
       </div>
 
-      {loading || !report ? (
+      {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : (
+      ) : error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+          Erro ao carregar relatório: {error}
+        </div>
+      ) : !report ? null : (
         <>
           {/* Financeiro */}
           <div className="grid gap-3 sm:grid-cols-3">
@@ -133,7 +141,7 @@ export function MonthlyReportPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Atividade do mês</CardTitle>
-              <CardDescription className="capitalize">{monthLabel}</CardDescription>
+              <CardDescription>{monthLabel}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

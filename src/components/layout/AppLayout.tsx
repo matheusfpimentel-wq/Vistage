@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { MobileTabBar } from "./MobileTabBar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
+import { RecentMenu } from "@/components/shared/RecentMenu";
 import { Toaster } from "@/components/ui/toaster";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
@@ -135,6 +136,7 @@ export function AppLayout() {
                 </kbd>
               </button>
             )}
+            <WorkSessionWidget />
             <button
               type="button"
               onClick={triggerQuickCapture}
@@ -144,7 +146,7 @@ export function AppLayout() {
             >
               <Zap className="h-5 w-5 sm:h-4 sm:w-4" />
             </button>
-            <WorkSessionWidget />
+            <RecentMenu />
             <NotificationBell />
             <ThemeToggle />
           </div>

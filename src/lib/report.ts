@@ -71,7 +71,8 @@ export function monthOptions(n = 12): { value: string; label: string }[] {
   for (let i = 0; i < n; i++) {
     const d = new Date(base.getFullYear(), base.getMonth() - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const raw = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1);
     out.push({ value, label });
   }
   return out;
