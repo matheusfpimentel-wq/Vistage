@@ -35,6 +35,9 @@ jobs:
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
+        # Falhas transitórias do serviço de cache (comuns no Windows) não devem
+        # derrubar o build — sem cache ele apenas compila do zero.
+        continue-on-error: true
         with:
           workspaces: src-tauri -> target
 
