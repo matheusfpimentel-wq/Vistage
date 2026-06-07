@@ -65,6 +65,11 @@ export async function listSessions(limit = 50): Promise<WorkSession[]> {
   );
 }
 
+export async function deleteSession(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM work_sessions WHERE id = $1`, [id]);
+}
+
 export type HeatmapCell = {
   day: number;   // 0=Dom…6=Sab
   hour: number;  // 0…23

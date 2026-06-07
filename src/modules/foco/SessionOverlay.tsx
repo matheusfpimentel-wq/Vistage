@@ -60,7 +60,7 @@ export function SessionOverlay() {
   return (
     <div
       data-tauri-drag-region
-      className="flex h-screen w-screen cursor-grab select-none items-center gap-3 rounded-xl border border-primary/30 bg-zinc-900/95 px-3.5 py-2.5 text-zinc-100 shadow-2xl backdrop-blur active:cursor-grabbing"
+      className="flex h-screen w-screen cursor-grab select-none items-center gap-3 bg-zinc-900 px-3.5 py-2.5 text-zinc-100 active:cursor-grabbing"
     >
       <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
       <div className="min-w-0 flex-1">

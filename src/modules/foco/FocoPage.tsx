@@ -24,11 +24,14 @@ import { formatDate, todayISO } from "@/lib/format";
 import {
   loadHeatmap,
   loadActivityStats,
+  listSessions,
+  deleteSession,
   listHighlights,
   createHighlight,
   deleteHighlight,
   type HeatmapCell,
   type ActivityStats,
+  type WorkSession,
   type Highlight,
 } from "./api";
 
@@ -38,17 +41,20 @@ const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6h–23h
 export function FocoPage() {
   const [heatmap, setHeatmap] = useState<HeatmapCell[]>([]);
   const [activityStats, setActivityStats] = useState<ActivityStats[]>([]);
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [addOpen, setAddOpen] = useState(false);
 
   async function refresh() {
-    const [h, a, hl] = await Promise.all([
+    const [h, a, sess, hl] = await Promise.all([
       loadHeatmap(),
       loadActivityStats(),
+      listSessions(100),
       listHighlights(),
     ]);
     setHeatmap(h);
     setActivityStats(a);
+    setSessions(sess);
     setHighlights(hl);
   }
 
@@ -101,6 +107,59 @@ export function FocoPage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {sessions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Sessões registradas</CardTitle>
+            <CardDescription>
+              {sessions.length} sessão{sessions.length !== 1 ? "ões" : ""} encerrada{sessions.length !== 1 ? "s" : ""}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {sessions.map((s) => {
+                const start = new Date(s.started_at);
+                const end = new Date(s.ended_at!);
+                const mins = Math.round((end.getTime() - start.getTime()) / 60000);
+                const dur = mins >= 60
+                  ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}m`
+                  : `${mins}min`;
+                return (
+                  <div key={s.id} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium">{s.activity_type}</span>
+                      {s.notes && (
+                        <span className="ml-2 truncate text-xs text-muted-foreground">{s.notes}</span>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {dur}
+                    </div>
+                    {s.energy_level != null && (
+                      <div className="shrink-0 text-xs text-muted-foreground">
+                        E:{s.energy_level} F:{s.focus_level}
+                      </div>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={async () => {
+                        await deleteSession(s.id);
+                        toast.success("Sessão removida");
+                        void refresh();
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
