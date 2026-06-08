@@ -1328,6 +1328,11 @@ const MIGRATIONS: Migration[] = [
     description: "ideas.related_idea_id — relação entre ideias (inspirada por/depende de)",
     sql: `ALTER TABLE ideas ADD COLUMN related_idea_id INTEGER;`,
   },
+  {
+    version: 75,
+    description: "student_packages: total_hours — carga horária do pacote comprado",
+    sql: `ALTER TABLE student_packages ADD COLUMN total_hours REAL;`,
+  },
 ];
 
 
