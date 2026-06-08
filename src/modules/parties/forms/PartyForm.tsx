@@ -36,6 +36,8 @@ import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 import { listVenues } from "@/modules/venues/api";
 import type { Venue } from "@/modules/venues/types";
+import { listGigs } from "@/modules/gigs/api";
+import type { Gig } from "@/modules/gigs/types";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
@@ -86,6 +88,7 @@ type FormState = {
   sponsors: { name: string; amount_cents: number }[];
   team: PartyTeamMember[];
   notes: string | null;
+  gig_id: number | null;
 };
 
 const EMPTY: FormState = {
@@ -101,6 +104,7 @@ const EMPTY: FormState = {
   sponsors: [],
   team: [],
   notes: null,
+  gig_id: null,
 };
 
 const LINEUP_TYPES = ["DJ parceiro", "Músico"];
@@ -124,6 +128,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
   // Venues
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [gigs, setGigs] = useState<Gig[]>([]);
   const [quickVenueOpen, setQuickVenueOpen] = useState(false);
   const [candidates, setCandidates] = useState<LocalCandidate[]>([]);
 
@@ -185,6 +190,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     );
     void listSuppliers().then(setSuppliers);
     void listVenues().then(setVenues);
+    void listGigs().then(setGigs);
 
     if (party) {
       void reloadLinkedContent(party.title);
@@ -201,6 +207,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         sponsors: party.sponsors,
         team: party.team,
         notes: party.notes,
+        gig_id: party.gig_id,
       });
       void loadCandidates();
       void loadSubTabs();
@@ -391,6 +398,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         sponsors: state.sponsors,
         team: state.team,
         notes: state.notes,
+        gig_id: state.gig_id,
       };
 
       let savedPartyId: number;
@@ -530,6 +538,28 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Select>
               </Field>
             </div>
+
+            <Field label="GIG vinculada (se você toca na própria festa)">
+              <Select
+                value={state.gig_id != null ? String(state.gig_id) : "none"}
+                onValueChange={(v) =>
+                  set("gig_id", v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhuma" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {gigs.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      {(g.event_name || g.venue_name || "GIG")}
+                      {g.date ? ` — ${g.date}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
 
             {/* ===== VENUES ===== */}
             <div className="space-y-2">

@@ -48,6 +48,7 @@ export function QuickStudentForm({ open, onOpenChange, onCreated }: Props) {
         acquisition: null,
         notes: null,
         default_rate: null,
+        contact_id: null,
       });
       toast.success("Aluno criado");
       setDirty(false);

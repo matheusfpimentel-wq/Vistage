@@ -19,6 +19,7 @@ export type Student = {
   acquisition: AcquisitionSource | null;
   notes: string | null;
   default_rate: number | null;
+  contact_id: number | null;
   created_at: string;
   updated_at: string;
 };

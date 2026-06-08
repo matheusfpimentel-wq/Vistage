@@ -107,6 +107,7 @@ export type Party = {
   ticket_price_regular: number|null; ticket_price_vip: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
+  gig_id: number|null;
   gcal_event_id?: string|null;
   created_at: string; updated_at: string;
 };
