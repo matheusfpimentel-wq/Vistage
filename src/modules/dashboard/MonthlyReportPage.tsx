@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, Loader2 } from "lucide-react";
+import { Copy, FileDown, Loader2 } from "lucide-react";
+import { jsPDF } from "jspdf";
 import {
   Card,
   CardContent,
@@ -79,6 +80,82 @@ export function MonthlyReportPage() {
     return lines.join("\n");
   }
 
+  function exportPdf() {
+    if (!report) return;
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const marginX = 48;
+      const contentRight = pageWidth - marginX;
+      let y = 64;
+
+      // Título
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(`RELATÓRIO — ${monthLabel.toUpperCase()}`, marginX, y);
+      y += 26;
+      doc.setDrawColor(200);
+      doc.line(marginX, y, contentRight, y);
+      y += 28;
+
+      const sectionTitle = (label: string) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.setTextColor(30);
+        doc.text(label, marginX, y);
+        y += 18;
+      };
+
+      const row = (label: string, value: string) => {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(60);
+        doc.text(label, marginX, y);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(20);
+        doc.text(value, contentRight, y, { align: "right" });
+        y += 18;
+      };
+
+      // Financeiro
+      sectionTitle("Financeiro");
+      row("Receita", formatCurrency(report.income));
+      row("Despesa", formatCurrency(report.expense));
+      row("Saldo", formatCurrency(report.balance));
+      y += 14;
+
+      // Atividade
+      sectionTitle("Atividade do mês");
+      row(
+        "GIGs realizadas",
+        `${report.gigsCompleted} (cachê ${formatCurrency(report.gigsCache)})`
+      );
+      row("Festas realizadas", String(report.partiesRealized));
+      row("Conteúdos publicados", String(report.contentPublished));
+      row("Tracks lançadas", String(report.tracksReleased));
+      row("Tarefas concluídas", String(report.tasksCompleted));
+
+      // OKRs
+      if (okrs.length > 0) {
+        y += 14;
+        sectionTitle(`OKRs · ${quarterOfMonth(month)}`);
+        for (const o of okrs) {
+          const pct = Math.round(okrProgress(o) * 100);
+          if (y > doc.internal.pageSize.getHeight() - 64) {
+            doc.addPage();
+            y = 64;
+          }
+          row(o.objective, `${pct}%`);
+        }
+      }
+
+      doc.save(`relatorio-${month}.pdf`);
+      toast.success("PDF exportado");
+    } catch {
+      toast.error("Não foi possível exportar o PDF");
+    }
+  }
+
   async function copySummary() {
     try {
       await navigator.clipboard.writeText(buildSummary());
@@ -112,6 +189,14 @@ export function MonthlyReportPage() {
           </Select>
           <Button variant="outline" size="sm" onClick={() => void copySummary()}>
             <Copy className="h-3.5 w-3.5" /> Copiar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportPdf}
+            disabled={!report}
+          >
+            <FileDown className="h-3.5 w-3.5" /> Exportar PDF
           </Button>
         </div>
       </div>

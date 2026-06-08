@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { RecentMenu } from "@/components/shared/RecentMenu";
 import { Toaster } from "@/components/ui/toaster";
+import { SyncIndicator } from "@/components/shared/SyncIndicator";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -158,6 +159,7 @@ export function AppLayout() {
         <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} />
       </div>
       <Toaster />
+      <SyncIndicator />
     </div>
   );
 }
