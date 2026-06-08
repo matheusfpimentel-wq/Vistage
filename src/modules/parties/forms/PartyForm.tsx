@@ -30,7 +30,7 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { listContacts } from "@/modules/crm/api";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
-import { listContent, createContent } from "@/modules/content/api";
+import { listContent, createContent, listContentPromoting } from "@/modules/content/api";
 import { CONTENT_FORMATS, CONTENT_NETWORKS, type Content } from "@/modules/content/types";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
@@ -120,6 +120,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
+  const [promotingContent, setPromotingContent] = useState<
+    { id: number; title: string; status: string }[]
+  >([]);
   const [quickContent, setQuickContent] = useState(false);
   const [quickContentForm, setQuickContentForm] = useState({ title: "", format: "", network: "", status: "Ideia" as string });
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -194,6 +197,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
     if (party) {
       void reloadLinkedContent(party.title);
+      void listContentPromoting("Festa", party.id).then(setPromotingContent);
       setState({
         title: party.title,
         date: party.date,
@@ -213,6 +217,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       void loadSubTabs();
     } else {
       setState(EMPTY);
+      setPromotingContent([]);
       setCandidates([]);
       setStages([]);
       setBudgetItems([]);
@@ -900,6 +905,24 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           {/* ===== CONTEÚDO VINCULADO ===== */}
           {isEdit && (
             <TabsContent value="conteudo" className="space-y-3 pt-2">
+              {promotingContent.length > 0 && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Conteúdos promovendo esta Festa
+                  </p>
+                  {promotingContent.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span>{c.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {c.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-muted-foreground">
                   {linkedContent.length} conteúdo{linkedContent.length !== 1 ? "s" : ""} vinculado{linkedContent.length !== 1 ? "s" : ""}
