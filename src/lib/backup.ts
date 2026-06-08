@@ -57,6 +57,7 @@ const TABLES = [
   "gig_debrief_drafts",      // gig_id → gigs
   "gig_setlists",            // gig_id → gigs
   "gig_tracks",              // gig_id → gigs, track_id → tracks
+  "gig_fans",                // gig_id → gigs, fan_id → fans
   "tasks",                   // gig_id → gigs, contact_id → contacts
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks

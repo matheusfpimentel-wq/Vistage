@@ -1274,6 +1274,60 @@ const MIGRATIONS: Migration[] = [
     description: "class_packages.syllabus_items — ementa estruturada (JSON)",
     sql: `ALTER TABLE class_packages ADD COLUMN syllabus_items TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    version: 67,
+    description: "students.contact_id — vínculo aluno↔contato (CRM)",
+    sql: `ALTER TABLE students ADD COLUMN contact_id INTEGER;`,
+  },
+  {
+    version: 68,
+    description: "content.track_id — conteúdo divulga uma track",
+    sql: `ALTER TABLE content ADD COLUMN track_id INTEGER;`,
+  },
+  {
+    version: 69,
+    description: "parties.gig_id — festa vinculada a uma GIG (toquei na própria festa)",
+    sql: `ALTER TABLE parties ADD COLUMN gig_id INTEGER;`,
+  },
+  {
+    version: 70,
+    description: "gig_fans — presença de fãs em GIGs (histórico)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS gig_fans (
+        gig_id INTEGER NOT NULL,
+        fan_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (gig_id, fan_id),
+        FOREIGN KEY (gig_id) REFERENCES gigs(id) ON DELETE CASCADE,
+        FOREIGN KEY (fan_id) REFERENCES fans(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_gig_fans_fan ON gig_fans(fan_id);
+      CREATE INDEX IF NOT EXISTS idx_gig_fans_gig ON gig_fans(gig_id);
+    `,
+  },
+  {
+    version: 71,
+    description: "content: promotes_type/promotes_id — conteúdo promove GIG/Festa",
+    sql: `
+      ALTER TABLE content ADD COLUMN promotes_type TEXT;
+      ALTER TABLE content ADD COLUMN promotes_id INTEGER;
+    `,
+  },
+  {
+    version: 72,
+    description: "party_budget_items.supplier_id — item de orçamento vinculado a fornecedor",
+    sql: `ALTER TABLE party_budget_items ADD COLUMN supplier_id INTEGER;`,
+  },
+  {
+    version: 73,
+    description: "tracks.related_track_id — relação entre tracks (remix/sample/álbum)",
+    sql: `ALTER TABLE tracks ADD COLUMN related_track_id INTEGER;`,
+  },
+  {
+    version: 74,
+    description: "ideas.related_idea_id — relação entre ideias (inspirada por/depende de)",
+    sql: `ALTER TABLE ideas ADD COLUMN related_idea_id INTEGER;`,
+  },
 ];
 
 
