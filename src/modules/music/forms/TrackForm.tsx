@@ -55,7 +55,7 @@ import {
   prevStage,
   type TrackKind,
 } from "../stages";
-import { type MusicProject, type Track, type TrackCreateInput } from "../types";
+import { trackDisplayName, type MusicProject, type Track, type TrackCreateInput } from "../types";
 import { gateAfter, GATES, type GateDecisionRecord } from "../gates";
 import { StageBadge } from "../components/StageBadge";
 import { FlowSessionPanel } from "../components/FlowSessionPanel";
@@ -71,6 +71,7 @@ import {
   getTopMoods,
   getTrack,
   listProjects,
+  listTracks,
   listTrackCollaborators,
   listTrackGigs,
   reactivateTrack,
@@ -109,6 +110,7 @@ const EMPTY: FormState = {
   final_files_path: null,
   stage_notes: null,
   creative_block_notes: null,
+  related_track_id: null,
 };
 
 const COLLAB_TYPES = ["DJ parceiro", "Músico"];
@@ -129,6 +131,7 @@ export function TrackForm({
   const [moodInput, setMoodInput] = useState("");
   const [topMoods, setTopMoods] = useState<string[]>([]);
   const [projects, setProjects] = useState<MusicProject[]>([]);
+  const [allTracks, setAllTracks] = useState<{ id: number; name: string }[]>([]);
   const [projectId, setProjectId] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
   const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
@@ -150,6 +153,9 @@ export function TrackForm({
     setMoodInput("");
     void getTopMoods().then(setTopMoods);
     void listProjects().then(setProjects);
+    void listTracks().then((ts) =>
+      setAllTracks(ts.map((t) => ({ id: t.id, name: trackDisplayName(t) })))
+    );
     setProjectId(track?.project_id ?? defaultProjectId ?? null);
     void listContacts().then((all) =>
       setContacts(
@@ -175,6 +181,7 @@ export function TrackForm({
         final_files_path: track.final_files_path,
         stage_notes: track.stage_notes,
         creative_block_notes: track.creative_block_notes,
+        related_track_id: track.related_track_id,
       });
       setStandbyUntil(track.standby_until ?? "");
       setLoaded(track);
@@ -380,6 +387,32 @@ export function TrackForm({
                       {p.title}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Relacionada a outra track (remix/sample/álbum)">
+              <Select
+                value={
+                  state.related_track_id == null
+                    ? "none"
+                    : String(state.related_track_id)
+                }
+                onValueChange={(v) =>
+                  set("related_track_id", v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  {allTracks
+                    .filter((t) => t.id !== track?.id)
+                    .map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </Field>

@@ -132,6 +132,7 @@ const TRACK_INSERT_COLS = [
   "stage_notes",
   "creative_block_notes",
   "standby",
+  "related_track_id",
 ];
 
 export async function listTracks(): Promise<TrackWithProject[]> {
@@ -225,6 +226,7 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
     input.stage_notes,
     input.creative_block_notes,
     0,
+    input.related_track_id ?? null,
   ];
   const placeholders = TRACK_INSERT_COLS.map((_, i) => `$${i + 1}`).join(", ");
   const res = await db.execute(

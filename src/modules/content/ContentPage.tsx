@@ -53,7 +53,7 @@ export function ContentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Content | null>(null);
-  const [formDefaults, setFormDefaults] = useState<{ title?: string } | null>(null);
+  const [formDefaults, setFormDefaults] = useState<{ title?: string; track_id?: number | null } | null>(null);
   const [networkOptions, setNetworkOptions] = useState<string[]>([
     ...CONTENT_NETWORKS,
   ]);
@@ -84,8 +84,13 @@ export function ContentPage() {
   // Pre-fill form when navigated with ?title=...
   useEffect(() => {
     const prefillTitle = searchParams.get("title");
-    if (prefillTitle) {
-      setFormDefaults({ title: prefillTitle });
+    const prefillTrackId = searchParams.get("track_id");
+    if (prefillTitle || prefillTrackId) {
+      const defaults: { title?: string; track_id?: number | null } = {};
+      if (prefillTitle) defaults.title = prefillTitle;
+      if (prefillTrackId && !Number.isNaN(Number(prefillTrackId)))
+        defaults.track_id = Number(prefillTrackId);
+      setFormDefaults(defaults);
       setEditing(null);
       setFormOpen(true);
       setSearchParams({}, { replace: true });

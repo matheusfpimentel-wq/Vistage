@@ -60,6 +60,7 @@ export type TrackRow = {
   standby: number;
   standby_until: string | null;
   task_id: number | null;
+  related_track_id: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -95,6 +96,7 @@ export type TrackCreateInput = {
   final_files_path: string | null;
   stage_notes: string | null;
   creative_block_notes: string | null;
+  related_track_id?: number | null;
 };
 
 export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number; standby_until?: string | null };

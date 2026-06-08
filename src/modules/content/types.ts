@@ -57,11 +57,22 @@ export type Content = {
   notes: string | null;
   engagement_notes: string | null;
   task_id: number | null;
+  track_id: number | null;
+  promotes_type: string | null;
+  promotes_id: number | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ContentCreateInput = Omit<Content, "id" | "created_at" | "updated_at" | "engagement_notes"> & { engagement_notes?: string | null };
+export type ContentCreateInput = Omit<
+  Content,
+  "id" | "created_at" | "updated_at" | "engagement_notes" | "track_id" | "promotes_type" | "promotes_id"
+> & {
+  engagement_notes?: string | null;
+  track_id?: number | null;
+  promotes_type?: string | null;
+  promotes_id?: number | null;
+};
 export type ContentUpdateInput = Partial<ContentCreateInput> & { id: number };
 
 /** Retrato de métricas num dado momento (captura). */

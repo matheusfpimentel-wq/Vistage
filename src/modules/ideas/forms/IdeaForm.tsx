@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { createIdea, markIdeaAsConverted, updateIdea } from "../api";
+import { createIdea, listIdeas, markIdeaAsConverted, updateIdea } from "../api";
 import {
   IDEA_CATEGORIES,
   IDEA_HEATS,
@@ -57,6 +57,7 @@ const EMPTY: IdeaCreateInput = {
   maturation: "Embrião",
   converted_to: null,
   converted_id: null,
+  related_idea_id: null,
 };
 
 function ideaToState(i: Idea): IdeaCreateInput {
@@ -69,6 +70,7 @@ function ideaToState(i: Idea): IdeaCreateInput {
     maturation: i.maturation,
     converted_to: i.converted_to,
     converted_id: i.converted_id,
+    related_idea_id: i.related_idea_id,
   };
 }
 
@@ -91,6 +93,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
   const [dirty, setDirty] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
+  const [otherIdeas, setOtherIdeas] = useState<{ id: number; title: string }[]>([]);
   const confirmClose = useUnsavedConfirm(dirty);
   const setState: typeof setStateRaw = (v) => {
     setStateRaw(v);
@@ -109,6 +112,9 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
     setTagInput("");
     setTitleError(null);
     setDirty(false);
+    void listIdeas().then((all) =>
+      setOtherIdeas(all.map((i) => ({ id: i.id, title: i.title })))
+    );
   }, [idea, open]);
 
   function set<K extends keyof IdeaCreateInput>(key: K, value: IdeaCreateInput[K]) {
@@ -308,6 +314,34 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Relacionada a outra ideia</Label>
+            <Select
+              value={
+                state.related_idea_id == null
+                  ? "none"
+                  : String(state.related_idea_id)
+              }
+              onValueChange={(v) =>
+                set("related_idea_id", v === "none" ? null : Number(v))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">—</SelectItem>
+                {otherIdeas
+                  .filter((i) => i.id !== idea?.id)
+                  .map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.title}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Desenvolvendo — criar tarefa inline */}

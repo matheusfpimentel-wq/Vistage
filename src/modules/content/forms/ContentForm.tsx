@@ -49,6 +49,10 @@ import {
 import { ContentSnapshots } from "../components/ContentSnapshots";
 import { SceneEditor } from "../components/SceneEditor";
 import { loadIdentity } from "@/modules/identity/api";
+import { listTracks } from "@/modules/music/api";
+import { trackDisplayName } from "@/modules/music/types";
+import { listGigs } from "@/modules/gigs/api";
+import { listParties } from "@/modules/parties/api";
 
 type Props = {
   open: boolean;
@@ -77,6 +81,9 @@ const EMPTY: ContentCreateInput = {
   notes: null,
   engagement_notes: null,
   task_id: null,
+  track_id: null,
+  promotes_type: null,
+  promotes_id: null,
 };
 
 function contentToState(c: Content): ContentCreateInput {
@@ -99,6 +106,9 @@ function contentToState(c: Content): ContentCreateInput {
     notes: c.notes,
     engagement_notes: c.engagement_notes,
     task_id: c.task_id,
+    track_id: c.track_id,
+    promotes_type: c.promotes_type,
+    promotes_id: c.promotes_id,
   };
 }
 
@@ -122,6 +132,24 @@ export function ContentForm({
   const [networkOptions, setNetworkOptions] = useState<string[]>([
     ...CONTENT_NETWORKS,
   ]);
+  const [tracks, setTracks] = useState<{ id: number; name: string }[]>([]);
+  const [gigs, setGigs] = useState<{ id: number; name: string }[]>([]);
+  const [parties, setParties] = useState<{ id: number; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    void listTracks().then((ts) =>
+      setTracks(ts.map((t) => ({ id: t.id, name: trackDisplayName(t) })))
+    );
+    void listGigs().then((gs) =>
+      setGigs(
+        gs.map((g) => ({ id: g.id, name: g.event_name ?? g.venue_name }))
+      )
+    );
+    void listParties().then((ps) =>
+      setParties(ps.map((p) => ({ id: p.id, name: p.title })))
+    );
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -395,6 +423,88 @@ export function ContentForm({
                   onChange={(e) => set("post_url", e.target.value || null)}
                 />
               </Field>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Divulga a track">
+                  <Select
+                    value={state.track_id == null ? "none" : String(state.track_id)}
+                    onValueChange={(v) =>
+                      set("track_id", v === "none" ? null : Number(v))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">—</SelectItem>
+                      {tracks.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Promove evento">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select
+                      value={state.promotes_type ?? "none"}
+                      onValueChange={(v) => {
+                        if (v === "none") {
+                          setState((s) => ({
+                            ...s,
+                            promotes_type: null,
+                            promotes_id: null,
+                          }));
+                          setDirty(true);
+                        } else {
+                          setState((s) => ({
+                            ...s,
+                            promotes_type: v,
+                            promotes_id: null,
+                          }));
+                          setDirty(true);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="—" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        <SelectItem value="GIG">GIG</SelectItem>
+                        <SelectItem value="Festa">Festa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {state.promotes_type && (
+                      <Select
+                        value={
+                          state.promotes_id == null
+                            ? "none"
+                            : String(state.promotes_id)
+                        }
+                        onValueChange={(v) =>
+                          set("promotes_id", v === "none" ? null : Number(v))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="—" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">—</SelectItem>
+                          {(state.promotes_type === "GIG" ? gigs : parties).map(
+                            (o) => (
+                              <SelectItem key={o.id} value={String(o.id)}>
+                                {o.name}
+                              </SelectItem>
+                            )
+                          )}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </Field>
+              </div>
             </TabsContent>
 
             <TabsContent value="roteiro" className="space-y-3">
