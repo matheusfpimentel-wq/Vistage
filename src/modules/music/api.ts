@@ -326,6 +326,19 @@ async function writeStage(
       WHERE id = $4`,
     [stage, JSON.stringify(history), standby ? 1 : 0, id]
   );
+  // Conclui a tarefa vinculada quando a track chega ao lançamento
+  if (stage === "Lançamento") {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM tracks WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: taskId, status: "Concluída" });
+      } catch { /* não interrompe */ }
+    }
+  }
 }
 
 /** Avança pro próximo stage. Se houver decisão de gate, grava no histórico. */
