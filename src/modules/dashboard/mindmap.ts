@@ -42,17 +42,17 @@ export const MIND_TYPE_META: Record<
   MindNodeType,
   { label: string; color: string; route: string }
 > = {
-  gig: { label: "GIG", color: "#8b5cf6", route: "/gigs" },
-  party: { label: "Festa", color: "#ec4899", route: "/festas" },
-  student: { label: "Aluno", color: "#14b8a6", route: "/aulas" },
-  track: { label: "Faixa", color: "#3b82f6", route: "/musica" },
-  project: { label: "Projeto musical", color: "#6366f1", route: "/musica" },
-  content: { label: "Conteúdo", color: "#f59e0b", route: "/conteudo" },
-  idea: { label: "Ideia", color: "#eab308", route: "/ideias" },
-  contact: { label: "Contato", color: "#22c55e", route: "/crm" },
-  venue: { label: "Venue", color: "#0ea5e9", route: "/venues" },
-  supplier: { label: "Fornecedor", color: "#f97316", route: "/fornecedores" },
-  fan: { label: "Fã", color: "#f43f5e", route: "/fas" },
+  gig:     { label: "GIG",             color: "#a78bfa", route: "/gigs" },       // violeta
+  party:   { label: "Festa",           color: "#f472b6", route: "/festas" },      // rosa
+  student: { label: "Aluno",           color: "#34d399", route: "/aulas" },       // verde-esmeralda
+  track:   { label: "Faixa",           color: "#38bdf8", route: "/musica" },      // azul-céu
+  project: { label: "Projeto musical", color: "#818cf8", route: "/musica" },      // índigo-claro
+  content: { label: "Conteúdo",        color: "#fbbf24", route: "/conteudo" },    // âmbar
+  idea:    { label: "Ideia",           color: "#a3e635", route: "/ideias" },      // lima
+  contact: { label: "Contato",         color: "#4ade80", route: "/crm" },         // verde
+  venue:   { label: "Venue",           color: "#22d3ee", route: "/venues" },      // ciano
+  supplier:{ label: "Fornecedor",      color: "#fb923c", route: "/fornecedores" },// laranja
+  fan:     { label: "Fã",             color: "#f87171", route: "/fas" },          // vermelho-claro
 };
 
 const nid = (type: MindNodeType, id: number) => `${type}:${id}`;

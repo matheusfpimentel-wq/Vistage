@@ -1,5 +1,4 @@
 import {
-  Bell,
   Briefcase,
   Building2,
   CalendarRange,
@@ -13,13 +12,11 @@ import {
   LayoutDashboard,
   Lightbulb,
   Music,
-  Network,
   Palette,
   PartyPopper,
   Settings,
   Sparkles,
   Store,
-  Sunrise,
   Target,
   Users,
   Wallet,
@@ -60,9 +57,6 @@ export type NavItem = {
 
 export const DEFAULT_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, fixed: true },
-  { to: "/hoje", label: "Hoje", icon: Sunrise, fixed: true },
-  { to: "/mapa", label: "Mapa mental", icon: Network, fixed: true },
-  { to: "/alertas", label: "Alertas", icon: Bell, fixed: true },
 
   { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
   { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },

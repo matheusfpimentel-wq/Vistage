@@ -880,21 +880,23 @@ export async function loadProjectProfit(): Promise<{
          FROM parties p`
     ),
     db.select<{ id: number; name: string; income: number }[]>(
-      `SELECT s.id, s.name,
-              COALESCE(
-                (SELECT SUM(c.amount) FROM classes c
-                  WHERE c.student_id = s.id AND c.status='Realizada' AND c.amount > 0),
-                0
-              ) +
-              COALESCE(
-                (SELECT SUM(cp.price) FROM student_packages sp
-                  JOIN class_packages cp ON cp.id = sp.package_id
-                  WHERE sp.student_id = s.id AND sp.status <> 'Cancelado' AND cp.price > 0),
-                0
-              ) AS income
-         FROM students s
-        HAVING income > 0
-        ORDER BY income DESC`
+      `SELECT id, name, income FROM (
+         SELECT s.id, s.name,
+                COALESCE(
+                  (SELECT SUM(c.amount) FROM classes c
+                    WHERE c.student_id = s.id AND c.status='Realizada' AND c.amount > 0),
+                  0
+                ) +
+                COALESCE(
+                  (SELECT SUM(cp.price) FROM student_packages sp
+                    JOIN class_packages cp ON cp.id = sp.package_id
+                    WHERE sp.student_id = s.id AND sp.status <> 'Cancelado' AND cp.price > 0),
+                  0
+                ) AS income
+           FROM students s
+       ) sub
+       WHERE income > 0
+       ORDER BY income DESC`
     ),
   ]);
 

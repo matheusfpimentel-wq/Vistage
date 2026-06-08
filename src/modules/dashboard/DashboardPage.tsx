@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Bell,
   BookOpen,
   CalendarClock,
   ChevronDown,
@@ -9,9 +10,11 @@ import {
   Film,
   Minus,
   Music,
+  Network,
   PartyPopper,
   RefreshCw,
   Star,
+  Sunrise,
   Target,
   TrendingDown,
   TrendingUp,
@@ -29,6 +32,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
+import { TodayPage } from "@/modules/dashboard/TodayPage";
+import { MindMapPage } from "@/modules/dashboard/MindMapPage";
+import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
+import { AlertsPage } from "@/modules/revisao/AlertsPage";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
 import { averageRating, type Gig } from "@/modules/gigs/types";
@@ -189,11 +196,23 @@ export function DashboardPage() {
   useEffect(() => { void load(); }, [load]);
 
   return (
-    <Tabs defaultValue="overview" className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <TabsList>
+    <Tabs defaultValue="overview" className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+          <TabsTrigger value="today" className="gap-1.5">
+            <Sunrise className="h-3.5 w-3.5" />Hoje
+          </TabsTrigger>
+          <TabsTrigger value="mindmap" className="gap-1.5">
+            <Network className="h-3.5 w-3.5" />Mapa mental
+          </TabsTrigger>
+          <TabsTrigger value="report" className="gap-1.5">
+            <Wallet className="h-3.5 w-3.5" />Relatório
+          </TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5">
+            <Bell className="h-3.5 w-3.5" />Alertas
+          </TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
           {updatedAt && (
@@ -239,6 +258,22 @@ export function DashboardPage() {
 
       <TabsContent value="timeline">
         <CareerTimelinePage />
+      </TabsContent>
+
+      <TabsContent value="today">
+        <TodayPage />
+      </TabsContent>
+
+      <TabsContent value="mindmap" className="-mx-1">
+        <MindMapPage />
+      </TabsContent>
+
+      <TabsContent value="report">
+        <MonthlyReportPage />
+      </TabsContent>
+
+      <TabsContent value="alerts">
+        <AlertsPage />
       </TabsContent>
     </Tabs>
   );

@@ -340,6 +340,9 @@ export function MindMapPage() {
               const b = posRef.current.get(e.target);
               if (!a || !b) return null;
               const active = !neighbors || (neighbors.has(e.source) && neighbors.has(e.target));
+              // cor derivada da ponta-fonte para dar identidade visual à aresta
+              const srcNode = visible.nodes.find((n) => n.id === e.source);
+              const edgeColor = srcNode ? MIND_TYPE_META[srcNode.type].color : "#94a3b8";
               return (
                 <line
                   key={i}
@@ -347,8 +350,8 @@ export function MindMapPage() {
                   y1={a.y}
                   x2={b.x}
                   y2={b.y}
-                  stroke="currentColor"
-                  className={cn("text-border", active ? "opacity-70" : "opacity-15")}
+                  stroke={edgeColor}
+                  strokeOpacity={active ? 0.55 : 0.1}
                   strokeWidth={1.5}
                 />
               );
