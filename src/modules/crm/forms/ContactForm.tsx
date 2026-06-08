@@ -34,6 +34,7 @@ import {
   type ContactType,
 } from "../types";
 import { createContact, updateContact } from "../api";
+import { sortContactTypes } from "../components/TypeBadges";
 import { listVenues } from "@/modules/venues/api";
 
 type Props = {
@@ -113,9 +114,9 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   function toggleType(type: ContactType) {
     setState((s) => ({
       ...s,
-      types: s.types.includes(type)
-        ? s.types.filter((t) => t !== type)
-        : [...s.types, type],
+      types: sortContactTypes(
+        s.types.includes(type) ? s.types.filter((t) => t !== type) : [...s.types, type]
+      ),
     }));
   }
 
@@ -123,7 +124,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     const t = customTypeInput.trim();
     if (!t) return;
     if (!state.types.includes(t)) {
-      setState((s) => ({ ...s, types: [...s.types, t] }));
+      setState((s) => ({ ...s, types: sortContactTypes([...s.types, t]) }));
     }
     setCustomTypeInput("");
     setShowCustomTypeInput(false);

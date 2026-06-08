@@ -33,7 +33,7 @@ export function MindMapPage() {
   // posições mantidas fora do estado React (atualizadas a cada frame)
   const posRef = useRef<Map<string, Particle>>(new Map());
   const draggingRef = useRef<string | null>(null);
-  const panRef = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
+  const panRef = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const alphaRef = useRef(1);
   const rafRef = useRef<number | null>(null);
   const [, forceTick] = useState(0);
@@ -200,17 +200,22 @@ export function MindMapPage() {
     if (draggingRef.current) {
       const w = toWorld(e.clientX, e.clientY);
       const p = posRef.current.get(draggingRef.current);
-      if (p) {
-        p.x = w.x;
-        p.y = w.y;
-        p.vx = 0;
-        p.vy = 0;
-      }
+      if (p) { p.x = w.x; p.y = w.y; p.vx = 0; p.vy = 0; }
       forceTick((t) => t + 1);
     } else if (panRef.current) {
-      const dx = (e.clientX - panRef.current.x) * (WIDTH / view.k / (svgRef.current?.getBoundingClientRect().width ?? WIDTH));
-      const dy = (e.clientY - panRef.current.y) * (HEIGHT / view.k / (svgRef.current?.getBoundingClientRect().height ?? HEIGHT));
-      setView((v) => ({ ...v, x: panRef.current!.vx - dx, y: panRef.current!.vy - dy }));
+      const dxPx = e.clientX - panRef.current.x;
+      const dyPx = e.clientY - panRef.current.y;
+      // threshold de 4px para não confundir clique com pan
+      if (!panRef.current.moved && Math.abs(dxPx) < 4 && Math.abs(dyPx) < 4) return;
+      panRef.current.moved = true;
+      const rect = svgRef.current?.getBoundingClientRect();
+      const scaleX = (WIDTH / view.k) / (rect?.width ?? WIDTH);
+      const scaleY = (HEIGHT / view.k) / (rect?.height ?? HEIGHT);
+      setView((v) => ({
+        ...v,
+        x: panRef.current!.vx - dxPx * scaleX,
+        y: panRef.current!.vy - dyPx * scaleY,
+      }));
     }
   };
 
@@ -220,10 +225,12 @@ export function MindMapPage() {
   };
 
   const onBgPointerDown = (e: React.PointerEvent) => {
-    panRef.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    panRef.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
   };
 
   const onWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
     const factor = e.deltaY < 0 ? 1.12 : 0.89;
     setView((v) => ({ ...v, k: Math.min(3, Math.max(0.3, v.k * factor)) }));
   };

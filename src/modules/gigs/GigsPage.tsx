@@ -22,9 +22,11 @@ import { DebriefForm } from "./forms/DebriefForm";
 import { deleteGigFromCalendar } from "@/lib/gcal";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ListView } from "./views/ListView";
+import { BulkListView } from "./views/BulkListView";
 import { CalendarView } from "./views/CalendarView";
-import { KanbanView } from "./views/KanbanView";
 import { InsightsView } from "./views/InsightsView";
+import { createTask } from "@/modules/tasks/api";
+import { todayISO } from "@/lib/format";
 import {
   deleteGig,
   getGig,
@@ -86,11 +88,6 @@ export function GigsPage() {
     setFormOpen(true);
   }
 
-  async function handleMove(id: number, status: GigStatus) {
-    await updateGig({ id, status });
-    await refresh();
-  }
-
   async function handleSaved({
     id,
     statusChanged,
@@ -106,7 +103,21 @@ export function GigsPage() {
       return;
     }
 
-    void isNew; // sem mais sugestão automática — agora o checklist vive na GIG
+    // Cria tarefa de prep apenas para GIGs novas com data futura
+    if (isNew && fresh.date && fresh.date > todayISO()) {
+      await createTask({
+        title: `Preparar GIG: ${fresh.event_name ?? fresh.venue_name}`,
+        description: null,
+        category: "GIG",
+        gig_id: fresh.id,
+        contact_id: null,
+        priority: "Alta",
+        status: "A fazer",
+        due_date: fresh.date,
+        tags: [],
+        recurrence: null,
+      }).catch(() => {});
+    }
 
     // Se acabou de virar Concluída e ainda não tem debrief preenchido,
     // dispara o modal de debrief em modo obrigatório.
@@ -156,7 +167,7 @@ export function GigsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -209,8 +220,8 @@ export function GigsPage() {
       <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsTrigger value="bulk">Seleção múltipla</TabsTrigger>
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
 
@@ -223,12 +234,16 @@ export function GigsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="calendar">
-          <CalendarView gigs={gigs} onEdit={openEdit} />
+        <TabsContent value="bulk">
+          <BulkListView
+            gigs={gigs}
+            onEdit={openEdit}
+            onRefresh={refresh}
+          />
         </TabsContent>
 
-        <TabsContent value="kanban">
-          <KanbanView gigs={gigs} onEdit={openEdit} onMove={handleMove} />
+        <TabsContent value="calendar">
+          <CalendarView gigs={gigs} onEdit={openEdit} />
         </TabsContent>
 
         <TabsContent value="insights">

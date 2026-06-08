@@ -75,7 +75,7 @@ export function FansPage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
-  const [view, setView] = useState<ViewMode>("cards");
+  const [view, setView] = useState<ViewMode>("list");
 
   const queryFilters: FanFilters = useMemo(
     () => ({

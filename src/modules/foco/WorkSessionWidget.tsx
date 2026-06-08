@@ -28,6 +28,7 @@ import {
   startSession,
 } from "./api";
 import { closeSessionOverlay, openSessionOverlay } from "./overlay";
+import { DATA_CHANGED } from "@/lib/events";
 
 function elapsed(startedAt: string): string {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
@@ -60,6 +61,10 @@ export function WorkSessionWidget() {
 
   useEffect(() => {
     void refresh();
+    // Sincroniza com sessões iniciadas fora deste widget (ex: FocoPage)
+    const onChange = () => void refresh();
+    window.addEventListener(DATA_CHANGED, onChange);
+    return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, [refresh]);
 
   useEffect(() => {

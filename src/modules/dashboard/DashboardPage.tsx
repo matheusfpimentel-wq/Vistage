@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Bell,
   BookOpen,
   CalendarClock,
   ChevronDown,
@@ -10,11 +9,9 @@ import {
   Film,
   Minus,
   Music,
-  Network,
   PartyPopper,
   RefreshCw,
   Star,
-  Sunrise,
   Target,
   TrendingDown,
   TrendingUp,
@@ -201,18 +198,10 @@ export function DashboardPage() {
         <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
-          <TabsTrigger value="today" className="gap-1.5">
-            <Sunrise className="h-3.5 w-3.5" />Hoje
-          </TabsTrigger>
-          <TabsTrigger value="mindmap" className="gap-1.5">
-            <Network className="h-3.5 w-3.5" />Mapa mental
-          </TabsTrigger>
-          <TabsTrigger value="report" className="gap-1.5">
-            <Wallet className="h-3.5 w-3.5" />Relatório
-          </TabsTrigger>
-          <TabsTrigger value="alerts" className="gap-1.5">
-            <Bell className="h-3.5 w-3.5" />Alertas
-          </TabsTrigger>
+          <TabsTrigger value="today">Hoje</TabsTrigger>
+          <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
+          <TabsTrigger value="report">Relatório</TabsTrigger>
+          <TabsTrigger value="alerts">Alertas</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
           {updatedAt && (

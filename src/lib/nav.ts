@@ -62,7 +62,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Operação" },
-  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Operação" },
+  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Gestão" },
 
   { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },

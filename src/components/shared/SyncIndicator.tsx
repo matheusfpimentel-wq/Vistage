@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Cloud, CloudOff, Loader2 } from "lucide-react";
+import { Check, Cloud, CloudOff, Loader2, RefreshCw } from "lucide-react";
 import { DATA_CHANGED } from "@/lib/events";
-import { loadAuth } from "@/lib/gdrive";
+import { loadAuth, uploadBackup } from "@/lib/gdrive";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 
 type SyncState = "idle" | "syncing" | "error";
 
-/** Tempo relativo curto em pt-BR (ex.: "agora", "há 5 min", "há 2 h"). */
 function timeAgo(iso: string | null | undefined): string {
   if (!iso) return "";
   const then = Date.parse(iso);
@@ -18,28 +18,34 @@ function timeAgo(iso: string | null | undefined): string {
   if (min < 60) return `há ${min} min`;
   const h = Math.floor(min / 60);
   if (h < 24) return `há ${h} h`;
-  const d = Math.floor(h / 24);
-  return `há ${d} d`;
+  return `há ${Math.floor(h / 24)} d`;
 }
 
 /**
- * Indicador discreto de sincronização com o Google Drive, fixo no canto
- * inferior esquerdo. Só aparece se o auto-backup estiver ligado. Reflete o
- * último backup (auth.lastBackupAt) e mostra um pulso "Sincronizando…"
- * transitório quando dados mudam (DATA_CHANGED).
+ * Indicador de sincronização com o Google Drive. Fixo no canto inferior
+ * esquerdo. Clicável em estado de erro para tentar novamente.
+ *
+ * Lógica do pulso "Sincronizando…":
+ *  - DATA_CHANGED dispara o estado syncing.
+ *  - Espera 12s (tempo suficiente para o upload terminar em conexões lentas).
+ *  - Relê lastBackupAt: se avançou → idle; se não avançou → error.
+ *  - Atualização periódica do tempo relativo a cada 60s.
  */
 export function SyncIndicator() {
   const [connected, setConnected] = useState(false);
   const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
   const [state, setState] = useState<SyncState>("idle");
+  const [retrying, setRetrying] = useState(false);
   const syncTimer = useRef<number | null>(null);
+  const prevBackupRef = useRef<string | null>(null);
 
-  const refresh = async () => {
+  const readAuth = async () => {
     try {
       const auth = await loadAuth();
       if (auth?.autoBackup) {
         setConnected(true);
         setLastBackupAt(auth.lastBackupAt ?? null);
+        prevBackupRef.current = auth.lastBackupAt ?? null;
         return true;
       }
       setConnected(false);
@@ -50,36 +56,35 @@ export function SyncIndicator() {
     }
   };
 
-  // Carga inicial + atualização periódica do tempo relativo.
   useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => void refresh(), 60000);
+    void readAuth();
+    const id = window.setInterval(() => void readAuth(), 60_000);
     return () => window.clearInterval(id);
   }, []);
 
-  // Pulso "Sincronizando…" em mudanças de dados; depois volta a idle e relê o
-  // timestamp do último backup.
   useEffect(() => {
     const onChange = () => {
       void (async () => {
-        const ok = await refresh();
+        const ok = await readAuth();
         if (!ok) return;
+        // captura o timestamp antes do upload para comparar depois
+        const before = prevBackupRef.current;
         setState("syncing");
         if (syncTimer.current) window.clearTimeout(syncTimer.current);
+        // 12s → margem para uploads em conexões lentas
         syncTimer.current = window.setTimeout(() => {
           void (async () => {
             try {
               const auth = await loadAuth();
-              const prev = lastBackupAt;
               const now = auth?.lastBackupAt ?? null;
               setLastBackupAt(now);
-              // Se o backup não avançou, sinaliza erro de sync.
-              setState(now && now !== prev ? "idle" : prev ? "error" : "idle");
+              prevBackupRef.current = now;
+              setState(now && now !== before ? "idle" : before ? "error" : "idle");
             } catch {
               setState("error");
             }
           })();
-        }, 2500);
+        }, 12_000);
       })();
     };
     window.addEventListener(DATA_CHANGED, onChange);
@@ -87,42 +92,70 @@ export function SyncIndicator() {
       window.removeEventListener(DATA_CHANGED, onChange);
       if (syncTimer.current) window.clearTimeout(syncTimer.current);
     };
-  }, [lastBackupAt]);
+  }, []);
+
+  async function handleRetry() {
+    if (retrying || state === "syncing") return;
+    setRetrying(true);
+    setState("syncing");
+    try {
+      await uploadBackup();
+      await readAuth();
+      setState("idle");
+      toast.success("Sincronizado com o Drive");
+    } catch (e) {
+      setState("error");
+      toast.error(`Erro ao sincronizar: ${String(e)}`);
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   if (!connected) return null;
 
-  let icon = <Cloud className="h-3.5 w-3.5 text-emerald-500" />;
-  let label = "Sincronizado";
-  let detail = timeAgo(lastBackupAt);
-
-  if (state === "syncing") {
-    icon = <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />;
-    label = "Sincronizando…";
-    detail = "";
-  } else if (state === "error") {
-    icon = <CloudOff className="h-3.5 w-3.5 text-destructive" />;
-    label = "Erro de sync";
-    detail = "";
-  }
+  const isError = state === "error";
+  const isSyncing = state === "syncing" || retrying;
+  const detail = timeAgo(lastBackupAt);
 
   return (
-    <div
+    <button
+      type="button"
+      onClick={isError ? handleRetry : undefined}
+      disabled={isSyncing}
       className={cn(
         "fixed bottom-3 left-3 z-40 flex items-center gap-1.5 rounded-full",
         "border bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground",
         "shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/60",
-        "pointer-events-none select-none"
+        "select-none transition-colors",
+        isError
+          ? "cursor-pointer border-destructive/40 hover:bg-destructive/10"
+          : "cursor-default pointer-events-none"
       )}
       aria-live="polite"
+      title={isError ? "Clique para tentar sincronizar novamente" : undefined}
     >
-      {icon}
-      <span className="font-medium">{label}</span>
-      {state === "idle" && detail && (
+      {isSyncing ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+      ) : isError ? (
+        <CloudOff className="h-3.5 w-3.5 text-destructive" />
+      ) : (
+        <Cloud className="h-3.5 w-3.5 text-emerald-500" />
+      )}
+
+      <span className={cn("font-medium", isError && "text-destructive")}>
+        {isSyncing ? "Sincronizando…" : isError ? "Erro de sync" : "Sincronizado"}
+      </span>
+
+      {!isSyncing && !isError && detail && (
         <span className="flex items-center gap-1 text-muted-foreground/70">
           <Check className="h-3 w-3" />
           {detail}
         </span>
       )}
-    </div>
+
+      {isError && !retrying && (
+        <RefreshCw className="h-3 w-3 text-destructive/70" />
+      )}
+    </button>
   );
 }
