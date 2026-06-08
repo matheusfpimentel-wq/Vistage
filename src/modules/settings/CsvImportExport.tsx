@@ -26,6 +26,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import {
   CSV_ENTITIES,
+  exportAllCsv,
   exportEntityCsv,
   importCsvIntoTable,
   pickAndParseCsv,
@@ -38,6 +39,7 @@ export function CsvImportExport() {
   const [importing, setImporting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingData, setPendingData] = useState<string[][]>([]);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const selected = CSV_ENTITIES.find((e) => e.key === entity)!;
 
@@ -50,6 +52,25 @@ export function CsvImportExport() {
       toast.error(String(e));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleExportAll() {
+    setExportingAll(true);
+    try {
+      const res = await exportAllCsv();
+      if (res) {
+        toast.success(
+          `${res.files} tabelas exportadas para a pasta escolhida` +
+            (res.skippedEmpty.length > 0
+              ? ` (${res.skippedEmpty.length} vazias puladas)`
+              : "")
+        );
+      }
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setExportingAll(false);
     }
   }
 
@@ -144,6 +165,25 @@ export function CsvImportExport() {
             O cabeçalho do CSV precisa bater com as colunas da tabela. Exporte
             uma vez pra ver o formato exato.
           </p>
+
+          <div className="border-t pt-3">
+            <Button
+              variant="secondary"
+              onClick={handleExportAll}
+              disabled={exportingAll}
+            >
+              {exportingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Exportar tudo em CSV
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Gera um arquivo CSV por tabela numa pasta à sua escolha —
+              portabilidade total dos dados de uma vez.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

@@ -145,6 +145,48 @@ export async function exportEntityCsv(table: string): Promise<string | null> {
   return path;
 }
 
+export type ExportAllResult = {
+  folder: string;
+  files: number;
+  skippedEmpty: string[];
+};
+
+/**
+ * Exporta TODAS as entidades conhecidas (CSV_ENTITIES) para uma pasta
+ * escolhida pelo usuário, um arquivo .csv por tabela. Tabelas vazias são
+ * puladas. Dá portabilidade total dos dados de uma vez só.
+ */
+export async function exportAllCsv(): Promise<ExportAllResult | null> {
+  const folder = await openDialog({
+    directory: true,
+    multiple: false,
+    title: "Escolher pasta para exportar todos os CSVs",
+  });
+  if (!folder || typeof folder !== "string") return null;
+
+  const db = getDb();
+  const stamp = new Date().toISOString().slice(0, 10);
+  const sep = folder.includes("\\") ? "\\" : "/";
+  let files = 0;
+  const skippedEmpty: string[] = [];
+
+  for (const ent of CSV_ENTITIES) {
+    const rows = await db
+      .select<Record<string, unknown>[]>(`SELECT * FROM ${ent.table}`)
+      .catch(() => [] as Record<string, unknown>[]);
+    if (rows.length === 0) {
+      skippedEmpty.push(ent.label);
+      continue;
+    }
+    const csv = buildCsv(Object.keys(rows[0]), rows);
+    const path = `${folder}${sep}vistage-${ent.table}-${stamp}.csv`;
+    await writeTextFile(path, csv);
+    files += 1;
+  }
+
+  return { folder, files, skippedEmpty };
+}
+
 export async function pickAndParseCsv(): Promise<string[][] | null> {
   const file = await openDialog({
     multiple: false,

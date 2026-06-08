@@ -1,7 +1,7 @@
 {
-  "name": "musicgest",
+  "name": "vistage",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Sistema de gestão para negócio musical (DJ / produtor / criador de conteúdo)",
   "scripts": {

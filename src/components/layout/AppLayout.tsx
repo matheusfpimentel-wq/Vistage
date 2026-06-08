@@ -8,6 +8,7 @@ import { NotificationBell } from "@/components/shared/NotificationBell";
 import { RecentMenu } from "@/components/shared/RecentMenu";
 import { Toaster } from "@/components/ui/toaster";
 import { SyncIndicator } from "@/components/shared/SyncIndicator";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { useConfigStore } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -155,7 +156,9 @@ export function AppLayout() {
         </header>
         {/* pb-20 no mobile reserva espaço para a barra inferior fixa */}
         <main className="flex-1 overflow-auto p-3 pb-20 sm:p-6 md:pb-6">
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
         <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} />
       </div>

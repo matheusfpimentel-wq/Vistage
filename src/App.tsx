@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { DriveSync } from "@/components/shared/DriveSync";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
@@ -12,7 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
-import { loadDatabase } from "@/lib/db";
+import { classifyDbError, loadDatabase } from "@/lib/db";
 import { autoGenerateRecurringUpToNow } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
@@ -121,6 +122,7 @@ function MainApp() {
   const [booting, setBooting] = useState(true);
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [dbRetry, setDbRetry] = useState(0);
 
   // hidrata config + tema na primeira renderização
   useEffect(() => {
@@ -159,21 +161,33 @@ function MainApp() {
     return () => {
       cancelled = true;
     };
-  }, [ready, config]);
+  }, [ready, config, dbRetry]);
 
   if (booting) return <FullscreenLoader label="Iniciando o Vistage…" />;
 
   if (!ready) return <Setup />;
 
   if (dbError) {
+    const info = classifyDbError(dbError);
     return (
       <div className="flex min-h-screen items-center justify-center p-6">
         <div className="max-w-md space-y-3 rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-sm text-destructive">
-          <div className="font-semibold">Falha ao abrir o banco</div>
-          <div>{dbError}</div>
-          <div className="text-xs opacity-80">
-            Verifique se o HD externo está conectado e tente novamente.
-          </div>
+          <div className="font-semibold">{info.title}</div>
+          <div className="text-xs opacity-90">{info.hint}</div>
+          <details className="text-xs opacity-70">
+            <summary className="cursor-pointer">Detalhes técnicos</summary>
+            <div className="mt-1 break-words font-mono">{dbError}</div>
+          </details>
+          <button
+            type="button"
+            onClick={() => {
+              setDbError(null);
+              setDbRetry((n) => n + 1);
+            }}
+            className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );
@@ -184,9 +198,11 @@ function MainApp() {
   return (
     <TooltipProvider delayDuration={200}>
       <ConfirmProvider>
-        <BrowserRouter>
-          <RoutedApp />
-        </BrowserRouter>
+        <ErrorBoundary>
+          <BrowserRouter>
+            <RoutedApp />
+          </BrowserRouter>
+        </ErrorBoundary>
       </ConfirmProvider>
     </TooltipProvider>
   );

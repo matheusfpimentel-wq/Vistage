@@ -1,6 +1,6 @@
 [package]
 name = "musicgest"
-version = "0.1.0"
+version = "1.0.0"
 description = "Sistema de gestão para negócio musical"
 authors = ["Matheus Pimentel"]
 edition = "2021"
