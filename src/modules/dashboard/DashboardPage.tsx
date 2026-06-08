@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
 import { MindMapPage } from "@/modules/dashboard/MindMapPage";
 import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
+import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
 import { averageRating, type Gig } from "@/modules/gigs/types";
@@ -197,6 +198,7 @@ export function DashboardPage() {
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
+          <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
           <TabsTrigger value="report">Extrair relatório</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
@@ -249,11 +251,13 @@ export function DashboardPage() {
         <MindMapPage />
       </TabsContent>
 
+      <TabsContent value="metodologias">
+        <MetodologiasPage />
+      </TabsContent>
+
       <TabsContent value="report">
         <MonthlyReportPage />
       </TabsContent>
-
-
     </Tabs>
   );
 }

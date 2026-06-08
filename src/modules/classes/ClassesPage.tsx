@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarRange,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
   GraduationCap,
   Package as PackageIcon,
   Pencil,
@@ -63,6 +66,8 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 
 type StatusFilter = ClassStatus | "Todas";
+type ClassSortKey = "date" | "student_name" | "subject" | "status" | "amount";
+type SortDir = "asc" | "desc";
 
 export function ClassesPage() {
   const [classes, setClasses] = useState<ClassWithStudent[]>([]);
@@ -86,6 +91,19 @@ export function ClassesPage() {
 
   const [pkgFormOpen, setPkgFormOpen] = useState(false);
   const [editingPkg, setEditingPkg] = useState<ClassPackage | null>(null);
+
+  const [classSortKey, setClassSortKey] = useState<ClassSortKey>("date");
+  const [classSortDir, setClassSortDir] = useState<SortDir>("desc");
+
+  function toggleClassSort(key: ClassSortKey) {
+    if (classSortKey === key) setClassSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setClassSortKey(key); setClassSortDir("asc"); }
+  }
+
+  function ClassSortIcon({ col }: { col: ClassSortKey }) {
+    if (classSortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+    return classSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+  }
 
   const queryFilters: ClassFilters = useMemo(
     () => ({
@@ -111,6 +129,7 @@ export function ClassesPage() {
               .includes(filters.search.toLowerCase())
           )
         : cls;
+    // sort is applied in the render via sortedClasses memo
     setClasses(filtered);
     setStudents(sts);
     setPackages(pkgs);
@@ -153,6 +172,18 @@ export function ClassesPage() {
     await refresh();
   }
 
+  const sortedClasses = useMemo(() => {
+    return [...classes].sort((a, b) => {
+      const av = (a[classSortKey] ?? "") as string | number;
+      const bv = (b[classSortKey] ?? "") as string | number;
+      if (typeof av === "number" && typeof bv === "number")
+        return classSortDir === "asc" ? av - bv : bv - av;
+      return classSortDir === "asc"
+        ? String(av).localeCompare(String(bv), "pt-BR")
+        : String(bv).localeCompare(String(av), "pt-BR");
+    });
+  }, [classes, classSortKey, classSortDir]);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
@@ -187,7 +218,7 @@ export function ClassesPage() {
 
         {/* ====================== AULAS ====================== */}
         <TabsContent value="classes" className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="sticky top-0 z-10 bg-background pb-3 flex flex-wrap items-end justify-between gap-3">
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -261,17 +292,25 @@ export function ClassesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left">Data</th>
-                    <th className="px-3 py-2 text-left">Aluno</th>
-                    <th className="px-3 py-2 text-left">Matéria</th>
+                    {(["date", "student_name", "subject", "status"] as const).map((col, i) => (
+                      <th key={col} className="px-3 py-2 text-left">
+                        <button type="button" onClick={() => toggleClassSort(col)} className="flex items-center gap-1 hover:text-foreground">
+                          {["Data", "Aluno", "Matéria", "Status"][i]}
+                          <ClassSortIcon col={col} />
+                        </button>
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-left">Modalidade</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Valor</th>
+                    <th className="px-3 py-2 text-right">
+                      <button type="button" onClick={() => toggleClassSort("amount")} className="flex items-center gap-1 justify-end w-full hover:text-foreground">
+                        Valor <ClassSortIcon col="amount" />
+                      </button>
+                    </th>
                     <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {classes.map((c) => (
+                  {sortedClasses.map((c) => (
                     <tr
                       key={c.id}
                       className="border-t transition-colors hover:bg-muted/40"
@@ -289,13 +328,13 @@ export function ClassesPage() {
                         {c.subject ?? "—"}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline">
-                          {c.student_package_id ? "Pacote" : "Avulsa"}
+                        <Badge variant={classStatusVariant(c.status)}>
+                          {c.status}
                         </Badge>
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant={classStatusVariant(c.status)}>
-                          {c.status}
+                        <Badge variant="outline">
+                          {c.student_package_id ? "Pacote" : "Avulsa"}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">

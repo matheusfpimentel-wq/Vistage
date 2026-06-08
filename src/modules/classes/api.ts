@@ -466,7 +466,10 @@ export async function getClassStats(): Promise<ClassStats> {
   const [students, activePkgs, total, done] = await Promise.all([
     db.select<{ n: number }[]>("SELECT COUNT(*) as n FROM students"),
     db.select<{ n: number }[]>(
-      `SELECT COUNT(*) as n FROM student_packages WHERE status = 'Ativo'`
+      `SELECT COUNT(*) as n FROM student_packages sp
+       LEFT JOIN class_packages cp ON cp.id = sp.package_id
+       WHERE sp.status = 'Ativo'
+         AND (cp.total_hours IS NULL OR sp.used_minutes < cp.total_hours * 60)`
     ),
     db.select<{ n: number }[]>(
       `SELECT COUNT(*) as n FROM classes WHERE date BETWEEN $1 AND $2`,

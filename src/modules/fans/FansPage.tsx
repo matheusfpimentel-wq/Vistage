@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  ChevronsUpDown,
   Flame,
   Heart,
   LayoutGrid,
@@ -66,6 +67,9 @@ import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
+type FanSortKey = "name" | "level" | "city" | "last_interaction_at";
+type SortDir = "asc" | "desc";
+const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Fã": 1, "Superfã": 2 };
 
 export function FansPage() {
   const [fans, setFans] = useState<Fan[]>([]);
@@ -86,6 +90,32 @@ export function FansPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>("list");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<FanSortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  function toggleSort(key: FanSortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
+  const sortedFans = useMemo(() => {
+    return [...fans].sort((a, b) => {
+      if (sortKey === "level") {
+        const diff = (LEVEL_ORDER[a.level] ?? 0) - (LEVEL_ORDER[b.level] ?? 0);
+        return sortDir === "asc" ? diff : -diff;
+      }
+      const av = (a[sortKey] ?? "") as string;
+      const bv = (b[sortKey] ?? "") as string;
+      return sortDir === "asc"
+        ? av.localeCompare(bv, "pt-BR")
+        : bv.localeCompare(av, "pt-BR");
+    });
+  }, [fans, sortKey, sortDir]);
+
+  function FanSortIcon({ col }: { col: FanSortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+  }
 
   const queryFilters: FanFilters = useMemo(
     () => ({
@@ -276,16 +306,25 @@ export function FansPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Nível</th>
-                <th className="px-3 py-2 text-left">Cidade</th>
+                {(["name", "level", "city"] as const).map((col, i) => (
+                  <th key={col} className="px-3 py-2 text-left">
+                    <button type="button" onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-foreground">
+                      {["Nome", "Nível", "Cidade"][i]}
+                      <FanSortIcon col={col} />
+                    </button>
+                  </th>
+                ))}
                 <th className="px-3 py-2 text-left">Contato</th>
-                <th className="px-3 py-2 text-left">Último contato</th>
+                <th className="px-3 py-2 text-left">
+                  <button type="button" onClick={() => toggleSort("last_interaction_at")} className="flex items-center gap-1 hover:text-foreground">
+                    Último contato <FanSortIcon col="last_interaction_at" />
+                  </button>
+                </th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {fans.map((f) => {
+              {sortedFans.map((f) => {
                 const last = f.last_interaction_at;
                 const daysAgo = last
                   ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
