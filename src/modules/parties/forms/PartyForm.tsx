@@ -60,6 +60,7 @@ import {
   listPartyBudgetItems,
   listPartyTickets,
   listPartyTasks,
+  syncTeamBudgetItems,
 } from "../api";
 import { WorkflowTab } from "../components/WorkflowTab";
 import { OrcamentoTab } from "../components/OrcamentoTab";
@@ -392,7 +393,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         notes: state.notes,
       };
 
+      let savedPartyId: number;
       if (party) {
+        savedPartyId = party.id;
         await updateParty({ id: party.id, ...payload });
         if (
           state.status === "Confirmada" &&
@@ -406,6 +409,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         toast.success("Festa atualizada");
       } else {
         const id = await createParty(payload);
+        savedPartyId = id;
         // Persiste candidatos locais agora que temos o id.
         for (const c of candidates) {
           await addPartyVenueCandidate(id, c.venue_id);
@@ -425,6 +429,17 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           toast.success("4 tarefas criadas");
         }
         toast.success("Festa criada");
+      }
+      // Gera itens de orçamento para novos membros da equipe de produção.
+      try {
+        const createdFor = await syncTeamBudgetItems(savedPartyId, state.team);
+        if (createdFor.length === 1) {
+          toast.success(`Item de orçamento criado para ${createdFor[0]}`);
+        } else if (createdFor.length > 1) {
+          toast.success(`${createdFor.length} itens de orçamento criados para a equipe`);
+        }
+      } catch {
+        // falha ao sincronizar orçamento não bloqueia o save
       }
       // Sync com Google Calendar
       try {

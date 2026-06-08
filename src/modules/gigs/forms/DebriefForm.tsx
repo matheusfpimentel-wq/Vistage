@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, CheckCircle2, Film, Heart, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
+import { addFanInteraction } from "@/modules/fans/api";
 import { formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -101,8 +103,10 @@ export function DebriefForm({
   required,
   onCompleted,
 }: Props) {
+  const navigate = useNavigate();
   const [state, setState] = useState<DebriefState>(() => gigToDebrief(gig));
   const [saving, setSaving] = useState(false);
+  const [registeringFans, setRegisteringFans] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [tasksToCreate, setTasksToCreate] = useState<PendingDebriefTask[]>([]);
   const [fansPresent, setFansPresent] = useState<number[]>(() => {
@@ -309,6 +313,40 @@ export function DebriefForm({
     }
   }
 
+  /** Navega para o módulo de conteúdo já pré-preenchendo o título com a GIG. */
+  function handleCreateContent() {
+    const title = gig.event_name || gig.venue_name || "GIG";
+    navigate(`/conteudo?title=${encodeURIComponent(title)}`);
+  }
+
+  /** Registra uma interação para cada fã marcado como presente na GIG. */
+  async function handleRegisterFans() {
+    if (fansPresent.length === 0) {
+      toast.warning("Nenhum fã marcado como presente.");
+      return;
+    }
+    setRegisteringFans(true);
+    const date = (gig.date ?? new Date().toISOString()).slice(0, 10);
+    const where = gig.event_name || gig.venue_name || "GIG";
+    let count = 0;
+    for (const fanId of fansPresent) {
+      try {
+        await addFanInteraction(fanId, date, `Presente na GIG: ${where}`);
+        count++;
+      } catch {
+        /* best-effort — não interrompe */
+      }
+    }
+    setRegisteringFans(false);
+    if (count > 0) {
+      toast.success(
+        `${count} fã${count !== 1 ? "s" : ""} registrado${count !== 1 ? "s" : ""} com interação.`
+      );
+    } else {
+      toast.error("Não foi possível registrar os fãs.");
+    }
+  }
+
   // Quando o debrief é obrigatório (status acabou de virar Concluída),
   // não dá pra simplesmente fechar — o usuário precisa ou completar ou
   // marcar como pendente. Interceptamos o close.
@@ -509,6 +547,35 @@ export function DebriefForm({
             />
 
             <FansPresentPicker value={fansPresent} onChange={setFansPresent} />
+
+            {/* ===== LOOP PÓS-GIG ===== */}
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <p className="text-sm font-medium">Fechar o loop da GIG</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCreateContent}
+                >
+                  <Film className="h-3.5 w-3.5" /> Criar conteúdo sobre esta GIG
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleRegisterFans()}
+                  disabled={registeringFans || fansPresent.length === 0}
+                >
+                  {registeringFans ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Heart className="h-3.5 w-3.5 text-red-400" />
+                  )}
+                  Registrar fãs{fansPresent.length > 0 ? ` (${fansPresent.length})` : ""}
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           {/* ============ TAREFAS A PARTIR DISSO ============ */}

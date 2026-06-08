@@ -368,6 +368,47 @@ export async function deletePartyBudgetItem(id: number): Promise<void> {
   await db.execute("DELETE FROM party_budget_items WHERE id = $1", [id]);
 }
 
+/** Categoria usada para itens de orçamento gerados a partir da equipe de produção. */
+export const TEAM_BUDGET_CATEGORY = "Produção/Equipe";
+
+/**
+ * Cria itens de orçamento para membros da equipe de produção que ainda não
+ * têm um item correspondente. Identifica os existentes pela categoria
+ * `TEAM_BUDGET_CATEGORY` + descrição (nome / função). Retorna os nomes dos
+ * membros para os quais um item foi criado.
+ */
+export async function syncTeamBudgetItems(
+  partyId: number,
+  team: PartyTeamMember[]
+): Promise<string[]> {
+  if (team.length === 0) return [];
+  const existing = await listPartyBudgetItems(partyId);
+  const existingKeys = new Set(
+    existing
+      .filter((i) => i.category === TEAM_BUDGET_CATEGORY)
+      .map((i) => (i.description ?? "").trim().toLowerCase())
+  );
+  const created: string[] = [];
+  for (const m of team) {
+    const description = `${m.name} — ${m.role}`;
+    if (existingKeys.has(description.trim().toLowerCase())) continue;
+    await createPartyBudgetItem({
+      party_id: partyId,
+      category: TEAM_BUDGET_CATEGORY,
+      subcategory: m.role || null,
+      description,
+      projected_amount: m.amount_cents > 0 ? m.amount_cents / 100 : 0,
+      actual_amount: null,
+      supplier_note: null,
+      status: "projetado",
+      date_paid: null,
+    });
+    existingKeys.add(description.trim().toLowerCase());
+    created.push(m.name);
+  }
+  return created;
+}
+
 // ===== TICKETS =====
 
 export async function listPartyTickets(partyId: number): Promise<PartyTicket[]> {
