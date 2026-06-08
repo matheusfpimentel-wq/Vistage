@@ -194,6 +194,31 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       // never crash the main update
     }
   }
+  // Mantém o Financeiro sincronizado em qualquer caminho que altere o
+  // pagamento ou o cachê (não só pelo GigForm). Replica a lógica do GigForm:
+  // "Pago integralmente" → cachê cheio; "50% pago" → metade.
+  if ("payment_status" in rest || "cache_amount" in rest) {
+    try {
+      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
+        "SELECT payment_status, cache_amount, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
+      );
+      const g = row[0];
+      if (g) {
+        const paid =
+          g.payment_status === "Pago integralmente" ||
+          g.payment_status === "50% pago";
+        const cache = g.cache_amount ?? 0;
+        const received = g.payment_status === "50% pago" ? cache * 0.5 : cache;
+        const gigName = g.event_name?.trim() || g.venue_name?.trim() || "GIG";
+        const label =
+          g.payment_status === "50% pago"
+            ? `Cachê (50%): ${gigName} (${g.date})`
+            : `Cachê: ${gigName} (${g.date})`;
+        const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
+        await syncGigPaymentTransaction(id, paid, received, g.date ?? new Date().toISOString().slice(0, 10), label);
+      }
+    } catch { /* não interrompe */ }
+  }
   // Sync prep task due_date when gig date changes
   if ("date" in rest) {
     const rows = await db.select<{ prep_task_id: number | null }[]>(

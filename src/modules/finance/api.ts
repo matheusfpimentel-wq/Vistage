@@ -279,6 +279,88 @@ export async function syncGigPaymentTransaction(
   );
 }
 
+/**
+ * Sincroniza a despesa de um custo de produção musical com o Financeiro.
+ * Cria/atualiza um lançamento de despesa vinculado via music_cost_id, ou
+ * remove se o custo não existir mais / tiver valor <= 0.
+ */
+export async function syncMusicCostTransaction(costId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<
+    {
+      id: number;
+      amount: number | null;
+      date: string | null;
+      description: string | null;
+      category: string | null;
+      track_title: string | null;
+    }[]
+  >(
+    `SELECT mpc.id, mpc.amount, mpc.date, mpc.description, mpc.category, t.title_working AS track_title
+       FROM music_project_costs mpc
+       LEFT JOIN tracks t ON t.id = mpc.track_id
+      WHERE mpc.id = $1`,
+    [costId]
+  );
+  const cost = rows[0];
+  const existing = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_transactions WHERE music_cost_id = $1`,
+    [costId]
+  );
+
+  if (!cost || !((cost.amount ?? 0) > 0)) {
+    if (existing.length > 0) {
+      await db.execute(
+        `DELETE FROM finance_transactions WHERE music_cost_id = $1`,
+        [costId]
+      );
+    }
+    return;
+  }
+
+  const what = cost.description?.trim() || cost.category?.trim() || "custo";
+  const where = cost.track_title?.trim() || "projeto";
+  const desc = `Produção: ${what} (${where})`;
+  const dateStr = cost.date ?? new Date().toISOString().slice(0, 10);
+
+  if (existing.length > 0) {
+    await db.execute(
+      `UPDATE finance_transactions
+          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4`,
+      [cost.amount, dateStr, desc, existing[0].id]
+    );
+    return;
+  }
+
+  const cat = await db.select<{ id: number }[]>(
+    `SELECT id FROM finance_categories
+      WHERE kind = 'expense'
+        AND (name LIKE '%Produção%' OR name LIKE '%Música%' OR name LIKE '%Music%')
+      LIMIT 1`
+  );
+  const categoryId = cat[0]?.id ?? null;
+
+  await db.execute(
+    `INSERT INTO finance_transactions
+       (kind, amount, date, description, category_id, music_cost_id, status, expense_type)
+     VALUES ('expense', $1, $2, $3, $4, $5, 'Recebido/Pago', 'Variável')`,
+    [cost.amount, dateStr, desc, categoryId, costId]
+  );
+}
+
+/** Remove a transação vinculada a um custo de produção musical. */
+export async function deleteTransactionsForMusicCost(
+  costId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM finance_transactions WHERE music_cost_id = $1",
+    [costId]
+  );
+}
+
 /** Remove todas as transações vinculadas a uma GIG (usado ao excluir a GIG). */
 export async function deleteTransactionsForGig(gigId: number): Promise<void> {
   const db = getDb();

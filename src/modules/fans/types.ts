@@ -13,6 +13,7 @@ export type Fan = {
   notes: string | null;
   last_interaction_at: string | null;
   photo_path: string | null;
+  contact_id: number | null;
   created_at: string;
   updated_at: string;
 };

@@ -17,6 +17,7 @@ import {
 import { LevelBadge } from "../components/LevelBadge";
 import { FanInteractionList } from "../components/FanInteractionList";
 import { getFan } from "../api";
+import { getContact } from "@/modules/crm/api";
 import type { Fan } from "../types";
 import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
@@ -30,13 +31,21 @@ type Props = {
 
 export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
   const [fan, setFan] = useState<Fan | null>(null);
+  const [contactName, setContactName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!fanId) return;
     setLoading(true);
     try {
-      setFan(await getFan(fanId));
+      const f = await getFan(fanId);
+      setFan(f);
+      if (f?.contact_id != null) {
+        const c = await getContact(f.contact_id);
+        setContactName(c?.name ?? null);
+      } else {
+        setContactName(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -106,6 +115,9 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
                   label="Último contato"
                   value={formatDate(fan.last_interaction_at)}
                 />
+              )}
+              {fan.contact_id != null && contactName && (
+                <Row label="Contato CRM" value={contactName} />
               )}
             </div>
 

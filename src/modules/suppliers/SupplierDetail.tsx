@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { getSupplier, listServices, listPartiesBySupplier } from "./api";
+import { getSupplier, listServices, listPartiesBySupplier, getSupplierSpend } from "./api";
 import type { Supplier, SupplierService } from "./types";
 
 type Props = {
@@ -26,20 +26,23 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
   const [parties, setParties] = useState<
     { id: number; title: string; date: string | null; status: string; role: string | null; amount_cents: number | null }[]
   >([]);
+  const [spend, setSpend] = useState<{ total: number; itemCount: number; parties: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!supplierId) return;
     setLoading(true);
     try {
-      const [s, svcs, prts] = await Promise.all([
+      const [s, svcs, prts, spd] = await Promise.all([
         getSupplier(supplierId),
         listServices(supplierId),
         listPartiesBySupplier(supplierId),
+        getSupplierSpend(supplierId),
       ]);
       setSupplier(s);
       setServices(svcs);
       setParties(prts);
+      setSpend(spd);
     } finally {
       setLoading(false);
     }
@@ -101,6 +104,14 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                 </div>
               )}
             </div>
+
+            {spend && spend.itemCount > 0 && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                Total gasto: {formatCurrency(spend.total)} · {spend.itemCount}{" "}
+                {spend.itemCount === 1 ? "item" : "itens"} · {spend.parties}{" "}
+                {spend.parties === 1 ? "festa" : "festas"}
+              </div>
+            )}
 
             {supplier.contact_name && (
               <div className="text-sm">

@@ -90,7 +90,35 @@ export async function updateSupplier(input: SupplierUpdateInput): Promise<void> 
 
 export async function deleteSupplier(id: number): Promise<void> {
   const db = getDb();
+  await db.execute(
+    "UPDATE party_budget_items SET supplier_id = NULL WHERE supplier_id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM suppliers WHERE id = $1", [id]);
+  try {
+    const { removeSupplierFromParties } = await import("@/modules/parties/api");
+    await removeSupplierFromParties(id);
+  } catch { /* não interrompe */ }
+}
+
+export async function getSupplierSpend(
+  supplierId: number
+): Promise<{ total: number; itemCount: number; parties: number }> {
+  const db = getDb();
+  const rows = await db.select<{ total: number; itemCount: number; parties: number }[]>(
+    `SELECT COALESCE(SUM(COALESCE(actual_amount, projected_amount, 0)), 0) AS total,
+            COUNT(*) AS itemCount,
+            COUNT(DISTINCT party_id) AS parties
+     FROM party_budget_items
+     WHERE supplier_id = $1`,
+    [supplierId]
+  );
+  const r = rows[0];
+  return {
+    total: r?.total ?? 0,
+    itemCount: r?.itemCount ?? 0,
+    parties: r?.parties ?? 0,
+  };
 }
 
 type PartyRow = {

@@ -26,6 +26,8 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { LevelBadge } from "../components/LevelBadge";
 import { addFanGroupMember, createFan, listFanGroups, updateFan } from "../api";
 import { FAN_LEVELS, type Fan, type FanCreateInput, type FanGroup, type FanLevel } from "../types";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
 
 type Props = {
   open: boolean;
@@ -44,6 +46,7 @@ const EMPTY: FanCreateInput = {
   tags: [],
   notes: null,
   photo_path: null,
+  contact_id: null,
 };
 
 function fanToState(f: Fan): FanCreateInput {
@@ -57,6 +60,7 @@ function fanToState(f: Fan): FanCreateInput {
     tags: f.tags,
     notes: f.notes,
     photo_path: f.photo_path,
+    contact_id: f.contact_id,
   };
 }
 
@@ -67,6 +71,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [groups, setGroups] = useState<FanGroup[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const confirmClose = useUnsavedConfirm(dirty);
 
@@ -84,6 +89,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
     setDirty(false);
     setSelectedGroupId(null);
     void listFanGroups().then(setGroups).catch(() => {});
+    void listContacts().then(setContacts).catch(() => {});
   }, [fan, open]);
 
   function addTag() {
@@ -236,6 +242,31 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
                 }
               />
             </Field>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Vincular a contato (CRM)</Label>
+            <Select
+              value={state.contact_id != null ? String(state.contact_id) : "none"}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  contact_id: v === "none" ? null : Number(v),
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum contato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum contato</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

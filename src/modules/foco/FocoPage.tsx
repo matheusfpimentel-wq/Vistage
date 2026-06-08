@@ -24,6 +24,7 @@ import { formatDate, todayISO } from "@/lib/format";
 import {
   loadHeatmap,
   loadActivityStats,
+  loadTimePerProject,
   listSessions,
   deleteSession,
   listHighlights,
@@ -31,9 +32,18 @@ import {
   deleteHighlight,
   type HeatmapCell,
   type ActivityStats,
+  type TimePerProject,
   type WorkSession,
   type Highlight,
 } from "./api";
+
+function formatHours(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6h–23h
@@ -43,19 +53,22 @@ export function FocoPage() {
   const [activityStats, setActivityStats] = useState<ActivityStats[]>([]);
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [timePerProject, setTimePerProject] = useState<TimePerProject[]>([]);
   const [addOpen, setAddOpen] = useState(false);
 
   async function refresh() {
-    const [h, a, sess, hl] = await Promise.all([
+    const [h, a, sess, hl, tpp] = await Promise.all([
       loadHeatmap(),
       loadActivityStats(),
       listSessions(100),
       listHighlights(),
+      loadTimePerProject(),
     ]);
     setHeatmap(h);
     setActivityStats(a);
     setSessions(sess);
     setHighlights(hl);
+    setTimePerProject(tpp);
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -107,6 +120,33 @@ export function FocoPage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {timePerProject.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Tempo por projeto</CardTitle>
+            <CardDescription>Tempo investido por faixa, GIG, conteúdo ou tarefa.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {timePerProject.map((p) => (
+                <div
+                  key={`${p.context_type}-${p.context_id}`}
+                  className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate">{p.label}</span>
+                    <span className="ml-2 text-xs uppercase text-muted-foreground">{p.context_type}</span>
+                  </div>
+                  <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {formatHours(p.totalMinutes)} · {p.sessions} sessão{p.sessions !== 1 ? "ões" : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {sessions.length > 0 && (

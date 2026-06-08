@@ -157,6 +157,17 @@ export type ContentStats = {
   publishedThisMonth: number;
 };
 
+export async function listContentPromoting(
+  type: string,
+  id: number
+): Promise<{ id: number; title: string; status: string }[]> {
+  const db = getDb();
+  return db.select<{ id: number; title: string; status: string }[]>(
+    "SELECT id, title, status FROM content WHERE promotes_type = $1 AND promotes_id = $2 ORDER BY created_at DESC",
+    [type, id]
+  );
+}
+
 export async function getContentStats(): Promise<ContentStats> {
   const db = getDb();
   const rows = await db.select<{ status: ContentStatus; n: number }[]>(

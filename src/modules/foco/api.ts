@@ -24,6 +24,8 @@ export type WorkSession = {
   focus_level: number | null;
   notes: string | null;
   context: string | null;
+  context_type: string | null;
+  context_id: number | null;
   created_at: string;
 };
 
@@ -43,13 +45,15 @@ export async function endSession(
   energy_level: number,
   focus_level: number,
   notes: string | null,
-  context: string | null = null
+  context: string | null = null,
+  context_type: string | null = null,
+  context_id: number | null = null
 ): Promise<void> {
   const db = getDb();
   const ended_at = new Date().toISOString();
   await db.execute(
-    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5 WHERE id=$6`,
-    [ended_at, energy_level, focus_level, notes, context, id]
+    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5, context_type=$6, context_id=$7 WHERE id=$8`,
+    [ended_at, energy_level, focus_level, notes, context, context_type, context_id, id]
   );
   emitDataChanged();
 }
@@ -121,6 +125,65 @@ export async function loadActivityStats(): Promise<ActivityStats[]> {
     GROUP BY activity_type
     ORDER BY total_minutes DESC
   `);
+}
+
+export type TimePerProject = {
+  context_type: string;
+  context_id: number;
+  label: string;
+  totalMinutes: number;
+  sessions: number;
+};
+
+export async function loadTimePerProject(): Promise<TimePerProject[]> {
+  const db = getDb();
+  const rows = await db.select<
+    { context_type: string; context_id: number; totalMinutes: number; sessions: number }[]
+  >(`
+    SELECT
+      context_type,
+      context_id,
+      SUM((julianday(ended_at) - julianday(started_at)) * 24 * 60) as totalMinutes,
+      COUNT(*) as sessions
+    FROM work_sessions
+    WHERE ended_at IS NOT NULL
+      AND context_type IS NOT NULL
+      AND context_id IS NOT NULL
+    GROUP BY context_type, context_id
+    ORDER BY totalMinutes DESC
+  `);
+
+  const result: TimePerProject[] = [];
+  for (const r of rows) {
+    let label = `${r.context_type} #${r.context_id}`;
+    let sql: string | null = null;
+    switch (r.context_type) {
+      case "track":
+        sql = `SELECT title_working AS label FROM tracks WHERE id=$1`;
+        break;
+      case "gig":
+        sql = `SELECT COALESCE(NULLIF(event_name,''), venue_name) AS label FROM gigs WHERE id=$1`;
+        break;
+      case "content":
+        sql = `SELECT title AS label FROM content WHERE id=$1`;
+        break;
+      case "task":
+        sql = `SELECT title AS label FROM tasks WHERE id=$1`;
+        break;
+    }
+    if (sql) {
+      const named = await db.select<{ label: string | null }[]>(sql, [r.context_id]);
+      if (named[0]?.label) label = named[0].label;
+    }
+    result.push({
+      context_type: r.context_type,
+      context_id: r.context_id,
+      label,
+      totalMinutes: r.totalMinutes,
+      sessions: r.sessions,
+    });
+  }
+  return result;
 }
 
 // Highlights

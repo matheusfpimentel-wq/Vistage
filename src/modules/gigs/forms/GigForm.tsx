@@ -38,6 +38,7 @@ import { todayISO } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues } from "@/modules/venues/api";
+import { listContentPromoting } from "@/modules/content/api";
 import { listTracks } from "@/modules/music/api";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
@@ -156,6 +157,9 @@ export function GigForm({
   const [allTracks, setAllTracks] = useState<{ id: number; title: string }[]>([]);
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
   const [activeTab, setActiveTab] = useState("geral");
+  const [promotingContent, setPromotingContent] = useState<
+    { id: number; title: string; status: string }[]
+  >([]);
 
   useEffect(() => {
     if (!open) return;
@@ -187,8 +191,10 @@ export function GigForm({
     );
     if (gig) {
       void listGigTracks(gig.id).then(setSetListTrackIds);
+      void listContentPromoting("GIG", gig.id).then(setPromotingContent);
     } else {
       setSetListTrackIds([]);
+      setPromotingContent([]);
     }
   }, [open, gig]);
 
@@ -628,6 +634,21 @@ export function GigForm({
               </Field>
             </div>
           </Section>
+
+          {gig && promotingContent.length > 0 && (
+            <Section title="Conteúdos promovendo esta GIG">
+              <ul className="space-y-1 text-sm">
+                {promotingContent.map((c) => (
+                  <li key={c.id} className="flex items-center justify-between">
+                    <span>{c.title}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {c.status}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
           </TabsContent>
 
           <TabsContent value="briefing" className="space-y-4">

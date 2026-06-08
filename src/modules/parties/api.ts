@@ -184,6 +184,102 @@ export async function deleteParty(id: number): Promise<void> {
   emitDataChanged();
 }
 
+// ===== ORPHAN REFERENCE CLEANUP =====
+
+type RawParty = { id: number; lineup: string | null; sponsors: string | null; team: string | null };
+
+/**
+ * Remove um contato de referências JSON em todas as festas:
+ * `lineup` (array de IDs numéricos ou objetos com contact_id/id) e,
+ * defensivamente, `team`/`sponsors` que contenham contact_id. Só faz UPDATE
+ * quando algo muda.
+ */
+export async function removeContactFromParties(contactId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<RawParty[]>("SELECT id, lineup, sponsors, team FROM parties");
+  for (const row of rows) {
+    let changed = false;
+    const sets: string[] = [];
+    const values: unknown[] = [];
+
+    const lineup = parseJsonArray<unknown>(row.lineup);
+    const newLineup = lineup.filter((v) => !idMatches(v, contactId));
+    if (newLineup.length !== lineup.length) {
+      changed = true;
+      values.push(JSON.stringify(newLineup));
+      sets.push(`lineup = $${values.length}`);
+    }
+
+    const team = parseJsonArray<Record<string, unknown>>(row.team);
+    const newTeam = team.filter((m) => !refMatches(m, "contact_id", contactId));
+    if (newTeam.length !== team.length) {
+      changed = true;
+      values.push(JSON.stringify(newTeam));
+      sets.push(`team = $${values.length}`);
+    }
+
+    const sponsors = parseJsonArray<Record<string, unknown>>(row.sponsors);
+    const newSponsors = sponsors.filter((s) => !refMatches(s, "contact_id", contactId));
+    if (newSponsors.length !== sponsors.length) {
+      changed = true;
+      values.push(JSON.stringify(newSponsors));
+      sets.push(`sponsors = $${values.length}`);
+    }
+
+    if (changed) {
+      values.push(row.id);
+      await db.execute(
+        `UPDATE parties SET ${sets.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+        values
+      );
+    }
+  }
+}
+
+/**
+ * Anula referências a um fornecedor em `team` JSON de todas as festas
+ * (membros com `supplier_id` apontando para o fornecedor removido têm o campo
+ * setado para null). Só faz UPDATE quando algo muda.
+ */
+export async function removeSupplierFromParties(supplierId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<RawParty[]>("SELECT id, lineup, sponsors, team FROM parties");
+  for (const row of rows) {
+    const team = parseJsonArray<Record<string, unknown>>(row.team);
+    let changed = false;
+    const newTeam = team.map((m) => {
+      if (m && typeof m === "object" && Number(m.supplier_id) === supplierId) {
+        changed = true;
+        return { ...m, supplier_id: null };
+      }
+      return m;
+    });
+    if (changed) {
+      await db.execute(
+        "UPDATE parties SET team = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        [JSON.stringify(newTeam), row.id]
+      );
+    }
+  }
+}
+
+/** Compara um elemento de array que pode ser um número ou objeto {contact_id|id}. */
+function idMatches(v: unknown, id: number): boolean {
+  if (typeof v === "number") return v === id;
+  if (typeof v === "string") return Number(v) === id;
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return Number(o.contact_id) === id || Number(o.id) === id;
+  }
+  return false;
+}
+
+/** Verifica se um objeto referencia `id` via o campo indicado. */
+function refMatches(o: Record<string, unknown> | null, field: string, id: number): boolean {
+  if (!o || typeof o !== "object") return false;
+  return Number(o[field]) === id;
+}
+
 export async function listPartyCosts(partyId: number): Promise<PartyCost[]> {
   const db = getDb();
   return db.select<PartyCost[]>(

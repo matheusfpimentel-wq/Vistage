@@ -118,6 +118,10 @@ export async function updateContact(input: ContactUpdateInput): Promise<void> {
 export async function deleteContact(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM contacts WHERE id = $1", [id]);
+  try {
+    const { removeContactFromParties } = await import("@/modules/parties/api");
+    await removeContactFromParties(id);
+  } catch { /* não interrompe */ }
   emitDataChanged();
 }
 

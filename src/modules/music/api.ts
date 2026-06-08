@@ -553,11 +553,20 @@ export async function createCost(input: MusicProjectCostCreateInput): Promise<nu
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [input.project_id, input.track_id, input.category, input.description, input.amount, input.date]
   );
-  return Number(res.lastInsertId);
+  const costId = Number(res.lastInsertId);
+  try {
+    const { syncMusicCostTransaction } = await import("@/modules/finance/api");
+    await syncMusicCostTransaction(costId);
+  } catch { /* não interrompe */ }
+  return costId;
 }
 
 export async function deleteCost(id: number): Promise<void> {
   const db = getDb();
+  try {
+    const { deleteTransactionsForMusicCost } = await import("@/modules/finance/api");
+    await deleteTransactionsForMusicCost(id);
+  } catch { /* não interrompe */ }
   await db.execute("DELETE FROM music_project_costs WHERE id = $1", [id]);
 }
 

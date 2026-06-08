@@ -1348,6 +1348,24 @@ const MIGRATIONS: Migration[] = [
     description: "fan_interactions — campo special; fan_upgrade_rules em app_settings",
     sql: `ALTER TABLE fan_interactions ADD COLUMN special INTEGER NOT NULL DEFAULT 0;`
   },
+  {
+    version: 79,
+    description: "finance_transactions — music_cost_id para sync de custos de produção musical",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN music_cost_id INTEGER REFERENCES music_project_costs(id) ON DELETE SET NULL;`,
+  },
+  {
+    version: 80,
+    description: "work_sessions — vínculo a entidade (context_type/context_id)",
+    sql: `
+      ALTER TABLE work_sessions ADD COLUMN context_type TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context_id INTEGER;
+    `,
+  },
+  {
+    version: 81,
+    description: "fans — contact_id para vincular fã a contato do CRM",
+    sql: `ALTER TABLE fans ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;`,
+  },
 ];
 
 

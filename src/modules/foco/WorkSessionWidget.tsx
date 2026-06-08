@@ -29,6 +29,41 @@ import {
 } from "./api";
 import { closeSessionOverlay, openSessionOverlay } from "./overlay";
 import { DATA_CHANGED } from "@/lib/events";
+import { listTracks } from "@/modules/music/api";
+import { listGigs } from "@/modules/gigs/api";
+import { listContent } from "@/modules/content/api";
+import { listTasks } from "@/modules/tasks/api";
+
+type EntityOption = { id: number; name: string };
+
+async function loadEntityOptions(type: string): Promise<EntityOption[]> {
+  switch (type) {
+    case "track": {
+      const rows = await listTracks();
+      return rows.map((t) => ({
+        id: t.id,
+        name: (t.title_final && t.title_final.trim()) || t.title_working,
+      }));
+    }
+    case "gig": {
+      const rows = await listGigs();
+      return rows.map((g) => ({
+        id: g.id,
+        name: (g.event_name && g.event_name.trim()) || g.venue_name || `GIG #${g.id}`,
+      }));
+    }
+    case "content": {
+      const rows = await listContent();
+      return rows.map((c) => ({ id: c.id, name: c.title }));
+    }
+    case "task": {
+      const rows = await listTasks();
+      return rows.map((t) => ({ id: t.id, name: t.title }));
+    }
+    default:
+      return [];
+  }
+}
 
 function elapsed(startedAt: string): string {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
@@ -49,6 +84,9 @@ export function WorkSessionWidget() {
   const [focus, setFocus] = useState(3);
   const [notes, setNotes] = useState("");
   const [context, setContext] = useState("");
+  const [contextType, setContextType] = useState("none");
+  const [contextId, setContextId] = useState("none");
+  const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -97,6 +135,8 @@ export function WorkSessionWidget() {
         focus_level: null,
         notes: null,
         context: null,
+        context_type: null,
+        context_id: null,
         created_at: new Date().toISOString(),
       });
       setStartOpen(false);
@@ -106,16 +146,44 @@ export function WorkSessionWidget() {
     }
   }
 
+  useEffect(() => {
+    if (contextType === "none") {
+      setEntityOptions([]);
+      setContextId("none");
+      return;
+    }
+    let active = true;
+    void loadEntityOptions(contextType).then((opts) => {
+      if (active) setEntityOptions(opts);
+    });
+    setContextId("none");
+    return () => {
+      active = false;
+    };
+  }, [contextType]);
+
   async function handleEnd() {
     if (!session) return;
     setSaving(true);
     try {
-      await endSession(session.id, energy, focus, notes || null, context || null);
+      const ctxType = contextType === "none" ? null : contextType;
+      const ctxId = contextId === "none" ? null : Number(contextId);
+      await endSession(
+        session.id,
+        energy,
+        focus,
+        notes || null,
+        context || null,
+        ctxType,
+        ctxType ? ctxId : null
+      );
       void closeSessionOverlay();
       setSession(null);
       setEndOpen(false);
       setNotes("");
       setContext("");
+      setContextType("none");
+      setContextId("none");
       setEnergy(3);
       setFocus(3);
       toast.success("Sessão encerrada e dados salvos!");
@@ -225,6 +293,39 @@ export function WorkSessionWidget() {
                 placeholder="Ex: projeto, GIG, faixa específica…"
               />
             </div>
+            <div className="space-y-1.5">
+              <Label>Trabalhei em (opcional)</Label>
+              <Select value={contextType} onValueChange={setContextType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  <SelectItem value="track">Track</SelectItem>
+                  <SelectItem value="gig">GIG</SelectItem>
+                  <SelectItem value="content">Conteúdo</SelectItem>
+                  <SelectItem value="task">Tarefa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {contextType !== "none" && (
+              <div className="space-y-1.5">
+                <Label>Item</Label>
+                <Select value={contextId} onValueChange={setContextId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {entityOptions.map((o) => (
+                      <SelectItem key={o.id} value={String(o.id)}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEndOpen(false)}>Cancelar</Button>
