@@ -1339,11 +1339,6 @@ const MIGRATIONS: Migration[] = [
     sql: `ALTER TABLE gigs ADD COLUMN debrief_task_id INTEGER;`,
   },
   {
-    version: 77,
-    description: "finance_transactions — party_id para sync de festas",
-    sql: `ALTER TABLE finance_transactions ADD COLUMN party_id INTEGER REFERENCES parties(id) ON DELETE SET NULL;`
-  },
-  {
     version: 78,
     description: "fan_interactions — campo special; fan_upgrade_rules em app_settings",
     sql: `ALTER TABLE fan_interactions ADD COLUMN special INTEGER NOT NULL DEFAULT 0;`
