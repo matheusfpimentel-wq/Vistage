@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ import {
   syncPartyToFinanceiro,
   updatePartyBudgetItem,
 } from "../api";
+import { listSuppliers } from "@/modules/suppliers/api";
+import type { Supplier } from "@/modules/suppliers/types";
 
 const fmt = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -49,8 +51,16 @@ export function OrcamentoTab({
   const [newProjected, setNewProjected] = useState("");
   const [newActual, setNewActual] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
+  const [newSupplierId, setNewSupplierId] = useState("none");
   const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  useEffect(() => {
+    void listSuppliers()
+      .then(setSuppliers)
+      .catch(() => undefined);
+  }, []);
 
   const subcats = BUDGET_CATEGORIES[newCategory] ?? [];
 
@@ -70,6 +80,7 @@ export function OrcamentoTab({
         projected_amount: projected,
         actual_amount: newActual ? parseFloat(newActual) : null,
         supplier_note: newSupplier.trim() || null,
+        supplier_id: newSupplierId === "none" ? null : Number(newSupplierId),
         status: "projetado",
         date_paid: null,
       });
@@ -77,6 +88,7 @@ export function OrcamentoTab({
       setNewProjected("");
       setNewActual("");
       setNewSupplier("");
+      setNewSupplierId("none");
       await onReload();
       toast.success("Item adicionado");
     } catch (e) {
@@ -98,6 +110,17 @@ export function OrcamentoTab({
   async function handleStatusChange(id: number, status: BudgetItemStatus) {
     try {
       await updatePartyBudgetItem(id, { status });
+      await onReload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleSupplierChange(id: number, value: string) {
+    try {
+      await updatePartyBudgetItem(id, {
+        supplier_id: value === "none" ? null : Number(value),
+      });
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -226,7 +249,25 @@ export function OrcamentoTab({
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{item.supplier_note ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <Select
+                        value={item.supplier_id != null ? String(item.supplier_id) : "none"}
+                        onValueChange={(v) => void handleSupplierChange(item.id, v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-36">
+                          <SelectValue placeholder="Fornecedor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {suppliers.map((s) => (
+                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {item.supplier_note && (
+                        <div className="mt-1 text-xs text-muted-foreground">{item.supplier_note}</div>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <Button
                         variant="ghost"
@@ -285,10 +326,19 @@ export function OrcamentoTab({
             onChange={(e) => setNewActual(e.target.value)}
           />
           <Input
-            placeholder="Fornecedor"
+            placeholder="Fornecedor (nota livre)"
             value={newSupplier}
             onChange={(e) => setNewSupplier(e.target.value)}
           />
+          <Select value={newSupplierId} onValueChange={setNewSupplierId}>
+            <SelectTrigger><SelectValue placeholder="Fornecedor (cadastro)" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Nenhum fornecedor</SelectItem>
+              {suppliers.map((s) => (
+                <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button size="sm" onClick={() => void handleAdd()} disabled={adding}>
             <Plus className="h-3.5 w-3.5" /> Adicionar
           </Button>

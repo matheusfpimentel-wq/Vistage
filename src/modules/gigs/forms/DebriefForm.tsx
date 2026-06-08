@@ -32,7 +32,7 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
-import { addFanInteraction } from "@/modules/fans/api";
+import { addFanInteraction, setGigFans } from "@/modules/fans/api";
 import { formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -336,6 +336,12 @@ export function DebriefForm({
       } catch {
         /* best-effort — não interrompe */
       }
+    }
+    // persiste a presença na tabela gig_fans (best-effort)
+    try {
+      await setGigFans(gig.id, fansPresent);
+    } catch {
+      /* best-effort — não interrompe */
     }
     setRegisteringFans(false);
     if (count > 0) {

@@ -335,12 +335,12 @@ export async function createPartyBudgetItem(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, status, date_paid)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       item.party_id, item.category, item.subcategory ?? null, item.description ?? null,
       item.projected_amount, item.actual_amount ?? null, item.supplier_note ?? null,
-      item.status, item.date_paid ?? null,
+      item.supplier_id ?? null, item.status, item.date_paid ?? null,
     ]
   );
   return Number(res.lastInsertId);
@@ -400,6 +400,7 @@ export async function syncTeamBudgetItems(
       projected_amount: m.amount_cents > 0 ? m.amount_cents / 100 : 0,
       actual_amount: null,
       supplier_note: null,
+      supplier_id: null,
       status: "projetado",
       date_paid: null,
     });

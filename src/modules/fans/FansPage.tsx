@@ -45,6 +45,7 @@ import {
   listFanGroups,
   listFans,
   removeFanGroupMember,
+  topFansByPresence,
   type FanFilters,
   type FanStats,
 } from "./api";
@@ -60,6 +61,9 @@ type ViewMode = "cards" | "list";
 export function FansPage() {
   const [fans, setFans] = useState<Fan[]>([]);
   const [stats, setStats] = useState<FanStats | null>(null);
+  const [topPresence, setTopPresence] = useState<
+    { fan_id: number; name: string; gigs: number }[]
+  >([]);
   const [filters, setFilters] = useState<{
     level: LevelFilter;
     city: string;
@@ -83,9 +87,14 @@ export function FansPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [data, s] = await Promise.all([listFans(queryFilters), getFanStats()]);
+    const [data, s, top] = await Promise.all([
+      listFans(queryFilters),
+      getFanStats(),
+      topFansByPresence(5).catch(() => []),
+    ]);
     setFans(data);
     setStats(s);
+    setTopPresence(top ?? []);
   }, [queryFilters]);
 
   useEffect(() => {
@@ -140,6 +149,28 @@ export function FansPage() {
           value={stats?.possivelFa ?? 0}
         />
       </div>
+
+      {topPresence.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-2 text-xs">
+              <Heart className="h-4 w-4 text-red-400" />
+              Fãs mais presentes em shows
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {topPresence.map((t) => (
+              <span
+                key={t.fan_id}
+                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs"
+              >
+                <span className="font-medium">{t.name}</span>
+                <span className="text-muted-foreground">🎤 {t.gigs} shows</span>
+              </span>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">

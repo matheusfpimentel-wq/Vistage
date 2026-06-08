@@ -219,3 +219,62 @@ export async function removeFanGroupMember(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fan_group_members WHERE id = $1", [id]);
 }
+
+// ===== GIG presence (gig_fans) =====
+
+export async function setGigFans(gigId: number, fanIds: number[]): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM gig_fans WHERE gig_id = $1", [gigId]);
+  for (const fanId of fanIds) {
+    await db.execute(
+      "INSERT OR IGNORE INTO gig_fans (gig_id, fan_id) VALUES ($1, $2)",
+      [gigId, fanId]
+    );
+  }
+  emitDataChanged();
+}
+
+export async function addGigFan(gigId: number, fanId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "INSERT OR IGNORE INTO gig_fans (gig_id, fan_id) VALUES ($1, $2)",
+    [gigId, fanId]
+  );
+  emitDataChanged();
+}
+
+export async function listFansForGig(gigId: number): Promise<Fan[]> {
+  const db = getDb();
+  const rows = await db.select<FanRow[]>(
+    `SELECT f.* FROM gig_fans gf
+       JOIN fans f ON f.id = gf.fan_id
+      WHERE gf.gig_id = $1
+      ORDER BY f.name COLLATE NOCASE ASC`,
+    [gigId]
+  );
+  return rows.map(rowToFan);
+}
+
+export async function gigCountForFan(fanId: number): Promise<number> {
+  const db = getDb();
+  const rows = await db.select<{ n: number }[]>(
+    "SELECT COUNT(*) as n FROM gig_fans WHERE fan_id = $1",
+    [fanId]
+  );
+  return rows[0]?.n ?? 0;
+}
+
+export async function topFansByPresence(
+  limit = 10
+): Promise<{ fan_id: number; name: string; gigs: number }[]> {
+  const db = getDb();
+  return db.select<{ fan_id: number; name: string; gigs: number }[]>(
+    `SELECT gf.fan_id as fan_id, f.name as name, COUNT(*) as gigs
+       FROM gig_fans gf
+       JOIN fans f ON f.id = gf.fan_id
+      GROUP BY gf.fan_id, f.name
+      ORDER BY gigs DESC, f.name COLLATE NOCASE ASC
+      LIMIT $1`,
+    [limit]
+  );
+}
