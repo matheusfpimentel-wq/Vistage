@@ -23,6 +23,7 @@ export function FanInteractionList({ fanId, onChange }: Props) {
   const [items, setItems] = useState<FanInteraction[]>([]);
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState("");
+  const [special, setSpecial] = useState(false);
   const [saving, setSaving] = useState(false);
 
   async function refresh() {
@@ -40,9 +41,10 @@ export function FanInteractionList({ fanId, onChange }: Props) {
     }
     setSaving(true);
     try {
-      await addFanInteraction(fanId, date, note.trim());
+      await addFanInteraction(fanId, date, note.trim(), special);
       setNote("");
       setDate(todayISO());
+      setSpecial(false);
       await refresh();
       onChange?.();
     } catch (e) {
@@ -84,6 +86,18 @@ export function FanInteractionList({ fanId, onChange }: Props) {
             <Plus className="h-4 w-4" /> Adicionar
           </Button>
         </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="fan-interaction-special"
+            checked={special}
+            onChange={(e) => setSpecial(e.target.checked)}
+            className="h-4 w-4 accent-amber-500"
+          />
+          <label htmlFor="fan-interaction-special" className="text-xs cursor-pointer select-none">
+            Interação especial ⭐ <span className="text-muted-foreground">(promove nível automaticamente)</span>
+          </label>
+        </div>
       </div>
 
       {items.length === 0 ? (
@@ -98,8 +112,11 @@ export function FanInteractionList({ fanId, onChange }: Props) {
               className="flex items-start justify-between rounded-md border p-3 text-sm"
             >
               <div className="flex-1">
-                <div className="text-xs text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {formatDate(it.date)}
+                  {(it as FanInteraction & { special?: number }).special ? (
+                    <span className="text-amber-500 font-medium">⭐ especial</span>
+                  ) : null}
                 </div>
                 <div className="mt-1 whitespace-pre-wrap">{it.note}</div>
               </div>

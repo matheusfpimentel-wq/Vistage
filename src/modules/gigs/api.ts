@@ -152,8 +152,8 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   );
   // Auto-complete prep task when GIG is concluded
   if ("status" in rest && rest.status === "Concluída") {
-    const rows = await db.select<{ prep_task_id: number | null }[]>(
-      "SELECT prep_task_id FROM gigs WHERE id = $1", [id]
+    const rows = await db.select<{ prep_task_id: number | null; debrief_task_id: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
+      "SELECT prep_task_id, debrief_task_id, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
     );
     const prepTaskId = rows[0]?.prep_task_id;
     if (prepTaskId) {
@@ -161,6 +161,37 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
         [prepTaskId]
       ).catch(() => {});
+    }
+    // Auto-create debrief task (idempotent)
+    try {
+      const gigRow = rows[0];
+      if (gigRow && !gigRow.debrief_task_id) {
+        const label = gigRow.event_name?.trim() || gigRow.venue_name?.trim() || "GIG";
+        let debriefDue: string | null = null;
+        if (gigRow.date) {
+          const d = new Date(`${gigRow.date}T00:00:00`);
+          d.setDate(d.getDate() + 2);
+          debriefDue = d.toISOString().slice(0, 10);
+        }
+        const { createTask } = await import("@/modules/tasks/api");
+        const debriefTaskId = await createTask({
+          title: `Debrief: ${label}`,
+          description: "Avaliar performance, cachê, relacionamento com promotor e equipe",
+          category: "Pessoal",
+          priority: "Média",
+          status: "A fazer",
+          due_date: debriefDue,
+          gig_id: null,
+          contact_id: null,
+          tags: ["debrief", "gig"],
+        });
+        await db.execute(
+          "UPDATE gigs SET debrief_task_id = $1 WHERE id = $2",
+          [debriefTaskId, id]
+        );
+      }
+    } catch {
+      // never crash the main update
     }
   }
   // Sync prep task due_date when gig date changes

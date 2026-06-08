@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   Sparkles,
   Trash2,
   User,
@@ -16,6 +17,12 @@ import {
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -44,7 +51,9 @@ import {
   listFanGroupMembers,
   listFanGroups,
   listFans,
+  loadFanUpgradeRules,
   removeFanGroupMember,
+  saveFanUpgradeRules,
   topFansByPresence,
   type FanFilters,
   type FanStats,
@@ -76,6 +85,7 @@ export function FansPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>("list");
+  const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
 
   const queryFilters: FanFilters = useMemo(
     () => ({
@@ -235,6 +245,9 @@ export function FansPage() {
               Lista
             </button>
           </div>
+          <Button variant="outline" size="icon" aria-label="Configurar upgrade automático" onClick={() => setUpgradeRulesOpen(true)}>
+            <Settings2 className="h-4 w-4" />
+          </Button>
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo fã
           </Button>
@@ -362,6 +375,8 @@ export function FansPage() {
       />
 
       <FanGroupsPanel fans={fans} />
+
+      <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
     </div>
   );
 }
@@ -659,5 +674,73 @@ function FanGroupsPanel({ fans }: { fans: Fan[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function FanUpgradeRulesDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [interactions, setInteractions] = useState("");
+  const [gigs, setGigs] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    void loadFanUpgradeRules().then((r) => {
+      setInteractions(r.interactions != null ? String(r.interactions) : "");
+      setGigs(r.gigs != null ? String(r.gigs) : "");
+    });
+  }, [open]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await saveFanUpgradeRules({
+        interactions: interactions.trim() ? Number(interactions) : null,
+        gigs: gigs.trim() ? Number(gigs) : null,
+      });
+      onOpenChange(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Upgrade automático de fãs</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Promover Possível fã → Fã após X interações</label>
+            <Input
+              type="number"
+              min={1}
+              placeholder="Deixe vazio para desativar"
+              value={interactions}
+              onChange={(e) => setInteractions(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Promover Fã → Superfã após X presenças em GIGs</label>
+            <Input
+              type="number"
+              min={1}
+              placeholder="Deixe vazio para desativar"
+              value={gigs}
+              onChange={(e) => setGigs(e.target.value)}
+            />
+          </div>
+          <Button className="w-full" onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando…" : "Salvar"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

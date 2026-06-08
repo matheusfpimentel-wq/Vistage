@@ -116,15 +116,22 @@ export async function listFanInteractions(fanId: number): Promise<FanInteraction
   );
 }
 
+function nextLevel(current: string): string | null {
+  if (current === "Possível fã") return "Fã";
+  if (current === "Fã") return "Superfã";
+  return null;
+}
+
 export async function addFanInteraction(
   fanId: number,
   date: string,
-  note: string
+  note: string,
+  special = false
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO fan_interactions (fan_id, date, note) VALUES ($1, $2, $3)`,
-    [fanId, date, note]
+    `INSERT INTO fan_interactions (fan_id, date, note, special) VALUES ($1, $2, $3, $4)`,
+    [fanId, date, note, special ? 1 : 0]
   );
   await db.execute(
     `UPDATE fans
@@ -132,7 +139,154 @@ export async function addFanInteraction(
       WHERE id = $2 AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
     [date, fanId]
   );
+
+  // Special interaction: auto-upgrade one level
+  if (special) {
+    const fanRows = await db.select<{ level: string }[]>(
+      `SELECT level FROM fans WHERE id = $1`,
+      [fanId]
+    );
+    const currentLevel = fanRows[0]?.level;
+    if (currentLevel) {
+      const upgraded = nextLevel(currentLevel);
+      if (upgraded) {
+        await db.execute(
+          `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [upgraded, fanId]
+        );
+      }
+    }
+  }
+
+  // Auto-upgrade rules from app_settings
+  try {
+    const rulesRows = await db.select<{ value: string }[]>(
+      `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
+    );
+    if (rulesRows[0]?.value) {
+      const rules = JSON.parse(rulesRows[0].value) as { interactions?: number; gigs?: number };
+      const fanRows2 = await db.select<{ level: string }[]>(
+        `SELECT level FROM fans WHERE id = $1`,
+        [fanId]
+      );
+      let currentLevel2 = fanRows2[0]?.level ?? "";
+
+      if (rules.interactions && typeof rules.interactions === "number") {
+        const countRows = await db.select<{ n: number }[]>(
+          `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1`,
+          [fanId]
+        );
+        const count = countRows[0]?.n ?? 0;
+        if (count >= rules.interactions && currentLevel2 === "Possível fã") {
+          await db.execute(
+            `UPDATE fans SET level = 'Fã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [fanId]
+          );
+          currentLevel2 = "Fã";
+        }
+      }
+
+      if (rules.gigs && typeof rules.gigs === "number") {
+        const gigCountRows = await db.select<{ n: number }[]>(
+          `SELECT COUNT(*) as n FROM gig_fans WHERE fan_id = $1`,
+          [fanId]
+        );
+        const gigCount = gigCountRows[0]?.n ?? 0;
+        if (gigCount >= rules.gigs && currentLevel2 === "Fã") {
+          await db.execute(
+            `UPDATE fans SET level = 'Superfã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+            [fanId]
+          );
+        }
+      }
+    }
+  } catch {
+    // silently skip if rules not configured
+  }
+
+  // Close any open follow-up tasks for this fan since they just interacted
+  try {
+    const followupRows = await db.select<{ id: number }[]>(
+      `SELECT t.id FROM tasks t WHERE t.title LIKE 'Follow-up: %' AND t.status <> 'Concluída' AND t.description LIKE $1`,
+      [`%fan_id:${fanId}%`]
+    );
+    for (const row of followupRows) {
+      const { updateTask } = await import("@/modules/tasks/api");
+      await updateTask({ id: row.id, status: "Concluída" }).catch(() => {});
+    }
+  } catch {
+    // silently skip
+  }
+
   return Number(res.lastInsertId);
+}
+
+export async function saveFanUpgradeRules(rules: {
+  interactions?: number | null;
+  gigs?: number | null;
+}): Promise<void> {
+  const db = getDb();
+  const value = JSON.stringify(rules);
+  await db.execute(
+    `INSERT INTO app_settings (key, value) VALUES ('fan_upgrade_rules', $1)
+     ON CONFLICT(key) DO UPDATE SET value = $1`,
+    [value]
+  );
+}
+
+export async function loadFanUpgradeRules(): Promise<{
+  interactions?: number | null;
+  gigs?: number | null;
+}> {
+  const db = getDb();
+  const rows = await db.select<{ value: string }[]>(
+    `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
+  );
+  if (!rows[0]?.value) return {};
+  try {
+    return JSON.parse(rows[0].value) as { interactions?: number | null; gigs?: number | null };
+  } catch {
+    return {};
+  }
+}
+
+export async function syncSuperfanFollowupTasks(): Promise<void> {
+  try {
+    const db = getDb();
+    const superfans = await db.select<{ id: number; name: string }[]>(
+      `SELECT f.id, f.name FROM fans f
+       WHERE f.level = 'Superfã'
+         AND NOT EXISTS (
+           SELECT 1 FROM fan_interactions fi
+           WHERE fi.fan_id = f.id AND fi.date >= date('now', '-30 days')
+         )`
+    );
+    for (const fan of superfans) {
+      const existing = await db.select<{ id: number }[]>(
+        `SELECT t.id FROM tasks t
+         WHERE t.title LIKE 'Follow-up: %'
+           AND t.status <> 'Concluída'
+           AND t.description LIKE $1`,
+        [`%fan_id:${fan.id}%`]
+      );
+      if (existing.length === 0) {
+        const { createTask } = await import("@/modules/tasks/api");
+        await createTask({
+          title: `Follow-up: ${fan.name}`,
+          description: `fan_id:${fan.id} — Superfã sem interação há 30+ dias`,
+          category: "Pessoal",
+          priority: "Média",
+          status: "A fazer",
+          due_date: null,
+          gig_id: null,
+          contact_id: null,
+          tags: ["fã", "follow-up"],
+        });
+      }
+    }
+  } catch {
+    // silently skip
+  }
 }
 
 export async function deleteFanInteraction(id: number): Promise<void> {

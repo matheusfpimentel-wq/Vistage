@@ -99,6 +99,10 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     values
   );
   const id = Number(res.lastInsertId);
+  try {
+    const { syncPartyTransactions } = await import("@/modules/finance/api");
+    await syncPartyTransactions(id);
+  } catch { /* não interrompe */ }
   emitDataChanged();
   return id;
 }
@@ -156,6 +160,10 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
       }
     } catch { /* não interrompe */ }
   }
+  try {
+    const { syncPartyTransactions } = await import("@/modules/finance/api");
+    await syncPartyTransactions(id);
+  } catch { /* não interrompe */ }
   emitDataChanged();
 }
 
@@ -168,6 +176,7 @@ export async function deleteParty(id: number): Promise<void> {
   const taskIds = taskRows
     .map((r) => r.global_task_id)
     .filter((tid): tid is number => tid !== null);
+  await db.execute("DELETE FROM finance_transactions WHERE party_id = $1", [id]);
   await db.execute("DELETE FROM parties WHERE id = $1", [id]);
   for (const tid of taskIds) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [tid]);
@@ -343,6 +352,10 @@ export async function createPartyBudgetItem(
       item.supplier_id ?? null, item.status, item.date_paid ?? null,
     ]
   );
+  try {
+    const { syncPartyTransactions } = await import("@/modules/finance/api");
+    await syncPartyTransactions(item.party_id);
+  } catch { /* não interrompe */ }
   return Number(res.lastInsertId);
 }
 
@@ -361,11 +374,31 @@ export async function updatePartyBudgetItem(
     `UPDATE party_budget_items SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  try {
+    const rows = await db.select<{ party_id: number }[]>(
+      "SELECT party_id FROM party_budget_items WHERE id = $1",
+      [id]
+    );
+    if (rows[0]) {
+      const { syncPartyTransactions } = await import("@/modules/finance/api");
+      await syncPartyTransactions(rows[0].party_id);
+    }
+  } catch { /* não interrompe */ }
 }
 
 export async function deletePartyBudgetItem(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ party_id: number }[]>(
+    "SELECT party_id FROM party_budget_items WHERE id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM party_budget_items WHERE id = $1", [id]);
+  try {
+    if (rows[0]) {
+      const { syncPartyTransactions } = await import("@/modules/finance/api");
+      await syncPartyTransactions(rows[0].party_id);
+    }
+  } catch { /* não interrompe */ }
 }
 
 /** Categoria usada para itens de orçamento gerados a partir da equipe de produção. */
@@ -433,6 +466,10 @@ export async function createPartyTicket(
       ticket.sale_end_date ?? null, ticket.position,
     ]
   );
+  try {
+    const { syncPartyTransactions } = await import("@/modules/finance/api");
+    await syncPartyTransactions(ticket.party_id);
+  } catch { /* não interrompe */ }
   return Number(res.lastInsertId);
 }
 
@@ -451,11 +488,31 @@ export async function updatePartyTicket(
     `UPDATE party_tickets SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  try {
+    const rows = await db.select<{ party_id: number }[]>(
+      "SELECT party_id FROM party_tickets WHERE id = $1",
+      [id]
+    );
+    if (rows[0]) {
+      const { syncPartyTransactions } = await import("@/modules/finance/api");
+      await syncPartyTransactions(rows[0].party_id);
+    }
+  } catch { /* não interrompe */ }
 }
 
 export async function deletePartyTicket(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ party_id: number }[]>(
+    "SELECT party_id FROM party_tickets WHERE id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM party_tickets WHERE id = $1", [id]);
+  try {
+    if (rows[0]) {
+      const { syncPartyTransactions } = await import("@/modules/finance/api");
+      await syncPartyTransactions(rows[0].party_id);
+    }
+  } catch { /* não interrompe */ }
 }
 
 // ===== PARTY TASKS =====

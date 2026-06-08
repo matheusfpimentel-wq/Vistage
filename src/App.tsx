@@ -13,6 +13,7 @@ import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { loadDatabase } from "@/lib/db";
+import { autoGenerateRecurringUpToNow } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
   isModKey,
@@ -143,6 +144,10 @@ function MainApp() {
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
+          void autoGenerateRecurringUpToNow().catch(() => {});
+          void import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
+            syncSuperfanFollowupTasks().catch(() => {})
+          );
         }
       } catch (e) {
         if (!cancelled) {

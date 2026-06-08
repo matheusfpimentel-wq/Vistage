@@ -288,6 +288,95 @@ export async function deleteTransactionsForGig(gigId: number): Promise<void> {
   );
 }
 
+/**
+ * Sincroniza receita (ingressos) e despesa (custos do orçamento) de uma festa
+ * com o Financeiro. Cria, atualiza ou remove os lançamentos conforme os valores.
+ */
+export async function syncPartyTransactions(partyId: number): Promise<void> {
+  const db = getDb();
+
+  const partyRows = await db.select<{ title: string; date: string | null }[]>(
+    "SELECT title, date FROM parties WHERE id = $1",
+    [partyId]
+  );
+  const party = partyRows[0];
+  if (!party) return;
+
+  const incomeRows = await db.select<{ income: number }[]>(
+    "SELECT COALESCE(SUM(price * quantity_sold), 0) as income FROM party_tickets WHERE party_id = $1",
+    [partyId]
+  );
+  const expenseRows = await db.select<{ expense: number }[]>(
+    "SELECT COALESCE(SUM(actual_amount), 0) as expense FROM party_budget_items WHERE party_id = $1",
+    [partyId]
+  );
+
+  const income = Number(incomeRows[0]?.income ?? 0);
+  const expense = Number(expenseRows[0]?.expense ?? 0);
+  const dateStr = party.date ?? new Date().toISOString().slice(0, 10);
+
+  // --- income transaction ---
+  const existingIncome = await db.select<{ id: number }[]>(
+    "SELECT id FROM finance_transactions WHERE party_id = $1 AND kind = 'income'",
+    [partyId]
+  );
+  if (income > 0) {
+    const catRows = await db.select<{ id: number }[]>(
+      `SELECT id FROM finance_categories WHERE kind = 'income' AND (name LIKE '%Festa%' OR name LIKE '%Event%') LIMIT 1`
+    );
+    const categoryId = catRows[0]?.id ?? null;
+    if (existingIncome.length > 0) {
+      await db.execute(
+        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido/Pago', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
+        [income, dateStr, `Ingressos: ${party.title}`, existingIncome[0].id]
+      );
+    } else {
+      await db.execute(
+        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago', NULL)`,
+        [income, dateStr, `Ingressos: ${party.title}`, categoryId, partyId]
+      );
+    }
+  } else if (existingIncome.length > 0) {
+    await db.execute(
+      "DELETE FROM finance_transactions WHERE party_id = $1 AND kind = 'income'",
+      [partyId]
+    );
+  }
+
+  // --- expense transaction ---
+  const existingExpense = await db.select<{ id: number }[]>(
+    "SELECT id FROM finance_transactions WHERE party_id = $1 AND kind = 'expense'",
+    [partyId]
+  );
+  if (expense > 0) {
+    if (existingExpense.length > 0) {
+      await db.execute(
+        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido/Pago', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
+        [expense, dateStr, `Custos: ${party.title}`, existingExpense[0].id]
+      );
+    } else {
+      await db.execute(
+        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('expense', $1, $2, $3, NULL, $4, 'Recebido/Pago', 'Variável')`,
+        [expense, dateStr, `Custos: ${party.title}`, partyId]
+      );
+    }
+  } else if (existingExpense.length > 0) {
+    await db.execute(
+      "DELETE FROM finance_transactions WHERE party_id = $1 AND kind = 'expense'",
+      [partyId]
+    );
+  }
+}
+
+/** Remove todas as transações vinculadas a uma festa (usado ao excluir a festa). */
+export async function deleteTransactionsForParty(partyId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM finance_transactions WHERE party_id = $1",
+    [partyId]
+  );
+}
+
 // ============================================================
 // Integração com Aulas (receita)
 // ============================================================
@@ -520,6 +609,50 @@ export async function generateRecurringForMonth(yearMonth: string): Promise<numb
     created += 1;
   }
   return created;
+}
+
+/**
+ * Gera automaticamente os recorrentes para todos os meses entre o último
+ * mês registrado (last_recurring_gen em app_settings) e o mês atual.
+ * Deve ser chamado no boot do app, fire-and-forget.
+ */
+export async function autoGenerateRecurringUpToNow(): Promise<void> {
+  const db = getDb();
+  const now = new Date();
+  const currentYM = now.toISOString().slice(0, 7);
+
+  const rows = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key = 'last_recurring_gen'"
+  );
+  const lastGen = rows[0]?.value ?? null;
+
+  const months: string[] = [];
+  if (!lastGen) {
+    months.push(currentYM);
+  } else {
+    // Enumerate months from lastGen (exclusive) up to currentYM (inclusive)
+    const [ly, lm] = lastGen.split("-").map(Number);
+    const [cy, cm] = currentYM.split("-").map(Number);
+    let y = ly;
+    let m = lm + 1;
+    while (y < cy || (y === cy && m <= cm)) {
+      months.push(`${y}-${String(m).padStart(2, "0")}`);
+      m += 1;
+      if (m > 12) {
+        m = 1;
+        y += 1;
+      }
+    }
+  }
+
+  for (const ym of months) {
+    await generateRecurringForMonth(ym);
+  }
+
+  await db.execute(
+    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+    ["last_recurring_gen", currentYM]
+  );
 }
 
 // ============================================================
