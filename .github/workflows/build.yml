@@ -7,12 +7,6 @@ on:
       - "claude/**"
   workflow_dispatch:
 
-# Silencia o aviso "Node.js 20 actions are deprecated" forçando o runner
-# a usar Node 24 para executar as actions JS (checkout, setup-node, etc).
-# Atualize para v5 das actions quando estiverem GA.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build:
     strategy:
