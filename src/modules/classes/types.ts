@@ -26,6 +26,12 @@ export type Student = {
 export type StudentCreateInput = Omit<Student, "id" | "created_at" | "updated_at">;
 export type StudentUpdateInput = Partial<StudentCreateInput> & { id: number };
 
+export type SyllabusItem = {
+  title: string;
+  hours: number | null;
+  detail: string | null;
+};
+
 export type ClassPackage = {
   id: number;
   name: string;
@@ -34,6 +40,7 @@ export type ClassPackage = {
   price: number | null;
   description: string | null;
   syllabus: string | null;
+  syllabus_items: SyllabusItem[];
   active: number;
   created_at: string;
 };

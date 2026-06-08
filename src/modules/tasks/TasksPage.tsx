@@ -20,6 +20,7 @@ import { toast } from "@/components/ui/toaster";
 import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
+import { TaskTimelineView } from "./views/TaskTimelineView";
 import {
   completeAndRecur,
   deleteTask,
@@ -223,6 +224,7 @@ export function TasksPage() {
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list">
@@ -236,6 +238,10 @@ export function TasksPage() {
 
         <TabsContent value="kanban">
           <TaskKanbanView tasks={tasks} onEdit={openEdit} onMove={handleMove} />
+        </TabsContent>
+
+        <TabsContent value="timeline">
+          <TaskTimelineView tasks={tasks} onEdit={openEdit} />
         </TabsContent>
       </Tabs>
 

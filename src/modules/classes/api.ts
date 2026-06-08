@@ -84,19 +84,43 @@ export async function deleteStudent(id: number): Promise<void> {
 // Class Packages (templates)
 // ============================================================
 
+function parsePackageRow(row: Record<string, unknown>): ClassPackage {
+  let items: ClassPackage["syllabus_items"] = [];
+  const raw = row.syllabus_items;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) items = parsed;
+    } catch {
+      items = [];
+    }
+  } else if (Array.isArray(raw)) {
+    items = raw as ClassPackage["syllabus_items"];
+  }
+  return { ...(row as ClassPackage), syllabus_items: items };
+}
+
+function serializePackageValue(key: string, value: unknown): unknown {
+  if (key === "syllabus_items") return JSON.stringify(value ?? []);
+  return value;
+}
+
 export async function listPackages(activeOnly = false): Promise<ClassPackage[]> {
   const db = getDb();
   const sql = activeOnly
     ? "SELECT * FROM class_packages WHERE active = 1 ORDER BY name"
     : "SELECT * FROM class_packages ORDER BY active DESC, name";
-  return db.select<ClassPackage[]>(sql);
+  const rows = await db.select<Record<string, unknown>[]>(sql);
+  return rows.map(parsePackageRow);
 }
 
 export async function createPackage(input: ClassPackageCreateInput): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
-  const values = cols.map((k) => (input as Record<string, unknown>)[k]);
+  const values = cols.map((k) =>
+    serializePackageValue(k, (input as Record<string, unknown>)[k])
+  );
   const res = await db.execute(
     `INSERT INTO class_packages (${cols.join(", ")}) VALUES (${placeholders})`,
     values
@@ -110,7 +134,9 @@ export async function updatePackage(input: ClassPackageUpdateInput): Promise<voi
   const cols = Object.keys(rest);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-  const values = cols.map((k) => (rest as Record<string, unknown>)[k]);
+  const values = cols.map((k) =>
+    serializePackageValue(k, (rest as Record<string, unknown>)[k])
+  );
   values.push(id);
   await db.execute(
     `UPDATE class_packages SET ${sets} WHERE id = $${values.length}`,
@@ -146,16 +172,7 @@ export async function getActiveStudentPackage(
     `SELECT sp.* FROM student_packages sp
       LEFT JOIN class_packages cp ON cp.id = sp.package_id
       WHERE sp.student_id = $1 AND sp.status = 'Ativo'
-        AND (
-          -- horas: ainda tem saldo
-          (cp.total_hours IS NOT NULL AND sp.used_minutes < cp.total_hours * 60)
-          OR
-          -- nº de aulas: ainda tem saldo
-          (cp.total_hours IS NULL AND sp.used_classes < sp.total_classes)
-          OR
-          -- sem template vinculado: sempre ativo
-          cp.id IS NULL
-        )
+        AND (cp.total_hours IS NULL OR sp.used_minutes < cp.total_hours * 60)
       ORDER BY sp.purchased_at ASC LIMIT 1`,
     [studentId]
   );
@@ -412,7 +429,7 @@ export async function recalcPackageUsage(studentPackageId: number): Promise<void
     "UPDATE student_packages SET used_classes = $1, used_minutes = $2 WHERE id = $3",
     [used, usedMin, studentPackageId]
   );
-  // Pacote baseado em horas: conclui quando esgota horas
+  // Pacote por carga horária: conclui quando esgota as horas
   await db.execute(
     `UPDATE student_packages SET status = 'Concluído'
       WHERE id = $1 AND status = 'Ativo' AND (
@@ -425,15 +442,6 @@ export async function recalcPackageUsage(studentPackageId: number): Promise<void
           SELECT package_id FROM student_packages WHERE id = $1
         )
       )`,
-    [studentPackageId]
-  );
-  // Pacote baseado em nº de aulas: conclui quando atinge o total
-  await db.execute(
-    `UPDATE student_packages SET status = 'Concluído'
-      WHERE id = $1 AND status = 'Ativo' AND used_classes >= total_classes
-      AND (SELECT total_hours FROM class_packages WHERE id = (
-        SELECT package_id FROM student_packages WHERE id = $1
-      )) IS NULL`,
     [studentPackageId]
   );
 }

@@ -105,7 +105,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
       await createStudentPackage({
         student_id: studentId,
         package_id: tpl.id,
-        total_classes: tpl.total_classes,
+        total_classes: 0,
         total_hours: tpl.total_hours,
         used_classes: 0,
         used_minutes: 0,
@@ -265,7 +265,10 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                       <SelectContent>
                         {templates.map((t) => (
                           <SelectItem key={t.id} value={t.id.toString()}>
-                            {t.name} — {t.total_classes} aulas
+                            {t.name}
+                            {t.total_hours != null
+                              ? ` — ${String(t.total_hours).replace(".", ",")}h`
+                              : ""}
                             {t.price ? ` · ${formatCurrency(t.price)}` : ""}
                           </SelectItem>
                         ))}

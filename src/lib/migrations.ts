@@ -1269,6 +1269,11 @@ const MIGRATIONS: Migration[] = [
     description: "content: engagement_notes — resultado pós-publicação",
     sql: `ALTER TABLE content ADD COLUMN engagement_notes TEXT;`,
   },
+  {
+    version: 66,
+    description: "class_packages.syllabus_items — ementa estruturada (JSON)",
+    sql: `ALTER TABLE class_packages ADD COLUMN syllabus_items TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];
 
 

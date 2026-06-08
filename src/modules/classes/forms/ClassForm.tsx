@@ -166,7 +166,7 @@ export function ClassForm({
     const input: StudentPackageCreateInput = {
       student_id: state.student_id,
       package_id: linkPkgId,
-      total_classes: template.total_classes,
+      total_classes: 0,
       total_hours: template.total_hours,
       used_classes: 0,
       used_minutes: 0,
@@ -357,7 +357,10 @@ export function ClassForm({
                     <SelectContent>
                       {allPackages.map((p) => (
                         <SelectItem key={p.id} value={p.id.toString()}>
-                          {p.name} — {p.total_classes} aulas
+                          {p.name}
+                          {p.total_hours != null
+                            ? ` — ${String(p.total_hours).replace(".", ",")}h`
+                            : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>

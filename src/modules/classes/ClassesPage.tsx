@@ -445,7 +445,9 @@ export function ClassesPage() {
                       <div>
                         <CardTitle className="text-base">{p.name}</CardTitle>
                         <CardDescription>
-                          {p.total_classes} aulas
+                          {p.total_hours != null
+                            ? `${String(p.total_hours).replace(".", ",")}h`
+                            : "—"}
                           {p.price ? ` · ${formatCurrency(p.price)}` : ""}
                         </CardDescription>
                       </div>
@@ -460,15 +462,22 @@ export function ClassesPage() {
                         {p.description}
                       </p>
                     )}
-                    {p.syllabus && (
-                      <details className="rounded-md border bg-muted/30 p-2">
-                        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {p.syllabus_items.length > 0 && (
+                      <div className="rounded-md border bg-muted/30 p-2">
+                        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Ementa
-                        </summary>
-                        <pre className="mt-2 whitespace-pre-wrap font-sans text-xs">
-                          {p.syllabus}
-                        </pre>
-                      </details>
+                        </div>
+                        <ul className="space-y-0.5 text-xs">
+                          {p.syllabus_items.map((it, i) => (
+                            <li key={i} className="text-muted-foreground">
+                              {it.hours != null
+                                ? `${String(it.hours).replace(".", ",")}h — `
+                                : ""}
+                              {it.title || "(sem título)"}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                     <div className="flex justify-end gap-1">
                       <Button
