@@ -38,7 +38,29 @@ export async function listOkrs(): Promise<Okr[]> {
   const db = getDb();
   const rows = await db.select<OkrRow[]>(`SELECT * FROM okrs ORDER BY quarter DESC, created_at DESC`);
   const okrs = rows.map(parseOkr);
-  return pullMetrics(okrs);
+  const enriched = await pullMetrics(okrs);
+  void syncKrCompletions(enriched);
+  return enriched;
+}
+
+async function syncKrCompletions(okrs: Okr[]): Promise<void> {
+  const db = getDb();
+  for (const okr of okrs) {
+    for (let i = 0; i < okr.key_results.length; i++) {
+      const kr = okr.key_results[i];
+      if (kr.target <= 0 || kr.current < kr.target) continue;
+      const rows = await db.select<{ task_id: number }[]>(
+        "SELECT task_id FROM okr_kr_tasks WHERE okr_id=$1 AND kr_index=$2",
+        [okr.id, i]
+      );
+      if (rows[0]) {
+        await db.execute(
+          `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
+          [rows[0].task_id]
+        ).catch(() => {});
+      }
+    }
+  }
 }
 
 export async function getOkr(id: number): Promise<Okr | null> {
@@ -254,8 +276,16 @@ export async function syncOkrKrTasks(okr: Okr): Promise<void> {
       [okr.id, i]
     );
 
+    const isDone = kr.target > 0 && kr.current >= kr.target;
+
     if (rows[0]) {
       await updateTask({ id: rows[0].task_id, title, due_date: endDate }).catch(() => {});
+      if (isDone) {
+        await db.execute(
+          `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
+          [rows[0].task_id]
+        ).catch(() => {});
+      }
     } else {
       try {
         const taskId = await createTask({
@@ -265,7 +295,7 @@ export async function syncOkrKrTasks(okr: Okr): Promise<void> {
           gig_id: null,
           contact_id: null,
           priority: "Alta",
-          status: "A fazer",
+          status: isDone ? "Concluída" : "A fazer",
           due_date: endDate,
           tags: ["okr"],
         });

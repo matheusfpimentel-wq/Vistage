@@ -14,10 +14,13 @@ const K = {
   REFRESH_TOKEN: "gdrive.refresh_token",
   TOKEN_EXPIRY: "gdrive.token_expiry",
   FOLDER_ID: "gdrive.folder_id",
+  FOLDER_NAME: "gdrive.folder_name",
   AUTO_BACKUP: "gdrive.auto_backup",
   LAST_BACKUP_AT: "gdrive.last_backup_at",
   LAST_SYNC_AT: "gdrive.last_sync_at",
 } as const;
+
+export const DEFAULT_FOLDER_NAME = "Vistage Backups";
 
 // ============================================================
 // Tipos espelhando o Rust
@@ -49,6 +52,7 @@ export type DriveAuth = {
   refreshToken: string;
   tokenExpiry: string;
   folderId?: string | null;
+  folderName: string;
   autoBackup: boolean;
   lastBackupAt?: string | null;
 };
@@ -95,12 +99,13 @@ export async function saveDriveConfig(cfg: DriveConfig): Promise<void> {
 }
 
 export async function loadAuth(): Promise<DriveAuth | null> {
-  const [access, refresh, expiry, folderId, auto, lastBackup] =
+  const [access, refresh, expiry, folderId, folderName, auto, lastBackup] =
     await Promise.all([
       getSetting(K.ACCESS_TOKEN),
       getSetting(K.REFRESH_TOKEN),
       getSetting(K.TOKEN_EXPIRY),
       getSetting(K.FOLDER_ID),
+      getSetting(K.FOLDER_NAME),
       getSetting(K.AUTO_BACKUP),
       getSetting(K.LAST_BACKUP_AT),
     ]);
@@ -110,9 +115,14 @@ export async function loadAuth(): Promise<DriveAuth | null> {
     refreshToken: refresh,
     tokenExpiry: expiry,
     folderId,
+    folderName: folderName ?? DEFAULT_FOLDER_NAME,
     autoBackup: auto === "true",
     lastBackupAt: lastBackup,
   };
+}
+
+export async function saveFolderName(name: string): Promise<void> {
+  await setSetting(K.FOLDER_NAME, name.trim() || DEFAULT_FOLDER_NAME);
 }
 
 async function saveTokens(tokens: DriveTokens): Promise<void> {
@@ -190,9 +200,19 @@ export async function connect(): Promise<void> {
   await saveTokens(tokens);
 
   // Garante que a pasta de backups existe no Drive
+  const folderName = (await getSetting(K.FOLDER_NAME)) ?? DEFAULT_FOLDER_NAME;
   const folderId: string = await invoke("gdrive_ensure_folder", {
     accessToken: tokens.access_token,
+    folderName,
   });
+  await setSetting(K.FOLDER_ID, folderId);
+}
+
+export async function applyFolderName(newName: string): Promise<void> {
+  const { accessToken } = await ensureValidToken();
+  const folderName = newName.trim() || DEFAULT_FOLDER_NAME;
+  await saveFolderName(folderName);
+  const folderId: string = await invoke("gdrive_ensure_folder", { accessToken, folderName });
   await setSetting(K.FOLDER_ID, folderId);
 }
 

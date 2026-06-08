@@ -109,7 +109,7 @@ export function SuppliersPage() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

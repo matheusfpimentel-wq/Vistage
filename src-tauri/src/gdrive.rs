@@ -273,10 +273,10 @@ pub fn gdrive_refresh_token(
 
 /// Busca ou cria a pasta "MusicGest Backups" no Drive. Retorna o folder ID.
 #[tauri::command]
-pub fn gdrive_ensure_folder(access_token: String) -> Result<String, String> {
+pub fn gdrive_ensure_folder(access_token: String, folder_name: String) -> Result<String, String> {
     let q = format!(
         "mimeType='{}' and name='{}' and trashed=false",
-        FOLDER_MIME, FOLDER_NAME
+        FOLDER_MIME, folder_name
     );
     let url = format!(
         "{}?q={}&fields=files(id,name)",
@@ -300,7 +300,7 @@ pub fn gdrive_ensure_folder(access_token: String) -> Result<String, String> {
     }
 
     // Pasta não encontrada — cria
-    let meta = serde_json::json!({ "name": FOLDER_NAME, "mimeType": FOLDER_MIME });
+    let meta = serde_json::json!({ "name": folder_name, "mimeType": FOLDER_MIME });
     let resp = ureq::post(DRIVE_FILES_URL)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(meta)

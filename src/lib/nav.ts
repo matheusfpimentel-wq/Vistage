@@ -4,7 +4,6 @@ import {
   CalendarRange,
   CheckSquare,
   Film,
-  FileText,
   Gauge,
   GraduationCap,
   Handshake,
@@ -75,7 +74,6 @@ export const DEFAULT_NAV: NavItem[] = [
 
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
-  { to: "/relatorio", label: "Relatório mensal", icon: FileText, group: "Gestão" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },

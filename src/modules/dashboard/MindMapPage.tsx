@@ -28,6 +28,8 @@ export function MindMapPage() {
 
   // viewport (pan/zoom)
   const [view, setView] = useState({ x: 0, y: 0, k: 0.85 });
+  // ref sempre sincronizado com o state — elimina closures obsoletos nos handlers de ponteiro
+  const viewRef = useRef({ x: 0, y: 0, k: 0.85 });
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   // posições mantidas fora do estado React (atualizadas a cada frame)
@@ -56,6 +58,9 @@ export function MindMapPage() {
     window.addEventListener(DATA_CHANGED, onChange);
     return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, [load]);
+
+  // mantém viewRef sempre atualizado
+  viewRef.current = view;
 
   // grafo visível conforme filtros de módulo
   const visible = useMemo(() => {
@@ -178,15 +183,18 @@ export function MindMapPage() {
   }, [visible.nodes, visible.edges]);
 
   // ── interação: coordenadas de tela → mundo ────────────────────────────────
+  // usa viewRef (não view) para nunca ter closure obsoleto
   const toWorld = useCallback(
     (clientX: number, clientY: number) => {
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return { x: 0, y: 0 };
-      const sx = ((clientX - rect.left) / rect.width) * (WIDTH / view.k) + view.x;
-      const sy = ((clientY - rect.top) / rect.height) * (HEIGHT / view.k) + view.y;
-      return { x: sx, y: sy };
+      const { x, y, k } = viewRef.current;
+      return {
+        x: ((clientX - rect.left) / rect.width) * (WIDTH / k) + x,
+        y: ((clientY - rect.top) / rect.height) * (HEIGHT / k) + y,
+      };
     },
-    [view]
+    [] // depende só de viewRef e svgRef, que são refs (nunca mudam)
   );
 
   const onNodePointerDown = (e: React.PointerEvent, id: string) => {
@@ -205,12 +213,12 @@ export function MindMapPage() {
     } else if (panRef.current) {
       const dxPx = e.clientX - panRef.current.x;
       const dyPx = e.clientY - panRef.current.y;
-      // threshold de 4px para não confundir clique com pan
       if (!panRef.current.moved && Math.abs(dxPx) < 4 && Math.abs(dyPx) < 4) return;
       panRef.current.moved = true;
+      const { k } = viewRef.current; // usa ref para garantir zoom atual
       const rect = svgRef.current?.getBoundingClientRect();
-      const scaleX = (WIDTH / view.k) / (rect?.width ?? WIDTH);
-      const scaleY = (HEIGHT / view.k) / (rect?.height ?? HEIGHT);
+      const scaleX = (WIDTH / k) / (rect?.width ?? WIDTH);
+      const scaleY = (HEIGHT / k) / (rect?.height ?? HEIGHT);
       setView((v) => ({
         ...v,
         x: panRef.current!.vx - dxPx * scaleX,
@@ -226,7 +234,8 @@ export function MindMapPage() {
 
   const onBgPointerDown = (e: React.PointerEvent) => {
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
-    panRef.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
+    const { x, y } = viewRef.current; // captura a posição atual sem risco de closure obsoleto
+    panRef.current = { x: e.clientX, y: e.clientY, vx: x, vy: y, moved: false };
   };
 
   const onWheel = (e: React.WheelEvent) => {

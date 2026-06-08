@@ -150,6 +150,19 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     `UPDATE gigs SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Auto-complete prep task when GIG is concluded
+  if ("status" in rest && rest.status === "Concluída") {
+    const rows = await db.select<{ prep_task_id: number | null }[]>(
+      "SELECT prep_task_id FROM gigs WHERE id = $1", [id]
+    );
+    const prepTaskId = rows[0]?.prep_task_id;
+    if (prepTaskId) {
+      await db.execute(
+        `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
+        [prepTaskId]
+      ).catch(() => {});
+    }
+  }
   // Sync prep task due_date when gig date changes
   if ("date" in rest) {
     const rows = await db.select<{ prep_task_id: number | null }[]>(

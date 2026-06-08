@@ -1,9 +1,10 @@
 import { getDb } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { useConfigStore } from "./config";
 
 /** Versão do formato de backup. Bump se mudar o schema de exportação. */
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
 const TABLES = [
   // ── sem dependências ──────────────────────────────────────────────────────
@@ -71,12 +72,133 @@ export type Backup = {
   exportedAt: string;
   app: "vistage" | "musicgest"; // aceita backups antigos do MusicGest
   tables: Record<TableName, Record<string, unknown>[]>;
+  /**
+   * Arquivos de anexo incluídos no backup (v2+).
+   * Chave: caminho RELATIVO ao uploadsDir (ex: "fans/abc123.jpg").
+   * Valor: data URL base64 ("data:image/jpeg;base64,...").
+   */
+  files?: Record<string, string>;
+  /** uploadsDir do sistema de origem — usado para relativizar e restaurar caminhos. */
+  uploadsDir?: string;
 };
+
+// Colunas que armazenam caminhos de arquivos (caminho absoluto ou relativo).
+// extra_flyer_paths é JSON array de caminhos.
+const FILE_PATH_COLS: Partial<Record<TableName, string[]>> = {
+  gigs:                 ["script_file_path", "banner_file_path", "invoice_file_path"],
+  contacts:             ["photo_path"],
+  fans:                 ["photo_path"],
+  venues:               ["photo_path"],
+  equipment:            ["photo_path"],
+  finance_transactions: ["receipt_file_path"],
+  finance_recurring:    ["receipt_file_path"],
+  tracks:               ["daw_project_path", "stems_path", "final_files_path"],
+  artist_identity:      ["logo_path", "isotype_path", "presskit_path", "thumbnail_path", "file_path"],
+  artist_templates:     ["file_path"],
+};
+
+/** Colunas cujo valor é um JSON array de caminhos. */
+const FILE_PATH_JSON_COLS: Partial<Record<TableName, string[]>> = {
+  gigs: ["extra_flyer_paths"],
+};
+
+function joinPath(...parts: string[]): string {
+  const sep = parts[0]?.includes("\\") && !parts[0].includes("/") ? "\\" : "/";
+  return parts
+    .map((p, i) => (i === 0 ? p.replace(/[\\/]+$/, "") : p.replace(/^[\\/]+|[\\/]+$/g, "")))
+    .filter(Boolean)
+    .join(sep);
+}
+
+function relativize(absPath: string, uploadsDir: string): string {
+  const norm = (p: string) => p.replace(/\\/g, "/");
+  const rel = norm(absPath).replace(norm(uploadsDir).replace(/\/$/, "") + "/", "");
+  return rel;
+}
+
+async function readAsBase64(absPath: string): Promise<string | null> {
+  try {
+    const bytes = await readFile(absPath);
+    const ext = (absPath.match(/\.([a-zA-Z0-9]+)$/) ?? [])[1]?.toLowerCase() ?? "bin";
+    const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+      : ext === "png" ? "image/png"
+      : ext === "gif" ? "image/gif"
+      : ext === "webp" ? "image/webp"
+      : ext === "pdf" ? "application/pdf"
+      : "application/octet-stream";
+    let bin = "";
+    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    return `data:${mime};base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Reúne todos os caminhos de arquivos do backup e os lê como base64. */
+async function collectFiles(
+  tables: Backup["tables"],
+  uploadsDir: string
+): Promise<Record<string, string>> {
+  const files: Record<string, string> = {};
+  for (const [table, cols] of Object.entries(FILE_PATH_COLS) as [TableName, string[]][]) {
+    const rows = tables[table] ?? [];
+    for (const row of rows) {
+      for (const col of cols) {
+        const val = row[col];
+        if (typeof val !== "string" || !val) continue;
+        const rel = relativize(val, uploadsDir);
+        if (files[rel] !== undefined) continue;
+        const data = await readAsBase64(val);
+        if (data) files[rel] = data;
+      }
+    }
+  }
+  for (const [table, cols] of Object.entries(FILE_PATH_JSON_COLS) as [TableName, string[]][]) {
+    const rows = tables[table] ?? [];
+    for (const row of rows) {
+      for (const col of cols) {
+        const raw = row[col];
+        if (typeof raw !== "string" || !raw) continue;
+        let paths: unknown[];
+        try { paths = JSON.parse(raw); } catch { continue; }
+        for (const p of paths) {
+          if (typeof p !== "string" || !p) continue;
+          const rel = relativize(p, uploadsDir);
+          if (files[rel] !== undefined) continue;
+          const data = await readAsBase64(p);
+          if (data) files[rel] = data;
+        }
+      }
+    }
+  }
+  return files;
+}
+
+/** Restaura arquivos do backup para o uploadsDir atual. */
+async function restoreFiles(
+  files: Record<string, string>,
+  uploadsDir: string
+): Promise<void> {
+  for (const [rel, dataUrl] of Object.entries(files)) {
+    try {
+      const absPath = joinPath(uploadsDir, rel);
+      const dir = absPath.substring(0, Math.max(absPath.lastIndexOf("/"), absPath.lastIndexOf("\\")));
+      if (!(await exists(dir))) await mkdir(dir, { recursive: true });
+      // base64 → Uint8Array
+      const b64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      await writeFile(absPath, bytes);
+    } catch {
+      // arquivo não-crítico — falha silenciosa
+    }
+  }
+}
 
 /**
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
- * Não inclui anexos físicos (uploads/) — eles ficam na pasta apontada
- * pelo vistage.config.json e devem ser copiados separadamente.
+ * Inclui os arquivos de anexo como base64 (v2+) — fotos, flyers, etc.
  */
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
@@ -84,11 +206,22 @@ export async function buildBackup(): Promise<Backup> {
   for (const t of TABLES) {
     tables[t] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
   }
+  const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
+  let files: Record<string, string> = {};
+  if (uploadsDir) {
+    try {
+      files = await collectFiles(tables, uploadsDir);
+    } catch {
+      // não bloqueia o backup se a leitura de arquivos falhar
+    }
+  }
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     app: "vistage",
     tables,
+    files,
+    uploadsDir,
   };
 }
 
@@ -252,6 +385,14 @@ export async function restoreBackup(backup: Backup): Promise<{
     }
   } finally {
     await db.execute("PRAGMA foreign_keys = ON");
+  }
+
+  // Restaura arquivos de anexo (v2+) para o uploadsDir atual
+  if (backup.files && Object.keys(backup.files).length > 0) {
+    const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
+    if (uploadsDir) {
+      await restoreFiles(backup.files, uploadsDir).catch(() => {});
+    }
   }
 
   return { restoredTables: tablesInBackup.size, restoredRows };

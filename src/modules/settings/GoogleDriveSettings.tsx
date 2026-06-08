@@ -40,6 +40,8 @@ import {
   listBackups,
   loadAuth,
   loadDriveConfig,
+  applyFolderName,
+  DEFAULT_FOLDER_NAME,
   saveDriveConfig,
   setAutoBackup,
   uploadBackup,
@@ -58,6 +60,8 @@ export function GoogleDriveSettings() {
   const [restoreTarget, setRestoreTarget] = useState<DriveFile | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [showAllBackups, setShowAllBackups] = useState(false);
+  const [folderName, setFolderName] = useState(DEFAULT_FOLDER_NAME);
+  const [savingFolder, setSavingFolder] = useState(false);
 
   const RECENT_COUNT = 5;
   const sortedBackups = [...backups].sort((a, b) => {
@@ -74,6 +78,7 @@ export function GoogleDriveSettings() {
     setCfg(c);
     setAuth(a);
     if (a) {
+      setFolderName(a.folderName);
       setLoadingBackups(true);
       try {
         setBackups(await listBackups());
@@ -135,6 +140,19 @@ export function GoogleDriveSettings() {
       toast.error(`Erro no backup: ${String(e)}`);
     } finally {
       setBacking(false);
+    }
+  }
+
+  async function handleSaveFolderName() {
+    setSavingFolder(true);
+    try {
+      await applyFolderName(folderName);
+      setAuth((a) => (a ? { ...a, folderName: folderName.trim() || DEFAULT_FOLDER_NAME } : a));
+      toast.success("Pasta de backup atualizada");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setSavingFolder(false);
     }
   }
 
@@ -295,6 +313,30 @@ export function GoogleDriveSettings() {
               </>
             )}
           </div>
+
+          {/* Folder name */}
+          {connected && (
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="text-sm font-medium">Pasta de backup</div>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  placeholder={DEFAULT_FOLDER_NAME}
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveFolderName}
+                  disabled={savingFolder}
+                  className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+                >
+                  {savingFolder ? "Salvando…" : "Salvar"}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">Nome da pasta criada no seu Google Drive para armazenar os backups.</p>
+            </div>
+          )}
 
           {/* Auto-backup toggle */}
           {connected && (

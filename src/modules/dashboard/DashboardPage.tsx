@@ -29,10 +29,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
-import { TodayPage } from "@/modules/dashboard/TodayPage";
 import { MindMapPage } from "@/modules/dashboard/MindMapPage";
 import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
-import { AlertsPage } from "@/modules/revisao/AlertsPage";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
 import { averageRating, type Gig } from "@/modules/gigs/types";
@@ -198,10 +196,8 @@ export function DashboardPage() {
         <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
-          <TabsTrigger value="today">Hoje</TabsTrigger>
           <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
-          <TabsTrigger value="report">Relatório</TabsTrigger>
-          <TabsTrigger value="alerts">Alertas</TabsTrigger>
+          <TabsTrigger value="report">Extrair relatório</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
           {updatedAt && (
@@ -249,10 +245,6 @@ export function DashboardPage() {
         <CareerTimelinePage />
       </TabsContent>
 
-      <TabsContent value="today">
-        <TodayPage />
-      </TabsContent>
-
       <TabsContent value="mindmap" className="-mx-1">
         <MindMapPage />
       </TabsContent>
@@ -261,9 +253,7 @@ export function DashboardPage() {
         <MonthlyReportPage />
       </TabsContent>
 
-      <TabsContent value="alerts">
-        <AlertsPage />
-      </TabsContent>
+
     </Tabs>
   );
 }
