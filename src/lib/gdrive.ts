@@ -15,6 +15,8 @@ const K = {
   TOKEN_EXPIRY: "gdrive.token_expiry",
   FOLDER_ID: "gdrive.folder_id",
   FOLDER_NAME: "gdrive.folder_name",
+  SUBFOLDER_NAME: "gdrive.subfolder_name",
+  SUBFOLDER_ID: "gdrive.subfolder_id",
   AUTO_BACKUP: "gdrive.auto_backup",
   LAST_BACKUP_AT: "gdrive.last_backup_at",
   LAST_SYNC_AT: "gdrive.last_sync_at",
@@ -53,6 +55,8 @@ export type DriveAuth = {
   tokenExpiry: string;
   folderId?: string | null;
   folderName: string;
+  subfolderName: string;
+  subfolderIdCached?: string | null;
   autoBackup: boolean;
   lastBackupAt?: string | null;
 };
@@ -99,13 +103,15 @@ export async function saveDriveConfig(cfg: DriveConfig): Promise<void> {
 }
 
 export async function loadAuth(): Promise<DriveAuth | null> {
-  const [access, refresh, expiry, folderId, folderName, auto, lastBackup] =
+  const [access, refresh, expiry, folderId, folderName, subfolderName, subfolderIdCached, auto, lastBackup] =
     await Promise.all([
       getSetting(K.ACCESS_TOKEN),
       getSetting(K.REFRESH_TOKEN),
       getSetting(K.TOKEN_EXPIRY),
       getSetting(K.FOLDER_ID),
       getSetting(K.FOLDER_NAME),
+      getSetting(K.SUBFOLDER_NAME),
+      getSetting(K.SUBFOLDER_ID),
       getSetting(K.AUTO_BACKUP),
       getSetting(K.LAST_BACKUP_AT),
     ]);
@@ -116,6 +122,8 @@ export async function loadAuth(): Promise<DriveAuth | null> {
     tokenExpiry: expiry,
     folderId,
     folderName: folderName ?? DEFAULT_FOLDER_NAME,
+    subfolderName: subfolderName ?? "",
+    subfolderIdCached,
     autoBackup: auto === "true",
     lastBackupAt: lastBackup,
   };
@@ -204,6 +212,7 @@ export async function connect(): Promise<void> {
   const folderId: string = await invoke("gdrive_ensure_folder", {
     accessToken: tokens.access_token,
     folderName,
+    parentId: null,
   });
   await setSetting(K.FOLDER_ID, folderId);
 }
@@ -212,8 +221,38 @@ export async function applyFolderName(newName: string): Promise<void> {
   const { accessToken } = await ensureValidToken();
   const folderName = newName.trim() || DEFAULT_FOLDER_NAME;
   await saveFolderName(folderName);
-  const folderId: string = await invoke("gdrive_ensure_folder", { accessToken, folderName });
+  const folderId: string = await invoke("gdrive_ensure_folder", { accessToken, folderName, parentId: null });
   await setSetting(K.FOLDER_ID, folderId);
+  // Reset cached subfolder ID so it gets re-resolved on next backup
+  await deleteSetting(K.SUBFOLDER_ID);
+}
+
+export async function applySubfolderName(newName: string): Promise<void> {
+  const name = newName.trim();
+  if (name) {
+    await setSetting(K.SUBFOLDER_NAME, name);
+  } else {
+    await deleteSetting(K.SUBFOLDER_NAME);
+  }
+  await deleteSetting(K.SUBFOLDER_ID);
+}
+
+/** Returns the folder ID where backups should be uploaded (subfolder if set, else root folder). */
+async function getEffectiveFolderId(accessToken: string): Promise<string> {
+  const folderId = await getSetting(K.FOLDER_ID);
+  if (!folderId) throw new Error("Pasta de backup não configurada. Reconecte o Drive.");
+  const subfolderName = (await getSetting(K.SUBFOLDER_NAME))?.trim();
+  if (!subfolderName) return folderId;
+  // Check cache
+  const cached = await getSetting(K.SUBFOLDER_ID);
+  if (cached) return cached;
+  const subId: string = await invoke("gdrive_ensure_folder", {
+    accessToken,
+    folderName: subfolderName,
+    parentId: folderId,
+  });
+  await setSetting(K.SUBFOLDER_ID, subId);
+  return subId;
 }
 
 export async function disconnect(): Promise<void> {
@@ -234,8 +273,8 @@ export async function disconnect(): Promise<void> {
 // ============================================================
 
 export async function uploadBackup(): Promise<DriveFile> {
-  const { accessToken, auth } = await ensureValidToken();
-  if (!auth.folderId) throw new Error("Pasta de backup não configurada. Reconecte o Drive.");
+  const { accessToken } = await ensureValidToken();
+  const folderId = await getEffectiveFolderId(accessToken);
 
   const backup = await buildBackup();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
@@ -244,7 +283,7 @@ export async function uploadBackup(): Promise<DriveFile> {
 
   const file: DriveFile = await invoke("gdrive_upload_backup", {
     accessToken,
-    folderId: auth.folderId,
+    folderId,
     fileName,
     content,
   });
@@ -293,9 +332,10 @@ export async function pruneOldBackups(): Promise<number> {
 export async function listBackups(): Promise<DriveFile[]> {
   const { accessToken, auth } = await ensureValidToken();
   if (!auth.folderId) return [];
+  const folderId = await getEffectiveFolderId(accessToken);
   return invoke("gdrive_list_backups", {
     accessToken,
-    folderId: auth.folderId,
+    folderId,
   });
 }
 
@@ -409,6 +449,7 @@ async function ensureMediaFolder(accessToken: string): Promise<string> {
   const id = await invoke<string>("gdrive_ensure_folder", {
     accessToken,
     folderName: MEDIA_FOLDER_NAME,
+    parentId: null,
   });
   await setSetting(MEDIA_FOLDER_KEY, id);
   return id;

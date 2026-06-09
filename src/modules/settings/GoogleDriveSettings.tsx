@@ -41,6 +41,7 @@ import {
   loadAuth,
   loadDriveConfig,
   applyFolderName,
+  applySubfolderName,
   DEFAULT_FOLDER_NAME,
   saveDriveConfig,
   setAutoBackup,
@@ -61,6 +62,7 @@ export function GoogleDriveSettings() {
   const [restoring, setRestoring] = useState(false);
   const [showAllBackups, setShowAllBackups] = useState(false);
   const [folderName, setFolderName] = useState(DEFAULT_FOLDER_NAME);
+  const [subfolderName, setSubfolderName] = useState("");
   const [savingFolder, setSavingFolder] = useState(false);
 
   const RECENT_COUNT = 5;
@@ -79,6 +81,7 @@ export function GoogleDriveSettings() {
     setAuth(a);
     if (a) {
       setFolderName(a.folderName);
+      setSubfolderName(a.subfolderName);
       setLoadingBackups(true);
       try {
         setBackups(await listBackups());
@@ -147,7 +150,12 @@ export function GoogleDriveSettings() {
     setSavingFolder(true);
     try {
       await applyFolderName(folderName);
-      setAuth((a) => (a ? { ...a, folderName: folderName.trim() || DEFAULT_FOLDER_NAME } : a));
+      await applySubfolderName(subfolderName);
+      setAuth((a) => a ? {
+        ...a,
+        folderName: folderName.trim() || DEFAULT_FOLDER_NAME,
+        subfolderName: subfolderName.trim(),
+      } : a);
       toast.success("Pasta de backup atualizada");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -316,25 +324,39 @@ export function GoogleDriveSettings() {
 
           {/* Folder name */}
           {connected && (
-            <div className="rounded-md border p-3 space-y-2">
+            <div className="rounded-md border p-3 space-y-3">
               <div className="text-sm font-medium">Pasta de backup</div>
-              <div className="flex gap-2">
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Pasta principal (criada na raiz do Drive)</p>
                 <input
-                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   value={folderName}
                   onChange={(e) => setFolderName(e.target.value)}
                   placeholder={DEFAULT_FOLDER_NAME}
                 />
-                <button
-                  type="button"
-                  onClick={handleSaveFolderName}
-                  disabled={savingFolder}
-                  className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
-                >
-                  {savingFolder ? "Salvando…" : "Salvar"}
-                </button>
               </div>
-              <p className="text-xs text-muted-foreground">Nome da pasta criada no seu Google Drive para armazenar os backups.</p>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">Subpasta (opcional — ex: <span className="font-mono">2026</span> ou <span className="font-mono">Mac</span>)</p>
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={subfolderName}
+                  onChange={(e) => setSubfolderName(e.target.value)}
+                  placeholder="Sem subpasta"
+                />
+              </div>
+              {subfolderName.trim() && (
+                <p className="text-xs text-muted-foreground/70">
+                  Backups irão para: <span className="font-mono text-foreground">{folderName.trim() || DEFAULT_FOLDER_NAME} / {subfolderName.trim()}</span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveFolderName}
+                disabled={savingFolder}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
+              >
+                {savingFolder ? "Salvando…" : "Salvar pasta"}
+              </button>
             </div>
           )}
 

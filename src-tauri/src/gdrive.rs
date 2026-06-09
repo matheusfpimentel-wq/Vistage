@@ -271,13 +271,24 @@ pub fn gdrive_refresh_token(
 // Commands — Drive API
 // ============================================================
 
-/// Busca ou cria a pasta "MusicGest Backups" no Drive. Retorna o folder ID.
+/// Busca ou cria uma pasta no Drive. Se `parent_id` for fornecido, cria dentro dela.
+/// Retorna o folder ID.
 #[tauri::command]
-pub fn gdrive_ensure_folder(access_token: String, folder_name: String) -> Result<String, String> {
-    let q = format!(
-        "mimeType='{}' and name='{}' and trashed=false",
-        FOLDER_MIME, folder_name
-    );
+pub fn gdrive_ensure_folder(
+    access_token: String,
+    folder_name: String,
+    parent_id: Option<String>,
+) -> Result<String, String> {
+    let q = match &parent_id {
+        Some(pid) => format!(
+            "mimeType='{}' and name='{}' and '{}' in parents and trashed=false",
+            FOLDER_MIME, folder_name, pid
+        ),
+        None => format!(
+            "mimeType='{}' and name='{}' and trashed=false",
+            FOLDER_MIME, folder_name
+        ),
+    };
     let url = format!(
         "{}?q={}&fields=files(id,name)",
         DRIVE_FILES_URL,
@@ -300,7 +311,10 @@ pub fn gdrive_ensure_folder(access_token: String, folder_name: String) -> Result
     }
 
     // Pasta não encontrada — cria
-    let meta = serde_json::json!({ "name": folder_name, "mimeType": FOLDER_MIME });
+    let meta = match &parent_id {
+        Some(pid) => serde_json::json!({ "name": folder_name, "mimeType": FOLDER_MIME, "parents": [pid] }),
+        None => serde_json::json!({ "name": folder_name, "mimeType": FOLDER_MIME }),
+    };
     let resp = ureq::post(DRIVE_FILES_URL)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(meta)
