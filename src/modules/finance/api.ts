@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Equipment,
   EquipmentCreateInput,
@@ -156,6 +157,7 @@ export async function createTransaction(
   );
   const newId = Number(res.lastInsertId);
   await syncEquipmentForTransaction(newId);
+  emitDataChanged();
   return newId;
 }
 
@@ -174,11 +176,13 @@ export async function updateTransaction(
     values
   );
   await syncEquipmentForTransaction(id);
+  emitDataChanged();
 }
 
 export async function deleteTransaction(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM finance_transactions WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 /**
@@ -239,18 +243,19 @@ export async function syncGigPaymentTransaction(
 ): Promise<void> {
   const db = getDb();
   const existing = await db.select<{ id: number }[]>(
-    `SELECT id FROM finance_transactions WHERE gig_id = $1 AND kind = 'income'`,
+    `SELECT id FROM finance_transactions WHERE gig_id = $1 AND kind = 'income' AND gig_sync = 1`,
     [gigId]
   );
 
   if (!paid || !(amount > 0)) {
-    // pagamento revertido ou sem valor: limpa lançamentos vinculados
+    // pagamento revertido ou sem valor: limpa apenas lançamentos sincronizados
     if (existing.length > 0) {
       await db.execute(
-        `DELETE FROM finance_transactions WHERE gig_id = $1 AND kind = 'income'`,
+        `DELETE FROM finance_transactions WHERE gig_id = $1 AND kind = 'income' AND gig_sync = 1`,
         [gigId]
       );
     }
+    emitDataChanged();
     return;
   }
 
@@ -259,9 +264,10 @@ export async function syncGigPaymentTransaction(
       `UPDATE finance_transactions
           SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
               updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4`,
+        WHERE id = $4 AND gig_sync = 1`,
       [amount, date, description, existing[0].id]
     );
+    emitDataChanged();
     return;
   }
 
@@ -273,10 +279,11 @@ export async function syncGigPaymentTransaction(
 
   await db.execute(
     `INSERT INTO finance_transactions
-       (kind, amount, date, description, category_id, gig_id, status)
-     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
+       (kind, amount, date, description, category_id, gig_id, status, gig_sync)
+     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago', 1)`,
     [amount, date, description, categoryId, gigId]
   );
+  emitDataChanged();
 }
 
 /**

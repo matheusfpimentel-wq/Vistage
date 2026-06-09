@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CalendarRange,
   ChevronDown,
@@ -48,6 +49,7 @@ import {
   deletePackage,
   deleteStudent,
   getClassStats,
+  getStudent,
   listClasses,
   listPackages,
   listStudents,
@@ -72,10 +74,12 @@ type ClassSortKey = "date" | "student_name" | "subject" | "status" | "amount";
 type SortDir = "asc" | "desc";
 
 export function ClassesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [classes, setClasses] = useState<ClassWithStudent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [packages, setPackages] = useState<ClassPackage[]>([]);
   const [stats, setStats] = useState<ClassStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
     studentId: number | "all";
@@ -117,30 +121,48 @@ export function ClassesPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [cls, sts, pkgs, st] = await Promise.all([
-      listClasses(queryFilters),
-      listStudents(),
-      listPackages(),
-      getClassStats(),
-    ]);
-    const filtered =
-      filters.search.trim().length > 0
-        ? cls.filter((c) =>
-            (c.student_name + " " + (c.subject ?? ""))
-              .toLowerCase()
-              .includes(filters.search.toLowerCase())
-          )
-        : cls;
-    // sort is applied in the render via sortedClasses memo
-    setClasses(filtered);
-    setStudents(sts);
-    setPackages(pkgs);
-    setStats(st);
+    setLoading(true);
+    try {
+      const [cls, sts, pkgs, st] = await Promise.all([
+        listClasses(queryFilters),
+        listStudents(),
+        listPackages(),
+        getClassStats(),
+      ]);
+      const filtered =
+        filters.search.trim().length > 0
+          ? cls.filter((c) =>
+              (c.student_name + " " + (c.subject ?? ""))
+                .toLowerCase()
+                .includes(filters.search.toLowerCase())
+            )
+          : cls;
+      // sort is applied in the render via sortedClasses memo
+      setClasses(filtered);
+      setStudents(sts);
+      setPackages(pkgs);
+      setStats(st);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters, filters.search]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getStudent(id).then((student) => {
+      if (student) {
+        setDetailId(student.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ctrl+N na aba de aulas cria aula nova
   useNewItemShortcut(() => {
@@ -292,7 +314,9 @@ export function ClassesPage() {
             </Button>
           </div>
 
-          {classes.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+          ) : classes.length === 0 ? (
             <EmptyState
               icon={GraduationCap}
               title={students.length === 0 ? "Nenhuma aula ainda." : "Nenhuma aula encontrada."}
@@ -394,7 +418,9 @@ export function ClassesPage() {
               <Plus className="h-4 w-4" /> Novo aluno
             </Button>
           </div>
-          {students.length === 0 ? (
+          {loading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+          ) : students.length === 0 ? (
             <EmptyState
               icon={GraduationCap}
               title="Nenhum aluno ainda."

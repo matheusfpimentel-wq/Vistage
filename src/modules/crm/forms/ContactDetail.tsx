@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   CalendarRange,
   DollarSign,
@@ -221,7 +222,11 @@ export function ContactDetail({
                         className="flex items-center justify-between rounded-md border p-2.5 text-sm"
                       >
                         <div>
-                          <div className="font-medium">{gigDisplayName(g)}</div>
+                          <div className="font-medium">
+                            <Link to={`/gigs?open=${g.id}`} className="hover:underline text-primary">
+                              {gigDisplayName(g)}
+                            </Link>
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {g.venue_name} · {formatDate(g.date)}
                           </div>

@@ -65,7 +65,7 @@ export function InsightsPage() {
       });
       if (!path) return;
       await writeTextFile(path, txt);
-      toast.success("Insights exportados com sucesso");
+      toast.success("Insights exportados");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }

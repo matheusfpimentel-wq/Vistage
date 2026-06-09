@@ -212,6 +212,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                 Nome <span className="text-destructive">*</span>
               </Label>
               <Input
+                autoFocus
                 value={state.name}
                 onChange={(e) => {
                   setState((s) => ({ ...s, name: e.target.value }));

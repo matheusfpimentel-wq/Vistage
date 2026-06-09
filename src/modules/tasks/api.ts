@@ -37,13 +37,20 @@ export type TaskFilters = {
 };
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function sevenDaysFromNowISO(): string {
   const d = new Date();
   d.setDate(d.getDate() + 7);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
@@ -257,11 +264,30 @@ export async function completeAndRecur(task: Task): Promise<number | null> {
   await updateTask({ id: task.id, status: "Concluída" });
   if (!task.recurrence) return null;
 
-  const days = task.recurrence === "weekly" ? 7 : 30;
-  const base = task.due_date ?? new Date().toISOString().slice(0, 10);
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  const newDue = d.toISOString().slice(0, 10);
+  let newDue: string;
+  if (task.recurrence === "weekly") {
+    const base = task.due_date ?? todayISO();
+    const d = new Date(`${base}T12:00:00`);
+    d.setDate(d.getDate() + 7);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const dy = String(d.getDate()).padStart(2, "0");
+    newDue = `${y}-${mo}-${dy}`;
+  } else {
+    // monthly — proper +1 month arithmetic, clamped to last day of month
+    const base = task.due_date ?? todayISO();
+    const d = new Date(`${base}T12:00:00`);
+    const targetMonth = d.getMonth() + 1; // 0-based month + 1
+    d.setMonth(targetMonth);
+    // If month overflowed (e.g. Jan 31 → Mar 2), clamp back to last day
+    if (d.getMonth() !== (targetMonth % 12)) {
+      d.setDate(0); // day 0 of current month = last day of previous month
+    }
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const dy = String(d.getDate()).padStart(2, "0");
+    newDue = `${y}-${mo}-${dy}`;
+  }
 
   const db = getDb();
   const now = new Date().toISOString();

@@ -273,6 +273,7 @@ export function OrcamentoTab({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-destructive hover:text-destructive"
+                        aria-label="Excluir"
                         onClick={() => void handleDelete(item.id)}
                       >
                         <Trash2 className="h-3.5 w-3.5" />

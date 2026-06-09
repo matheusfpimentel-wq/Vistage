@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
   ChevronUp,
@@ -48,6 +49,7 @@ import {
   createFanGroup,
   deleteFan,
   deleteFanGroup,
+  getFan,
   getFanStats,
   listFanGroupMembers,
   listFanGroups,
@@ -73,7 +75,9 @@ type SortDir = "asc" | "desc";
 const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Fã": 1, "Superfã": 2 };
 
 export function FansPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [fans, setFans] = useState<Fan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<FanStats | null>(null);
   const [topPresence, setTopPresence] = useState<
     { fan_id: number; name: string; gigs: number }[]
@@ -133,21 +137,39 @@ export function FansPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [data, s, top, counts] = await Promise.all([
-      listFans(queryFilters),
-      getFanStats(),
-      topFansByPresence(5).catch(() => []),
-      listFanInteractionCounts().catch(() => new Map<number, number>()),
-    ]);
-    setFans(data);
-    setStats(s);
-    setTopPresence(top ?? []);
-    setInteractionCounts(counts);
+    setLoading(true);
+    try {
+      const [data, s, top, counts] = await Promise.all([
+        listFans(queryFilters),
+        getFanStats(),
+        topFansByPresence(5).catch(() => []),
+        listFanInteractionCounts().catch(() => new Map<number, number>()),
+      ]);
+      setFans(data);
+      setStats(s);
+      setTopPresence(top ?? []);
+      setInteractionCounts(counts);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getFan(id).then((fan) => {
+      if (fan) {
+        setDetailId(fan.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
     setEditing(null);
@@ -292,7 +314,9 @@ export function FansPage() {
         </div>
       </div>
 
-      {fans.length === 0 ? (
+      {loading ? (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+      ) : fans.length === 0 ? (
         <EmptyState
           icon={Heart}
           title="Nenhum fã cadastrado ainda."

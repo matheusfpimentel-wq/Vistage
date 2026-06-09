@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
 import { deleteSnapshot, listTrackSnapshots, upsertSnapshot } from "../api";
 import type { SnapshotData, TrackPerformanceSnapshot } from "../types";
 
@@ -21,9 +22,6 @@ function formatPeriod(p: string): string {
   return `${months[Number(m) - 1]}/${y}`;
 }
 
-function formatBRL(n: number): string {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 function parseSnapshotData(raw: string | null): SnapshotData {
   if (!raw) return {};
@@ -201,7 +199,7 @@ export function PerformancePanel({ trackId }: Props) {
                   )}
                   {d.revenue_cents != null && (
                     <span className="text-muted-foreground">
-                      {formatBRL(d.revenue_cents / 100)}
+                      {formatCurrency(d.revenue_cents / 100)}
                     </span>
                   )}
                 </div>

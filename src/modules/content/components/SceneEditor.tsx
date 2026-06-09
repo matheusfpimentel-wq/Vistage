@@ -63,6 +63,7 @@ export function SceneEditor({ scenes, onChange }: Props) {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                aria-label="Mover para cima"
                 disabled={i === 0}
                 onClick={() => move(i, -1)}
               >
@@ -73,6 +74,7 @@ export function SceneEditor({ scenes, onChange }: Props) {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
+                aria-label="Mover para baixo"
                 disabled={i === scenes.length - 1}
                 onClick={() => move(i, 1)}
               >
@@ -83,6 +85,7 @@ export function SceneEditor({ scenes, onChange }: Props) {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-destructive"
+                aria-label="Excluir cena"
                 onClick={() => remove(i)}
               >
                 <Trash2 className="h-4 w-4" />

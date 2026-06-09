@@ -112,7 +112,7 @@ fn parse_query(url: &str) -> HashMap<String, String> {
 // ============================================================
 
 #[tauri::command]
-pub fn gdrive_start_oauth(
+pub async fn gdrive_start_oauth(
     client_id: String,
     state_store: tauri::State<'_, GdriveState>,
 ) -> Result<StartOauthResult, String> {
@@ -169,7 +169,7 @@ pub fn gdrive_start_oauth(
 }
 
 #[tauri::command]
-pub fn gdrive_wait_callback(
+pub async fn gdrive_wait_callback(
     port: u16,
     timeout_secs: u64,
     state_store: tauri::State<'_, GdriveState>,
@@ -180,44 +180,48 @@ pub fn gdrive_wait_callback(
             .ok_or_else(|| format!("Nenhuma sessão OAuth ativa na porta {port}"))?
     };
 
-    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
-    while Instant::now() < deadline {
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        let req_opt = active
-            .server
-            .recv_timeout(remaining)
-            .map_err(|e| format!("Erro no servidor local: {e}"))?;
-        let Some(request) = req_opt else { continue };
+    // tiny_http::Server is !Send, so we use block_in_place to run the blocking
+    // wait on the current thread without sending it to another thread.
+    tokio::task::block_in_place(move || {
+        let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+        while Instant::now() < deadline {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let req_opt = active
+                .server
+                .recv_timeout(remaining)
+                .map_err(|e| format!("Erro no servidor local: {e}"))?;
+            let Some(request) = req_opt else { continue };
 
-        let url = request.url().to_string();
-        let params = parse_query(&url);
-        let header = Header::from_bytes(
-            &b"Content-Type"[..],
-            &b"text/html; charset=utf-8"[..],
-        )
-        .unwrap();
-        let _ = request.respond(Response::from_string(OAUTH_SUCCESS_HTML).with_header(header));
+            let url = request.url().to_string();
+            let params = parse_query(&url);
+            let header = Header::from_bytes(
+                &b"Content-Type"[..],
+                &b"text/html; charset=utf-8"[..],
+            )
+            .unwrap();
+            let _ = request.respond(Response::from_string(OAUTH_SUCCESS_HTML).with_header(header));
 
-        if let Some(err) = params.get("error") {
-            return Err(format!("Google retornou erro: {err}"));
+            if let Some(err) = params.get("error") {
+                return Err(format!("Google retornou erro: {err}"));
+            }
+            let (Some(code), Some(state)) = (params.get("code"), params.get("state")) else {
+                return Err("Callback sem code/state".to_string());
+            };
+            if state != &active.state {
+                return Err("State inválido — possível ataque CSRF".to_string());
+            }
+            return Ok(OauthCallback {
+                code: code.clone(),
+                state: state.clone(),
+            });
         }
-        let (Some(code), Some(state)) = (params.get("code"), params.get("state")) else {
-            return Err("Callback sem code/state".to_string());
-        };
-        if state != &active.state {
-            return Err("State inválido — possível ataque CSRF".to_string());
-        }
-        return Ok(OauthCallback {
-            code: code.clone(),
-            state: state.clone(),
-        });
-    }
 
-    Err("Tempo esgotado aguardando autorização".to_string())
+        Err("Tempo esgotado aguardando autorização".to_string())
+    })
 }
 
 #[tauri::command]
-pub fn gdrive_exchange_code(
+pub async fn gdrive_exchange_code(
     client_id: String,
     client_secret: String,
     code: String,
@@ -243,7 +247,7 @@ pub fn gdrive_exchange_code(
 }
 
 #[tauri::command]
-pub fn gdrive_refresh_token(
+pub async fn gdrive_refresh_token(
     client_id: String,
     client_secret: String,
     refresh_token: String,
@@ -274,7 +278,7 @@ pub fn gdrive_refresh_token(
 /// Busca ou cria uma pasta no Drive. Se `parent_id` for fornecido, cria dentro dela.
 /// Retorna o folder ID.
 #[tauri::command]
-pub fn gdrive_ensure_folder(
+pub async fn gdrive_ensure_folder(
     access_token: String,
     folder_name: String,
     parent_id: Option<String>,
@@ -328,7 +332,7 @@ pub fn gdrive_ensure_folder(
 
 /// Faz upload de um backup JSON para a pasta no Drive.
 #[tauri::command]
-pub fn gdrive_upload_backup(
+pub async fn gdrive_upload_backup(
     access_token: String,
     folder_id: String,
     file_name: String,
@@ -392,7 +396,7 @@ pub fn gdrive_upload_backup(
 
 /// Lista os backups na pasta, ordenados por data de criação (mais recente primeiro).
 #[tauri::command]
-pub fn gdrive_list_backups(
+pub async fn gdrive_list_backups(
     access_token: String,
     folder_id: String,
 ) -> Result<Vec<DriveFile>, String> {
@@ -444,7 +448,7 @@ pub fn gdrive_list_backups(
 
 /// Baixa o conteúdo de um arquivo do Drive e retorna como string.
 #[tauri::command]
-pub fn gdrive_download_backup(
+pub async fn gdrive_download_backup(
     access_token: String,
     file_id: String,
 ) -> Result<String, String> {
@@ -459,7 +463,7 @@ pub fn gdrive_download_backup(
 
 /// Move um arquivo para a lixeira do Drive.
 #[tauri::command]
-pub fn gdrive_delete_backup(
+pub async fn gdrive_delete_backup(
     access_token: String,
     file_id: String,
 ) -> Result<(), String> {
@@ -475,7 +479,7 @@ pub fn gdrive_delete_backup(
 /// `content_base64` é o conteúdo do arquivo codificado em base64 padrão.
 /// Retorna o ID do arquivo criado no Drive.
 #[tauri::command]
-pub fn gdrive_upload_media(
+pub async fn gdrive_upload_media(
     access_token: String,
     folder_id: String,
     file_name: String,
@@ -517,7 +521,7 @@ pub fn gdrive_upload_media(
 
 /// Baixa um arquivo de mídia do Drive e retorna o conteúdo em base64 padrão.
 #[tauri::command]
-pub fn gdrive_download_media(
+pub async fn gdrive_download_media(
     access_token: String,
     file_id: String,
 ) -> Result<String, String> {

@@ -221,6 +221,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
                     size="icon"
                     variant="ghost"
                     className="ml-auto h-6 w-6"
+                    aria-label="Excluir KR"
                     onClick={() => { setKrs((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}
                     disabled={krs.length <= 1}
                   >

@@ -73,6 +73,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
   const [classFormOpen, setClassFormOpen] = useState(false);
   const [pkgToSell, setPkgToSell] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function refresh() {
     if (!studentId) return;
@@ -99,8 +100,10 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
 
   async function handleSellPackage() {
     if (!studentId || !pkgToSell) return;
+    if (saving) return;
     const tpl = templates.find((t) => t.id === Number(pkgToSell));
     if (!tpl) return;
+    setSaving(true);
     try {
       await createStudentPackage({
         student_id: studentId,
@@ -118,19 +121,33 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
       toast.success(`Pacote "${tpl.name}" vendido`);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleCancelPackage(p: StudentPackage) {
+    if (saving) return;
     if (!(await confirmDialog("Cancelar este pacote?"))) return;
-    await setStudentPackageStatus(p.id, "Cancelado");
-    await refresh();
+    setSaving(true);
+    try {
+      await setStudentPackageStatus(p.id, "Cancelado");
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDeletePackage(p: StudentPackage) {
+    if (saving) return;
     if (!(await confirmDialog({ title: "Excluir", description: "Excluir este pacote? As aulas vinculadas a ele viram avulsa.", confirmLabel: "Excluir", destructive: true }))) return;
-    await deleteStudentPackage(p.id);
-    await refresh();
+    setSaving(true);
+    try {
+      await deleteStudentPackage(p.id);
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!studentId) return null;
@@ -274,7 +291,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button onClick={handleSellPackage} disabled={!pkgToSell}>
+                    <Button onClick={handleSellPackage} disabled={!pkgToSell || saving}>
                       <ShoppingCart className="h-4 w-4" /> Vender
                     </Button>
                   </div>
@@ -345,6 +362,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                               <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={saving}
                                 onClick={() => handleCancelPackage(p)}
                               >
                                 Cancelar pacote
@@ -353,6 +371,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={saving}
                               onClick={() => handleDeletePackage(p)}
                             >
                               Excluir

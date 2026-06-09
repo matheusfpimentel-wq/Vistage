@@ -117,6 +117,7 @@ export function FinancePage() {
     customTo: "",
   });
 
+  const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] =
     useState<FinanceTransactionWithCategory | null>(null);
@@ -137,12 +138,17 @@ export function FinancePage() {
   );
 
   const refresh = useCallback(async () => {
-    const [tx, cats] = await Promise.all([
-      listTransactions(queryFilters),
-      listCategories(),
-    ]);
-    setTransactions(tx);
-    setCategories(cats);
+    setLoading(true);
+    try {
+      const [tx, cats] = await Promise.all([
+        listTransactions(queryFilters),
+        listCategories(),
+      ]);
+      setTransactions(tx);
+      setCategories(cats);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
@@ -326,11 +332,15 @@ export function FinancePage() {
             />
           </div>
 
-          <TransactionList
-            transactions={transactions}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-          />
+          {loading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+          ) : (
+            <TransactionList
+              transactions={transactions}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="profit">

@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { createCost, deleteCost, listProjectCosts } from "../api";
 import type { MusicProjectCost } from "../types";
 
@@ -29,10 +30,6 @@ const CATEGORIES = [
   "Distribuição",
   "Outro",
 ] as const;
-
-function formatBRL(n: number): string {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
 
 export function FinancePanel({ projectId, trackId }: Props) {
   const [costs, setCosts] = useState<MusicProjectCost[]>([]);
@@ -99,8 +96,8 @@ export function FinancePanel({ projectId, trackId }: Props) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-3 gap-3">
-        <KpiCard label="Total custos" value={formatBRL(totalCosts)} />
-        <KpiCard label="Receita" value={formatBRL(revenue)} />
+        <KpiCard label="Total custos" value={formatCurrency(totalCosts)} />
+        <KpiCard label="Receita" value={formatCurrency(revenue)} />
         <KpiCard label="ROI" value={roi} />
       </div>
 
@@ -122,7 +119,7 @@ export function FinancePanel({ projectId, trackId }: Props) {
               <span className="truncate text-muted-foreground">
                 {c.description ?? "—"}
               </span>
-              <span className="whitespace-nowrap">{formatBRL(c.amount)}</span>
+              <span className="whitespace-nowrap">{formatCurrency(c.amount)}</span>
               <span className="whitespace-nowrap text-muted-foreground">
                 {c.date ?? "—"}
               </span>
@@ -191,11 +188,3 @@ export function FinancePanel({ projectId, trackId }: Props) {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={cn("rounded-md border p-3 text-center")}>
-      <div className="text-[10px] text-muted-foreground">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold">{value}</div>
-    </div>
-  );
-}

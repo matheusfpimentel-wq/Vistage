@@ -1,4 +1,3 @@
-import { jsPDF } from "jspdf";
 import { loadIdentity } from "@/modules/identity/api";
 import { formatCurrency } from "@/lib/format";
 import type { ClassPackage } from "./types";
@@ -20,6 +19,7 @@ export async function exportSyllabusPdf(pkg: ClassPackage): Promise<void> {
     // identidade é opcional no cabeçalho
   }
 
+  const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

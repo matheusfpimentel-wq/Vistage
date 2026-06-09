@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 
@@ -12,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { VenueForm } from "./forms/VenueForm";
 import { VenueDetail } from "./forms/VenueDetail";
-import { deleteVenue, listVenues, updateVenue, type VenueFilters } from "./api";
+import { deleteVenue, getVenue, listVenues, updateVenue, type VenueFilters } from "./api";
 import type { Venue, VenueType } from "./types";
 import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
 
@@ -29,7 +30,9 @@ const CARD_GROUPS: Array<VenueType | "__other__"> = [
 ];
 
 export function VenuesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ city: "", search: "" });
   const [view, setView] = useState<ViewMode>("cards");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -50,17 +53,35 @@ export function VenuesPage() {
   );
 
   const refresh = useCallback(async () => {
-    const data = await listVenues(queryFilters);
-    setVenues(data);
-    cardOrderRef.current = [...data].sort((a, b) => {
-      const w = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
-      return w !== 0 ? w : a.name.localeCompare(b.name);
-    });
+    setLoading(true);
+    try {
+      const data = await listVenues(queryFilters);
+      setVenues(data);
+      cardOrderRef.current = [...data].sort((a, b) => {
+        const w = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
+        return w !== 0 ? w : a.name.localeCompare(b.name);
+      });
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getVenue(id).then((venue) => {
+      if (venue) {
+        setDetailId(venue.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -234,6 +255,8 @@ export function VenuesPage() {
             onRefresh={() => void refresh()}
           />
         </Suspense>
+      ) : loading ? (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
       ) : venues.length === 0 ? (
         <EmptyState
           icon={Building2}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -124,7 +125,12 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
                     />
                   )}
                   {fan.contact_id != null && contactName && (
-                    <Row label="Contato CRM" value={contactName} />
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Contato CRM</span>
+                      <Link to={`/crm?open=${fan.contact_id}`} className="truncate hover:underline text-primary text-sm">
+                        {contactName}
+                      </Link>
+                    </div>
                   )}
                 </div>
 

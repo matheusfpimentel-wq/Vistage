@@ -1,4 +1,5 @@
 import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -60,7 +61,11 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   </div>
                   {(t.gig_id || t.expense_type === "Fixa" || t.tax_relevant === 1) && (
                     <div className="mt-0.5 flex flex-wrap gap-1">
-                      {t.gig_id && <Badge variant="outline" className="text-xs">GIG</Badge>}
+                      {t.gig_id && (
+                    <Link to={`/gigs?open=${t.gig_id}`} onClick={(e) => e.stopPropagation()}>
+                      <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">GIG ↗</Badge>
+                    </Link>
+                  )}
                       {t.expense_type === "Fixa" && (
                         <Badge variant="outline" className="text-xs">Fixa</Badge>
                       )}

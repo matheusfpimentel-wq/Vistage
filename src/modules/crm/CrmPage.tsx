@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp, ChevronsUpDown, LayoutGrid, List, Pencil, Plus, Search, Star, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,7 @@ import { ContactForm } from "./forms/ContactForm";
 import { ContactDetail } from "./forms/ContactDetail";
 import {
   deleteContact,
+  getContact,
   listContacts,
   type ContactFilters,
 } from "./api";
@@ -40,7 +42,9 @@ function priorityWeight(rating: number | null): number {
 }
 
 export function CrmPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{
     type: TypeFilter;
     city: string;
@@ -69,13 +73,31 @@ export function CrmPage() {
   );
 
   const refresh = useCallback(async () => {
-    const data = await listContacts(queryFilters);
-    setContacts(data);
+    setLoading(true);
+    try {
+      const data = await listContacts(queryFilters);
+      setContacts(data);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getContact(id).then((contact) => {
+      if (contact) {
+        setDetailId(contact.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -215,7 +237,9 @@ export function CrmPage() {
         </div>
       </div>
 
-      {sorted.length === 0 ? (
+      {loading ? (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+      ) : sorted.length === 0 ? (
         <EmptyState icon={Users} title="Nenhum contato encontrado" description="Adicione um novo contato ou ajuste os filtros." />
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

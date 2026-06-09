@@ -1390,8 +1390,47 @@ const MIGRATIONS: Migration[] = [
     description: "suppliers.contact_id — vínculo fornecedor↔contato (CRM)",
     sql: `ALTER TABLE suppliers ADD COLUMN contact_id INTEGER;`,
   },
+  {
+    version: 87,
+    description: "Migra gigs com status 'A Caminho' para 'Confirmada'",
+    sql: `UPDATE gigs SET status = 'Confirmada' WHERE status = 'A Caminho';`,
+  },
+  {
+    version: 88,
+    description: "finance_transactions.gig_sync — flag para transações auto-sincronizadas de GIG",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN gig_sync INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 89,
+    description: "Indexes de performance em finance_transactions (gig_id, recurring_id, category_id)",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_gig_id ON finance_transactions(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_recurring_id ON finance_transactions(recurring_id);
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_category_id ON finance_transactions(category_id);
+    `,
+  },
 ];
 
+
+/**
+ * Checks if a column exists in a table using pragma_table_info.
+ * Used to guard ALTER TABLE ADD COLUMN statements for idempotency.
+ */
+async function columnExists(db: Database, table: string, column: string): Promise<boolean> {
+  const rows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) as n FROM pragma_table_info('${table}') WHERE name='${column}'`
+  );
+  return (rows[0]?.n ?? 0) > 0;
+}
+
+/**
+ * Parses an ALTER TABLE ADD COLUMN statement and returns { table, column } or null.
+ */
+function parseAlter(stmt: string): { table: string; column: string } | null {
+  const m = /^\s*ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)/i.exec(stmt);
+  if (!m) return null;
+  return { table: m[1], column: m[2] };
+}
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
 export async function runMigrations(db: Database): Promise<{ applied: number[] }> {
@@ -1415,8 +1454,27 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
       .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    for (const stmt of statements) {
-      await db.execute(stmt);
+    try {
+      for (const stmt of statements) {
+        const alter = parseAlter(stmt);
+        if (alter) {
+          // Skip if column already exists (idempotency guard)
+          const exists = await columnExists(db, alter.table, alter.column);
+          if (exists) continue;
+        }
+        await db.execute(stmt);
+      }
+    } catch (err) {
+      // Store error note but still mark migration as applied to prevent infinite re-runs
+      const errMsg = err instanceof Error ? err.message : String(err);
+      try {
+        await db.execute(
+          "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+          [`migration_error_v${m.version}`, errMsg]
+        );
+      } catch {
+        // best-effort: if app_settings doesn't exist yet, ignore
+      }
     }
     await db.execute(
       "INSERT INTO _migrations (version, description) VALUES ($1, $2)",

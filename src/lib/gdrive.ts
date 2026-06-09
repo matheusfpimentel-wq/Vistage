@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { appDataDir } from "@tauri-apps/api/path";
+import { copyFile } from "@tauri-apps/plugin-fs";
 import { getDb } from "./db";
 import { buildBackup, restoreBackup, type Backup } from "./backup";
 
@@ -162,11 +164,25 @@ async function ensureValidToken(): Promise<{ accessToken: string; auth: DriveAut
   if (!cfg.clientId || !cfg.clientSecret) {
     throw new Error("Credenciais do Google Drive ausentes. Reconecte nas configurações.");
   }
-  const tokens: DriveTokens = await invoke("gdrive_refresh_token", {
-    clientId: cfg.clientId,
-    clientSecret: cfg.clientSecret,
-    refreshToken: auth.refreshToken,
-  });
+  let tokens: DriveTokens;
+  try {
+    tokens = await invoke("gdrive_refresh_token", {
+      clientId: cfg.clientId,
+      clientSecret: cfg.clientSecret,
+      refreshToken: auth.refreshToken,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("invalid_grant")) {
+      try {
+        await setSetting("gdrive.needs_reconnect", "1");
+      } catch {
+        // best-effort
+      }
+      throw new Error("Token do Google Drive inválido. Reconecte o Drive nas configurações.");
+    }
+    throw err;
+  }
   await saveTokens(tokens);
   const refreshedAuth = await loadAuth();
   return { accessToken: tokens.access_token, auth: refreshedAuth! };
@@ -397,6 +413,8 @@ export async function runAutoBackupIfEnabled(): Promise<void> {
 
 /**
  * Restaura silenciosamente o backup mais recente do Drive.
+ * Antes de restaurar, salva uma cópia local do banco atual em
+ * `{appDataDir}/vistage-before-restore.db` para evitar perda de edições offline.
  * Retorna true se restaurou, false se não havia backup ou ocorreu erro.
  */
 export async function restoreLatestBackupSilently(): Promise<boolean> {
@@ -408,6 +426,17 @@ export async function restoreLatestBackupSilently(): Promise<boolean> {
     // (ex.: sessões/highlights/pacotes recém-criados antes de fechar o app).
     const newer = await findNewerDriveBackup();
     if (!newer) return false;
+
+    // Salva snapshot local do banco atual antes de sobrescrever
+    try {
+      const dataDir = await appDataDir();
+      const dbPath = `${dataDir.replace(/[\\/]+$/, "")}/vistage.db`;
+      const snapshotPath = `${dataDir.replace(/[\\/]+$/, "")}/vistage-before-restore.db`;
+      await copyFile(dbPath, snapshotPath);
+    } catch {
+      // snapshot é best-effort — não bloqueia a restauração
+    }
+
     await downloadAndRestoreBackup(newer.id);
     return true;
   } catch {
@@ -438,7 +467,15 @@ async function getAccessToken(): Promise<string | null> {
   try {
     const { accessToken } = await ensureValidToken();
     return accessToken;
-  } catch {
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("invalid_grant")) {
+      try {
+        await setSetting("gdrive.needs_reconnect", "1");
+      } catch {
+        // best-effort — ignore storage errors
+      }
+    }
     return null;
   }
 }

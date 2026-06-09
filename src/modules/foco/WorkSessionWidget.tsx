@@ -186,7 +186,7 @@ export function WorkSessionWidget() {
       setContextId("none");
       setEnergy(3);
       setFocus(3);
-      toast.success("Sessão encerrada e dados salvos!");
+      toast.success("Sessão encerrada");
     } finally {
       setSaving(false);
     }
@@ -201,7 +201,7 @@ export function WorkSessionWidget() {
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               {session.activity_type.split(" ")[0]} · {timer}
             </span>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => void openSessionOverlay(session)} title="Reabrir mini-janela">
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Reabrir mini-janela" onClick={() => void openSessionOverlay(session)} title="Reabrir mini-janela">
               <Monitor className="h-3.5 w-3.5" />
             </Button>
             <Button

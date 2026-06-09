@@ -8,9 +8,31 @@ import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { enableNotifications, notificationPermission } from "@/lib/notify";
 import { DATA_CHANGED } from "@/lib/events";
+import { getDb } from "@/lib/db";
+
+async function loadRelationshipAlerts(): Promise<AlertItem[]> {
+  try {
+    const db = getDb();
+    const cutoff = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+    const rows = await db.select<{ id: number; name: string }[]>(
+      `SELECT id, name FROM contacts WHERE (rating >= 4) AND (last_interaction_at IS NULL OR last_interaction_at < $1) ORDER BY rating DESC LIMIT 3`,
+      [cutoff]
+    );
+    return rows.map((c) => ({
+      key: `crm-radar-${c.id}`,
+      label: `Faz mais de 45 dias sem contato com ${c.name}. Boa hora para retomar.`,
+      to: `/crm?open=${c.id}`,
+      critical: false,
+      icon: "heart" as const,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [crmAlerts, setCrmAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() =>
     notificationPermission()
@@ -28,7 +50,14 @@ export function NotificationBell() {
       } catch {
         // silently ignore
       }
+      void loadRelationshipAlerts().then(setCrmAlerts);
     }, 500);
+  }, []);
+
+  useEffect(() => {
+    void loadRelationshipAlerts().then(setCrmAlerts);
+    const crmInterval = setInterval(() => void loadRelationshipAlerts().then(setCrmAlerts), 5 * 60_000);
+    return () => clearInterval(crmInterval);
   }, []);
 
   useEffect(() => {
@@ -55,8 +84,9 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const criticalCount = alerts.filter((a) => a.critical).length;
-  const totalCount = alerts.length;
+  const allAlerts = [...alerts, ...crmAlerts];
+  const criticalCount = allAlerts.filter((a) => a.critical).length;
+  const totalCount = allAlerts.length;
 
   return (
     <div ref={ref} className="relative">
@@ -103,13 +133,13 @@ export function NotificationBell() {
               Ativar notificações do sistema para alertas críticos
             </button>
           )}
-          {alerts.length === 0 ? (
+          {allAlerts.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-muted-foreground">
               Tudo em ordem.
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto">
-              {alerts.map((a) => (
+              {allAlerts.map((a) => (
                 <Link
                   key={a.key}
                   to={a.to}

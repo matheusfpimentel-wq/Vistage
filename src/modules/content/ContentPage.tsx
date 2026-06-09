@@ -33,6 +33,7 @@ import {
   type ContentNetwork,
   type ContentStatus,
 } from "./types";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 
@@ -141,12 +142,12 @@ export function ContentPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Total" value={stats?.total.toString() ?? "—"} />
-        <Kpi
+        <KpiCard label="Total" value={stats?.total.toString() ?? "—"} />
+        <KpiCard
           label="Publicados no mês"
           value={stats?.publishedThisMonth.toString() ?? "—"}
         />
-        <Kpi
+        <KpiCard
           label="Em produção"
           value={
             stats
@@ -277,11 +278,3 @@ export function ContentPage() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}

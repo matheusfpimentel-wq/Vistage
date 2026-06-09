@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, FileDown, FileSpreadsheet, Loader2 } from "lucide-react";
-import { jsPDF } from "jspdf";
 import {
   Card,
   CardContent,
@@ -99,9 +98,10 @@ export function MonthlyReportPage() {
     }
   }
 
-  function exportPdf() {
+  async function exportPdf() {
     if (!report) return;
     try {
+      const { jsPDF } = await import("jspdf");
       const doc = new jsPDF({ unit: "pt", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -313,7 +313,7 @@ export function MonthlyReportPage() {
           <Button variant="outline" size="sm" onClick={exportCsv} disabled={!report}>
             <FileSpreadsheet className="h-3.5 w-3.5" /> CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={exportPdf} disabled={!report}>
+          <Button variant="outline" size="sm" onClick={() => void exportPdf()} disabled={!report}>
             <FileDown className="h-3.5 w-3.5" /> PDF
           </Button>
         </div>

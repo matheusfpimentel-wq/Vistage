@@ -18,6 +18,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { PARTY_STATUSES, type PartyDeserialized, type PartyStatus, estimatedRevenue } from "./types";
 import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
@@ -99,9 +100,9 @@ export function PartiesPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Próximas" value={upcoming.length} />
-        <Kpi label="Realizadas" value={realized.length} />
-        <KpiCurrency label="Receita estimada" value={estimatedTotal} />
+        <KpiCard label="Próximas" value={upcoming.length} />
+        <KpiCard label="Realizadas" value={realized.length} />
+        <KpiCard label="Receita estimada" value={formatCurrency(estimatedTotal)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -170,22 +171,3 @@ export function PartiesPage() {
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function KpiCurrency({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">
-        {formatCurrency(value)}
-      </div>
-    </div>
-  );
-}

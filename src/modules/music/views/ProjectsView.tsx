@@ -99,6 +99,7 @@ export function ProjectsView({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
+                  aria-label="Editar projeto"
                   title="Editar projeto"
                   onClick={() => onEditProject(p)}
                 >
@@ -108,6 +109,7 @@ export function ProjectsView({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-destructive hover:text-destructive"
+                  aria-label="Excluir projeto"
                   title="Excluir projeto"
                   onClick={() => void handleDeleteProject(p, ptracks.length)}
                 >

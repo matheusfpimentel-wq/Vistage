@@ -213,6 +213,7 @@ export function SuppliersPage() {
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7"
+                  aria-label="Editar"
                   onClick={(e) => { e.stopPropagation(); openEdit(s); }}
                 >
                   <Plus className="h-3.5 w-3.5 rotate-45" />
@@ -221,6 +222,7 @@ export function SuppliersPage() {
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7 text-destructive hover:text-destructive"
+                  aria-label="Excluir"
                   onClick={(e) => { e.stopPropagation(); void handleDelete(s); }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -310,6 +312,7 @@ export function SuppliersPage() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
+                        aria-label="Editar"
                         onClick={(e) => { e.stopPropagation(); openEdit(s); }}
                       >
                         <Plus className="h-3.5 w-3.5 rotate-45" />
@@ -318,6 +321,7 @@ export function SuppliersPage() {
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7 text-destructive hover:text-destructive"
+                        aria-label="Excluir"
                         onClick={(e) => { e.stopPropagation(); void handleDelete(s); }}
                       >
                         <Trash2 className="h-3.5 w-3.5" />

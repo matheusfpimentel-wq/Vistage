@@ -71,6 +71,7 @@ export function TasksPage() {
     date: "all",
   });
 
+  const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
 
@@ -86,8 +87,13 @@ export function TasksPage() {
   );
 
   const refresh = useCallback(async () => {
-    const data = await listTasks(queryFilters);
-    setTasks(data);
+    setLoading(true);
+    try {
+      const data = await listTasks(queryFilters);
+      setTasks(data);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
@@ -221,6 +227,10 @@ export function TasksPage() {
           </button>
         ))}
       </div>
+
+      {loading && (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+      )}
 
       <Tabs defaultValue="list">
         <TabsList>

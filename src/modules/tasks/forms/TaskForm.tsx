@@ -165,6 +165,7 @@ export function TaskForm({
               Título <span className="text-destructive">*</span>
             </Label>
             <Input
+              autoFocus
               value={state.title}
               onChange={(e) => {
                 set("title", e.target.value);

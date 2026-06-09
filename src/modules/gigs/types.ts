@@ -1,6 +1,7 @@
 export const GIG_STATUSES = [
   "Proposta",
   "Confirmada",
+  "A Caminho",
   "Concluída",
   "Cancelada",
 ] as const;
@@ -128,6 +129,8 @@ export function statusVariant(status: GigStatus):
       return "secondary";
     case "Confirmada":
       return "info";
+    case "A Caminho":
+      return "warning";
     case "Concluída":
       return "success";
     case "Cancelada":

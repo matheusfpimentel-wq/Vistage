@@ -29,6 +29,7 @@ import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { RoadmapView } from "./views/RoadmapView";
 import { PortfolioView } from "./views/PortfolioView";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { ProjectsView } from "./views/ProjectsView";
 
 type StageFilter = Stage | "Todos";
@@ -131,12 +132,12 @@ export function MusicPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Tracks ativas" value={activeCount} />
-        <Kpi label="Em Stand-by" value={standbyCount} />
-        <Kpi
+        <KpiCard label="Tracks ativas" value={activeCount} />
+        <KpiCard label="Em Stand-by" value={standbyCount} />
+        <KpiCard
           label="Paradas +30d no stage"
           value={stalledCount}
-          warn={stalledCount > 0}
+          trend={stalledCount > 0 ? "down" : "neutral"}
         />
       </div>
 
@@ -255,26 +256,3 @@ export function MusicPage() {
   );
 }
 
-function Kpi({
-  label,
-  value,
-  warn,
-}: {
-  label: string;
-  value: number;
-  warn?: boolean;
-}) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={
-          "mt-1 text-2xl font-semibold tabular-nums" +
-          (warn ? " text-amber-500" : "")
-        }
-      >
-        {value}
-      </div>
-    </div>
-  );
-}

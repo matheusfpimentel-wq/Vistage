@@ -151,6 +151,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
               Nome <span className="text-destructive">*</span>
             </Label>
             <Input
+              autoFocus
               value={state.name}
               onChange={(e) => {
                 setState((s) => ({ ...s, name: e.target.value }));

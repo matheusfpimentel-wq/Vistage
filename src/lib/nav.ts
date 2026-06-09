@@ -1,4 +1,5 @@
 import {
+  Award,
   Briefcase,
   Building2,
   CalendarRange,
@@ -76,6 +77,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
+  { to: "/carreira", label: "Carreira em Números", icon: Award, group: "Gestão" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },
 ];
 

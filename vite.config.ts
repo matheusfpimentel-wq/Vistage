@@ -26,6 +26,7 @@ export default defineConfig(async () => ({
             "@radix-ui/react-dropdown-menu",
             "@radix-ui/react-tooltip",
           ],
+          "charts-vendor": ["recharts"],
         },
       },
     },

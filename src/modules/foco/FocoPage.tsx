@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Star, Trash2 } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,6 +191,7 @@ export function FocoPage() {
                       variant="ghost"
                       className="h-7 w-7 shrink-0"
                       onClick={async () => {
+                        if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta sessão de foco?", confirmLabel: "Excluir", destructive: true }))) return;
                         await deleteSession(s.id);
                         toast.success("Sessão removida");
                         void refresh();
@@ -244,6 +246,7 @@ export function FocoPage() {
                     size="icon"
                     variant="ghost"
                     onClick={async () => {
+                      if (!(await confirmDialog({ title: "Excluir", description: "Excluir este highlight?", confirmLabel: "Excluir", destructive: true }))) return;
                       await deleteHighlight(h.id);
                       toast.success("Highlight removido");
                       void refresh();

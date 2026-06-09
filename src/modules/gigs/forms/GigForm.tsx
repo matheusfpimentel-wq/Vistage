@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Search, Target, Trash2, X } from "lucide-react";
+import { getDb } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -160,6 +161,12 @@ export function GigForm({
   const [promotingContent, setPromotingContent] = useState<
     { id: number; title: string; status: string }[]
   >([]);
+  const [contactHistory, setContactHistory] = useState<{
+    total: number;
+    avg_rating: number | null;
+    last_date: string | null;
+    paid: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -197,6 +204,39 @@ export function GigForm({
       setPromotingContent([]);
     }
   }, [open, gig]);
+
+  useEffect(() => {
+    if (!state.promoter_contact_id) {
+      setContactHistory(null);
+      return;
+    }
+    const promoterId = state.promoter_contact_id;
+    const gigId = gig?.id ?? 0;
+    void (async () => {
+      try {
+        const db = getDb();
+        const rows = await db.select<{
+          total: number;
+          avg_rating: number | null;
+          last_date: string | null;
+          paid: number;
+        }[]>(
+          `SELECT COUNT(*) as total, AVG(rating_contractor) as avg_rating, MAX(date) as last_date,
+           SUM(CASE WHEN payment_status = 'Pago integralmente' THEN 1 ELSE 0 END) as paid
+           FROM gigs WHERE promoter_contact_id = $1 AND id != $2`,
+          [promoterId, gigId]
+        );
+        const row = rows[0];
+        if (row && row.total > 0) {
+          setContactHistory(row);
+        } else {
+          setContactHistory(null);
+        }
+      } catch {
+        setContactHistory(null);
+      }
+    })();
+  }, [state.promoter_contact_id, gig?.id]);
 
   function pickVenue(venueId: number | null) {
     if (venueId === null) {
@@ -548,6 +588,19 @@ export function GigForm({
                   <Plus className="h-3.5 w-3.5" /> Novo
                 </Button>
               </div>
+              {contactHistory && (
+                <div className="mt-2 bg-muted/50 rounded-md p-2 text-xs space-y-0.5 text-muted-foreground">
+                  <div className="font-medium text-foreground">Histórico com este contratante</div>
+                  <div>{contactHistory.total} GIG{contactHistory.total !== 1 ? "s" : ""} juntos</div>
+                  {contactHistory.avg_rating != null && (
+                    <div>Avaliação média: {contactHistory.avg_rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5</div>
+                  )}
+                  {contactHistory.last_date && (
+                    <div>Última GIG: {contactHistory.last_date}</div>
+                  )}
+                  <div>Pagamentos: {contactHistory.paid} de {contactHistory.total} pagas integralmente</div>
+                </div>
+              )}
             </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

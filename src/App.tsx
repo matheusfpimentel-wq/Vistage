@@ -9,6 +9,8 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
+import { StageOverlay } from "@/modules/gigs/StageOverlay";
+import { isStageModeWindow } from "@/modules/gigs/stageOverlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
@@ -106,13 +108,15 @@ const SettingsPage = lazy(() =>
 const SuppliersPage = lazy(() =>
   import("@/modules/suppliers/SuppliersPage").then((m) => ({ default: m.SuppliersPage }))
 );
+const CareerWrappedPage = lazy(() =>
+  import("@/modules/dashboard/CareerWrappedPage").then((m) => ({ default: m.CareerWrappedPage }))
+);
 
 export default function App() {
   // A mini-janela flutuante da sessão é puramente apresentacional:
   // não carrega config nem banco, só mostra atividade + cronômetro.
-  if (isOverlayWindow()) {
-    return <SessionOverlay />;
-  }
+  if (isOverlayWindow()) return <SessionOverlay />;
+  if (isStageModeWindow()) return <StageOverlay />;
   return <MainApp />;
 }
 
@@ -285,6 +289,7 @@ function RoutedApp() {
             <Route path="tarefas" element={<TasksPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
+            <Route path="carreira" element={<CareerWrappedPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
