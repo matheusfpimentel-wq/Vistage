@@ -1361,6 +1361,11 @@ const MIGRATIONS: Migration[] = [
     description: "fans — contact_id para vincular fã a contato do CRM",
     sql: `ALTER TABLE fans ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;`,
   },
+  {
+    version: 82,
+    description: "tasks — quadrante de Eisenhower (matriz urgência/importância)",
+    sql: `ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT;`,
+  },
 ];
 
 

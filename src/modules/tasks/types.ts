@@ -27,6 +27,10 @@ export const TASK_RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
   monthly: "Mensal (+30 dias)",
 };
 
+/** Quadrantes da matriz de Eisenhower (urgência × importância). */
+export const EISENHOWER_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
+export type EisenhowerQuadrant = (typeof EISENHOWER_QUADRANTS)[number];
+
 export type Task = {
   id: number;
   title: string;
@@ -39,12 +43,17 @@ export type Task = {
   due_date: string | null;
   tags: string[];
   recurrence: TaskRecurrence | null;
+  eisenhower_quadrant: EisenhowerQuadrant | null;
   created_at: string;
   updated_at: string;
 };
 
-export type TaskCreateInput = Omit<Task, "id" | "created_at" | "updated_at" | "recurrence"> & {
+export type TaskCreateInput = Omit<
+  Task,
+  "id" | "created_at" | "updated_at" | "recurrence" | "eisenhower_quadrant"
+> & {
   recurrence?: TaskRecurrence | null;
+  eisenhower_quadrant?: EisenhowerQuadrant | null;
 };
 export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
 
