@@ -333,6 +333,15 @@ export async function restoreBackup(backup: Backup): Promise<{
     TABLES.filter((t) => Object.prototype.hasOwnProperty.call(backup.tables, t))
   );
 
+  // Colunas reais de cada tabela no banco atual — protege contra backups de
+  // versões diferentes do app (colunas a mais ou a menos no backup).
+  const tableColumns = new Map<string, Set<string>>();
+  for (const t of TABLES) {
+    if (!tablesInBackup.has(t)) continue;
+    const info = await db.select<{ name: string }[]>(`PRAGMA table_info(${t})`);
+    tableColumns.set(t, new Set(info.map((r) => r.name)));
+  }
+
   try {
     // limpa na ordem inversa (filhos antes de pais) — só tabelas do backup
     for (const t of [...TABLES].reverse()) {
@@ -343,13 +352,17 @@ export async function restoreBackup(backup: Backup): Promise<{
 
     // 1ª passagem: insere na ordem topológica, omitindo as colunas FK
     // anuláveis (DEFERRED_FK) — elas entram como NULL.
+    // Também filtra colunas que não existem no schema atual.
     for (const t of TABLES) {
       if (!tablesInBackup.has(t)) continue;
       const rows = backup.tables[t] ?? [];
       const deferred = DEFERRED_FK[t] ?? {};
+      const existingCols = tableColumns.get(t) ?? new Set<string>();
       for (const row of rows) {
         await db.execute("PRAGMA foreign_keys = OFF");
-        const insertCols = Object.keys(row).filter((c) => !(c in deferred));
+        const insertCols = Object.keys(row).filter(
+          (c) => !(c in deferred) && existingCols.has(c)
+        );
         if (insertCols.length === 0) continue;
         const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
         const values = insertCols.map((c) => row[c]);
@@ -368,10 +381,12 @@ export async function restoreBackup(backup: Backup): Promise<{
       const deferred = DEFERRED_FK[t];
       if (!deferred) continue;
       const rows = backup.tables[t] ?? [];
+      const existingCols = tableColumns.get(t) ?? new Set<string>();
       for (const row of rows) {
         const id = row["id"];
         if (id == null) continue;
         for (const [col, refTable] of Object.entries(deferred)) {
+          if (!existingCols.has(col)) continue; // coluna não existe nesta versão
           const val = row[col];
           if (val == null) continue;
           if (!idsByTable.get(refTable)?.has(val)) continue; // órfão → deixa NULL
