@@ -60,7 +60,7 @@ export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
   const sql =
     "SELECT * FROM fans" +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
-    " ORDER BY CASE level WHEN 'Superfã' THEN 0 WHEN 'Fã' THEN 1 ELSE 2 END, name COLLATE NOCASE ASC";
+    " ORDER BY CASE level WHEN 'Embaixador' THEN 0 WHEN 'Superfã' THEN 1 WHEN 'Fã' THEN 2 WHEN 'Quase fã' THEN 3 ELSE 4 END, name COLLATE NOCASE ASC";
   const rows = await db.select<FanRow[]>(sql, params);
   return rows.map(rowToFan);
 }
@@ -120,8 +120,10 @@ export async function listFanInteractions(fanId: number): Promise<FanInteraction
 }
 
 function nextLevel(current: string): string | null {
-  if (current === "Possível fã") return "Fã";
+  if (current === "Possível fã") return "Quase fã";
+  if (current === "Quase fã") return "Fã";
   if (current === "Fã") return "Superfã";
+  if (current === "Superfã") return "Embaixador";
   return null;
 }
 
@@ -296,7 +298,7 @@ export async function checkAndUpgradeFan(fanId: number): Promise<void> {
   let { level, created_at, last_interaction_at } = fanRows[0];
 
   // Check toFa criteria
-  if (level === "Possível fã" && rules.toFa) {
+  if ((level === "Possível fã" || level === "Quase fã") && rules.toFa) {
     const ok = await meetsCriteria(db, fanId, rules.toFa, created_at, last_interaction_at);
     if (ok) {
       await db.execute(
@@ -325,7 +327,12 @@ export async function checkAndUpgradeFan(fanId: number): Promise<void> {
       (Date.now() - new Date(last_interaction_at).getTime()) / 86400000
     );
     if (daysSinceLast > rules.downgradeInactiveDays) {
-      const downgraded = level === "Superfã" ? "Fã" : level === "Fã" ? "Possível fã" : null;
+      const downgraded =
+        level === "Embaixador" ? "Superfã"
+        : level === "Superfã" ? "Fã"
+        : level === "Fã" ? "Quase fã"
+        : level === "Quase fã" ? "Possível fã"
+        : null;
       if (downgraded) {
         await db.execute(
           `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
@@ -341,7 +348,7 @@ export async function syncSuperfanFollowupTasks(): Promise<void> {
     const db = getDb();
     const superfans = await db.select<{ id: number; name: string }[]>(
       `SELECT f.id, f.name FROM fans f
-       WHERE f.level = 'Superfã'
+       WHERE f.level IN ('Superfã', 'Embaixador')
          AND NOT EXISTS (
            SELECT 1 FROM fan_interactions fi
            WHERE fi.fan_id = f.id AND fi.date >= date('now', '-30 days')
@@ -359,7 +366,7 @@ export async function syncSuperfanFollowupTasks(): Promise<void> {
         const { createTask } = await import("@/modules/tasks/api");
         await createTask({
           title: `Follow-up: ${fan.name}`,
-          description: `fan_id:${fan.id} — Superfã sem interação há 30+ dias`,
+          description: `fan_id:${fan.id} — Superfã/Embaixador sem interação há 30+ dias`,
           category: "Pessoal",
           priority: "Média",
           status: "A fazer",
@@ -381,8 +388,10 @@ export async function deleteFanInteraction(id: number): Promise<void> {
 }
 
 export type FanStats = {
+  embaixador: number;
   superfa: number;
   fa: number;
+  quaseFa: number;
   possivelFa: number;
 };
 
@@ -391,10 +400,12 @@ export async function getFanStats(): Promise<FanStats> {
   const rows = await db.select<{ level: string; n: number }[]>(
     "SELECT level, COUNT(*) as n FROM fans GROUP BY level"
   );
-  const stats: FanStats = { superfa: 0, fa: 0, possivelFa: 0 };
+  const stats: FanStats = { embaixador: 0, superfa: 0, fa: 0, quaseFa: 0, possivelFa: 0 };
   for (const r of rows) {
-    if (r.level === "Superfã") stats.superfa = r.n;
+    if (r.level === "Embaixador") stats.embaixador = r.n;
+    else if (r.level === "Superfã") stats.superfa = r.n;
     else if (r.level === "Fã") stats.fa = r.n;
+    else if (r.level === "Quase fã") stats.quaseFa = r.n;
     else if (r.level === "Possível fã") stats.possivelFa = r.n;
   }
   return stats;

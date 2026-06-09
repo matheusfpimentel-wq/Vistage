@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Permissões padrão do Vistage",
-  "windows": ["main", "work-session"],
+  "windows": ["main", "work-session", "stage-mode"],
   "permissions": [
     "core:default",
     "core:window:allow-close",

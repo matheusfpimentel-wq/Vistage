@@ -246,6 +246,15 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                     <Button
                       size="icon"
                       variant="ghost"
+                      onClick={() => void openStageMode(g)}
+                      aria-label="Modo Palco"
+                      title="Modo Palco"
+                    >
+                      <Mic2 className="h-4 w-4 text-primary" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       onClick={() => onEdit(g)}
                       aria-label="Editar"
                     >

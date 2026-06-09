@@ -39,6 +39,21 @@ export async function openStageMode(gig: Gig): Promise<void> {
     });
 
     win.once("tauri://error", () => { /* silencioso */ });
+
+    // Modo Palco conta como sessão de foco ("Tempo de palco"):
+    // inicia ao abrir a janela e encerra quando ela for fechada.
+    try {
+      const { startSession, getActiveSession, endSessionSilently } = await import(
+        "@/modules/foco/api"
+      );
+      const active = await getActiveSession();
+      if (!active) {
+        const sessionId = await startSession("Tempo de palco");
+        void win.once("tauri://destroyed", () => {
+          void endSessionSilently(sessionId);
+        });
+      }
+    } catch { /* sessão é best-effort */ }
   } catch {
     /* sem suporte a múltiplas janelas */
   }

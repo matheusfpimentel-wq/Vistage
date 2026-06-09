@@ -58,6 +58,16 @@ export async function endSession(
   emitDataChanged();
 }
 
+/** Encerra a sessão sem pedir energia/foco — usado pelo Modo Palco ao fechar a janela. */
+export async function endSessionSilently(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE work_sessions SET ended_at = $1 WHERE id = $2 AND ended_at IS NULL`,
+    [new Date().toISOString(), id]
+  );
+  emitDataChanged();
+}
+
 export async function getActiveSession(): Promise<WorkSession | null> {
   const db = getDb();
   const rows = await db.select<WorkSession[]>(

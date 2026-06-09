@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Crown,
   Flame,
   Heart,
   LayoutGrid,
@@ -13,6 +14,7 @@ import {
   Search,
   Settings2,
   Sparkles,
+  UserPlus,
   Trash2,
   User,
 } from "lucide-react";
@@ -72,7 +74,7 @@ type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
 type FanSortKey = "name" | "level" | "city" | "last_interaction_at" | "interactions";
 type SortDir = "asc" | "desc";
-const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Fã": 1, "Superfã": 2 };
+const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Quase fã": 1, "Fã": 2, "Superfã": 3, "Embaixador": 4 };
 
 export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -202,7 +204,12 @@ export function FansPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <StatCard
+          icon={<Crown className="h-4 w-4 text-amber-500" />}
+          label="Embaixadores"
+          value={stats?.embaixador ?? 0}
+        />
         <StatCard
           icon={<Flame className="h-4 w-4 text-emerald-500" />}
           label="Superfãs"
@@ -212,6 +219,11 @@ export function FansPage() {
           icon={<Heart className="h-4 w-4 text-sky-400" />}
           label="Fãs"
           value={stats?.fa ?? 0}
+        />
+        <StatCard
+          icon={<UserPlus className="h-4 w-4 text-violet-400" />}
+          label="Quase fãs"
+          value={stats?.quaseFa ?? 0}
         />
         <StatCard
           icon={<Sparkles className="h-4 w-4 text-muted-foreground" />}

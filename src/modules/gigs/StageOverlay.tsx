@@ -33,10 +33,18 @@ export function StageOverlay() {
     }
   }, [params?.theme]);
 
-  // Load gig + tracks
+  // Load gig + tracks. Esta janela não passa pelo boot do MainApp,
+  // então precisa abrir o banco por conta própria antes de consultar.
   useEffect(() => {
     if (!params?.gigId) return;
     void (async () => {
+      try {
+        const { useConfigStore } = await import("@/lib/config");
+        const { loadDatabase } = await import("@/lib/db");
+        await useConfigStore.getState().hydrate();
+        const cfg = useConfigStore.getState().config;
+        if (cfg) await loadDatabase(cfg.dbPath);
+      } catch { /* banco pode já estar aberto */ }
       const g = await getGig(params.gigId);
       if (!g) return;
       setGig(g);

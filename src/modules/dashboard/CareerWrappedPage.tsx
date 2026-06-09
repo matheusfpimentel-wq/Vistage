@@ -92,8 +92,8 @@ async function loadWrapped(year: number): Promise<WrappedData> {
       `SELECT COUNT(*) as n FROM tracks WHERE created_at LIKE $1`,
       [`${y}%`]
     ),
-    db.select<{ title: string; event_name: string | null; venue_name: string; date: string; cache_amount: number }[]>(
-      `SELECT title, event_name, venue_name, date, cache_amount FROM gigs
+    db.select<{ event_name: string | null; venue_name: string; date: string; cache_amount: number }[]>(
+      `SELECT event_name, venue_name, date, cache_amount FROM gigs
        WHERE date LIKE $1 AND status = 'Concluída' AND cache_amount IS NOT NULL
        ORDER BY cache_amount DESC LIMIT 1`,
       [`${y}%`]
@@ -233,6 +233,7 @@ export function CareerWrappedPage() {
     setLoading(true);
     void loadWrapped(year)
       .then(setData)
+      .catch((e) => toast.error(`Erro ao carregar os números: ${String(e)}`))
       .finally(() => setLoading(false));
   }, [year]);
 

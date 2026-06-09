@@ -1,4 +1,4 @@
-export const FAN_LEVELS = ["Superfã", "Fã", "Possível fã"] as const;
+export const FAN_LEVELS = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
 export type FanLevel = (typeof FAN_LEVELS)[number];
 
 export const FAN_INTERACTION_TYPES = ["Interação", "Presença", "Feedback"] as const;
@@ -62,10 +62,14 @@ export function levelVariant(level: FanLevel):
   | "warning"
   | "outline" {
   switch (level) {
+    case "Embaixador":
+      return "warning";
     case "Superfã":
       return "success";
     case "Fã":
       return "info";
+    case "Quase fã":
+      return "secondary";
     case "Possível fã":
       return "outline";
   }

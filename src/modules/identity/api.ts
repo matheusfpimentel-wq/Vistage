@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   ArtistIdentity,
   ArtistIdentityInput,
@@ -104,6 +105,7 @@ export async function saveIdentity(input: ArtistIdentityInput): Promise<void> {
     `UPDATE artist_identity SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
     values
   );
+  emitDataChanged();
 }
 
 // ============================================================
@@ -128,6 +130,7 @@ export async function createTemplate(
     `INSERT INTO artist_templates (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -145,9 +148,11 @@ export async function updateTemplate(
     `UPDATE artist_templates SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteTemplate(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM artist_templates WHERE id = $1", [id]);
+  emitDataChanged();
 }
