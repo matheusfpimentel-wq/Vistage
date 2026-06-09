@@ -21,6 +21,8 @@ import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
 import { TaskTimelineView } from "./views/TaskTimelineView";
+import { TaskSprintView } from "./views/TaskSprintView";
+import { TaskEnergyView } from "./views/TaskEnergyView";
 import {
   completeAndRecur,
   deleteTask,
@@ -225,6 +227,8 @@ export function TasksPage() {
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+          <TabsTrigger value="sprint">Sprint</TabsTrigger>
+          <TabsTrigger value="energia">Energia</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list">
@@ -242,6 +246,24 @@ export function TasksPage() {
 
         <TabsContent value="timeline">
           <TaskTimelineView tasks={tasks} onEdit={openEdit} />
+        </TabsContent>
+
+        <TabsContent value="sprint">
+          <TaskSprintView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+            onDelete={handleDelete}
+          />
+        </TabsContent>
+
+        <TabsContent value="energia">
+          <TaskEnergyView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+            onDelete={handleDelete}
+          />
         </TabsContent>
       </Tabs>
 
