@@ -381,3 +381,87 @@ export async function maybeAutoBackupAfterChange(): Promise<void> {
   if (!auth?.autoBackup) return;
   await uploadBackup();
 }
+
+// ============================================================
+// Media (photos / images) sync
+// ============================================================
+
+const MEDIA_FOLDER_NAME = "Vistage Media";
+const MEDIA_FOLDER_KEY = "gdrive.media_folder_id";
+
+/**
+ * Returns a valid access token, or null if Drive is not connected.
+ * Refreshes the token if expired.
+ */
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { accessToken } = await ensureValidToken();
+    return accessToken;
+  } catch {
+    return null;
+  }
+}
+
+/** Returns the Drive folder ID for media files, creating it if needed. */
+async function ensureMediaFolder(accessToken: string): Promise<string> {
+  const cached = await getSetting(MEDIA_FOLDER_KEY);
+  if (cached) return cached;
+  const id = await invoke<string>("gdrive_ensure_folder", {
+    accessToken,
+    folderName: MEDIA_FOLDER_NAME,
+  });
+  await setSetting(MEDIA_FOLDER_KEY, id);
+  return id;
+}
+
+/**
+ * Uploads a media file to Drive.
+ * `relPath` = relative path like "fans/abc123.jpg" — used as the file name in Drive.
+ * `base64` = raw base64 (no data: prefix).
+ * `mime` = e.g., "image/jpeg".
+ * Returns the Drive file ID, or null on error/not connected.
+ */
+export async function uploadMediaToDrive(
+  relPath: string,
+  base64: string,
+  mime: string
+): Promise<string | null> {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return null;
+    const folderId = await ensureMediaFolder(accessToken);
+    // Drive file name: replace path separators with __ to keep flat
+    const driveName = relPath.replace(/[\\/]/g, "__");
+    const fileId = await invoke<string>("gdrive_upload_media", {
+      accessToken,
+      folderId,
+      fileName: driveName,
+      contentBase64: base64,
+      mime,
+    });
+    return fileId;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Downloads a media file from Drive by its file ID.
+ * Returns a data URL (data:image/...;base64,...) or null on error.
+ */
+export async function downloadMediaFromDrive(
+  fileId: string,
+  mime: string
+): Promise<string | null> {
+  try {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return null;
+    const b64 = await invoke<string>("gdrive_download_media", {
+      accessToken,
+      fileId,
+    });
+    return `data:${mime};base64,${b64}`;
+  } catch {
+    return null;
+  }
+}

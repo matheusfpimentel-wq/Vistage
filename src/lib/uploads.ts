@@ -9,6 +9,7 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { open as openShell } from "@tauri-apps/plugin-shell";
 import { useConfigStore } from "./config";
+import { syncFileToDrive, restoreFileFromDrive } from "./mediaSync";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
 export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt", "ttf", "otf", "woff", "woff2"];
@@ -60,6 +61,8 @@ export async function saveAttachment(
   const filename = `${stamp}.${ext}`;
   const dest = joinPath(dir, filename);
   await copyFile(sourcePath, dest);
+  // Background Drive sync — does not block or throw
+  void syncFileToDrive(dest);
   return dest;
 }
 
@@ -84,12 +87,19 @@ export function useImageUrl(path: string | null | undefined): string | null {
       return;
     }
     let cancelled = false;
-    void readAsDataUrl(path).then((u) => {
-      if (!cancelled) setUrl(u);
-    });
-    return () => {
-      cancelled = true;
-    };
+    void (async () => {
+      // Try local first
+      const local = await readAsDataUrl(path);
+      if (cancelled) return;
+      if (local) {
+        setUrl(local);
+        return;
+      }
+      // Local missing — try Drive
+      const fromDrive = await restoreFileFromDrive(path);
+      if (!cancelled) setUrl(fromDrive);
+    })();
+    return () => { cancelled = true; };
   }, [path]);
   return url;
 }

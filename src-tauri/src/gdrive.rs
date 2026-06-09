@@ -456,3 +456,68 @@ pub fn gdrive_delete_backup(
         .map_err(|e| format!("Falha ao deletar: {e}"))?;
     Ok(())
 }
+
+/// Faz upload de um arquivo de mídia (imagem, etc.) para o Drive.
+/// `content_base64` é o conteúdo do arquivo codificado em base64 padrão.
+/// Retorna o ID do arquivo criado no Drive.
+#[tauri::command]
+pub fn gdrive_upload_media(
+    access_token: String,
+    folder_id: String,
+    file_name: String,
+    content_base64: String,
+    mime: String,
+) -> Result<String, String> {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine as _;
+    let bytes = STANDARD
+        .decode(&content_base64)
+        .map_err(|e| format!("base64 decode: {e}"))?;
+    let boundary = format!("boundary_{}", random_base64(12));
+    let meta = serde_json::json!({ "name": file_name, "parents": [folder_id] });
+    let mut body: Vec<u8> = Vec::new();
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n\
+             --{boundary}\r\nContent-Type: {mime}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(&bytes);
+    body.extend_from_slice(format!("\r\n--{boundary}--").as_bytes());
+    let url = format!("{}&fields=id", DRIVE_UPLOAD_URL);
+    let resp = ureq::post(&url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .set(
+            "Content-Type",
+            &format!("multipart/related; boundary={boundary}"),
+        )
+        .send_bytes(&body)
+        .map_err(|e| format!("Upload de mídia falhou: {e}"))?;
+    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+    v.get("id")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Sem ID na resposta do Drive".to_string())
+}
+
+/// Baixa um arquivo de mídia do Drive e retorna o conteúdo em base64 padrão.
+#[tauri::command]
+pub fn gdrive_download_media(
+    access_token: String,
+    file_id: String,
+) -> Result<String, String> {
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine as _;
+    use std::io::Read;
+    let url = format!("{}/{}?alt=media", DRIVE_FILES_URL, url_encode(&file_id));
+    let resp = ureq::get(&url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .call()
+        .map_err(|e| format!("Download de mídia falhou: {e}"))?;
+    let mut bytes = Vec::new();
+    resp.into_reader()
+        .read_to_end(&mut bytes)
+        .map_err(|e| format!("Erro ao ler bytes: {e}"))?;
+    Ok(STANDARD.encode(&bytes))
+}

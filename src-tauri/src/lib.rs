@@ -36,6 +36,8 @@ pub fn run() {
             gdrive::gdrive_list_backups,
             gdrive::gdrive_download_backup,
             gdrive::gdrive_delete_backup,
+            gdrive::gdrive_upload_media,
+            gdrive::gdrive_download_media,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");
