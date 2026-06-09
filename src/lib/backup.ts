@@ -403,10 +403,61 @@ export async function restoreBackup(backup: Backup): Promise<{
   }
 
   // Restaura arquivos de anexo (v2+) para o uploadsDir atual
+  const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
   if (backup.files && Object.keys(backup.files).length > 0) {
-    const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
     if (uploadsDir) {
       await restoreFiles(backup.files, uploadsDir).catch(() => {});
+    }
+  }
+
+  // Rewrite file path columns to use the current uploadsDir
+  if (backup.files && backup.uploadsDir && uploadsDir && backup.uploadsDir !== uploadsDir) {
+    const oldDir = backup.uploadsDir.replace(/[\\/]+$/, "");
+    const newDir = uploadsDir.replace(/[\\/]+$/, "");
+    for (const [table, cols] of Object.entries(FILE_PATH_COLS) as [TableName, string[]][]) {
+      const rows = backup.tables[table] ?? [];
+      for (const row of rows) {
+        const id = row["id"];
+        if (id == null) continue;
+        for (const col of cols) {
+          const val = row[col];
+          if (typeof val !== "string" || !val) continue;
+          const normVal = val.replace(/\\/g, "/");
+          const normOld = oldDir.replace(/\\/g, "/");
+          if (!normVal.startsWith(normOld)) continue;
+          const rel = normVal.slice(normOld.length).replace(/^\//, "");
+          const newPath = joinPath(newDir, rel);
+          await db.execute(
+            `UPDATE ${table} SET ${col} = $1 WHERE id = $2`,
+            [newPath, id]
+          );
+        }
+      }
+    }
+    for (const [table, cols] of Object.entries(FILE_PATH_JSON_COLS) as [TableName, string[]][]) {
+      const rows = backup.tables[table] ?? [];
+      for (const row of rows) {
+        const id = row["id"];
+        if (id == null) continue;
+        for (const col of cols) {
+          const raw = row[col];
+          if (typeof raw !== "string" || !raw) continue;
+          let paths: unknown[];
+          try { paths = JSON.parse(raw); } catch { continue; }
+          const updated = paths.map((p) => {
+            if (typeof p !== "string") return p;
+            const normP = p.replace(/\\/g, "/");
+            const normOld = oldDir.replace(/\\/g, "/");
+            if (!normP.startsWith(normOld)) return p;
+            const rel = normP.slice(normOld.length).replace(/^\//, "");
+            return joinPath(newDir, rel);
+          });
+          await db.execute(
+            `UPDATE ${table} SET ${col} = $1 WHERE id = $2`,
+            [JSON.stringify(updated), id]
+          );
+        }
+      }
     }
   }
 

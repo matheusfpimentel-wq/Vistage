@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Square } from "lucide-react";
+import { Monitor, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -201,6 +201,9 @@ export function WorkSessionWidget() {
               <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
               {session.activity_type.split(" ")[0]} · {timer}
             </span>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => void openSessionOverlay(session)} title="Reabrir mini-janela">
+              <Monitor className="h-3.5 w-3.5" />
+            </Button>
             <Button
               size="sm"
               variant="outline"
