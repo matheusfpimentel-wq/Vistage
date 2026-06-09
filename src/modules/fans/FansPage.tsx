@@ -60,7 +60,7 @@ import {
   type FanFilters,
   type FanStats,
 } from "./api";
-import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanLevelCriteria, type FanUpgradeRules } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
