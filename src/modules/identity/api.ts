@@ -7,13 +7,28 @@ import type {
   SocialLink,
 } from "./types";
 
-type IdentityRow = Omit<ArtistIdentity, "socials" | "palette" | "fonts"> & {
+type IdentityRow = Omit<
+  ArtistIdentity,
+  "socials" | "palette" | "fonts" | "photos" | "folder_links"
+> & {
   socials: string | null;
   palette: string | null;
   fonts: string | null;
+  photos: string | null;
+  folder_links: string | null;
   primary_color?: string | null;
   secondary_color?: string | null;
 };
+
+function parseJsonArray<T>(raw: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function rowToIdentity(r: IdentityRow): ArtistIdentity {
   let socials: SocialLink[] = [];
@@ -45,8 +60,12 @@ function rowToIdentity(r: IdentityRow): ArtistIdentity {
       fonts = [];
     }
   }
+  const photos = parseJsonArray<ArtistIdentity["photos"][number]>(r.photos);
+  const folder_links = parseJsonArray<ArtistIdentity["folder_links"][number]>(
+    r.folder_links
+  );
   const { primary_color: _p, secondary_color: _s, ...rest } = r;
-  return { ...rest, socials, palette, fonts };
+  return { ...rest, socials, palette, fonts, photos, folder_links };
 }
 
 export async function loadIdentity(): Promise<ArtistIdentity> {
@@ -72,6 +91,8 @@ export async function saveIdentity(input: ArtistIdentityInput): Promise<void> {
     socials: JSON.stringify(input.socials ?? []),
     palette: JSON.stringify(input.palette ?? []),
     fonts: JSON.stringify(input.fonts ?? []),
+    photos: JSON.stringify(input.photos ?? []),
+    folder_links: JSON.stringify(input.folder_links ?? []),
   };
   await db.execute(
     `INSERT OR IGNORE INTO artist_identity (id, socials, palette) VALUES (1, '[]', '[]')`

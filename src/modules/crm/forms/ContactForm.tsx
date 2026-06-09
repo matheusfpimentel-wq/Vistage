@@ -33,7 +33,14 @@ import {
   type ContactPriority,
   type ContactType,
 } from "../types";
-import { createContact, updateContact } from "../api";
+import {
+  createContact,
+  getContact,
+  getMirrorState,
+  updateContact,
+  upsertStudentMirror,
+  upsertSupplierMirror,
+} from "../api";
 import { sortContactTypes } from "../components/TypeBadges";
 import { listVenues } from "@/modules/venues/api";
 
@@ -88,6 +95,8 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   const [showCustomTypeInput, setShowCustomTypeInput] = useState(false);
   const [venues, setVenues] = useState<{ id: number; name: string }[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [alsoSupplier, setAlsoSupplier] = useState(false);
+  const [alsoStudent, setAlsoStudent] = useState(false);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
@@ -108,6 +117,14 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     setCustomTypeInput("");
     setShowCustomTypeInput(false);
     setNameError(null);
+    setAlsoSupplier(false);
+    setAlsoStudent(false);
+    if (contact) {
+      void getMirrorState(contact.id).then((m) => {
+        setAlsoSupplier(m.supplier);
+        setAlsoStudent(m.student);
+      });
+    }
     setDirty(false);
   }, [contact, open]);
 
@@ -156,6 +173,13 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
       const id = contact
         ? (await updateContact({ id: contact.id, ...state }), contact.id)
         : await createContact(state);
+      if (alsoSupplier || alsoStudent) {
+        const saved = await getContact(id);
+        if (saved) {
+          if (alsoSupplier) await upsertSupplierMirror(saved);
+          if (alsoStudent) await upsertStudentMirror(saved);
+        }
+      }
       toast.success(contact ? "Contato atualizado" : "Contato criado");
       onSaved(id);
       onOpenChange(false);
@@ -404,6 +428,38 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+            <Label>Também é</Label>
+            <p className="text-xs text-muted-foreground">
+              Cria uma persona espelho com os dados deste contato. Desmarcar não
+              remove o registro já existente.
+            </p>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={alsoSupplier}
+                onChange={(e) => {
+                  setAlsoSupplier(e.target.checked);
+                  setDirty(true);
+                }}
+                className="h-4 w-4"
+              />
+              <span className="text-sm">Também fornecedor</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={alsoStudent}
+                onChange={(e) => {
+                  setAlsoStudent(e.target.checked);
+                  setDirty(true);
+                }}
+                className="h-4 w-4"
+              />
+              <span className="text-sm">Também aluno</span>
+            </label>
           </div>
         </div>
 

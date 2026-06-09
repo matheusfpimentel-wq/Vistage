@@ -199,6 +199,8 @@ export function MindMapPage() {
 
   const onNodePointerDown = (e: React.PointerEvent, id: string) => {
     e.stopPropagation();
+    // só inicia o arraste se o nó tiver posição na simulação (evita ler vx/vy de nó nulo/obsoleto)
+    if (!posRef.current.has(id)) return;
     (e.target as Element).setPointerCapture(e.pointerId);
     draggingRef.current = id;
     alphaRef.current = Math.max(alphaRef.current, 0.4);
@@ -206,9 +208,17 @@ export function MindMapPage() {
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (draggingRef.current) {
-      const w = toWorld(e.clientX, e.clientY);
       const p = posRef.current.get(draggingRef.current);
-      if (p) { p.x = w.x; p.y = w.y; p.vx = 0; p.vy = 0; }
+      // nó pode ter sido removido/atualizado durante o arraste → aborta sem ler vx/vy de nulo
+      if (!p) {
+        draggingRef.current = null;
+        return;
+      }
+      const w = toWorld(e.clientX, e.clientY);
+      p.x = w.x;
+      p.y = w.y;
+      p.vx = 0;
+      p.vy = 0;
       forceTick((t) => t + 1);
     } else if (panRef.current) {
       const dxPx = e.clientX - panRef.current.x;

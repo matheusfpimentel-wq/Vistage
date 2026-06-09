@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  CheckSquare,
   Clipboard,
+  Download,
   ExternalLink,
+  Image as ImageIcon,
+  Link as LinkIcon,
   Loader2,
   Palette,
   Plus,
   Sparkles,
+  Square,
   Trash2,
   Type,
   X,
 } from "lucide-react";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { copyFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,11 +69,19 @@ import {
   TEMPLATE_CATEGORIES,
   type ArtistIdentity,
   type ArtistTemplate,
+  type FolderLink,
+  type IdentityPhoto,
   type SocialLink,
   type SocialNetwork,
   type TemplateCategory,
 } from "./types";
-import { useImageUrl } from "@/lib/uploads";
+import {
+  IMAGE_EXTS,
+  deleteAttachment,
+  pickFile,
+  saveAttachment,
+  useImageUrl,
+} from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 export function IdentityPage() {
@@ -119,8 +134,11 @@ export function IdentityPage() {
         logo_path: i.logo_path,
         isotype_path: i.isotype_path,
         presskit_path: i.presskit_path,
+        presskit_link: i.presskit_link,
         palette: i.palette,
         fonts: i.fonts,
+        photos: i.photos,
+        folder_links: i.folder_links,
         notes: i.notes,
       }).catch(() => {
         /* silencioso — saída de página não pode interromper navegação */
@@ -156,8 +174,11 @@ export function IdentityPage() {
         logo_path: identity.logo_path,
         isotype_path: identity.isotype_path,
         presskit_path: identity.presskit_path,
+        presskit_link: identity.presskit_link,
         palette: identity.palette,
         fonts: identity.fonts,
+        photos: identity.photos,
+        folder_links: identity.folder_links,
         notes: identity.notes,
       });
       toast.success("Identidade salva");
@@ -195,6 +216,7 @@ export function IdentityPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">Identidade</TabsTrigger>
+          <TabsTrigger value="photos">Fotos ({identity.photos.length})</TabsTrigger>
           <TabsTrigger value="flyers">Flyers ({flyerGigs.length})</TabsTrigger>
           <TabsTrigger value="templates">
             Templates ({templates.length})
@@ -419,6 +441,31 @@ export function IdentityPage() {
               </div>
 
               <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5" />
+                  Presskit (link)
+                </Label>
+                <Input
+                  type="url"
+                  placeholder="https://… (Notion, Drive, site…)"
+                  value={identity.presskit_link ?? ""}
+                  onChange={(e) => set("presskit_link", e.target.value || null)}
+                />
+                {identity.presskit_link && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openShell(identity.presskit_link!).catch(() => {})
+                    }
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Abrir presskit
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
                 <Label>Notas internas</Label>
                 <Textarea
                   rows={2}
@@ -517,6 +564,17 @@ export function IdentityPage() {
               Salvar identidade
             </Button>
           </div>
+        </TabsContent>
+
+        {/* ====================== FOTOS ====================== */}
+        <TabsContent value="photos" className="space-y-4">
+          <PhotosTab
+            photos={identity.photos}
+            folderLinks={identity.folder_links}
+            artistName={identity.artist_name}
+            onPhotosChange={(p) => set("photos", p)}
+            onFolderLinksChange={(l) => set("folder_links", l)}
+          />
         </TabsContent>
 
         {/* ====================== TEMPLATES ====================== */}
@@ -824,6 +882,325 @@ function TemplateCard({
             Abrir arquivo
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PhotosTab({
+  photos,
+  folderLinks,
+  artistName,
+  onPhotosChange,
+  onFolderLinksChange,
+}: {
+  photos: IdentityPhoto[];
+  folderLinks: FolderLink[];
+  artistName: string | null;
+  onPhotosChange: (photos: IdentityPhoto[]) => void;
+  onFolderLinksChange: (links: FolderLink[]) => void;
+}) {
+  const [working, setWorking] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const allSelected = photos.length > 0 && selected.size === photos.length;
+
+  function toggle(idx: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(photos.map((_, i) => i)));
+  }
+
+  async function handleAdd() {
+    setWorking(true);
+    try {
+      const src = await pickFile({
+        title: "Selecionar foto",
+        extensions: IMAGE_EXTS,
+        filterName: "Imagens",
+      });
+      if (!src) return;
+      const dest = await saveAttachment(src, "identity/photos");
+      onPhotosChange([...photos, { path: dest, caption: "" }]);
+      toast.success("Foto adicionada");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleRemove(idx: number) {
+    if (
+      !(await confirmDialog({
+        title: "Remover",
+        description: "Remover esta foto?",
+        confirmLabel: "Remover",
+        destructive: true,
+      }))
+    )
+      return;
+    const photo = photos[idx];
+    await deleteAttachment(photo.path);
+    onPhotosChange(photos.filter((_, i) => i !== idx));
+    setSelected(new Set());
+  }
+
+  async function handleDownloadSelected() {
+    const targets =
+      selected.size > 0
+        ? photos.filter((_, i) => selected.has(i))
+        : photos;
+    if (targets.length === 0) return;
+    setDownloading(true);
+    try {
+      const destDir = await openDialog({
+        directory: true,
+        title: "Escolher pasta de destino",
+      });
+      if (!destDir || typeof destDir !== "string") return;
+      const sep = destDir.includes("\\") && !destDir.includes("/") ? "\\" : "/";
+      const base =
+        (artistName ?? "fotos").replace(/[\\/:*?"<>|]/g, "_") || "fotos";
+      const folder = `${destDir.replace(/[\\/]+$/, "")}${sep}${base}`;
+      if (!(await exists(folder))) await mkdir(folder, { recursive: true });
+      let ok = 0;
+      for (let i = 0; i < targets.length; i++) {
+        const p = targets[i];
+        const ext = p.path.match(/\.([a-zA-Z0-9]+)$/)?.[1] ?? "jpg";
+        const name = `${base}_${String(i + 1).padStart(2, "0")}.${ext}`;
+        try {
+          await copyFile(p.path, `${folder}${sep}${name}`);
+          ok++;
+        } catch {
+          /* arquivo ausente — ignora */
+        }
+      }
+      toast.success(`${ok} foto(s) baixada(s)`);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-primary" />
+            Galeria de fotos
+          </CardTitle>
+          <CardDescription>
+            Fotos de divulgação, prensa e perfil.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={handleAdd} disabled={working}>
+              {working ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Adicionar foto
+            </Button>
+            {photos.length > 0 && (
+              <>
+                <Button variant="outline" onClick={toggleAll}>
+                  {allSelected ? (
+                    <CheckSquare className="h-4 w-4" />
+                  ) : (
+                    <Square className="h-4 w-4" />
+                  )}
+                  {allSelected ? "Desmarcar todas" : "Selecionar todas"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDownloadSelected}
+                  disabled={downloading}
+                >
+                  {downloading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {selected.size > 0
+                    ? `Baixar selecionadas (${selected.size})`
+                    : "Selecionar e baixar todas"}
+                </Button>
+              </>
+            )}
+          </div>
+
+          {photos.length === 0 ? (
+            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+              Nenhuma foto ainda.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {photos.map((photo, idx) => (
+                <PhotoCard
+                  key={photo.path}
+                  photo={photo}
+                  selected={selected.has(idx)}
+                  onToggle={() => toggle(idx)}
+                  onCaptionChange={(caption) => {
+                    const next = [...photos];
+                    next[idx] = { ...next[idx], caption };
+                    onPhotosChange(next);
+                  }}
+                  onRemove={() => void handleRemove(idx)}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <LinkIcon className="h-4 w-4 text-primary" />
+            Pastas externas
+          </CardTitle>
+          <CardDescription>
+            Links para pastas no Google Drive, Dropbox, etc.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {folderLinks.map((link, idx) => (
+            <div
+              key={idx}
+              className="grid grid-cols-1 gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1.5fr_auto_auto]"
+            >
+              <Input
+                placeholder="Nome (ex: Fotos 2025)"
+                value={link.name}
+                onChange={(e) => {
+                  const next = [...folderLinks];
+                  next[idx] = { ...next[idx], name: e.target.value };
+                  onFolderLinksChange(next);
+                }}
+              />
+              <Input
+                type="url"
+                placeholder="https://..."
+                value={link.url}
+                onChange={(e) => {
+                  const next = [...folderLinks];
+                  next[idx] = { ...next[idx], url: e.target.value };
+                  onFolderLinksChange(next);
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={!link.url}
+                onClick={() => openShell(link.url).catch(() => {})}
+                aria-label="Abrir"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() =>
+                  onFolderLinksChange(folderLinks.filter((_, i) => i !== idx))
+                }
+                aria-label="Remover"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              onFolderLinksChange([...folderLinks, { name: "", url: "" }])
+            }
+            className="flex items-center gap-1.5 rounded-md border-2 border-dashed px-3 py-2 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+          >
+            <Plus className="h-4 w-4" />
+            Novo link de pasta
+          </button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function PhotoCard({
+  photo,
+  selected,
+  onToggle,
+  onCaptionChange,
+  onRemove,
+}: {
+  photo: IdentityPhoto;
+  selected: boolean;
+  onToggle: () => void;
+  onCaptionChange: (caption: string) => void;
+  onRemove: () => void;
+}) {
+  const url = useImageUrl(photo.path);
+  return (
+    <div
+      className={cn(
+        "group overflow-hidden rounded-lg border bg-card",
+        selected && "ring-2 ring-primary"
+      )}
+    >
+      <div className="relative aspect-square w-full bg-muted">
+        {url ? (
+          <img
+            src={url}
+            alt={photo.caption || "Foto"}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Carregando…
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute left-2 top-2 rounded bg-background/80 p-1"
+          aria-label={selected ? "Desmarcar" : "Selecionar"}
+        >
+          {selected ? (
+            <CheckSquare className="h-4 w-4 text-primary" />
+          ) : (
+            <Square className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        <Button
+          variant="secondary"
+          size="icon"
+          className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100"
+          onClick={onRemove}
+          aria-label="Remover"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="p-2">
+        <Input
+          placeholder="Legenda (opcional)"
+          value={photo.caption ?? ""}
+          onChange={(e) => onCaptionChange(e.target.value)}
+          className="h-7 text-xs"
+        />
       </div>
     </div>
   );

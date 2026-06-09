@@ -46,7 +46,7 @@ export function CrmPage() {
     city: string;
     search: string;
   }>({ type: "Todos", city: "", search: "" });
-  const [sortKey, setSortKey] = useState<SortKey>("ultimo_contato");
+  const [sortKey, setSortKey] = useState<SortKey>("prioridade");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [formOpen, setFormOpen] = useState(false);

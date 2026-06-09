@@ -37,6 +37,20 @@ export type FontEntry = {
   file_path?: string | null;
 };
 
+/** Uma foto na galeria de identidade (arquivo local copiado para uploads/). */
+export type IdentityPhoto = {
+  /** Caminho absoluto do arquivo em uploads/. */
+  path: string;
+  /** Legenda opcional. */
+  caption?: string;
+};
+
+/** Link para uma pasta externa de fotos (Google Drive, Dropbox, etc). */
+export type FolderLink = {
+  name: string;
+  url: string;
+};
+
 export type ArtistIdentity = {
   id: 1;
   artist_name: string | null;
@@ -46,10 +60,16 @@ export type ArtistIdentity = {
   logo_path: string | null;
   isotype_path: string | null;
   presskit_path: string | null;
+  /** Link (URL) para o presskit hospedado externamente. */
+  presskit_link: string | null;
   /** Paleta livre (qualquer número de cores). Substitui primary/secondary. */
   palette: PaletteColor[];
   /** Fontes da marca (tipografia). */
   fonts: FontEntry[];
+  /** Galeria de fotos (arquivos locais). */
+  photos: IdentityPhoto[];
+  /** Links para pastas externas de fotos. */
+  folder_links: FolderLink[];
   notes: string | null;
   updated_at: string;
 };

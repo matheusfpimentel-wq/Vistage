@@ -1376,6 +1376,20 @@ const MIGRATIONS: Migration[] = [
     description: "fan_interactions: add type column (Interação/Presença/Feedback)",
     sql: `ALTER TABLE fan_interactions ADD COLUMN type TEXT NOT NULL DEFAULT 'Interação'`,
   },
+  {
+    version: 85,
+    description: "artist_identity: presskit_link (URL), photos e folder_links (JSON)",
+    sql: `
+      ALTER TABLE artist_identity ADD COLUMN presskit_link TEXT;
+      ALTER TABLE artist_identity ADD COLUMN photos TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE artist_identity ADD COLUMN folder_links TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    version: 86,
+    description: "suppliers.contact_id — vínculo fornecedor↔contato (CRM)",
+    sql: `ALTER TABLE suppliers ADD COLUMN contact_id INTEGER;`,
+  },
 ];
 
 

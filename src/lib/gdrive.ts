@@ -426,8 +426,9 @@ export async function maybeAutoBackupAfterChange(): Promise<void> {
 // Media (photos / images) sync
 // ============================================================
 
-const MEDIA_FOLDER_NAME = "Vistage Media";
+const MEDIA_FOLDER_NAME = "Media";
 const MEDIA_FOLDER_KEY = "gdrive.media_folder_id";
+const MEDIA_FOLDER_PARENT_KEY = "gdrive.media_folder_parent_id";
 
 /**
  * Returns a valid access token, or null if Drive is not connected.
@@ -442,16 +443,25 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
-/** Returns the Drive folder ID for media files, creating it if needed. */
+/**
+ * Returns the Drive folder ID for media files, creating it if needed.
+ * The "Media" folder lives INSIDE the effective backup folder (subfolder if
+ * configured, else the main backup folder). The cache is invalidated whenever
+ * the effective parent changes, so a reconfigured backup folder/subfolder
+ * re-resolves the nested Media folder.
+ */
 async function ensureMediaFolder(accessToken: string): Promise<string> {
+  const parentId = await getEffectiveFolderId(accessToken);
   const cached = await getSetting(MEDIA_FOLDER_KEY);
-  if (cached) return cached;
+  const cachedParent = await getSetting(MEDIA_FOLDER_PARENT_KEY);
+  if (cached && cachedParent === parentId) return cached;
   const id = await invoke<string>("gdrive_ensure_folder", {
     accessToken,
     folderName: MEDIA_FOLDER_NAME,
-    parentId: null,
+    parentId,
   });
   await setSetting(MEDIA_FOLDER_KEY, id);
+  await setSetting(MEDIA_FOLDER_PARENT_KEY, parentId);
   return id;
 }
 

@@ -32,7 +32,12 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
-import { addFanInteraction, setGigFans } from "@/modules/fans/api";
+import {
+  addFanInteraction,
+  checkAndUpgradeFan,
+  listFanInteractions,
+  setGigFans,
+} from "@/modules/fans/api";
 import { formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -328,10 +333,18 @@ export function DebriefForm({
     setRegisteringFans(true);
     const date = (gig.date ?? new Date().toISOString()).slice(0, 10);
     const where = gig.event_name || gig.venue_name || "GIG";
+    const note = `Presença em GIG: ${where}`;
     let count = 0;
     for (const fanId of fansPresent) {
       try {
-        await addFanInteraction(fanId, date, `Presente na GIG: ${where}`);
+        // evita duplicar a interação de Presença para o mesmo fã+GIG
+        const existing = await listFanInteractions(fanId);
+        const already = existing.some(
+          (i) => i.type === "Presença" && i.note === note
+        );
+        if (already) continue;
+        await addFanInteraction(fanId, date, note, "Presença");
+        await checkAndUpgradeFan(fanId).catch(() => {});
         count++;
       } catch {
         /* best-effort — não interrompe */
