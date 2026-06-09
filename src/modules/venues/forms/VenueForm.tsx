@@ -25,6 +25,7 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { createVenue, updateVenue } from "../api";
 import { VENUE_TYPES } from "../types";
 import type { Venue, VenueCreateInput } from "../types";
+import { updateGigCityForVenue } from "@/modules/gigs/api";
 import { VenuePrioritySelector } from "../components/VenueStar";
 
 type Props = {
@@ -216,6 +217,9 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
       const id = venue
         ? (await updateVenue({ id: venue.id, ...state }), venue.id)
         : await createVenue(state);
+      if (venue) {
+        await updateGigCityForVenue(venue.id, state.city ?? null);
+      }
       toast.success(venue ? "Venue atualizado" : "Venue criado");
       onSaved(id);
       onOpenChange(false);

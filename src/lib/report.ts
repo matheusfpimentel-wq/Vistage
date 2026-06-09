@@ -86,7 +86,7 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
     ),
     // festas do mês
     db.select<PartyRow[]>(
-      `SELECT date, name, status FROM parties
+      `SELECT date, title AS name, status FROM parties
         WHERE status IN ('Realizada', 'Confirmada') AND substr(date,1,7) = $1
         ORDER BY date`,
       [month]

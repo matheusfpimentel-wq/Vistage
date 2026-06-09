@@ -45,8 +45,13 @@ export function DriveSync() {
       pending.current = setTimeout(() => {
         pending.current = null;
         void maybeAutoBackupAfterChange()
-          .then(() => { lastUpload.current = Date.now(); })
-          .catch(() => {});
+          .then(() => {
+            lastUpload.current = Date.now();
+            window.dispatchEvent(new CustomEvent('vistage:sync-result', { detail: { ok: true } }));
+          })
+          .catch(() => {
+            window.dispatchEvent(new CustomEvent('vistage:sync-result', { detail: { ok: false } }));
+          });
       }, delay);
     };
     window.addEventListener(DATA_CHANGED, onChange);

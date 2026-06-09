@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +26,6 @@ import { ListView } from "./views/ListView";
 import { BulkListView } from "./views/BulkListView";
 import { CalendarView } from "./views/CalendarView";
 import { InsightsView } from "./views/InsightsView";
-import { createTask } from "@/modules/tasks/api";
-import { todayISO } from "@/lib/format";
 import {
   deleteGig,
   getGig,
@@ -39,6 +38,7 @@ import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
 type StatusFilter = GigStatus | "Todas";
 
 export function GigsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string }>(
     { status: "Todas", search: "", eventCategory: "all" }
@@ -76,6 +76,19 @@ export function GigsPage() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getGig(id).then((gig) => {
+      if (gig) {
+        setEditing(gig);
+        setFormOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   function openCreate() {
     setEditing(null);
     setFormOpen(true);
@@ -91,7 +104,6 @@ export function GigsPage() {
   async function handleSaved({
     id,
     statusChanged,
-    isNew,
   }: {
     id: number;
     statusChanged: boolean;
@@ -101,22 +113,6 @@ export function GigsPage() {
     if (!fresh) {
       await refresh();
       return;
-    }
-
-    // Cria tarefa de prep apenas para GIGs novas com data futura
-    if (isNew && fresh.date && fresh.date > todayISO()) {
-      await createTask({
-        title: `Preparar GIG: ${fresh.event_name ?? fresh.venue_name}`,
-        description: null,
-        category: "GIG",
-        gig_id: fresh.id,
-        contact_id: null,
-        priority: "Alta",
-        status: "A fazer",
-        due_date: fresh.date,
-        tags: [],
-        recurrence: null,
-      }).catch(() => {});
     }
 
     // Se acabou de virar Concluída e ainda não tem debrief preenchido,

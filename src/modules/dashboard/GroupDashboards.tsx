@@ -329,7 +329,7 @@ export function OperacaoDashboard() {
                   {upcomingGigs.slice(0, 5).map((g) => (
                     <Link
                       key={g.id}
-                      to="/gigs"
+                      to={`/gigs?open=${g.id}`}
                       className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
                     >
                       <div className="min-w-0">

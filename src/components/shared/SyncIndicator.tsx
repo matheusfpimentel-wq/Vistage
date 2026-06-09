@@ -63,15 +63,22 @@ export function SyncIndicator() {
   }, []);
 
   useEffect(() => {
+    const onResult = (e: Event) => {
+      const ok = (e as CustomEvent<{ ok: boolean }>).detail.ok;
+      void readAuth().then(() => setState(ok ? "idle" : "error"));
+    };
+    window.addEventListener('vistage:sync-result', onResult);
+    return () => window.removeEventListener('vistage:sync-result', onResult);
+  }, []);
+
+  useEffect(() => {
     const onChange = () => {
       void (async () => {
         const ok = await readAuth();
         if (!ok) return;
-        // captura o timestamp antes do upload para comparar depois
-        const before = prevBackupRef.current;
         setState("syncing");
         if (syncTimer.current) window.clearTimeout(syncTimer.current);
-        // 12s → margem para uploads em conexões lentas
+        // 12s fallback — if no sync-result event fires, go back to idle
         syncTimer.current = window.setTimeout(() => {
           void (async () => {
             try {
@@ -79,9 +86,10 @@ export function SyncIndicator() {
               const now = auth?.lastBackupAt ?? null;
               setLastBackupAt(now);
               prevBackupRef.current = now;
-              setState(now && now !== before ? "idle" : before ? "error" : "idle");
+              // Only go to idle — the sync-result event is the authoritative error source
+              setState("idle");
             } catch {
-              setState("error");
+              setState("idle");
             }
           })();
         }, 12_000);

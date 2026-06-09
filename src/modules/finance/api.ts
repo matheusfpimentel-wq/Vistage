@@ -513,9 +513,10 @@ export async function syncClassTransaction(classId: number): Promise<void> {
   }
 
   const subject = c.subject?.trim();
+  const studentLabel = c.student_name ?? "Aluno";
   const desc = subject
-    ? `Aula: ${subject} (${c.student_name ?? "Aluno"})`
-    : `Aula: ${c.student_name ?? "Aluno"}`;
+    ? `Aula: ${studentLabel} - ${subject}`
+    : `Aula: ${studentLabel}`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions

@@ -617,7 +617,7 @@ function GigsCard({ data }: { data: DashData }) {
               return (
                 <Link
                   key={g.id}
-                  to="/gigs"
+                  to={`/gigs?open=${g.id}`}
                   className="block space-y-2 rounded-md border p-3 transition hover:border-primary"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -1038,7 +1038,7 @@ function WeekTimeline({ data }: { data: DashData }) {
     };
     for (const g of gigs) {
       if (g.status === "Cancelada") continue;
-      push(g.date, { kind: "gig", label: gigDisplayName(g), to: "/gigs" });
+      push(g.date, { kind: "gig", label: gigDisplayName(g), to: `/gigs?open=${g.id}` });
     }
     for (const t of weekTasks) {
       push(t.due_date, { kind: "task", label: t.title, to: "/tarefas" });

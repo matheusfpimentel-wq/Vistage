@@ -441,6 +441,7 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragRef.current) return;
+    e.preventDefault();
     if (ghostRef.current) {
       ghostRef.current.style.left = `${e.clientX + 12}px`;
       ghostRef.current.style.top = `${e.clientY + 8}px`;
@@ -622,9 +623,13 @@ function ParetoSection({ gigs }: { gigs: Gig[] }) {
                 const isVital = i < vital.length;
                 return (
                   <div key={e.gig.id} className="flex items-center gap-2">
-                    <span className="w-40 shrink-0 truncate text-xs" title={gigDisplayName(e.gig)}>
+                    <Link
+                      to={`/gigs?open=${e.gig.id}`}
+                      className="w-40 shrink-0 truncate text-xs hover:underline"
+                      title={gigDisplayName(e.gig)}
+                    >
                       {gigDisplayName(e.gig)}
-                    </span>
+                    </Link>
                     <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
                       <div
                         className={cn("h-full rounded-full", isVital ? "bg-emerald-500" : "bg-muted-foreground/40")}

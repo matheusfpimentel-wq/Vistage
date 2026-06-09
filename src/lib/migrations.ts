@@ -1366,6 +1366,11 @@ const MIGRATIONS: Migration[] = [
     description: "tasks — quadrante de Eisenhower (matriz urgência/importância)",
     sql: `ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT;`,
   },
+  {
+    version: 83,
+    description: "artist_templates: add content column for text templates",
+    sql: `ALTER TABLE artist_templates ADD COLUMN content TEXT`,
+  },
 ];
 
 

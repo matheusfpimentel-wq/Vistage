@@ -475,3 +475,9 @@ export async function createGigPrepTask(gig: Gig): Promise<number> {
     tags: ["gig", "preparação"],
   });
 }
+
+
+export async function updateGigCityForVenue(venueId: number, city: string | null): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE gigs SET venue_city = $1 WHERE venue_id = $2", [city, venueId]);
+}

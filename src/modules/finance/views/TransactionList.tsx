@@ -52,7 +52,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap tabular-nums">
-                  {formatDate(t.date)}
+                  {formatDate(t.date, "dd/MM/yyyy")}
                 </td>
                 <td className="px-3 py-2">
                   <div className={cn(t.description ? "" : "text-muted-foreground")}>
