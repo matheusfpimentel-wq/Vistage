@@ -24,11 +24,13 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
       return;
     }
 
+    const isDark = document.documentElement.classList.contains("dark");
     const params = new URLSearchParams({
       overlay: "1",
       activity: session.activity_type,
       start: session.started_at,
       id: String(session.id),
+      theme: isDark ? "dark" : "light",
     });
 
     const win = new WebviewWindow(OVERLAY_LABEL, {
@@ -69,6 +71,7 @@ export function readOverlayParams(): {
   activity: string;
   start: string;
   id: number;
+  theme: string;
 } | null {
   const sp = new URLSearchParams(window.location.search);
   if (sp.get("overlay") !== "1") return null;
@@ -76,6 +79,7 @@ export function readOverlayParams(): {
     activity: sp.get("activity") ?? "Sessão",
     start: sp.get("start") ?? new Date().toISOString(),
     id: Number(sp.get("id") ?? 0),
+    theme: sp.get("theme") ?? "light",
   };
 }
 

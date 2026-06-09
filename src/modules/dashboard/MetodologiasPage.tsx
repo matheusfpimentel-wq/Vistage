@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   RefreshCw,
@@ -363,103 +363,112 @@ const EISENHOWER_META: {
   subtitle: string;
   border: string;
   badge: string;
-  dropBorder: string;
+  highlight: string;
 }[] = [
-  { key: "do", title: "Fazer agora", subtitle: "Urgente + Importante", border: "border-destructive/40 bg-destructive/5", badge: "bg-destructive/15 text-destructive", dropBorder: "border-destructive" },
-  { key: "schedule", title: "Agendar", subtitle: "Importante, não urgente", border: "border-emerald-500/40 bg-emerald-500/5", badge: "bg-emerald-500/15 text-emerald-600", dropBorder: "border-emerald-500" },
-  { key: "delegate", title: "Delegar", subtitle: "Urgente, não importante", border: "border-amber-500/40 bg-amber-500/5", badge: "bg-amber-500/15 text-amber-600", dropBorder: "border-amber-500" },
-  { key: "eliminate", title: "Eliminar", subtitle: "Nem urgente nem importante", border: "border-muted-foreground/30 bg-muted/30", badge: "bg-muted text-muted-foreground", dropBorder: "border-muted-foreground" },
+  { key: "do", title: "Fazer agora", subtitle: "Urgente + Importante", border: "border-destructive/40 bg-destructive/5", badge: "bg-destructive/15 text-destructive", highlight: "border-destructive border-2" },
+  { key: "schedule", title: "Agendar", subtitle: "Importante, não urgente", border: "border-emerald-500/40 bg-emerald-500/5", badge: "bg-emerald-500/15 text-emerald-600", highlight: "border-emerald-500 border-2" },
+  { key: "delegate", title: "Delegar", subtitle: "Urgente, não importante", border: "border-amber-500/40 bg-amber-500/5", badge: "bg-amber-500/15 text-amber-600", highlight: "border-amber-500 border-2" },
+  { key: "eliminate", title: "Eliminar", subtitle: "Nem urgente nem importante", border: "border-muted-foreground/30 bg-muted/30", badge: "bg-muted text-muted-foreground", highlight: "border-primary border-2" },
 ];
 
-type DragState = {
-  taskId: number;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  label: string;
-};
+const EisenhowerTaskChip = React.memo(function EisenhowerTaskChip({
+  task,
+  isDragging,
+  onPointerDown,
+}: {
+  task: Task;
+  isDragging: boolean;
+  onPointerDown: (task: Task, e: React.PointerEvent<HTMLDivElement>) => void;
+}) {
+  return (
+    <div
+      onPointerDown={(e) => onPointerDown(task, e)}
+      className={cn(
+        "cursor-grab select-none rounded-md border bg-background px-2 py-1.5 text-xs shadow-sm transition hover:border-primary touch-none",
+        isDragging && "opacity-30 pointer-events-none"
+      )}
+    >
+      <div className="font-medium leading-tight">{task.title}</div>
+      {task.due_date && (
+        <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">{task.due_date}</div>
+      )}
+    </div>
+  );
+});
 
 function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () => void }) {
-  const [drag, setDrag] = useState<DragState | null>(null);
-  const [hoverZone, setHoverZone] = useState<EisenhowerQuadrant | null | "ungrouped" | undefined>(undefined);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [hoverKey, setHoverKey] = useState<string | null>(null);
+
+  const dragRef = useRef<{ taskId: number } | null>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
   const zoneRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  // Só tarefas em aberto (A fazer / Em andamento) entram na matriz.
   const open = tasks.filter((t) => t.status === "A fazer" || t.status === "Em andamento");
   const ungrouped = open.filter((t) => !t.eisenhower_quadrant);
-  const byQuadrant = (q: EisenhowerQuadrant) => open.filter((t) => t.eisenhower_quadrant === q);
+  const byQuadrant = useCallback(
+    (q: EisenhowerQuadrant) => open.filter((t) => t.eisenhower_quadrant === q),
+    [open]
+  );
 
   async function move(taskId: number, quadrant: EisenhowerQuadrant | null) {
     await updateTask({ id: taskId, eisenhower_quadrant: quadrant });
     onChanged();
   }
 
-  // Detect which drop zone the pointer is over.
-  function zoneAtPoint(x: number, y: number): EisenhowerQuadrant | null | "ungrouped" | undefined {
+  function zoneAtPoint(x: number, y: number): string | null {
     for (const [key, el] of zoneRefs.current.entries()) {
       const r = el.getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        return key === "ungrouped" ? "ungrouped" : (key as EisenhowerQuadrant);
-      }
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
     }
-    return undefined;
+    return null;
   }
 
-  function onPointerDown(task: Task, e: React.PointerEvent) {
+  const onChipPointerDown = useCallback((task: Task, e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setDrag({
-      taskId: task.id,
-      startX: e.clientX,
-      startY: e.clientY,
-      currentX: e.clientX,
-      currentY: e.clientY,
-      label: task.title,
-    });
-    setHoverZone(undefined);
     e.preventDefault();
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    if (!drag) return;
-    setDrag((d) => d ? { ...d, currentX: e.clientX, currentY: e.clientY } : null);
-    setHoverZone(zoneAtPoint(e.clientX, e.clientY));
-  }
-
-  function onPointerUp(e: React.PointerEvent) {
-    if (!drag) return;
-    const zone = zoneAtPoint(e.clientX, e.clientY);
-    if (zone !== undefined) {
-      const quadrant = zone === "ungrouped" ? null : zone;
-      void move(drag.taskId, quadrant);
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragRef.current = { taskId: task.id };
+    setDraggingId(task.id);
+    if (ghostRef.current) {
+      ghostRef.current.textContent = task.title;
+      ghostRef.current.style.left = `${e.clientX + 12}px`;
+      ghostRef.current.style.top = `${e.clientY + 8}px`;
+      ghostRef.current.style.display = "block";
     }
-    setDrag(null);
-    setHoverZone(undefined);
-  }
+  }, []);
 
-  function TaskChip({ task }: { task: Task }) {
-    const isDragging = drag?.taskId === task.id;
-    return (
-      <div
-        onPointerDown={(e) => onPointerDown(task, e)}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        className={cn(
-          "cursor-grab select-none rounded-md border bg-background px-2 py-1.5 text-xs shadow-sm transition hover:border-primary active:cursor-grabbing",
-          isDragging && "opacity-40"
-        )}
-      >
-        <div className="font-medium leading-tight">{task.title}</div>
-        {task.due_date && (
-          <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">{task.due_date}</div>
-        )}
-      </div>
-    );
-  }
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    if (ghostRef.current) {
+      ghostRef.current.style.left = `${e.clientX + 12}px`;
+      ghostRef.current.style.top = `${e.clientY + 8}px`;
+    }
+    const key = zoneAtPoint(e.clientX, e.clientY);
+    setHoverKey(key);
+  }, []);
 
-  const isDragging = drag !== null;
-  const moved = drag ? Math.abs(drag.currentX - drag.startX) + Math.abs(drag.currentY - drag.startY) > 4 : false;
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return;
+    const { taskId } = dragRef.current;
+    dragRef.current = null;
+    if (ghostRef.current) ghostRef.current.style.display = "none";
+    const key = zoneAtPoint(e.clientX, e.clientY);
+    setDraggingId(null);
+    setHoverKey(null);
+    if (key !== null) {
+      const quadrant = key === "ungrouped" ? null : (key as EisenhowerQuadrant);
+      void move(taskId, quadrant);
+    }
+  }, []);
+
+  const onPointerCancel = useCallback(() => {
+    dragRef.current = null;
+    setDraggingId(null);
+    setHoverKey(null);
+    if (ghostRef.current) ghostRef.current.style.display = "none";
+  }, []);
 
   return (
     <Card>
@@ -472,13 +481,18 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
           Arraste cada tarefa para um quadrante. As que você ainda não classificou ficam em "Não agrupadas".
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        className="space-y-3"
+      >
         {/* Não agrupadas */}
         <div
           ref={(el) => { if (el) zoneRefs.current.set("ungrouped", el); else zoneRefs.current.delete("ungrouped"); }}
           className={cn(
             "rounded-lg border border-dashed p-3 transition",
-            isDragging && hoverZone === "ungrouped" && "border-primary bg-primary/5"
+            hoverKey === "ungrouped" && "border-primary border-2 bg-primary/5"
           )}
         >
           <div className="mb-2 text-xs font-semibold text-muted-foreground">
@@ -491,7 +505,12 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {ungrouped.map((t) => (
-                <TaskChip key={t.id} task={t} />
+                <EisenhowerTaskChip
+                  key={t.id}
+                  task={t}
+                  isDragging={draggingId === t.id}
+                  onPointerDown={onChipPointerDown}
+                />
               ))}
             </div>
           )}
@@ -501,14 +520,14 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         <div className="grid gap-3 sm:grid-cols-2">
           {EISENHOWER_META.map((q) => {
             const items = byQuadrant(q.key);
-            const isHovered = isDragging && hoverZone === q.key;
+            const isHovered = hoverKey === q.key;
             return (
               <div
                 key={q.key}
                 ref={(el) => { if (el) zoneRefs.current.set(q.key, el); else zoneRefs.current.delete(q.key); }}
                 className={cn(
                   "min-h-28 rounded-lg border p-3 transition",
-                  isHovered ? cn(q.dropBorder, "border-2 bg-background") : q.border
+                  isHovered ? q.highlight : q.border
                 )}
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -522,7 +541,12 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {items.map((t) => (
-                    <TaskChip key={t.id} task={t} />
+                    <EisenhowerTaskChip
+                      key={t.id}
+                      task={t}
+                      isDragging={draggingId === t.id}
+                      onPointerDown={onChipPointerDown}
+                    />
                   ))}
                 </div>
               </div>
@@ -534,21 +558,12 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         </Link>
       </CardContent>
 
-      {/* Ghost element that follows the pointer while dragging */}
-      {isDragging && moved && (
-        <div
-          style={{
-            position: "fixed",
-            left: drag.currentX + 10,
-            top: drag.currentY + 10,
-            pointerEvents: "none",
-            zIndex: 9999,
-          }}
-          className="rounded-md border border-primary bg-background px-2 py-1.5 text-xs shadow-lg opacity-90"
-        >
-          {drag.label}
-        </div>
-      )}
+      {/* Ghost element — positioned fixed, updated via direct DOM mutation */}
+      <div
+        ref={ghostRef}
+        style={{ display: "none", position: "fixed", pointerEvents: "none", zIndex: 9999 }}
+        className="rounded-md border border-primary bg-background px-2 py-1.5 text-xs shadow-lg font-medium"
+      />
     </Card>
   );
 }
@@ -558,6 +573,7 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
 // ============================================================
 
 function ParetoSection({ gigs }: { gigs: Gig[] }) {
+  const [showAll, setShowAll] = useState(false);
   const earning = gigs
     .filter((g) => (g.cache_amount ?? 0) > 0 && g.status !== "Cancelada")
     .map((g) => ({ gig: g, value: g.cache_amount ?? 0 }))
@@ -601,7 +617,7 @@ function ParetoSection({ gigs }: { gigs: Gig[] }) {
               {" "}({formatCurrency(cum)} de {formatCurrency(total)}).
             </div>
             <div className="space-y-1.5">
-              {earning.map((e, i) => {
+              {(showAll ? earning : vital).map((e, i) => {
                 const pct = total > 0 ? (e.value / total) * 100 : 0;
                 const isVital = i < vital.length;
                 return (
@@ -622,6 +638,15 @@ function ParetoSection({ gigs }: { gigs: Gig[] }) {
                 );
               })}
             </div>
+            {!showAll && earning.length > vital.length && (
+              <button
+                type="button"
+                onClick={() => setShowAll(true)}
+                className="mt-1 text-xs text-primary hover:underline"
+              >
+                Ver todas as {earning.length} GIGs →
+              </button>
+            )}
             <p className="mt-2 text-[11px] text-muted-foreground">
               Em verde, os poucos vitais que somam ~80% da receita. Foque em conseguir mais GIGs como essas.
             </p>
