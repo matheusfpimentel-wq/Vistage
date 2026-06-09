@@ -8,8 +8,11 @@ import type {
   FanGroupMember,
   FanGroupUpdateInput,
   FanInteraction,
+  FanInteractionType,
   FanLevel,
+  FanLevelCriteria,
   FanUpdateInput,
+  FanUpgradeRules,
 } from "./types";
 
 type FanRow = Omit<Fan, "tags"> & { tags: string | null };
@@ -126,12 +129,14 @@ export async function addFanInteraction(
   fanId: number,
   date: string,
   note: string,
+  type: FanInteractionType = "Interação",
   special = false
 ): Promise<number> {
   const db = getDb();
+  const autoSpecial = type !== "Interação" ? true : special;
   const res = await db.execute(
-    `INSERT INTO fan_interactions (fan_id, date, note, special) VALUES ($1, $2, $3, $4)`,
-    [fanId, date, note, special ? 1 : 0]
+    `INSERT INTO fan_interactions (fan_id, date, note, type, special) VALUES ($1, $2, $3, $4, $5)`,
+    [fanId, date, note, type, autoSpecial ? 1 : 0]
   );
   await db.execute(
     `UPDATE fans
@@ -141,7 +146,7 @@ export async function addFanInteraction(
   );
 
   // Special interaction: auto-upgrade one level
-  if (special) {
+  if (autoSpecial) {
     const fanRows = await db.select<{ level: string }[]>(
       `SELECT level FROM fans WHERE id = $1`,
       [fanId]
@@ -160,46 +165,7 @@ export async function addFanInteraction(
 
   // Auto-upgrade rules from app_settings
   try {
-    const rulesRows = await db.select<{ value: string }[]>(
-      `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
-    );
-    if (rulesRows[0]?.value) {
-      const rules = JSON.parse(rulesRows[0].value) as { interactions?: number; gigs?: number };
-      const fanRows2 = await db.select<{ level: string }[]>(
-        `SELECT level FROM fans WHERE id = $1`,
-        [fanId]
-      );
-      let currentLevel2 = fanRows2[0]?.level ?? "";
-
-      if (rules.interactions && typeof rules.interactions === "number") {
-        const countRows = await db.select<{ n: number }[]>(
-          `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1`,
-          [fanId]
-        );
-        const count = countRows[0]?.n ?? 0;
-        if (count >= rules.interactions && currentLevel2 === "Possível fã") {
-          await db.execute(
-            `UPDATE fans SET level = 'Fã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-            [fanId]
-          );
-          currentLevel2 = "Fã";
-        }
-      }
-
-      if (rules.gigs && typeof rules.gigs === "number") {
-        const gigCountRows = await db.select<{ n: number }[]>(
-          `SELECT COUNT(*) as n FROM gig_fans WHERE fan_id = $1`,
-          [fanId]
-        );
-        const gigCount = gigCountRows[0]?.n ?? 0;
-        if (gigCount >= rules.gigs && currentLevel2 === "Fã") {
-          await db.execute(
-            `UPDATE fans SET level = 'Superfã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-            [fanId]
-          );
-        }
-      }
-    }
+    await checkAndUpgradeFan(fanId);
   } catch {
     // silently skip if rules not configured
   }
@@ -221,32 +187,152 @@ export async function addFanInteraction(
   return Number(res.lastInsertId);
 }
 
-export async function saveFanUpgradeRules(rules: {
-  interactions?: number | null;
-  gigs?: number | null;
-}): Promise<void> {
+export async function saveFanUpgradeRules(rules: FanUpgradeRules): Promise<void> {
   const db = getDb();
-  const value = JSON.stringify(rules);
   await db.execute(
     `INSERT INTO app_settings (key, value) VALUES ('fan_upgrade_rules', $1)
      ON CONFLICT(key) DO UPDATE SET value = $1`,
-    [value]
+    [JSON.stringify(rules)]
   );
 }
 
-export async function loadFanUpgradeRules(): Promise<{
-  interactions?: number | null;
-  gigs?: number | null;
-}> {
+export async function loadFanUpgradeRules(): Promise<FanUpgradeRules> {
   const db = getDb();
   const rows = await db.select<{ value: string }[]>(
     `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
   );
-  if (!rows[0]?.value) return {};
+  if (!rows[0]) return {};
   try {
-    return JSON.parse(rows[0].value) as { interactions?: number | null; gigs?: number | null };
+    return JSON.parse(rows[0].value) as FanUpgradeRules;
   } catch {
     return {};
+  }
+}
+
+export async function getFanInteractionCounts(fanId: number): Promise<{
+  total: number;
+  presences: number;
+  feedbacks: number;
+}> {
+  const db = getDb();
+  const rows = await db.select<{ type: string; n: number }[]>(
+    `SELECT type, COUNT(*) as n FROM fan_interactions WHERE fan_id = $1 GROUP BY type`,
+    [fanId]
+  );
+  let total = 0, presences = 0, feedbacks = 0;
+  for (const r of rows) {
+    total += r.n;
+    if (r.type === "Presença") presences = r.n;
+    if (r.type === "Feedback") feedbacks = r.n;
+  }
+  return { total, presences, feedbacks };
+}
+
+export async function listFanInteractionCounts(): Promise<Map<number, number>> {
+  const db = getDb();
+  const rows = await db.select<{ fan_id: number; n: number }[]>(
+    `SELECT fan_id, COUNT(*) as n FROM fan_interactions GROUP BY fan_id`
+  );
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.fan_id, r.n);
+  return map;
+}
+
+async function meetsCriteria(
+  db: ReturnType<typeof getDb>,
+  fanId: number,
+  criteria: FanLevelCriteria,
+  fanCreatedAt: string,
+  _fanLastInteractionAt: string | null
+): Promise<boolean> {
+  if (criteria.minInteractions != null) {
+    const rows = await db.select<{ n: number }[]>(
+      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1`,
+      [fanId]
+    );
+    if ((rows[0]?.n ?? 0) < criteria.minInteractions) return false;
+  }
+  if (criteria.minPresences != null) {
+    const rows = await db.select<{ n: number }[]>(
+      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1 AND type = 'Presença'`,
+      [fanId]
+    );
+    if ((rows[0]?.n ?? 0) < criteria.minPresences) return false;
+  }
+  if (criteria.minFeedbacks != null) {
+    const rows = await db.select<{ n: number }[]>(
+      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1 AND type = 'Feedback'`,
+      [fanId]
+    );
+    if ((rows[0]?.n ?? 0) < criteria.minFeedbacks) return false;
+  }
+  if (criteria.minDaysSinceCreation != null) {
+    const daysSince = Math.floor(
+      (Date.now() - new Date(fanCreatedAt).getTime()) / 86400000
+    );
+    if (daysSince < criteria.minDaysSinceCreation) return false;
+  }
+  return true;
+}
+
+export async function checkAndUpgradeFan(fanId: number): Promise<void> {
+  const db = getDb();
+  const rulesRows = await db.select<{ value: string }[]>(
+    `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
+  );
+  if (!rulesRows[0]?.value) return;
+  let rules: FanUpgradeRules;
+  try {
+    rules = JSON.parse(rulesRows[0].value) as FanUpgradeRules;
+  } catch {
+    return;
+  }
+
+  const fanRows = await db.select<{ level: string; created_at: string; last_interaction_at: string | null }[]>(
+    `SELECT level, created_at, last_interaction_at FROM fans WHERE id = $1`,
+    [fanId]
+  );
+  if (!fanRows[0]) return;
+  let { level, created_at, last_interaction_at } = fanRows[0];
+
+  // Check toFa criteria
+  if (level === "Possível fã" && rules.toFa) {
+    const ok = await meetsCriteria(db, fanId, rules.toFa, created_at, last_interaction_at);
+    if (ok) {
+      await db.execute(
+        `UPDATE fans SET level = 'Fã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [fanId]
+      );
+      level = "Fã";
+    }
+  }
+
+  // Check toSuperfa criteria
+  if (level === "Fã" && rules.toSuperfa) {
+    const ok = await meetsCriteria(db, fanId, rules.toSuperfa, created_at, last_interaction_at);
+    if (ok) {
+      await db.execute(
+        `UPDATE fans SET level = 'Superfã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+        [fanId]
+      );
+      level = "Superfã";
+    }
+  }
+
+  // Downgrade check
+  if (rules.downgradeInactiveDays != null && last_interaction_at) {
+    const daysSinceLast = Math.floor(
+      (Date.now() - new Date(last_interaction_at).getTime()) / 86400000
+    );
+    if (daysSinceLast > rules.downgradeInactiveDays) {
+      const downgraded = level === "Superfã" ? "Fã" : level === "Fã" ? "Possível fã" : null;
+      if (downgraded) {
+        await db.execute(
+          `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [downgraded, fanId]
+        );
+      }
+    }
   }
 }
 

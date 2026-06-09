@@ -81,66 +81,69 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
               </div>
             </DialogHeader>
 
-            <div className="grid grid-cols-1 gap-2 rounded-md border p-3 text-sm sm:grid-cols-2">
-              {fan.instagram && (
-                <Row
-                  icon={<Instagram className="h-3.5 w-3.5" />}
-                  label="Instagram"
-                  value={fan.instagram}
-                />
-              )}
-              {fan.phone && (
-                <Row
-                  icon={<Phone className="h-3.5 w-3.5" />}
-                  label="Telefone"
-                  value={fan.phone}
-                />
-              )}
-              {fan.email && (
-                <Row
-                  icon={<Mail className="h-3.5 w-3.5" />}
-                  label="Email"
-                  value={fan.email}
-                />
-              )}
-              {fan.city && (
-                <Row
-                  icon={<MapPin className="h-3.5 w-3.5" />}
-                  label="Cidade"
-                  value={fan.city}
-                />
-              )}
-              {fan.last_interaction_at && (
-                <Row
-                  label="Último contato"
-                  value={formatDate(fan.last_interaction_at)}
-                />
-              )}
-              {fan.contact_id != null && contactName && (
-                <Row label="Contato CRM" value={contactName} />
-              )}
-            </div>
-
-            {fan.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {fan.tags.map((t) => (
-                  <Badge key={t} variant="outline">
-                    {t}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {fan.notes && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                {fan.notes}
-              </div>
-            )}
-
-            <Tabs defaultValue="interactions">
+            <Tabs defaultValue="info">
               <TabsList>
+                <TabsTrigger value="info">Informações</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="info" className="space-y-3 pt-2">
+                <div className="grid grid-cols-1 gap-2 rounded-md border p-3 text-sm sm:grid-cols-2">
+                  {fan.instagram && (
+                    <Row
+                      icon={<Instagram className="h-3.5 w-3.5" />}
+                      label="Instagram"
+                      value={fan.instagram}
+                    />
+                  )}
+                  {fan.phone && (
+                    <Row
+                      icon={<Phone className="h-3.5 w-3.5" />}
+                      label="Telefone"
+                      value={fan.phone}
+                    />
+                  )}
+                  {fan.email && (
+                    <Row
+                      icon={<Mail className="h-3.5 w-3.5" />}
+                      label="Email"
+                      value={fan.email}
+                    />
+                  )}
+                  {fan.city && (
+                    <Row
+                      icon={<MapPin className="h-3.5 w-3.5" />}
+                      label="Cidade"
+                      value={fan.city}
+                    />
+                  )}
+                  {fan.last_interaction_at && (
+                    <Row
+                      label="Último contato"
+                      value={formatDate(fan.last_interaction_at)}
+                    />
+                  )}
+                  {fan.contact_id != null && contactName && (
+                    <Row label="Contato CRM" value={contactName} />
+                  )}
+                </div>
+
+                {fan.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {fan.tags.map((t) => (
+                      <Badge key={t} variant="outline">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {fan.notes && (
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+                    {fan.notes}
+                  </div>
+                )}
+              </TabsContent>
 
               <TabsContent value="interactions">
                 <FanInteractionList fanId={fan.id} onChange={refresh} />

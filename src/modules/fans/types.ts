@@ -1,6 +1,9 @@
 export const FAN_LEVELS = ["Superfã", "Fã", "Possível fã"] as const;
 export type FanLevel = (typeof FAN_LEVELS)[number];
 
+export const FAN_INTERACTION_TYPES = ["Interação", "Presença", "Feedback"] as const;
+export type FanInteractionType = (typeof FAN_INTERACTION_TYPES)[number];
+
 export type Fan = {
   id: number;
   name: string;
@@ -31,8 +34,24 @@ export type FanInteraction = {
   id: number;
   fan_id: number;
   date: string;
+  type: FanInteractionType;
   note: string;
+  special: number;
   created_at: string;
+};
+
+export type FanLevelCriteria = {
+  minInteractions?: number | null;
+  minPresences?: number | null;
+  minFeedbacks?: number | null;
+  minDaysSinceCreation?: number | null;
+  maxDaysSinceLastInteraction?: number | null;
+};
+
+export type FanUpgradeRules = {
+  toFa?: FanLevelCriteria;
+  toSuperfa?: FanLevelCriteria;
+  downgradeInactiveDays?: number | null;
 };
 
 export function levelVariant(level: FanLevel):

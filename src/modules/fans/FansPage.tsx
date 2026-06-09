@@ -51,6 +51,7 @@ import {
   getFanStats,
   listFanGroupMembers,
   listFanGroups,
+  listFanInteractionCounts,
   listFans,
   loadFanUpgradeRules,
   removeFanGroupMember,
@@ -59,7 +60,7 @@ import {
   type FanFilters,
   type FanStats,
 } from "./api";
-import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanLevelCriteria, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
@@ -67,7 +68,7 @@ import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
-type FanSortKey = "name" | "level" | "city" | "last_interaction_at";
+type FanSortKey = "name" | "level" | "city" | "last_interaction_at" | "interactions";
 type SortDir = "asc" | "desc";
 const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Fã": 1, "Superfã": 2 };
 
@@ -77,6 +78,7 @@ export function FansPage() {
   const [topPresence, setTopPresence] = useState<
     { fan_id: number; name: string; gigs: number }[]
   >([]);
+  const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
   const [filters, setFilters] = useState<{
     level: LevelFilter;
     city: string;
@@ -104,13 +106,17 @@ export function FansPage() {
         const diff = (LEVEL_ORDER[a.level] ?? 0) - (LEVEL_ORDER[b.level] ?? 0);
         return sortDir === "asc" ? diff : -diff;
       }
+      if (sortKey === "interactions") {
+        const diff = (interactionCounts.get(a.id) ?? 0) - (interactionCounts.get(b.id) ?? 0);
+        return sortDir === "asc" ? diff : -diff;
+      }
       const av = (a[sortKey] ?? "") as string;
       const bv = (b[sortKey] ?? "") as string;
       return sortDir === "asc"
         ? av.localeCompare(bv, "pt-BR")
         : bv.localeCompare(av, "pt-BR");
     });
-  }, [fans, sortKey, sortDir]);
+  }, [fans, sortKey, sortDir, interactionCounts]);
 
   function FanSortIcon({ col }: { col: FanSortKey }) {
     if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
@@ -127,14 +133,16 @@ export function FansPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [data, s, top] = await Promise.all([
+    const [data, s, top, counts] = await Promise.all([
       listFans(queryFilters),
       getFanStats(),
       topFansByPresence(5).catch(() => []),
+      listFanInteractionCounts().catch(() => new Map<number, number>()),
     ]);
     setFans(data);
     setStats(s);
     setTopPresence(top ?? []);
+    setInteractionCounts(counts);
   }, [queryFilters]);
 
   useEffect(() => {
@@ -295,6 +303,7 @@ export function FansPage() {
             <FanCard
               key={f.id}
               fan={f}
+              interactionCount={interactionCounts.get(f.id) ?? 0}
               onOpen={() => openDetail(f)}
               onEdit={() => openEdit(f)}
               onDelete={() => void handleDelete(f)}
@@ -304,7 +313,7 @@ export function FansPage() {
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground">
               <tr>
                 {(["name", "level", "city"] as const).map((col, i) => (
                   <th key={col} className="px-3 py-2 text-left">
@@ -318,6 +327,11 @@ export function FansPage() {
                 <th className="px-3 py-2 text-left">
                   <button type="button" onClick={() => toggleSort("last_interaction_at")} className="flex items-center gap-1 hover:text-foreground">
                     Último contato <FanSortIcon col="last_interaction_at" />
+                  </button>
+                </th>
+                <th className="px-3 py-2 text-left">
+                  <button type="button" onClick={() => toggleSort("interactions")} className="flex items-center gap-1 hover:text-foreground">
+                    Interações <FanSortIcon col="interactions" />
                   </button>
                 </th>
                 <th className="px-3 py-2 text-right">Ações</th>
@@ -364,6 +378,9 @@ export function FansPage() {
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
+                    </td>
+                    <td className="px-3 py-2 text-center tabular-nums text-sm">
+                      {interactionCounts.get(f.id) ?? 0}
                     </td>
                     <td
                       className="px-3 py-2"
@@ -464,11 +481,13 @@ function FanListAvatar({ fan: f }: { fan: Fan }) {
 
 function FanCard({
   fan: f,
+  interactionCount,
   onOpen,
   onEdit,
   onDelete,
 }: {
   fan: Fan;
+  interactionCount: number;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -536,6 +555,11 @@ function FanCard({
           <div className="text-[11px] text-muted-foreground">
             Último contato:{" "}
             {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
+          </div>
+        )}
+        {interactionCount > 0 && (
+          <div className="text-[11px] text-muted-foreground">
+            {interactionCount} interaç{interactionCount === 1 ? "ão" : "ões"}
           </div>
         )}
       </div>
@@ -716,6 +740,71 @@ function FanGroupsPanel({ fans }: { fans: Fan[] }) {
   );
 }
 
+type CriteriaState = {
+  minInteractions: string;
+  minPresences: string;
+  minFeedbacks: string;
+  minDaysSinceCreation: string;
+};
+
+const emptyCriteria = (): CriteriaState => ({
+  minInteractions: "",
+  minPresences: "",
+  minFeedbacks: "",
+  minDaysSinceCreation: "",
+});
+
+function parseCriteria(s: CriteriaState) {
+  const result: import("./types").FanLevelCriteria = {};
+  if (s.minInteractions.trim()) result.minInteractions = Number(s.minInteractions);
+  if (s.minPresences.trim()) result.minPresences = Number(s.minPresences);
+  if (s.minFeedbacks.trim()) result.minFeedbacks = Number(s.minFeedbacks);
+  if (s.minDaysSinceCreation.trim()) result.minDaysSinceCreation = Number(s.minDaysSinceCreation);
+  return Object.keys(result).length ? result : undefined;
+}
+
+function criteriaFromRules(c?: import("./types").FanLevelCriteria): CriteriaState {
+  return {
+    minInteractions: c?.minInteractions != null ? String(c.minInteractions) : "",
+    minPresences: c?.minPresences != null ? String(c.minPresences) : "",
+    minFeedbacks: c?.minFeedbacks != null ? String(c.minFeedbacks) : "",
+    minDaysSinceCreation: c?.minDaysSinceCreation != null ? String(c.minDaysSinceCreation) : "",
+  };
+}
+
+function CriteriaFields({
+  state,
+  onChange,
+}: {
+  state: CriteriaState;
+  onChange: (s: CriteriaState) => void;
+}) {
+  function set(key: keyof CriteriaState) {
+    return (e: React.ChangeEvent<HTMLInputElement>) =>
+      onChange({ ...state, [key]: e.target.value });
+  }
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Mínimo de interações totais</label>
+        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minInteractions} onChange={set("minInteractions")} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Mínimo de presenças</label>
+        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minPresences} onChange={set("minPresences")} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Mínimo de feedbacks</label>
+        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minFeedbacks} onChange={set("minFeedbacks")} />
+      </div>
+      <div className="space-y-1">
+        <label className="text-sm font-medium">Dias mínimos como cadastrado</label>
+        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minDaysSinceCreation} onChange={set("minDaysSinceCreation")} />
+      </div>
+    </div>
+  );
+}
+
 function FanUpgradeRulesDialog({
   open,
   onOpenChange,
@@ -723,25 +812,29 @@ function FanUpgradeRulesDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [interactions, setInteractions] = useState("");
-  const [gigs, setGigs] = useState("");
+  const [toFa, setToFa] = useState<CriteriaState>(emptyCriteria());
+  const [toSuperfa, setToSuperfa] = useState<CriteriaState>(emptyCriteria());
+  const [downgradeInactiveDays, setDowngradeInactiveDays] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    void loadFanUpgradeRules().then((r) => {
-      setInteractions(r.interactions != null ? String(r.interactions) : "");
-      setGigs(r.gigs != null ? String(r.gigs) : "");
+    void loadFanUpgradeRules().then((r: FanUpgradeRules) => {
+      setToFa(criteriaFromRules(r.toFa));
+      setToSuperfa(criteriaFromRules(r.toSuperfa));
+      setDowngradeInactiveDays(r.downgradeInactiveDays != null ? String(r.downgradeInactiveDays) : "");
     });
   }, [open]);
 
   async function handleSave() {
     setSaving(true);
     try {
-      await saveFanUpgradeRules({
-        interactions: interactions.trim() ? Number(interactions) : null,
-        gigs: gigs.trim() ? Number(gigs) : null,
-      });
+      const rules: FanUpgradeRules = {
+        toFa: parseCriteria(toFa),
+        toSuperfa: parseCriteria(toSuperfa),
+        downgradeInactiveDays: downgradeInactiveDays.trim() ? Number(downgradeInactiveDays) : null,
+      };
+      await saveFanUpgradeRules(rules);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -750,30 +843,32 @@ function FanUpgradeRulesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Upgrade automático de fãs</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Promover Possível fã → Fã após X interações</label>
-            <Input
-              type="number"
-              min={1}
-              placeholder="Deixe vazio para desativar"
-              value={interactions}
-              onChange={(e) => setInteractions(e.target.value)}
-            />
+        <div className="space-y-6 py-2">
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Critérios para Fã <span className="font-normal text-muted-foreground">(Possível fã → Fã)</span></div>
+            <CriteriaFields state={toFa} onChange={setToFa} />
           </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Promover Fã → Superfã após X presenças em GIGs</label>
-            <Input
-              type="number"
-              min={1}
-              placeholder="Deixe vazio para desativar"
-              value={gigs}
-              onChange={(e) => setGigs(e.target.value)}
-            />
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Critérios para Superfã <span className="font-normal text-muted-foreground">(Fã → Superfã)</span></div>
+            <CriteriaFields state={toSuperfa} onChange={setToSuperfa} />
+          </div>
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Rebaixamento automático</div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Rebaixar após X dias sem interação</label>
+              <Input
+                type="number"
+                min={1}
+                placeholder="Deixe vazio para desativar"
+                value={downgradeInactiveDays}
+                onChange={(e) => setDowngradeInactiveDays(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">Deixe vazio para ignorar este critério.</p>
+            </div>
           </div>
           <Button className="w-full" onClick={handleSave} disabled={saving}>
             {saving ? "Salvando…" : "Salvar"}

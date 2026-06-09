@@ -1371,6 +1371,11 @@ const MIGRATIONS: Migration[] = [
     description: "artist_templates: add content column for text templates",
     sql: `ALTER TABLE artist_templates ADD COLUMN content TEXT`,
   },
+  {
+    version: 84,
+    description: "fan_interactions: add type column (Interação/Presença/Feedback)",
+    sql: `ALTER TABLE fan_interactions ADD COLUMN type TEXT NOT NULL DEFAULT 'Interação'`,
+  },
 ];
 
 
