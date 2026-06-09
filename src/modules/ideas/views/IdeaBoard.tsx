@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Flame, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { STICKY_COLORS, heatColor, heatLabel, type Idea } from "../types";
@@ -7,6 +7,7 @@ type Props = {
   items: Idea[];
   onEdit: (i: Idea) => void;
   onConvertToTrack?: (i: Idea) => void;
+  onToggleHot?: (i: Idea) => void;
   onDelete?: (id: number) => void;
 };
 
@@ -14,7 +15,7 @@ type Props = {
  * Mural visual de ideias — grid de post-its em tons pastel.
  * Os tons rotacionam por ordem da ideia pra dar variedade visual.
  */
-export function IdeaBoard({ items, onEdit, onDelete }: Props) {
+export function IdeaBoard({ items, onEdit, onToggleHot, onDelete }: Props) {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -68,6 +69,22 @@ export function IdeaBoard({ items, onEdit, onDelete }: Props) {
               ))}
             </div>
           </button>
+          {onToggleHot && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleHot(i); }}
+              className={cn(
+                "absolute right-8 top-2 rounded p-0.5 transition",
+                i.heat === 3
+                  ? "flex text-red-500"
+                  : "hidden text-muted-foreground hover:text-red-500 group-hover:flex"
+              )}
+              aria-label={i.heat === 3 ? "Desmarcar ideia quente" : "Marcar como ideia quente"}
+              title={i.heat === 3 ? "Ideia quente" : "Marcar como quente"}
+            >
+              <Flame className={cn("h-3.5 w-3.5", i.heat === 3 && "fill-current")} />
+            </button>
+          )}
           {onDelete && (
             <button
               type="button"

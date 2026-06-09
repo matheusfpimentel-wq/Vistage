@@ -20,7 +20,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   listOkrs,
   currentQuarter,
@@ -35,6 +42,10 @@ import {
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { gigDisplayName } from "@/modules/gigs/displayName";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
+import { listSessions } from "@/modules/foco/api";
+import type { WorkSession } from "@/modules/foco/api";
 import {
   loadSwot,
   saveSwot,
@@ -228,8 +239,13 @@ const SWOT_META: Record<SwotKey, { label: string; tone: string; border: string }
   threats: { label: "Ameaças", tone: "text-amber-600", border: "border-amber-500/30 bg-amber-500/5" },
 };
 
+type SwotExtra = {
+  contacts: Contact[];
+  sessions: WorkSession[];
+};
+
 /** Indicadores automáticos derivados dos dados do app. */
-function autoIndicators(data: Data): SwotData {
+function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
   const { tasks, gigs, okrs } = data;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -250,7 +266,56 @@ function autoIndicators(data: Data): SwotData {
 
   if (proposals > 0) out.opportunities.push(`${proposals} proposta(s) de GIG em aberto`);
 
-  if (pendingPayment > 0) out.threats.push(`${pendingPayment} GIG(s) com pagamento pendente`);
+  // Pagamentos pendentes só viram ameaça quando acumulam (≥3); 1-2 já têm
+  // alerta próprio no app, então não poluem o SWOT.
+  if (pendingPayment >= 3) out.threats.push(`${pendingPayment} GIGs com pagamento pendente acumuladas`);
+
+  // ----- Indicadores que dependem de CRM e sessões de foco -----
+  if (extra) {
+    const now = Date.now();
+    const DAY = 86_400_000;
+
+    // Ameaça: concentração de contratações no mesmo CRM nos últimos 90 dias.
+    const cutoff90 = new Date(now - 90 * DAY).toISOString().slice(0, 10);
+    const recentGigs = gigs.filter((g) => g.promoter_contact_id != null && g.date >= cutoff90);
+    if (recentGigs.length >= 3) {
+      const counts = new Map<number, number>();
+      for (const g of recentGigs) {
+        const id = g.promoter_contact_id as number;
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+      let topId = -1;
+      let topCount = 0;
+      for (const [id, c] of counts) {
+        if (c > topCount) { topCount = c; topId = id; }
+      }
+      if (topCount / recentGigs.length > 0.5) {
+        const name = extra.contacts.find((c) => c.id === topId)?.name ?? "um único contato";
+        const pct = Math.round((topCount / recentGigs.length) * 100);
+        out.threats.push(`Dependência de "${name}" (${pct}% das contratações em 90 dias)`);
+      }
+    }
+
+    // Foco: força se houve sessão todos os dias da última semana; fraqueza se nenhuma.
+    const cutoff7 = now - 7 * DAY;
+    const recentSessions = extra.sessions.filter((s) => Date.parse(s.started_at) >= cutoff7);
+    const focusDays = new Set(recentSessions.map((s) => s.started_at.slice(0, 10)));
+    if (focusDays.size >= 7) {
+      out.strengths.push("Consistência: sessão de foco todos os dias da última semana");
+    } else if (recentSessions.length === 0) {
+      out.weaknesses.push("Nenhuma sessão de foco iniciada na última semana");
+    }
+
+    // Oportunidade: contato recente com CRM de alta prioridade.
+    const cutoff14 = new Date(now - 14 * DAY).toISOString().slice(0, 10);
+    const hotContacts = extra.contacts.filter(
+      (c) => (c.rating ?? 0) >= 4 && c.last_interaction_at && c.last_interaction_at.slice(0, 10) >= cutoff14
+    );
+    if (hotContacts.length > 0) {
+      const names = hotContacts.slice(0, 2).map((c) => c.name).join(", ");
+      out.opportunities.push(`Contato recente com CRM de alta prioridade: ${names}`);
+    }
+  }
 
   return out;
 }
@@ -264,11 +329,16 @@ function SwotSection({ data }: { data: Data }) {
     threats: "",
   });
 
+  const [extra, setExtra] = useState<SwotExtra | null>(null);
+
   useEffect(() => {
     void loadSwot().then(setManual);
+    void Promise.all([listContacts(), listSessions(200)])
+      .then(([contacts, sessions]) => setExtra({ contacts, sessions }))
+      .catch(() => setExtra({ contacts: [], sessions: [] }));
   }, []);
 
-  const auto = useMemo(() => autoIndicators(data), [data]);
+  const auto = useMemo(() => autoIndicators(data, extra), [data, extra]);
 
   async function addItem(key: SwotKey) {
     const text = draft[key].trim();
@@ -666,11 +736,29 @@ function ParetoSection({ gigs }: { gigs: Gig[] }) {
 // NPS — feedback do contratante/produtor
 // ============================================================
 
+type NpsCategory = "promoters" | "neutrals" | "detractors" | "all";
+
+function npsCategoryOf(g: Gig): Exclude<NpsCategory, "all"> {
+  const r = g.rating_contractor ?? 0;
+  if (r >= 4) return "promoters";
+  if (r <= 2.5) return "detractors";
+  return "neutrals";
+}
+
+const NPS_CATEGORY_LABEL: Record<NpsCategory, string> = {
+  promoters: "Promotores (≥4)",
+  neutrals: "Neutros (3)",
+  detractors: "Detratores (≤2,5)",
+  all: "Todas as avaliações",
+};
+
 function NpsSection({ gigs }: { gigs: Gig[] }) {
   // rating_contractor é uma nota 0..5. Mapeamento para NPS:
   //   >= 4   → promotor
   //   == 3   → neutro
   //   <= 2.5 → detrator
+  const [drill, setDrill] = useState<NpsCategory | null>(null);
+
   const rated = gigs.filter((g) => typeof g.rating_contractor === "number");
   const promoters = rated.filter((g) => (g.rating_contractor ?? 0) >= 4).length;
   const detractors = rated.filter((g) => (g.rating_contractor ?? 0) <= 2.5).length;
@@ -683,49 +771,105 @@ function NpsSection({ gigs }: { gigs: Gig[] }) {
   const tone = nps == null ? "text-muted-foreground" : nps >= 50 ? "text-emerald-500" : nps >= 0 ? "text-amber-500" : "text-destructive";
   const verdict = nps == null ? "" : nps >= 50 ? "Excelente" : nps >= 0 ? "Razoável" : "Precisa de atenção";
 
+  const drillGigs = drill == null
+    ? []
+    : (drill === "all" ? rated : rated.filter((g) => npsCategoryOf(g) === drill))
+        .slice()
+        .sort((a, b) => b.date.localeCompare(a.date));
+
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Smile className="h-4 w-4 text-primary" />
-          NPS dos contratantes
-        </CardTitle>
-        <CardDescription>
-          Calculado a partir da "Avaliação do Contratante" registrada no debrief das GIGs.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {rated.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma GIG com avaliação de contratante ainda. Preencha no debrief.
-          </p>
-        ) : (
-          <div className="flex flex-wrap items-center gap-6">
-            <div>
-              <div className={cn("text-4xl font-bold tabular-nums", tone)}>{nps}</div>
-              <div className="text-xs text-muted-foreground">{verdict} · {rated.length} avaliações</div>
+    <>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Smile className="h-4 w-4 text-primary" />
+            NPS dos contratantes
+          </CardTitle>
+          <CardDescription>
+            Calculado a partir da "Avaliação do Contratante" registrada no debrief das GIGs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rated.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma GIG com avaliação de contratante ainda. Preencha no debrief.
+            </p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-6">
+              <button
+                type="button"
+                onClick={() => setDrill("all")}
+                className="rounded-md px-1 text-left transition-colors hover:bg-muted/50"
+                title="Ver todas as GIGs avaliadas"
+              >
+                <div className={cn("text-4xl font-bold tabular-nums", tone)}>{nps}</div>
+                <div className="text-xs text-muted-foreground underline-offset-2 hover:underline">
+                  {verdict} · {rated.length} avaliações
+                </div>
+              </button>
+              <div className="flex-1 space-y-1.5 min-w-48">
+                <NpsBar label={NPS_CATEGORY_LABEL.promoters} count={promoters} total={rated.length} tone="bg-emerald-500" onClick={() => promoters > 0 && setDrill("promoters")} />
+                <NpsBar label={NPS_CATEGORY_LABEL.neutrals} count={neutrals} total={rated.length} tone="bg-amber-400" onClick={() => neutrals > 0 && setDrill("neutrals")} />
+                <NpsBar label={NPS_CATEGORY_LABEL.detractors} count={detractors} total={rated.length} tone="bg-destructive" onClick={() => detractors > 0 && setDrill("detractors")} />
+              </div>
             </div>
-            <div className="flex-1 space-y-1.5 min-w-48">
-              <NpsBar label="Promotores (≥4)" count={promoters} total={rated.length} tone="bg-emerald-500" />
-              <NpsBar label="Neutros (3)" count={neutrals} total={rated.length} tone="bg-amber-400" />
-              <NpsBar label="Detratores (≤2,5)" count={detractors} total={rated.length} tone="bg-destructive" />
-            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={drill != null} onOpenChange={(o) => !o && setDrill(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{drill ? NPS_CATEGORY_LABEL[drill] : ""}</DialogTitle>
+            <DialogDescription>
+              {drillGigs.length} GIG{drillGigs.length === 1 ? "" : "s"} com avaliação do contratante.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-1.5 overflow-y-auto pr-1">
+            {drillGigs.map((g) => (
+              <Link
+                key={g.id}
+                to={`/gigs?open=${g.id}`}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{gigDisplayName(g)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(g.date)}
+                    {g.venue_city ? ` · ${g.venue_city}` : ""}
+                  </div>
+                </div>
+                <span className="shrink-0 tabular-nums font-semibold">
+                  {g.rating_contractor?.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5
+                </span>
+              </Link>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
-function NpsBar({ label, count, total, tone }: { label: string; count: number; total: number; tone: string }) {
+function NpsBar({ label, count, total, tone, onClick }: { label: string; count: number; total: number; tone: string; onClick?: () => void }) {
   const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const clickable = onClick && count > 0;
   return (
-    <div className="flex items-center gap-2">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!clickable}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-md px-1 text-left transition-colors",
+        clickable ? "cursor-pointer hover:bg-muted/50" : "cursor-default"
+      )}
+      title={clickable ? `Ver GIGs · ${label}` : undefined}
+    >
       <span className="w-32 shrink-0 text-xs text-muted-foreground">{label}</span>
       <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
         <div className={cn("h-full rounded-full", tone)} style={{ width: `${pct}%` }} />
       </div>
       <span className="w-12 shrink-0 text-right text-xs tabular-nums">{count} ({pct}%)</span>
-    </div>
+    </button>
   );
 }

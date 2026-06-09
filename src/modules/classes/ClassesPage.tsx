@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  FileDown,
   GraduationCap,
   Package as PackageIcon,
   Pencil,
@@ -37,6 +38,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { exportSyllabusPdf } from "./syllabusPdf";
 import { StudentForm } from "./forms/StudentForm";
 import { PackageForm } from "./forms/PackageForm";
 import { ClassForm } from "./forms/ClassForm";
@@ -163,6 +165,15 @@ export function ClassesPage() {
     await deleteStudent(s.id);
     toast.success("Aluno excluído");
     await refresh();
+  }
+
+  async function handleExportSyllabus(p: ClassPackage) {
+    try {
+      await exportSyllabusPdf(p);
+      toast.success("Ementa exportada em PDF");
+    } catch {
+      toast.error("Não foi possível exportar a ementa");
+    }
   }
 
   async function handleDeletePackage(p: ClassPackage) {
@@ -519,6 +530,15 @@ export function ClassesPage() {
                       </div>
                     )}
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => void handleExportSyllabus(p)}
+                        aria-label="Exportar ementa em PDF"
+                        title="Exportar ementa em PDF"
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"

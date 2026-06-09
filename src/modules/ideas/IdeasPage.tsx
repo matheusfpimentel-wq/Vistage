@@ -22,7 +22,8 @@ import { QuickCapture } from "./forms/QuickCapture";
 import { IdeaList } from "./views/IdeaList";
 import { IdeaKanban } from "./views/IdeaKanban";
 import { IdeaBoard } from "./views/IdeaBoard";
-import { deleteIdea, listIdeas, markIdeaAsConverted, type IdeaFilters } from "./api";
+import { InsightDie } from "./InsightDie";
+import { deleteIdea, listIdeas, markIdeaAsConverted, updateIdea, type IdeaFilters } from "./api";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
 import {
   IDEA_CATEGORIES,
@@ -93,6 +94,13 @@ export function IdeasPage() {
     if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${i.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteIdea(i.id);
     toast.success("Ideia excluída");
+    await refresh();
+  }
+
+  async function handleToggleHot(i: Idea) {
+    // Marca/desmarca a ideia como quente (calor 3 ↔ 2/morna como padrão neutro).
+    const next: IdeaHeat = i.heat === 3 ? 2 : 3;
+    await updateIdea({ id: i.id, heat: next });
     await refresh();
   }
 
@@ -188,6 +196,9 @@ export function IdeasPage() {
         </div>
       ) : (
         <Tabs defaultValue="board">
+          <div className="mb-3">
+            <InsightDie />
+          </div>
           <TabsList>
             <TabsTrigger value="board">Mural</TabsTrigger>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
@@ -195,7 +206,7 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} />
           </TabsContent>
 
           <TabsContent value="kanban">
