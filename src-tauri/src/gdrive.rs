@@ -180,9 +180,9 @@ pub async fn gdrive_wait_callback(
             .ok_or_else(|| format!("Nenhuma sessão OAuth ativa na porta {port}"))?
     };
 
-    // tiny_http::Server is !Send, so we use block_in_place to run the blocking
-    // wait on the current thread without sending it to another thread.
-    tokio::task::block_in_place(move || {
+    // O accept do tiny_http é bloqueante; roda numa thread do pool pra não
+    // travar o runtime async do Tauri.
+    tauri::async_runtime::spawn_blocking(move || {
         let deadline = Instant::now() + Duration::from_secs(timeout_secs);
         while Instant::now() < deadline {
             let remaining = deadline.saturating_duration_since(Instant::now());
@@ -218,6 +218,8 @@ pub async fn gdrive_wait_callback(
 
         Err("Tempo esgotado aguardando autorização".to_string())
     })
+    .await
+    .map_err(|e| format!("Falha na thread do callback OAuth: {e}"))?
 }
 
 #[tauri::command]
