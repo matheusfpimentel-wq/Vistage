@@ -10,7 +10,7 @@ import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { StageOverlay } from "@/modules/gigs/StageOverlay";
-import { isStageModeWindow } from "@/modules/gigs/stageOverlay";
+import { isStageModeWindow } from "@/modules/gigs/stageMode";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";

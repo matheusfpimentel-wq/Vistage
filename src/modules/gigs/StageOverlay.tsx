@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, Phone, Music2, Clock, MapPin } from "lucide-react";
-import { readStageModeParams } from "./stageOverlay";
+import { readStageModeParams } from "./stageMode";
 import { getGig, listGigTracks } from "./api";
 import { getTrack } from "@/modules/music/api";
 import { gigDisplayName } from "./displayName";

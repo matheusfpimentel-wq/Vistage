@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AlertTriangle, ArrowUpDown, CalendarRange, Mic2, Pencil, Trash2 } from "lucide-react";
-import { openStageMode } from "../stageOverlay";
+import { openStageMode } from "../stageMode";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
