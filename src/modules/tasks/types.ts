@@ -44,16 +44,18 @@ export type Task = {
   tags: string[];
   recurrence: TaskRecurrence | null;
   eisenhower_quadrant: EisenhowerQuadrant | null;
+  energy_required: number | null;
   created_at: string;
   updated_at: string;
 };
 
 export type TaskCreateInput = Omit<
   Task,
-  "id" | "created_at" | "updated_at" | "recurrence" | "eisenhower_quadrant"
+  "id" | "created_at" | "updated_at" | "recurrence" | "eisenhower_quadrant" | "energy_required"
 > & {
   recurrence?: TaskRecurrence | null;
   eisenhower_quadrant?: EisenhowerQuadrant | null;
+  energy_required?: number | null;
 };
 export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
 

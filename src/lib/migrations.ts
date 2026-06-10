@@ -1499,6 +1499,27 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE finance_transactions ADD COLUMN gig_sync INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 91,
+    description: "Adiciona recurring_event_name à tabela gigs",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN recurring_event_name TEXT;
+    `,
+  },
+  {
+    version: 92,
+    description: "Adiciona cache_paid_pct à tabela gigs — percentual do cachê já recebido (0-100, null = não definido)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN cache_paid_pct INTEGER;
+    `,
+  },
+  {
+    version: 93,
+    description: "Adiciona energy_required à tabela tasks — nível de energia necessário para a tarefa (1-5)",
+    sql: `
+      ALTER TABLE tasks ADD COLUMN energy_required INTEGER;
+    `,
+  },
 ];
 
 

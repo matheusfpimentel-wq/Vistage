@@ -41,6 +41,12 @@ export type FinanceTransaction = {
   category_id: number | null;
   gig_id: number | null;
   contact_id: number | null;
+  class_id: number | null;
+  student_package_id: number | null;
+  track_id: number | null;
+  party_id: number | null;
+  music_cost_id: number | null;
+  gig_sync: number; // 0/1
   status: TransactionStatus;
   payment_method: PaymentMethod | null;
   expense_type: ExpenseType | null;

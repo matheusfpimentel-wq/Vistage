@@ -59,6 +59,7 @@ const EMPTY: TaskCreateInput = {
   due_date: null,
   tags: [],
   recurrence: null,
+  energy_required: null,
 };
 
 function taskToInput(t: Task): TaskCreateInput {
@@ -73,6 +74,7 @@ function taskToInput(t: Task): TaskCreateInput {
     due_date: t.due_date,
     tags: t.tags,
     recurrence: t.recurrence,
+    energy_required: t.energy_required,
   };
 }
 
@@ -224,6 +226,31 @@ export function TaskForm({
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="Energia necessária">
+              <div className="flex items-center gap-1 pt-1">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      set("energy_required", state.energy_required === level ? null : level)
+                    }
+                    className={[
+                      "flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold transition",
+                      state.energy_required != null && level <= state.energy_required
+                        ? "border-amber-500 bg-amber-500 text-white"
+                        : "border-input bg-background text-muted-foreground hover:border-amber-400 hover:text-amber-500",
+                    ].join(" ")}
+                    aria-label={`Energia ${level}`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Status">
               <Select
                 value={state.status}

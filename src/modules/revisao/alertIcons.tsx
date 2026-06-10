@@ -9,6 +9,8 @@ import {
   PartyPopper,
   Star,
   Target,
+  Trophy,
+  Zap,
 } from "lucide-react";
 import type { AlertIconKey } from "./alerts";
 
@@ -47,6 +49,10 @@ export function AlertIcon({
       return <Target className={cls} />;
     case "dollar":
       return <DollarSign className={cls} />;
+    case "trophy":
+      return <Trophy className={cls} />;
+    case "zap":
+      return <Zap className={cls} />;
     case "warning":
     default:
       return <AlertTriangle className={cls} />;

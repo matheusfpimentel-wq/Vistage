@@ -3,12 +3,129 @@ import { Bell, BellRing } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
-import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
+import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { enableNotifications, notificationPermission } from "@/lib/notify";
 import { DATA_CHANGED } from "@/lib/events";
 import { getDb } from "@/lib/db";
+
+const SESSION_SEEN_KEY = "notification_bell_seen_keys";
+
+function getSeenKeys(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(SESSION_SEEN_KEY);
+    if (raw) return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    // ignore
+  }
+  return new Set<string>();
+}
+
+function markKeysSeen(keys: string[]) {
+  try {
+    const seen = getSeenKeys();
+    for (const k of keys) seen.add(k);
+    sessionStorage.setItem(SESSION_SEEN_KEY, JSON.stringify([...seen]));
+  } catch {
+    // ignore
+  }
+}
+
+/** Fisher-Yates in-place shuffle. */
+function shuffle<T>(arr: T[]): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Merge + reorder alerts so unseen items appear first (shuffled),
+ * then seen items follow (also shuffled). Marks all visible keys as seen.
+ */
+function mergeAndReorder(lists: AlertItem[][]): AlertItem[] {
+  const all = lists.flat();
+  const seen = getSeenKeys();
+  const unseen = shuffle(all.filter((a) => !seen.has(a.key)));
+  const alreadySeen = shuffle(all.filter((a) => seen.has(a.key)));
+  const ordered = [...unseen, ...alreadySeen];
+  markKeysSeen(ordered.map((a) => a.key));
+  return ordered;
+}
+
+async function loadExtraStats(): Promise<ExtraStats> {
+  try {
+    const db = getDb();
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStartStr = weekStart.toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+
+    const [
+      gigsNoRatingRows,
+      lastTrackRows,
+      crmInteractionRows,
+      staleSuperFanRows,
+      tasksCompletedRows,
+      gigsThisMonthRows,
+      _focusSessionRows,
+    ] = await Promise.all([
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM gigs
+         WHERE date >= $1 AND date <= $2 AND status = 'Concluída'
+           AND (rating_contractor IS NULL)`,
+        [weekStartStr, today]
+      ),
+      db.select<{ created_at: string }[]>(
+        `SELECT created_at FROM tracks ORDER BY created_at DESC LIMIT 1`
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM contact_interactions WHERE date >= $1`,
+        [weekStartStr]
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM fans
+         WHERE superfan = 1 AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
+        [thirtyDaysAgo]
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM tasks
+         WHERE status = 'Concluída' AND updated_at >= $1`,
+        [weekStartStr]
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM gigs
+         WHERE date LIKE $1 AND status != 'Cancelada'`,
+        [`${today.slice(0, 7)}%`]
+      ),
+      db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM work_sessions
+         WHERE started_at >= $1 AND ended_at IS NOT NULL`,
+        [`${today.slice(0, 4)}%`]
+      ),
+    ]);
+
+    const lastTrackDate = lastTrackRows[0]?.created_at?.slice(0, 10);
+    const daysSinceLastTrack = lastTrackDate
+      ? Math.floor((Date.now() - new Date(lastTrackDate).getTime()) / 86400000)
+      : null;
+
+    return {
+      gigsWithoutRating: gigsNoRatingRows[0]?.n ?? 0,
+      daysSinceLastTrack,
+      crmNoInteractionThisWeek: (crmInteractionRows[0]?.n ?? 0) === 0 ? 1 : 0,
+      staleSuperFans: staleSuperFanRows[0]?.n ?? 0,
+      tasksCompletedThisWeek: tasksCompletedRows[0]?.n ?? 0,
+      gigsThisMonth: gigsThisMonthRows[0]?.n ?? 0,
+      daysToFocusRecord: null, // complex to compute, skip for now
+    };
+  } catch {
+    return {};
+  }
+}
 
 async function loadRelationshipAlerts(): Promise<AlertItem[]> {
   try {
@@ -45,8 +162,8 @@ export function NotificationBell() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const stats = await loadWeekStats();
-        setAlerts(await filterSnoozed(computeAlerts(stats)));
+        const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
+        setAlerts(await filterSnoozed(computeAlerts(stats, extra)));
       } catch {
         // silently ignore
       }
@@ -84,7 +201,7 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const allAlerts = [...alerts, ...crmAlerts];
+  const allAlerts = mergeAndReorder([alerts, crmAlerts]);
   const criticalCount = allAlerts.filter((a) => a.critical).length;
   const totalCount = allAlerts.length;
 

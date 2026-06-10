@@ -79,7 +79,6 @@ const EMPTY: FormState = {
   day_contact_phone: null,
   estimated_audience: null,
   cache_amount: null,
-  cache_paid_pct: null,
   script_file_path: null,
   banner_file_path: null,
   extra_flyer_paths: null,
@@ -711,9 +710,14 @@ export function GigForm({
               >
                 <Select
                   value={state.payment_status ?? "Pendente"}
-                  onValueChange={(v) =>
-                    set("payment_status", v as Gig["payment_status"])
-                  }
+                  onValueChange={(v) => {
+                    const ps = v as Gig["payment_status"];
+                    set("payment_status", ps);
+                    // Auto-preenche % já recebido se não foi preenchido manualmente
+                    if (state.cache_paid_pct === null || state.cache_paid_pct === undefined) {
+                      if (ps === "50% pago") set("cache_paid_pct", 50);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -728,6 +732,30 @@ export function GigForm({
                 </Select>
               </Field>
             </div>
+
+            {state.payment_status !== "Pendente" &&
+              state.payment_status !== "Pago integralmente" &&
+              state.payment_status != null && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label="% já recebido"
+                  hint="Percentual do cachê que você já recebeu. Preenche automaticamente com base no status; ajuste se necessário."
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    placeholder={state.payment_status === "50% pago" ? "50" : ""}
+                    value={state.cache_paid_pct ?? ""}
+                    onChange={(e) => {
+                      const v = e.target.value ? Number(e.target.value) : null;
+                      set("cache_paid_pct", v !== null ? Math.min(100, Math.max(0, v)) : null);
+                    }}
+                  />
+                </Field>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Forma de pagamento">

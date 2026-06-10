@@ -20,6 +20,12 @@ type EnergyGroup = "alta" | "media" | "baixa" | "concluidas";
 
 function getEnergyGroup(task: Task): EnergyGroup {
   if (task.status === "Concluída" || task.status === "Cancelada") return "concluidas";
+  // Use energy_required when set, otherwise fall back to priority
+  if (task.energy_required != null) {
+    if (task.energy_required >= 4) return "alta";
+    if (task.energy_required >= 2) return "media";
+    return "baixa";
+  }
   if (task.priority === "Urgente" || task.priority === "Alta") return "alta";
   if (task.priority === "Média") return "media";
   return "baixa";

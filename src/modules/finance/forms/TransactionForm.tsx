@@ -66,6 +66,12 @@ function emptyState(kind: TransactionKind): FormState {
     receipt_file_path: null,
     tax_relevant: 0,
     recurring_id: null,
+    student_package_id: null,
+    track_id: null,
+    class_id: null,
+    party_id: null,
+    music_cost_id: null,
+    gig_sync: 0,
   };
 }
 
@@ -84,6 +90,12 @@ function txToState(t: FinanceTransaction): FormState {
     receipt_file_path: t.receipt_file_path,
     tax_relevant: t.tax_relevant,
     recurring_id: t.recurring_id,
+    student_package_id: t.student_package_id ?? null,
+    track_id: t.track_id ?? null,
+    class_id: t.class_id ?? null,
+    party_id: t.party_id ?? null,
+    music_cost_id: t.music_cost_id ?? null,
+    gig_sync: t.gig_sync ?? 0,
   };
 }
 

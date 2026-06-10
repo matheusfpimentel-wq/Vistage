@@ -17,6 +17,7 @@ type WrappedData = {
   topCityCount: number;
   topContractor: string | null;
   topContractorCount: number;
+  topContractorRevenue: number;
   topMonth: string | null;
   topMonthCount: number;
   avgRating: number | null;
@@ -61,11 +62,11 @@ async function loadWrapped(year: number): Promise<WrappedData> {
        GROUP BY venue_city ORDER BY n DESC LIMIT 1`,
       [`${y}%`]
     ),
-    db.select<{ name: string; n: number }[]>(
-      `SELECT c.name, COUNT(*) as n FROM gigs g
+    db.select<{ name: string; revenue: number; n: number }[]>(
+      `SELECT c.name, SUM(g.cache_amount) as revenue, COUNT(*) as n FROM gigs g
        JOIN contacts c ON g.promoter_contact_id = c.id
-       WHERE g.date LIKE $1 AND g.status != 'Cancelada'
-       GROUP BY c.id ORDER BY n DESC LIMIT 1`,
+       WHERE g.date LIKE $1 AND g.status = 'Concluída' AND g.cache_amount IS NOT NULL
+       GROUP BY c.id ORDER BY revenue DESC LIMIT 1`,
       [`${y}%`]
     ),
     db.select<{ month: string; n: number }[]>(
@@ -124,6 +125,7 @@ async function loadWrapped(year: number): Promise<WrappedData> {
     topCityCount: cityRows[0]?.n ?? 0,
     topContractor: contractorRows[0]?.name ?? null,
     topContractorCount: contractorRows[0]?.n ?? 0,
+    topContractorRevenue: contractorRows[0]?.revenue ?? 0,
     topMonth: monthRows[0]?.month ? MONTHS[Number(monthRows[0].month) - 1] ?? null : null,
     topMonthCount: monthRows[0]?.n ?? 0,
     avgRating: ratingRows[0]?.avg ?? null,
@@ -185,7 +187,7 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
   y += 10;
 
   h2("Relacionamentos"); y -= 4;
-  if (data.topContractor) kv("Contratante do ano", `${data.topContractor} (${data.topContractorCount} GIGs)`);
+  if (data.topContractor) kv("Contratante do ano", `${data.topContractor} — ${formatCurrency(data.topContractorRevenue)}`);
   kv("Novos fãs cadastrados", String(data.newFans));
   y += 10;
 
@@ -353,7 +355,7 @@ export function CareerWrappedPage() {
             </h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {data.topContractor && (
-                <StatTile icon={<Users className="h-4 w-4" />} label="Contratante do ano" value={data.topContractor} sub={`${data.topContractorCount} GIG${data.topContractorCount !== 1 ? "s" : ""} juntos`} accent />
+                <StatTile icon={<Users className="h-4 w-4" />} label="Contratante do ano" value={data.topContractor} sub={formatCurrency(data.topContractorRevenue)} accent />
               )}
               <StatTile icon={<Users className="h-4 w-4" />} label="Novos fãs cadastrados" value={data.newFans} />
             </div>

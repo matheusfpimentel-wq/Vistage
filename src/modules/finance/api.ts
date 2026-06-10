@@ -15,7 +15,8 @@ import type {
 } from "./types";
 
 const TX_COLUMNS = `t.id, t.kind, t.amount, t.date, t.description, t.category_id,
-  t.gig_id, t.contact_id, t.status, t.payment_method, t.expense_type,
+  t.gig_id, t.contact_id, t.class_id, t.student_package_id, t.track_id, t.party_id,
+  t.music_cost_id, t.gig_sync, t.status, t.payment_method, t.expense_type,
   t.receipt_file_path, t.tax_relevant, t.recurring_id, t.created_at, t.updated_at,
   c.name as category_name`;
 
@@ -239,7 +240,8 @@ export async function syncGigPaymentTransaction(
   paid: boolean,
   amount: number,
   date: string,
-  description: string
+  description: string,
+  _cachePaidPct?: number | null
 ): Promise<void> {
   const db = getDb();
   const existing = await db.select<{ id: number }[]>(

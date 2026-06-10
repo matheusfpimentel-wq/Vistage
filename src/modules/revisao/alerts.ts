@@ -25,7 +25,9 @@ export type AlertIconKey =
   | "heart"
   | "target"
   | "dollar"
-  | "warning";
+  | "warning"
+  | "trophy"
+  | "zap";
 
 export type AlertItem = {
   /** Chave estável — usada para deduplicar push e como React key. */
@@ -37,10 +39,31 @@ export type AlertItem = {
   icon: AlertIconKey;
 };
 
+export type ExtraStats = {
+  /** GIGs esta semana sem nenhuma avaliação de debrief registrada */
+  gigsWithoutRating?: number;
+  /** Dias desde que a última música foi iniciada (null = nunca ou muito recente) */
+  daysSinceLastTrack?: number | null;
+  /** Contatos CRM sem interação esta semana */
+  crmNoInteractionThisWeek?: number;
+  /** Tarefas vencidas (redundante com tasksOverdue mas mais detalhado) */
+  overdueCount?: number;
+  /** GIGs concluídas sem debrief (redundante com pendingDebriefs) */
+  gigsNeedingDebrief?: number;
+  /** Superfãs sem interação há 30+ dias (redundante com superfasSemInteracao) */
+  staleSuperFans?: number;
+  /** Tarefas concluídas esta semana (para motivação) */
+  tasksCompletedThisWeek?: number;
+  /** Número de GIGs este mês (para motivação) */
+  gigsThisMonth?: number;
+  /** Dias para bater recorde de sessões de foco */
+  daysToFocusRecord?: number | null;
+};
+
 const plural = (n: number) => (n > 1 ? "s" : "");
 
-/** Calcula a lista de alertas a partir das estatísticas da semana. */
-export function computeAlerts(stats: WeekStats): AlertItem[] {
+/** Calcula a lista de alertas a partir das estatísticas da semana e de stats extras (opcionais). */
+export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[] {
   const alerts: AlertItem[] = [];
 
   if (stats.tasksOverdue > 0)
@@ -163,6 +186,95 @@ export function computeAlerts(stats: WeekStats): AlertItem[] {
       to: "/musica",
       critical: false,
       label: `Track "${t.title}" estava em standby e já passou da data de retorno.`,
+    });
+  }
+
+  // ── Fraquezas / gaps ───────────────────────────────────────────
+  if ((extra?.gigsWithoutRating ?? 0) > 0) {
+    const n = extra!.gigsWithoutRating!;
+    alerts.push({
+      key: "gigs-no-rating",
+      icon: "star",
+      to: "/gigs",
+      critical: false,
+      label: `${n} GIG${plural(n)} esta semana sem avaliação registrada no debrief`,
+    });
+  }
+
+  if ((extra?.daysSinceLastTrack ?? null) != null && (extra?.daysSinceLastTrack ?? 0) >= 30) {
+    const d = extra!.daysSinceLastTrack!;
+    alerts.push({
+      key: "no-new-track-30d",
+      icon: "music",
+      to: "/musica",
+      critical: false,
+      label: `Nenhuma música nova iniciada nos últimos ${d} dias`,
+    });
+  }
+
+  if ((extra?.crmNoInteractionThisWeek ?? 0) > 0) {
+    alerts.push({
+      key: "crm-no-interaction-week",
+      icon: "heart",
+      to: "/crm",
+      critical: false,
+      label: "Nenhum contato CRM interagido esta semana — que tal manter o relacionamento?",
+    });
+  }
+
+  // ── Pendências ─────────────────────────────────────────────────
+  if (stats.tasksOverdue > 0) {
+    alerts.push({
+      key: "tasks-overdue-detail",
+      icon: "warning",
+      to: "/tarefas",
+      critical: false,
+      label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
+    });
+  }
+
+  if ((extra?.staleSuperFans ?? 0) > 0) {
+    const n = extra!.staleSuperFans!;
+    alerts.push({
+      key: "superfans-pending-interaction",
+      icon: "heart",
+      to: "/fas",
+      critical: false,
+      label: `${n} fã${plural(n)} Superfã${plural(n)} sem interação há 30+ dias`,
+    });
+  }
+
+  // ── Motivação / conquistas ─────────────────────────────────────
+  if ((extra?.tasksCompletedThisWeek ?? 0) >= 5) {
+    const n = extra!.tasksCompletedThisWeek!;
+    alerts.push({
+      key: `motivation-tasks-done-${n}`,
+      icon: "trophy",
+      to: "/tarefas",
+      critical: false,
+      label: `Você completou ${n} tarefa${plural(n)} esta semana — ótimo ritmo!`,
+    });
+  }
+
+  if ((extra?.gigsThisMonth ?? 0) > 0 && stats.gigsThisWeek > 0) {
+    const n = extra!.gigsThisMonth!;
+    alerts.push({
+      key: `motivation-gigs-month-${n}`,
+      icon: "zap",
+      to: "/gigs",
+      critical: false,
+      label: `Esta semana com ${stats.gigsThisWeek} GIG${plural(stats.gigsThisWeek)} — você já fez ${n} show${plural(n)} este mês!`,
+    });
+  }
+
+  if ((extra?.daysToFocusRecord ?? null) != null && (extra?.daysToFocusRecord ?? 999) <= 7) {
+    const d = extra!.daysToFocusRecord!;
+    alerts.push({
+      key: `motivation-focus-record-${d}d`,
+      icon: "zap",
+      to: "/foco",
+      critical: false,
+      label: `Você está a apenas ${d} dia${plural(d)} de bater seu recorde de sessões de foco`,
     });
   }
 
