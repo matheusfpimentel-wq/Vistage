@@ -18,6 +18,7 @@ const GIG_COLUMNS = [
   "day_contact_phone",
   "estimated_audience",
   "cache_amount",
+  "cache_paid_pct",
   "script_file_path",
   "banner_file_path",
   "extra_flyer_paths",
@@ -60,6 +61,7 @@ const GIG_COLUMNS = [
   "prep_task_id",
   "gig_equipment",
   "event_category",
+  "recurring_event_name",
   "rating_contractor",
   "is_special",
   "created_at",
@@ -75,6 +77,7 @@ export type GigFilters = {
   search?: string;
   promoterContactId?: number;
   eventCategory?: string;
+  recurringEventName?: string;
 };
 
 export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
@@ -102,12 +105,16 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
     params.push(filters.eventCategory);
     where.push(`event_category = $${params.length}`);
   }
+  if (filters.recurringEventName && filters.recurringEventName.trim().length > 0) {
+    params.push(filters.recurringEventName);
+    where.push(`recurring_event_name = $${params.length}`);
+  }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
-    params.push(q, q, q, q);
+    params.push(q, q, q, q, q, q, q, q, q, q, q, q);
     const i = params.length;
     where.push(
-      `(venue_name LIKE $${i - 3} OR venue_city LIKE $${i - 2} OR briefing LIKE $${i - 1} OR event_name LIKE $${i})`
+      `(venue_name LIKE $${i - 11} OR venue_city LIKE $${i - 10} OR briefing LIKE $${i - 9} OR event_name LIKE $${i - 8} OR recurring_event_name LIKE $${i - 7} OR event_category LIKE $${i - 6} OR targets LIKE $${i - 5} OR concrete_goals LIKE $${i - 4} OR opportunities LIKE $${i - 3} OR set_concept LIKE $${i - 2} OR day_contact_name LIKE $${i - 1} OR general_notes LIKE $${i})`
     );
   }
 
@@ -194,47 +201,75 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       // never crash the main update
     }
   }
-  // Mantém o Financeiro sincronizado em qualquer caminho que altere o
-  // pagamento ou o cachê (não só pelo GigForm). Replica a lógica do GigForm:
-  // "Pago integralmente" → cachê cheio; "50% pago" → metade.
-  if ("payment_status" in rest || "cache_amount" in rest) {
+  // Mantém o Financeiro sincronizado quando payment_status ou cache_amount mudam.
+  // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se
+  // já existia sincronização (para refletir mudanças no valor do cachê).
+  // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
+  if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
     try {
-      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
-        "SELECT payment_status, cache_amount, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
+      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
+        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
       );
       const g = row[0];
       if (g) {
         const paid =
           g.payment_status === "Pago integralmente" ||
-          g.payment_status === "50% pago";
+          g.payment_status === "50% pago" ||
+          g.payment_status === "Pago parcialmente";
         const cache = g.cache_amount ?? 0;
-        const received = g.payment_status === "50% pago" ? cache * 0.5 : cache;
+        // Usa cache_paid_pct quando disponível; fallback: 50% para "50% pago",
+        // 100% para "Pago integralmente", ou o percentual literal se definido.
+        let pct: number;
+        if (g.cache_paid_pct !== null && g.cache_paid_pct !== undefined) {
+          pct = g.cache_paid_pct / 100;
+        } else if (g.payment_status === "Pago integralmente") {
+          pct = 1;
+        } else if (g.payment_status === "50% pago") {
+          pct = 0.5;
+        } else {
+          pct = 1;
+        }
+        const received = cache * pct;
         const gigName = g.event_name?.trim() || g.venue_name?.trim() || "GIG";
-        const label =
-          g.payment_status === "50% pago"
-            ? `Cachê (50%): ${gigName} (${g.date})`
-            : `Cachê: ${gigName} (${g.date})`;
+        const pctLabel =
+          g.payment_status === "Pago integralmente"
+            ? ""
+            : ` (${Math.round(pct * 100)}%)`;
+        const label = `Cachê${pctLabel}: ${gigName} (${g.date})`;
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
         await syncGigPaymentTransaction(id, paid, received, g.date ?? new Date().toISOString().slice(0, 10), label);
       }
     } catch { /* não interrompe */ }
   }
-  // Sync prep task due_date when gig date changes
-  if ("date" in rest) {
-    const rows = await db.select<{ prep_task_id: number | null }[]>(
-      "SELECT prep_task_id FROM gigs WHERE id = $1", [id]
+  // Sync prep task due_date when gig date changes, and title when event_name/venue_name changes
+  if ("date" in rest || "event_name" in rest || "venue_name" in rest) {
+    const rows = await db.select<{ prep_task_id: number | null; date: string | null; event_name: string | null; venue_name: string | null }[]>(
+      "SELECT prep_task_id, date, event_name, venue_name FROM gigs WHERE id = $1", [id]
     );
     const prepTaskId = rows[0]?.prep_task_id;
     if (prepTaskId) {
       const { updateTask } = await import("@/modules/tasks/api");
-      const gigDate = rest.date as string | null;
-      let prepDue: string | null = gigDate;
-      if (gigDate) {
-        const d = new Date(`${gigDate}T00:00:00`);
-        d.setDate(d.getDate() - 2);
-        prepDue = d.toISOString().slice(0, 10);
+      const taskUpdate: Parameters<typeof updateTask>[0] = { id: prepTaskId };
+      if ("date" in rest) {
+        const gigDate = rest.date as string | null;
+        let prepDue: string | null = gigDate;
+        if (gigDate) {
+          const d = new Date(`${gigDate}T00:00:00`);
+          d.setDate(d.getDate() - 2);
+          prepDue = d.toISOString().slice(0, 10);
+        }
+        taskUpdate.due_date = prepDue;
       }
-      await updateTask({ id: prepTaskId, due_date: prepDue });
+      if ("event_name" in rest || "venue_name" in rest) {
+        const eventName = ("event_name" in rest ? rest.event_name as string | null : rows[0]?.event_name) ?? null;
+        const venueName = ("venue_name" in rest ? rest.venue_name as string : rows[0]?.venue_name) ?? "";
+        const title = eventName
+          ? `Preparação - ${eventName}`
+          : `Preparação - GIG ${("date" in rest ? rest.date as string | null : rows[0]?.date) ?? "sem data"}`;
+        taskUpdate.title = title;
+        taskUpdate.description = venueName || null;
+      }
+      await updateTask(taskUpdate);
     }
   }
   emitDataChanged();

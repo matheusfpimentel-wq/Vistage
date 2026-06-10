@@ -79,6 +79,7 @@ const EMPTY: FormState = {
   day_contact_phone: null,
   estimated_audience: null,
   cache_amount: null,
+  cache_paid_pct: null,
   script_file_path: null,
   banner_file_path: null,
   extra_flyer_paths: null,
@@ -122,6 +123,8 @@ const EMPTY: FormState = {
   gig_research: null,
   main_goal_task_id: null,
   event_category: null,
+  recurring_event_name: null,
+  cache_paid_pct: null,
   prep_task_id: null,
   prep: {},
 };
@@ -355,31 +358,43 @@ export function GigForm({
         isNew,
       });
 
-      // Auto-vínculo financeiro: reflete o cachê recebido no Financeiro.
-      // "Pago integralmente" → valor cheio; "50% pago" → metade; qualquer
-      // outro status remove a receita vinculada (mantém integrado).
-      try {
-        const cache =
-          typeof state.cache_amount === "number" ? state.cache_amount : 0;
-        const paid =
-          state.payment_status === "Pago integralmente" ||
-          state.payment_status === "50% pago";
-        const received =
-          state.payment_status === "50% pago" ? cache * 0.5 : cache;
-        const gigName = state.event_name?.trim() || state.venue_name;
-        const label =
-          state.payment_status === "50% pago"
-            ? `Cachê (50%): ${gigName} (${state.date})`
-            : `Cachê: ${gigName} (${state.date})`;
-        await syncGigPaymentTransaction(
-          savedId,
-          paid,
-          received,
-          state.payment_due_date ?? state.date,
-          label
-        );
-      } catch {
-        /* não interrompe */
+      // Auto-vínculo financeiro para GIGs novas (update já é tratado em updateGig).
+      // Para criar: sincroniza diretamente se há estado de pagamento relevante.
+      if (isNew) {
+        try {
+          const cache =
+            typeof state.cache_amount === "number" ? state.cache_amount : 0;
+          const paid =
+            state.payment_status === "Pago integralmente" ||
+            state.payment_status === "50% pago" ||
+            state.payment_status === "Pago parcialmente";
+          let pct: number;
+          if (state.cache_paid_pct !== null && state.cache_paid_pct !== undefined) {
+            pct = state.cache_paid_pct / 100;
+          } else if (state.payment_status === "Pago integralmente") {
+            pct = 1;
+          } else if (state.payment_status === "50% pago") {
+            pct = 0.5;
+          } else {
+            pct = 1;
+          }
+          const received = cache * pct;
+          const gigName = state.event_name?.trim() || state.venue_name;
+          const pctLabel =
+            state.payment_status === "Pago integralmente"
+              ? ""
+              : ` (${Math.round(pct * 100)}%)`;
+          const label = `Cachê${pctLabel}: ${gigName} (${state.date})`;
+          await syncGigPaymentTransaction(
+            savedId,
+            paid,
+            received,
+            state.payment_due_date ?? state.date,
+            label
+          );
+        } catch {
+          /* não interrompe */
+        }
       }
 
       try {
@@ -423,26 +438,70 @@ export function GigForm({
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field
-                label="Nome da festa / evento"
-                hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
-              >
-                <Input
-                  placeholder='Ex: "Festa de aniversário do clube"'
-                  value={state.event_name ?? ""}
-                  onChange={(e) => set("event_name", e.target.value || null)}
-                />
-              </Field>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <label className="flex cursor-pointer items-center gap-1.5 text-sm font-medium select-none">
+                    <input
+                      type="checkbox"
+                      className="h-3.5 w-3.5"
+                      checked={!!state.recurring_event_name || false}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          set("recurring_event_name", null);
+                        } else {
+                          set("recurring_event_name", "");
+                        }
+                      }}
+                    />
+                    Festa recorrente?
+                  </label>
+                </div>
+                {state.recurring_event_name !== null && state.recurring_event_name !== undefined ? (
+                  <div className="space-y-2">
+                    <Field
+                      label="Nome da festa"
+                      hint="Nome base da festa recorrente. Ex: 'Caliente', 'Warung Friday'."
+                    >
+                      <Input
+                        placeholder='Ex: "Caliente"'
+                        value={state.recurring_event_name ?? ""}
+                        onChange={(e) => set("recurring_event_name", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field
+                      label="Edição / nome do evento"
+                      hint="Edição ou subtítulo específico desta ocorrência."
+                    >
+                      <Input
+                        placeholder='Ex: "Edição de Aniversário"'
+                        value={state.event_name ?? ""}
+                        onChange={(e) => set("event_name", e.target.value || null)}
+                      />
+                    </Field>
+                  </div>
+                ) : (
+                  <Field
+                    label="Nome da festa / evento"
+                    hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
+                  >
+                    <Input
+                      placeholder='Ex: "Festa de aniversário do clube"'
+                      value={state.event_name ?? ""}
+                      onChange={(e) => set("event_name", e.target.value || null)}
+                    />
+                  </Field>
+                )}
+              </div>
               <Field label="Categoria do evento" hint="Tipo de evento para filtrar nas GIGs.">
                 <Select
                   value={state.event_category ?? "none"}
                   onValueChange={(v) => set("event_category", v === "none" ? null : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Padrão (GIG)" />
+                    <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Padrão (GIG)</SelectItem>
+                    <SelectItem value="none">Selecione uma categoria</SelectItem>
                     <SelectItem value="Evento Social">Evento Social</SelectItem>
                     <SelectItem value="Festa">Festa</SelectItem>
                   </SelectContent>

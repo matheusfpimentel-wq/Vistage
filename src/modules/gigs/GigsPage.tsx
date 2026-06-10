@@ -17,6 +17,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { getDb } from "@/lib/db";
 import { confirmDialog } from "@/components/ui/confirm";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
@@ -40,9 +41,10 @@ type StatusFilter = GigStatus | "Todas";
 export function GigsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [gigs, setGigs] = useState<Gig[]>([]);
-  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string }>(
-    { status: "Todas", search: "", eventCategory: "all" }
+  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string; recurringEventName: string }>(
+    { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
   );
+  const [recurringNames, setRecurringNames] = useState<string[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Gig | null>(null);
@@ -58,6 +60,7 @@ export function GigsPage() {
       status: filters.status,
       search: filters.search,
       eventCategory: filters.eventCategory !== "all" ? filters.eventCategory : undefined,
+      recurringEventName: filters.recurringEventName !== "all" ? filters.recurringEventName : undefined,
     }),
     [filters]
   );
@@ -75,6 +78,18 @@ export function GigsPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const db = getDb();
+        const rows = await db.select<{ recurring_event_name: string }[]>(
+          "SELECT DISTINCT recurring_event_name FROM gigs WHERE recurring_event_name IS NOT NULL AND recurring_event_name != '' ORDER BY recurring_event_name"
+        );
+        setRecurringNames(rows.map((r) => r.recurring_event_name));
+      } catch { /* silently ignore */ }
+    })();
+  }, [refreshKey]);
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -207,6 +222,24 @@ export function GigsPage() {
               <SelectItem value="Festa">Festa</SelectItem>
             </SelectContent>
           </Select>
+          {recurringNames.length > 0 && (
+            <Select
+              value={filters.recurringEventName}
+              onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Todas as festas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as festas</SelectItem>
+                {recurringNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nova GIG

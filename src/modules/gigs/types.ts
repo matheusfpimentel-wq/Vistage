@@ -10,6 +10,7 @@ export type GigStatus = (typeof GIG_STATUSES)[number];
 export const PAYMENT_STATUSES = [
   "Pendente",
   "50% pago",
+  "Pago parcialmente",
   "Pago integralmente",
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
@@ -34,6 +35,8 @@ export type Gig = {
   day_contact_phone: string | null;
   estimated_audience: number | null;
   cache_amount: number | null;
+  /** Percentual do cachê já recebido (0-100). null = não definido. */
+  cache_paid_pct: number | null;
   script_file_path: string | null;
   banner_file_path: string | null;
   extra_flyer_paths: string | null; // JSON array de caminhos (flyers além do primeiro)
@@ -87,6 +90,7 @@ export type Gig = {
   /** ID da tarefa auto-criada a partir do objetivo principal. */
   main_goal_task_id: number | null;
   event_category: string | null;
+  recurring_event_name: string | null;
   prep_task_id?: number | null;
   created_at: string;
   updated_at: string;

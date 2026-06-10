@@ -53,7 +53,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
 
   const cols: { key: SortKey; label: string; align: "left" | "right" }[] = [
     { key: "date", label: "Data", align: "left" },
-    { key: "venue", label: "Venue", align: "left" },
+    { key: "venue", label: "Show / Venue", align: "left" },
     { key: "status", label: "Status", align: "left" },
     { key: "cache", label: "Cachê", align: "right" },
     { key: "rating", label: "Avaliação", align: "right" },
