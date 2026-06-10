@@ -1409,6 +1409,96 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_finance_transactions_category_id ON finance_transactions(category_id);
     `,
   },
+  {
+    version: 90,
+    description: "Reparo de schema: recria colunas históricas que faltarem (bancos afetados por migrations parcialmente aplicadas)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN main_goal TEXT;
+      ALTER TABLE gigs ADD COLUMN prep_state TEXT;
+      ALTER TABLE gigs ADD COLUMN main_goal_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN venue_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN event_name TEXT;
+      ALTER TABLE gigs ADD COLUMN fans_present TEXT;
+      ALTER TABLE venues ADD COLUMN photo_path TEXT;
+      ALTER TABLE contacts ADD COLUMN photo_path TEXT;
+      ALTER TABLE fans ADD COLUMN photo_path TEXT;
+      ALTER TABLE class_packages ADD COLUMN syllabus TEXT;
+      ALTER TABLE artist_identity ADD COLUMN palette TEXT;
+      ALTER TABLE finance_transactions ADD COLUMN track_id INTEGER;
+      ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL;
+      ALTER TABLE venues ADD COLUMN lat REAL;
+      ALTER TABLE venues ADD COLUMN lng REAL;
+      ALTER TABLE venues ADD COLUMN geocoded_at TEXT;
+      ALTER TABLE parties ADD COLUMN stage_current INTEGER;
+      ALTER TABLE parties ADD COLUMN financial_synced INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE gigs ADD COLUMN extra_flyer_paths TEXT;
+      ALTER TABLE artist_identity ADD COLUMN fonts TEXT;
+      ALTER TABLE music_projects ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN dominant_genre TEXT;
+      ALTER TABLE venues ADD COLUMN rider_available INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE venues ADD COLUMN regular_audience TEXT;
+      ALTER TABLE party_tasks ADD COLUMN global_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN prep_task_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN task_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN task_id INTEGER;
+      ALTER TABLE classes ADD COLUMN task_id INTEGER;
+      ALTER TABLE venues ADD COLUMN rider_equipment TEXT;
+      ALTER TABLE parties ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE classes ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE parties ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE okrs ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE venues ADD COLUMN owner_role TEXT;
+      ALTER TABLE venues ADD COLUMN venue_type TEXT;
+      ALTER TABLE contacts ADD COLUMN follower_count INTEGER;
+      ALTER TABLE contacts ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL;
+      ALTER TABLE gigs ADD COLUMN rating_contractor INTEGER;
+      ALTER TABLE gigs ADD COLUMN is_special INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE equipment ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE equipment ADD COLUMN category TEXT;
+      ALTER TABLE equipment ADD COLUMN photo_path TEXT;
+      ALTER TABLE venues ADD COLUMN star_status TEXT;
+      ALTER TABLE venues ADD COLUMN priority TEXT;
+      ALTER TABLE gigs ADD COLUMN gig_equipment TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE venues ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE gigs ADD COLUMN event_category TEXT;
+      ALTER TABLE contacts ADD COLUMN company TEXT;
+      ALTER TABLE gigs ADD COLUMN gig_research TEXT;
+      ALTER TABLE finance_transactions ADD COLUMN class_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN student_package_id INTEGER;
+      ALTER TABLE students ADD COLUMN default_rate REAL;
+      ALTER TABLE finance_transactions ADD COLUMN party_id INTEGER;
+      ALTER TABLE class_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE student_packages ADD COLUMN used_minutes INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE tracks ADD COLUMN standby_until TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context TEXT;
+      ALTER TABLE content ADD COLUMN engagement_notes TEXT;
+      ALTER TABLE class_packages ADD COLUMN syllabus_items TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE students ADD COLUMN contact_id INTEGER;
+      ALTER TABLE content ADD COLUMN track_id INTEGER;
+      ALTER TABLE parties ADD COLUMN gig_id INTEGER;
+      ALTER TABLE content ADD COLUMN promotes_type TEXT;
+      ALTER TABLE content ADD COLUMN promotes_id INTEGER;
+      ALTER TABLE party_budget_items ADD COLUMN supplier_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN related_track_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN related_idea_id INTEGER;
+      ALTER TABLE student_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE gigs ADD COLUMN debrief_task_id INTEGER;
+      ALTER TABLE fan_interactions ADD COLUMN special INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE finance_transactions ADD COLUMN music_cost_id INTEGER REFERENCES music_project_costs(id) ON DELETE SET NULL;
+      ALTER TABLE work_sessions ADD COLUMN context_type TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context_id INTEGER;
+      ALTER TABLE fans ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;
+      ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT;
+      ALTER TABLE artist_templates ADD COLUMN content TEXT;
+      ALTER TABLE fan_interactions ADD COLUMN type TEXT NOT NULL DEFAULT 'Interação';
+      ALTER TABLE artist_identity ADD COLUMN presskit_link TEXT;
+      ALTER TABLE artist_identity ADD COLUMN photos TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE artist_identity ADD COLUMN folder_links TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE suppliers ADD COLUMN contact_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN gig_sync INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 
@@ -1454,8 +1544,12 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
       .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    try {
-      for (const stmt of statements) {
+    // Cada statement tem seu próprio try/catch: uma falha não pode abortar
+    // os statements seguintes da mesma migration, senão o banco fica com
+    // colunas/tabelas faltando para sempre (a versão é marcada como aplicada).
+    const errors: string[] = [];
+    for (const stmt of statements) {
+      try {
         const alter = parseAlter(stmt);
         if (alter) {
           // Skip if column already exists (idempotency guard)
@@ -1463,14 +1557,15 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
           if (exists) continue;
         }
         await db.execute(stmt);
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
       }
-    } catch (err) {
-      // Store error note but still mark migration as applied to prevent infinite re-runs
-      const errMsg = err instanceof Error ? err.message : String(err);
+    }
+    if (errors.length > 0) {
       try {
         await db.execute(
           "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-          [`migration_error_v${m.version}`, errMsg]
+          [`migration_error_v${m.version}`, errors.join(" | ")]
         );
       } catch {
         // best-effort: if app_settings doesn't exist yet, ignore
