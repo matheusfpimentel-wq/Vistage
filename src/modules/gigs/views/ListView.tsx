@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, ArrowUpDown, CalendarRange, Mic2, Pencil, Trash2 } from "lucide-react";
-import { openStageMode } from "../stageMode";
+import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -137,9 +136,6 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                     Debrief
                   </Button>
                 )}
-                <Button size="icon" variant="ghost" onClick={() => void openStageMode(g)} aria-label="Modo Palco" title="Modo Palco">
-                  <Mic2 className="h-4 w-4 text-primary" />
-                </Button>
                 <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -243,15 +239,6 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                         Debrief
                       </Button>
                     )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => void openStageMode(g)}
-                      aria-label="Modo Palco"
-                      title="Modo Palco"
-                    >
-                      <Mic2 className="h-4 w-4 text-primary" />
-                    </Button>
                     <Button
                       size="icon"
                       variant="ghost"

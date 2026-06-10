@@ -9,8 +9,6 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
-import { StageOverlay } from "@/modules/gigs/StageOverlay";
-import { isStageModeWindow } from "@/modules/gigs/stageMode";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
@@ -116,7 +114,6 @@ export default function App() {
   // A mini-janela flutuante da sessão é puramente apresentacional:
   // não carrega config nem banco, só mostra atividade + cronômetro.
   if (isOverlayWindow()) return <SessionOverlay />;
-  if (isStageModeWindow()) return <StageOverlay />;
   return <MainApp />;
 }
 
