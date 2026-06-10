@@ -8,6 +8,17 @@ function isTauri(): boolean {
 }
 
 /**
+ * Resolve a URL base correta para novas janelas:
+ * - Em dev: usa o devUrl do Vite (window.location.origin = http://localhost:1420)
+ * - Em produção: usa tauri://localhost (protocolo interno do Tauri)
+ */
+function resolveWindowUrl(path: string): string {
+  const isDev = window.location.protocol === "http:";
+  const base = isDev ? window.location.origin : "tauri://localhost";
+  return `${base}/${path.replace(/^\//, "")}`;
+}
+
+/**
  * Abre (ou foca) a mini-janela flutuante always-on-top da sessão de trabalho.
  * Passa atividade e horário de início via query string — a janela é puramente
  * apresentacional e não precisa do banco.
@@ -34,7 +45,7 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
     });
 
     const win = new WebviewWindow(OVERLAY_LABEL, {
-      url: `index.html?${params.toString()}`,
+      url: resolveWindowUrl(`index.html?${params.toString()}`),
       title: "Sessão de trabalho",
       width: 260,
       height: 80,

@@ -199,13 +199,22 @@ pub async fn gdrive_wait_callback(
                 &b"text/html; charset=utf-8"[..],
             )
             .unwrap();
+
+            // Responde a qualquer método — evita que tiny_http retorne
+            // "only POST and OPTIONS are allowed" visível ao usuário.
             let _ = request.respond(Response::from_string(OAUTH_SUCCESS_HTML).with_header(header));
+
+            // Requisições sem code/state são favicon.ico, pré-flight etc.
+            // Apenas logamos e aguardamos o callback real.
+            if params.get("code").is_none() && params.get("error").is_none() {
+                continue;
+            }
 
             if let Some(err) = params.get("error") {
                 return Err(format!("Google retornou erro: {err}"));
             }
             let (Some(code), Some(state)) = (params.get("code"), params.get("state")) else {
-                return Err("Callback sem code/state".to_string());
+                continue;
             };
             if state != &active.state {
                 return Err("State inválido — possível ataque CSRF".to_string());
