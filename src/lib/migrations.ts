@@ -1520,6 +1520,17 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE tasks ADD COLUMN energy_required INTEGER;
     `,
   },
+  {
+    version: 94,
+    description: "Cria tabela recurring_fests para banco de festas recorrentes",
+    sql: `
+      CREATE TABLE IF NOT EXISTS recurring_fests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 

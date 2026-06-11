@@ -78,15 +78,6 @@ export async function createOkr(input: { quarter: string; objective: string; key
     [input.quarter, input.objective, JSON.stringify(input.key_results)]
   );
   const id = res.lastInsertId as number;
-  const okr: Okr = {
-    id,
-    quarter: input.quarter,
-    objective: input.objective,
-    key_results: input.key_results,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  await syncOkrKrTasks(okr).catch(() => {});
   return id;
 }
 
@@ -96,15 +87,6 @@ export async function updateOkr(input: { id: number; quarter: string; objective:
     `UPDATE okrs SET quarter=$1, objective=$2, key_results=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
     [input.quarter, input.objective, JSON.stringify(input.key_results), input.id]
   );
-  const okr: Okr = {
-    id: input.id,
-    quarter: input.quarter,
-    objective: input.objective,
-    key_results: input.key_results,
-    created_at: "",
-    updated_at: new Date().toISOString(),
-  };
-  await syncOkrKrTasks(okr).catch(() => {});
 }
 
 export async function updateOkrGcalEventId(id: number, gcalEventId: string): Promise<void> {
@@ -259,6 +241,34 @@ export async function unlinkTaskFromOkr(okrId: number, taskId: number): Promise<
   await db.execute(
     `DELETE FROM okr_kr_tasks WHERE okr_id = $1 AND task_id = $2 AND kr_index IS NULL`,
     [okrId, taskId]
+  );
+}
+
+export async function listKrTasks(okrId: number, krIndex: number): Promise<OkrLinkedTask[]> {
+  const db = getDb();
+  return db.select<OkrLinkedTask[]>(
+    `SELECT t.id as task_id, t.title, t.status
+       FROM okr_kr_tasks o
+       JOIN tasks t ON t.id = o.task_id
+      WHERE o.okr_id = $1 AND o.kr_index = $2
+      ORDER BY t.created_at DESC`,
+    [okrId, krIndex]
+  );
+}
+
+export async function linkTaskToKr(okrId: number, krIndex: number, taskId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `INSERT OR IGNORE INTO okr_kr_tasks (okr_id, kr_index, task_id) VALUES ($1, $2, $3)`,
+    [okrId, krIndex, taskId]
+  );
+}
+
+export async function unlinkTaskFromKr(okrId: number, krIndex: number, taskId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `DELETE FROM okr_kr_tasks WHERE okr_id = $1 AND kr_index = $2 AND task_id = $3`,
+    [okrId, krIndex, taskId]
   );
 }
 

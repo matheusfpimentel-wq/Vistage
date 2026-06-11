@@ -894,14 +894,17 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
   const today = isoToday();
   const in30 = isoNDaysFromNow(30);
 
+  const isAllTime = !period || period === "all";
   const pf = periodToDateFilter(period);
-  const periodWhere = pf.fromDate && pf.toDate
+  const periodWhere = isAllTime
+    ? "1=1"
+    : pf.fromDate && pf.toDate
     ? `date BETWEEN '${pf.fromDate}' AND '${pf.toDate}'`
     : pf.fromDate
     ? `date >= '${pf.fromDate}'`
     : pf.toDate
     ? `date <= '${pf.toDate}'`
-    : null;
+    : `date BETWEEN '${monthStart}' AND '${monthEnd}'`;
 
   // KPIs do mês
   const monthRows = await db.select<{ kind: string; total: number }[]>(
@@ -942,42 +945,33 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
     return { month: m, income: i, expense: e, balance: i - e };
   });
 
-  // Totais do período selecionado (cai pro mês atual quando não há período).
+  // Totais do período selecionado.
   const periodRows = await db.select<{ kind: string; total: number }[]>(
-    periodWhere
-      ? `SELECT kind, COALESCE(SUM(amount), 0) as total
-           FROM finance_transactions
-          WHERE ${periodWhere}
-          GROUP BY kind`
-      : `SELECT kind, COALESCE(SUM(amount), 0) as total
-           FROM finance_transactions
-          WHERE date BETWEEN $1 AND $2
-          GROUP BY kind`,
-    periodWhere ? [] : [monthStart, monthEnd]
+    `SELECT kind, COALESCE(SUM(amount), 0) as total
+       FROM finance_transactions
+      WHERE ${periodWhere}
+      GROUP BY kind`
   );
   const periodIncome = periodRows.find((r) => r.kind === "income")?.total ?? 0;
   const periodExpense = periodRows.find((r) => r.kind === "expense")?.total ?? 0;
 
   // Por categoria — filtrado pelo período selecionado
-  const catWhere = periodWhere ? `t.kind = 'income' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'income' AND t.date BETWEEN $1 AND $2`;
-  const catExpWhere = periodWhere ? `t.kind = 'expense' AND ${periodWhere.replace(/date/g, 't.date')}` : `t.kind = 'expense' AND t.date BETWEEN $1 AND $2`;
+  const catPeriod = periodWhere.replace(/\bdate\b/g, "t.date");
   const incomeByCat = await db.select<{ name: string; value: number }[]>(
     `SELECT COALESCE(c.name, 'Sem categoria') as name, COALESCE(SUM(t.amount), 0) as value
        FROM finance_transactions t
        LEFT JOIN finance_categories c ON c.id = t.category_id
-      WHERE ${catWhere}
+      WHERE t.kind = 'income' AND ${catPeriod}
       GROUP BY t.category_id
-      ORDER BY value DESC`,
-    periodWhere ? [] : [monthStart, monthEnd]
+      ORDER BY value DESC`
   );
   const expenseByCat = await db.select<{ name: string; value: number }[]>(
     `SELECT COALESCE(c.name, 'Sem categoria') as name, COALESCE(SUM(t.amount), 0) as value
        FROM finance_transactions t
        LEFT JOIN finance_categories c ON c.id = t.category_id
-      WHERE ${catExpWhere}
+      WHERE t.kind = 'expense' AND ${catPeriod}
       GROUP BY t.category_id
-      ORDER BY value DESC`,
-    periodWhere ? [] : [monthStart, monthEnd]
+      ORDER BY value DESC`
   );
 
   // Top GIGs (todas as receitas vinculadas a GIG)
@@ -1012,9 +1006,7 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
   const next30Payable = next30.find((r) => r.kind === "expense")?.total ?? 0;
 
   // Receita por fonte (GIG / Festa / Aulas / Outros) no período selecionado
-  const sourceWhere = periodWhere
-    ? `kind = 'income' AND ${periodWhere}`
-    : `kind = 'income' AND date BETWEEN '${monthStart}' AND '${monthEnd}'`;
+  const sourceWhere = `kind = 'income' AND ${periodWhere}`;
   const sourceRows = await db.select<{ source: string; total: number }[]>(
     `SELECT
        CASE

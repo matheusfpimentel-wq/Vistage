@@ -49,6 +49,7 @@ import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
+import { RecurringFestField } from "./RecurringFestField";
 
 type Props = {
   open: boolean;
@@ -57,6 +58,8 @@ type Props = {
   /** Pré-preenche o promoter_contact_id ao abrir em modo criar. */
   prefillPromoter?: Contact | null;
   onSaved: (gig: { id: number; statusChanged: boolean; isNew: boolean }) => void;
+  /** Chamado quando o usuário clica em "Ir para Debrief" (só GIGs concluídas). */
+  onDebrief?: () => void;
 };
 
 type FormState = Omit<GigCreateInput, "id"> & {
@@ -146,6 +149,7 @@ export function GigForm({
   gig,
   prefillPromoter,
   onSaved,
+  onDebrief,
 }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -419,7 +423,19 @@ export function GigForm({
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
+            {gig && (gig.status === "Concluída" || gig.debrief_pending === 1 || gig.debrief_completed_at) && onDebrief && (
+              <Button
+                type="button"
+                size="sm"
+                variant={gig.debrief_pending === 1 ? "default" : "outline"}
+                onClick={() => { onOpenChange(false); onDebrief(); }}
+              >
+                {gig.debrief_completed_at ? "Ver Debrief" : "Preencher Debrief"}
+              </Button>
+            )}
+          </div>
           <DialogDescription>
             Debrief abre automaticamente ao mudar pra Concluída.
           </DialogDescription>
@@ -437,60 +453,12 @@ export function GigForm({
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-sm font-medium select-none">
-                    <input
-                      type="checkbox"
-                      className="h-3.5 w-3.5"
-                      checked={!!state.recurring_event_name || false}
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          set("recurring_event_name", null);
-                        } else {
-                          set("recurring_event_name", "");
-                        }
-                      }}
-                    />
-                    Festa recorrente?
-                  </label>
-                </div>
-                {state.recurring_event_name !== null && state.recurring_event_name !== undefined ? (
-                  <div className="space-y-2">
-                    <Field
-                      label="Nome da festa"
-                      hint="Nome base da festa recorrente. Ex: 'Caliente', 'Warung Friday'."
-                    >
-                      <Input
-                        placeholder='Ex: "Caliente"'
-                        value={state.recurring_event_name ?? ""}
-                        onChange={(e) => set("recurring_event_name", e.target.value || null)}
-                      />
-                    </Field>
-                    <Field
-                      label="Edição / nome do evento"
-                      hint="Edição ou subtítulo específico desta ocorrência."
-                    >
-                      <Input
-                        placeholder='Ex: "Edição de Aniversário"'
-                        value={state.event_name ?? ""}
-                        onChange={(e) => set("event_name", e.target.value || null)}
-                      />
-                    </Field>
-                  </div>
-                ) : (
-                  <Field
-                    label="Nome da festa / evento"
-                    hint="O nome que vai no flyer. Ex: 'Skol Music Stage', 'Aniversário Audio Club'."
-                  >
-                    <Input
-                      placeholder='Ex: "Festa de aniversário do clube"'
-                      value={state.event_name ?? ""}
-                      onChange={(e) => set("event_name", e.target.value || null)}
-                    />
-                  </Field>
-                )}
-              </div>
+              <RecurringFestField
+                recurringName={state.recurring_event_name ?? null}
+                eventName={state.event_name ?? ""}
+                onChangeRecurring={(v) => set("recurring_event_name", v)}
+                onChangeEventName={(v) => set("event_name", v || null)}
+              />
               <Field label="Categoria do evento" hint="Tipo de evento para filtrar nas GIGs.">
                 <Select
                   value={state.event_category ?? "none"}

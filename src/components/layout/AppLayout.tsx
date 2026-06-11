@@ -5,7 +5,6 @@ import { Sidebar } from "./Sidebar";
 import { MobileTabBar } from "./MobileTabBar";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
-import { RecentMenu } from "@/components/shared/RecentMenu";
 import { Toaster } from "@/components/ui/toaster";
 import { SyncIndicator } from "@/components/shared/SyncIndicator";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -149,7 +148,6 @@ export function AppLayout() {
             >
               <Zap className="h-5 w-5 sm:h-4 sm:w-4" />
             </button>
-            <RecentMenu />
             <NotificationBell />
             <ThemeToggle />
           </div>

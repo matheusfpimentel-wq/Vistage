@@ -297,8 +297,8 @@ function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
     }
 
     // Foco: força se houve sessão todos os dias da última semana; fraqueza se nenhuma.
-    const cutoff7 = now - 7 * DAY;
-    const recentSessions = extra.sessions.filter((s) => Date.parse(s.started_at) >= cutoff7);
+    const focusCutoff = now - 7 * DAY;
+    const recentSessions = extra.sessions.filter((s) => Date.parse(s.started_at) >= focusCutoff);
     const focusDays = new Set(recentSessions.map((s) => s.started_at.slice(0, 10)));
     if (focusDays.size >= 7) {
       out.strengths.push("Consistência: sessão de foco todos os dias da última semana");
@@ -306,14 +306,29 @@ function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
       out.weaknesses.push("Nenhuma sessão de foco iniciada na última semana");
     }
 
-    // Oportunidade: contato recente com CRM de alta prioridade.
-    const cutoff14 = new Date(now - 14 * DAY).toISOString().slice(0, 10);
+    // Oportunidade: contato recente com CRM de alta prioridade (última semana).
+    const cutoff7 = new Date(now - 7 * DAY).toISOString().slice(0, 10);
     const hotContacts = extra.contacts.filter(
-      (c) => (c.rating ?? 0) >= 4 && c.last_interaction_at && c.last_interaction_at.slice(0, 10) >= cutoff14
+      (c) => (c.rating ?? 0) >= 4 && c.last_interaction_at && c.last_interaction_at.slice(0, 10) >= cutoff7
     );
     if (hotContacts.length > 0) {
       const names = hotContacts.slice(0, 2).map((c) => c.name).join(", ");
       out.opportunities.push(`Contato recente com CRM de alta prioridade: ${names}`);
+    }
+  }
+
+  // Ameaça: cachê médio das últimas 10 GIGs < cachê médio geral.
+  const gigsWithCache = gigs
+    .filter((g) => g.status === "Concluída" && (g.cache_amount ?? 0) > 0)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  if (gigsWithCache.length >= 3) {
+    const last10 = gigsWithCache.slice(0, 10);
+    const avgLast10 = last10.reduce((s, g) => s + (g.cache_amount ?? 0), 0) / last10.length;
+    const avgAll = gigsWithCache.reduce((s, g) => s + (g.cache_amount ?? 0), 0) / gigsWithCache.length;
+    if (avgLast10 < avgAll * 0.95) {
+      out.threats.push(
+        `Cachê abaixo da média histórica nas últimas ${last10.length} GIGs (média geral: R$ ${Math.round(avgAll).toLocaleString("pt-BR")})`
+      );
     }
   }
 
@@ -495,7 +510,7 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
   }
 
   const onChipPointerDown = useCallback((task: Task, e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType === "mouse") return;
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -556,7 +571,8 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
-        className="space-y-3"
+        className="space-y-3 touch-none"
+        style={{ overscrollBehavior: "none" }}
       >
         {/* Não agrupadas */}
         <div

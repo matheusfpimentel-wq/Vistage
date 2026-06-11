@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 
 /** Tipo de marco na linha do tempo da carreira. */
-export type MilestoneKind = "gig" | "release" | "content" | "party" | "okr";
+export type MilestoneKind = "gig" | "release" | "content" | "party" | "okr" | "highlight";
 
 export type Milestone = {
   /** chave estável para o React */
@@ -72,7 +72,7 @@ export async function loadCareerTimeline(): Promise<Milestone[]> {
       kind: "gig",
       title: name,
       subtitle: loc || null,
-      to: "/gigs",
+      to: `/gigs?open=${g.id}`,
     });
   }
 
@@ -89,7 +89,7 @@ export async function loadCareerTimeline(): Promise<Milestone[]> {
       kind: "release",
       title: t.title_final?.trim() || t.title_working,
       subtitle: "Lançamento musical",
-      to: "/musica",
+      to: `/musica?open=${t.id}`,
     });
   }
 
@@ -107,7 +107,7 @@ export async function loadCareerTimeline(): Promise<Milestone[]> {
       kind: "content",
       title: c.title,
       subtitle: c.format ? `Conteúdo · ${c.format}` : "Conteúdo publicado",
-      to: "/conteudo",
+      to: `/conteudo?open=${c.id}`,
     });
   }
 
@@ -123,7 +123,22 @@ export async function loadCareerTimeline(): Promise<Milestone[]> {
       kind: "party",
       title: p.title,
       subtitle: p.venue_name ? `Festa · ${p.venue_name}` : "Festa realizada",
-      to: "/festas",
+      to: `/festas?open=${p.id}`,
+    });
+  }
+
+  // ── Highlights cumulativos ────────────────────────────────────────
+  const highlights = await db.select<{ id: number; title: string; date: string; body: string | null }[]>(
+    `SELECT id, title, date, body FROM highlights WHERE date IS NOT NULL`
+  );
+  for (const h of highlights) {
+    out.push({
+      key: `highlight-${h.id}`,
+      date: h.date.slice(0, 10),
+      kind: "highlight",
+      title: h.title,
+      subtitle: h.body ? h.body.slice(0, 60) + (h.body.length > 60 ? "…" : "") : null,
+      to: "/foco",
     });
   }
 

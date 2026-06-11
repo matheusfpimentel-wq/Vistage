@@ -7,6 +7,7 @@ import {
   Music,
   PartyPopper,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,7 @@ const KIND_META: Record<
   content: { icon: Film, label: "Conteúdo", dot: "bg-emerald-500", chip: "border-emerald-500/40 text-emerald-400" },
   party: { icon: PartyPopper, label: "Festa", dot: "bg-pink-500", chip: "border-pink-500/40 text-pink-400" },
   okr: { icon: Sparkles, label: "Meta", dot: "bg-amber-500", chip: "border-amber-500/40 text-amber-400" },
+  highlight: { icon: Star, label: "Destaque", dot: "bg-yellow-500", chip: "border-yellow-500/40 text-yellow-500" },
 };
 
 const KIND_FILTERS: { value: MilestoneKind | "all"; label: string }[] = [
@@ -32,6 +34,7 @@ const KIND_FILTERS: { value: MilestoneKind | "all"; label: string }[] = [
   { value: "release", label: "Lançamentos" },
   { value: "content", label: "Conteúdos" },
   { value: "party", label: "Festas" },
+  { value: "highlight", label: "Destaques" },
 ];
 
 /**
@@ -93,7 +96,7 @@ export function CareerTimelinePage() {
         <p className="text-sm text-muted-foreground">
           {items.length === 0
             ? "Seus marcos aparecem aqui conforme você realiza GIGs, lança músicas e publica conteúdo."
-            : `${items.length} marcos · ${counts.gig ?? 0} GIGs · ${counts.release ?? 0} lançamentos · ${counts.content ?? 0} conteúdos · ${counts.party ?? 0} festas`}
+            : `${items.length} marcos · ${counts.gig ?? 0} GIGs · ${counts.release ?? 0} lançamentos · ${counts.content ?? 0} conteúdos · ${counts.party ?? 0} festas · ${counts.highlight ?? 0} destaques`}
         </p>
       </div>
 

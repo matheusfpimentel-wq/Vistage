@@ -285,6 +285,7 @@ export function GigsPage() {
         onOpenChange={setFormOpen}
         gig={editing}
         onSaved={handleSaved}
+        onDebrief={editing ? () => openDebrief(editing) : undefined}
       />
 
       {debriefGig && (

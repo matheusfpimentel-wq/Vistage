@@ -28,6 +28,7 @@ type WrappedData = {
   bestGig: { name: string; date: string; cache: number } | null;
   gigsByStatus: Record<string, number>;
   newTracks: number;
+  highlights: { title: string; date: string }[];
 };
 
 async function loadWrapped(year: number): Promise<WrappedData> {
@@ -110,6 +111,11 @@ async function loadWrapped(year: number): Promise<WrappedData> {
     [`${y}%`]
   );
 
+  const highlightRows = await db.select<{ title: string; date: string }[]>(
+    `SELECT title, date FROM highlights WHERE date LIKE $1 ORDER BY date`,
+    [`${y}%`]
+  ).catch(() => [] as { title: string; date: string }[]);
+
   const MONTHS = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
   const bestGigRow = bestGigRows[0];
@@ -140,6 +146,7 @@ async function loadWrapped(year: number): Promise<WrappedData> {
     } : null,
     gigsByStatus,
     newTracks: trackRows[0]?.n ?? 0,
+    highlights: highlightRows,
   };
 }
 
@@ -195,6 +202,19 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
   kv("Novas músicas iniciadas", String(data.newTracks));
   kv("Sessões de foco", String(data.focusSessionCount));
   kv("Horas em foco", `${data.focusHours}h`);
+
+  if (data.highlights.length > 0) {
+    y += 10;
+    h2("Destaques do ano"); y -= 4;
+    for (const h of data.highlights) {
+      if (y + 16 > H - 48) { doc.addPage(); y = 64; }
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(60);
+      doc.text(`• ${h.title}`, mx, y);
+      doc.setFont("helvetica", "normal"); doc.setTextColor(120);
+      doc.text(h.date, cr, y, { align: "right" });
+      y += 16;
+    }
+  }
 
   doc.save(`carreira-${data.year}.pdf`);
 }
@@ -372,6 +392,24 @@ export function CareerWrappedPage() {
               <StatTile icon={<TrendingUp className="h-4 w-4" />} label="Horas em foco" value={`${data.focusHours}h`} />
             </div>
           </div>
+
+          {/* Destaques / Highlights */}
+          {data.highlights.length > 0 && (
+            <div>
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                <Star className="h-4 w-4" /> Destaques do ano
+              </h2>
+              <div className="space-y-1.5">
+                {data.highlights.map((h, i) => (
+                  <div key={i} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                    <Star className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+                    <span className="flex-1 font-medium">{h.title}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">{formatDate(h.date)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

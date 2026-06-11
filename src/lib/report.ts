@@ -61,7 +61,7 @@ export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {
       [month]
     ),
     db.select<{ stage_history: string | null; name: string }[]>(
-      `SELECT name, stage_history FROM tracks
+      `SELECT title_working as name, stage_history FROM tracks
         WHERE current_stage IN ('Lançamento','Pós-lançamento')`
     ),
     db.select<{ c: number }[]>(
