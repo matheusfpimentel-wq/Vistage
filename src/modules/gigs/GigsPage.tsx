@@ -27,6 +27,7 @@ import { ListView } from "./views/ListView";
 import { BulkListView } from "./views/BulkListView";
 import { CalendarView } from "./views/CalendarView";
 import { InsightsView } from "./views/InsightsView";
+import { SpreadsheetView } from "./views/SpreadsheetView";
 import {
   deleteGig,
   getGig,

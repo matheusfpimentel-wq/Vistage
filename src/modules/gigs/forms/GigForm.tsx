@@ -203,7 +203,7 @@ export function GigForm({
     void listContacts().then((cs) =>
       setContacts([...cs].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))
     );
-    void listVenues().then(setVenues);
+    void listVenues().then((vs) => setVenues([...vs].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))));
     void listEquipment().then(setAllEquipment);
     void listTracks().then((ts) =>
       setAllTracks(
