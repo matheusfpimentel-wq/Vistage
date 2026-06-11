@@ -198,9 +198,13 @@ export function TransactionForm({
         </DialogHeader>
 
         <div className="space-y-4">
-          {state.gig_sync === 1 && (
+          {(state.gig_sync === 1 || state.class_id || state.party_id) && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-              Esta receita é sincronizada automaticamente pela GIG vinculada. Para alterar valores, edite a GIG.
+              {state.gig_sync === 1
+                ? "Esta receita é sincronizada automaticamente pela GIG vinculada. Para alterar valores, edite a GIG."
+                : state.class_id
+                ? "Esta receita é sincronizada automaticamente pela aula vinculada. Para alterar valores, edite a aula."
+                : "Este lançamento é sincronizado automaticamente pela festa vinculada. Para alterar valores, edite a festa."}
             </div>
           )}
           {!transaction && (
@@ -308,6 +312,7 @@ export function TransactionForm({
                     v === "none" ? null : (v as FormState["payment_method"])
                   )
                 }
+                disabled={state.gig_sync === 1}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—" />

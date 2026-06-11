@@ -1,5 +1,10 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+
+function fmtDateBR(iso: string): string {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
 import type {
   Equipment,
   EquipmentCreateInput,
@@ -254,7 +259,9 @@ export async function syncGigPaymentTransaction(
   date: string,
   description: string,
   _cachePaidPct?: number | null,
-  contactId?: number | null
+  contactId?: number | null,
+  paymentMethod?: string | null,
+  hasDueDate?: boolean,
 ): Promise<void> {
   const db = getDb();
   const existing = await db.select<{ id: number }[]>(
@@ -262,31 +269,45 @@ export async function syncGigPaymentTransaction(
     [gigId]
   );
 
-  if (!paid || !(amount > 0)) {
-    // pagamento revertido ou sem valor: limpa apenas lançamentos sincronizados
+  const wantPrevista = !paid && (amount > 0) && !!hasDueDate;
+  const descWithDate = `${description} (${fmtDateBR(date)})`;
+
+  if (!paid && !wantPrevista) {
     if (existing.length > 0) {
       await db.execute(
         `DELETE FROM finance_transactions WHERE gig_id = $1 AND kind = 'income' AND gig_sync = 1`,
         [gigId]
       );
+      emitDataChanged();
     }
-    emitDataChanged();
     return;
   }
+
+  if (!(amount > 0)) {
+    if (existing.length > 0) {
+      await db.execute(
+        `DELETE FROM finance_transactions WHERE gig_id = $1 AND kind = 'income' AND gig_sync = 1`,
+        [gigId]
+      );
+      emitDataChanged();
+    }
+    return;
+  }
+
+  const status = paid ? 'Recebido/Pago' : 'Previsto';
 
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
-          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
-              contact_id = $5, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4 AND gig_sync = 1`,
-      [amount, date, description, existing[0].id, contactId ?? null]
+          SET amount = $1, date = $2, description = $3, status = $4,
+              contact_id = $5, payment_method = $6, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $7 AND gig_sync = 1`,
+      [amount, date, descWithDate, status, contactId ?? null, paymentMethod ?? null, existing[0].id]
     );
     emitDataChanged();
     return;
   }
 
-  // procura categoria "DJ"
   const cat = await db.select<{ id: number }[]>(
     `SELECT id FROM finance_categories WHERE kind = 'income' AND name = 'DJ' LIMIT 1`
   );
@@ -294,9 +315,9 @@ export async function syncGigPaymentTransaction(
 
   await db.execute(
     `INSERT INTO finance_transactions
-       (kind, amount, date, description, category_id, gig_id, contact_id, status, gig_sync)
-     VALUES ('income', $1, $2, $3, $4, $5, $6, 'Recebido/Pago', 1)`,
-    [amount, date, description, categoryId, gigId, contactId ?? null]
+       (kind, amount, date, description, category_id, gig_id, contact_id, payment_method, status, gig_sync)
+     VALUES ('income', $1, $2, $3, $4, $5, $6, $7, $8, 1)`,
+    [amount, date, descWithDate, categoryId, gigId, contactId ?? null, paymentMethod ?? null, status]
   );
   emitDataChanged();
 }
@@ -539,7 +560,7 @@ WHERE c.id = $1`,
   }
 
   const num = c.class_number ?? 1;
-  const desc = `[Aula] ${num} - ${c.student_name ?? "Aluno"}`;
+  const desc = `Aula ${num}: ${c.student_name ?? "Aluno"} (${fmtDateBR(c.date)})`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
@@ -1157,4 +1178,75 @@ export async function loadProjectProfit(): Promise<{
   }));
 
   return { gigs, parties, students };
+}
+
+/**
+ * Re-sincroniza todos os lançamentos vinculados (GIG, aula, festa, custo de produção)
+ * para aplicar o padrão atual de descrição, data e campos bloqueados.
+ * Chamado uma vez na inicialização do app após migrações.
+ */
+export async function retroactiveSyncAllLinked(): Promise<void> {
+  const db = getDb();
+  try {
+    // GIGs
+    const gigs = await db.select<{
+      id: number; cache_amount: number | null; payment_status: string | null;
+      payment_due_date: string | null; date: string | null;
+      event_name: string | null; venue_name: string; recurring_event_name: string | null;
+      promoter_contact_id: number | null; payment_method: string | null;
+      cache_paid_pct: number | null;
+    }[]>(
+      `SELECT id, cache_amount, payment_status, payment_due_date, date,
+              event_name, venue_name, recurring_event_name,
+              promoter_contact_id, payment_method, cache_paid_pct
+         FROM gigs WHERE cache_amount > 0`
+    );
+    for (const g of gigs) {
+      try {
+        const paid = ["Pago integralmente", "Pago parcialmente"].includes(g.payment_status ?? "");
+        const cache = g.cache_amount ?? 0;
+        const pct = paid && g.cache_paid_pct ? g.cache_paid_pct / 100 : 1;
+        const amount = cache * pct;
+        const baseName = g.recurring_event_name?.trim()
+          ? g.event_name?.trim()
+            ? `${g.recurring_event_name.trim()} - ${g.event_name.trim()}`
+            : g.recurring_event_name.trim()
+          : g.event_name?.trim() || g.venue_name?.trim() || "GIG";
+        const label = `Cachê: ${baseName}`;
+        const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
+        await syncGigPaymentTransaction(
+          g.id, paid, amount, txDate, label, null,
+          g.promoter_contact_id, g.payment_method, !!g.payment_due_date
+        );
+      } catch { /* continue */ }
+    }
+  } catch { /* continue */ }
+
+  try {
+    // Aulas
+    const classes = await db.select<{ id: number }[]>(
+      `SELECT id FROM classes WHERE status = 'Realizada' AND amount > 0`
+    );
+    for (const c of classes) {
+      try { await syncClassTransaction(c.id); } catch { /* continue */ }
+    }
+  } catch { /* continue */ }
+
+  try {
+    // Festas
+    const parties = await db.select<{ id: number }[]>("SELECT id FROM parties");
+    for (const p of parties) {
+      try { await syncPartyTransactions(p.id); } catch { /* continue */ }
+    }
+  } catch { /* continue */ }
+
+  try {
+    // Custos de produção musical
+    const costs = await db.select<{ id: number }[]>(
+      "SELECT id FROM music_project_costs WHERE amount > 0"
+    );
+    for (const c of costs) {
+      try { await syncMusicCostTransaction(c.id); } catch { /* continue */ }
+    }
+  } catch { /* continue */ }
 }

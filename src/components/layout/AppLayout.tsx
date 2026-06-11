@@ -9,7 +9,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { SyncIndicator } from "@/components/shared/SyncIndicator";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
-import { useConfigStore } from "@/lib/config";
 import { cn } from "@/lib/utils";
 import { triggerQuickCapture } from "@/lib/shortcuts";
 
@@ -59,8 +58,6 @@ export function AppLayout() {
     )?.[1] ??
     "Vistage";
 
-  const dbPath = useConfigStore((s) => s.config?.dbPath);
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Sidebar fixa — só no desktop */}
@@ -107,11 +104,6 @@ export function AppLayout() {
             )}
             <div>
               <h1 className="text-lg font-semibold">{title}</h1>
-              {!sidebarCollapsed && dbPath && (
-                <p className="text-xs text-muted-foreground truncate max-w-[40ch]">
-                  {dbPath}
-                </p>
-              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

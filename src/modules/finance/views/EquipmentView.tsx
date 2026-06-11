@@ -68,11 +68,7 @@ export function EquipmentView() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Itens criados automaticamente a partir de despesas na categoria
-          <Badge variant="outline" className="mx-1">Equipamentos</Badge>
-          — você também pode adicionar manualmente abaixo.
-        </p>
+        <div />
         <Button
           onClick={() => {
             setEditing(null);

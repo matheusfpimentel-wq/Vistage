@@ -14,7 +14,7 @@ import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, loadDatabase } from "@/lib/db";
-import { autoGenerateRecurringUpToNow } from "@/modules/finance/api";
+import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
   isModKey,
@@ -148,6 +148,7 @@ function MainApp() {
           setDbReady(true);
           setDbError(null);
           void autoGenerateRecurringUpToNow().catch(() => {});
+          void retroactiveSyncAllLinked().catch(() => {});
           void import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
             syncSuperfanFollowupTasks().catch(() => {})
           );

@@ -433,7 +433,9 @@ export function GigForm({
             state.payment_due_date ?? state.date,
             label,
             null,
-            state.promoter_contact_id ?? null
+            state.promoter_contact_id ?? null,
+            state.payment_method ?? null,
+            !!state.payment_due_date,
           );
         } catch {
           /* não interrompe */

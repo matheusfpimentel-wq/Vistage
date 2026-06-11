@@ -69,6 +69,11 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
 export async function closeSessionOverlay(): Promise<void> {
   if (!isTauri()) return;
   try {
+    // Emit event so the overlay can close itself (more reliable on Windows)
+    const { emit } = await import("@tauri-apps/api/event");
+    await emit("work-session-closed");
+  } catch { /* ignore */ }
+  try {
     const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow");
     const existing = await WebviewWindow.getByLabel(OVERLAY_LABEL);
     if (existing) await existing.close();

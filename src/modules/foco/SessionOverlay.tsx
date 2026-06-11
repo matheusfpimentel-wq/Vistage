@@ -80,6 +80,18 @@ export function SessionOverlay() {
     }
   }
 
+  // Listen for session-ended event emitted by the main window
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen("work-session-closed", () => void closeSelf());
+      } catch { /* ignore */ }
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
   if (!params) return null;
 
   return (

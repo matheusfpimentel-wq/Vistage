@@ -111,10 +111,10 @@ export function averageRating(g: Pick<
   Gig,
   "rating_charisma" | "rating_technique" | "rating_repertoire" | "rating_contractor" | "is_special"
 >): number | null {
-  const specialScore = g.is_special ? 5 : 3;
   const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire, g.rating_contractor]
     .filter((r): r is number => typeof r === "number");
-  const allRatings = [...ratings, specialScore];
+  if (ratings.length === 0 && !g.is_special) return null;
+  const allRatings = g.is_special ? [...ratings, 5] : ratings;
   return allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
 }
 

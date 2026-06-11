@@ -221,8 +221,8 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
   if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
     try {
-      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null }[]>(
-        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id FROM gigs WHERE id = $1", [id]
+      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null; payment_method: string | null }[]>(
+        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id, payment_method FROM gigs WHERE id = $1", [id]
       );
       const g = row[0];
       if (g) {
@@ -245,7 +245,7 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         const label = `Cachê: ${baseName}`;
         const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
-        await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id);
+        await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date);
       }
     } catch { /* não interrompe */ }
   }
