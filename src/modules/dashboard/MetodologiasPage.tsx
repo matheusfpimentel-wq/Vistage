@@ -549,6 +549,11 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
     return () => document.removeEventListener("touchmove", prevent);
   }, [draggingId]);
 
+  useEffect(() => {
+    document.body.style.overflow = draggingId != null ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [draggingId]);
+
   const open = tasks.filter((t) => t.status === "A fazer" || t.status === "Em andamento");
   const ungrouped = open.filter((t) => !t.eisenhower_quadrant);
   const byQuadrant = useCallback(
@@ -639,7 +644,7 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
         className="space-y-3 touch-none"
-        style={{ overscrollBehavior: "none" }}
+        style={{ overscrollBehavior: "none", overflow: draggingId != null ? "hidden" : undefined }}
       >
         {/* Não agrupadas */}
         <div

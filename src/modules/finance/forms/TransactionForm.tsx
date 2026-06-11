@@ -184,16 +184,22 @@ export function TransactionForm({
         </DialogHeader>
 
         <div className="space-y-4">
+          {state.gig_sync === 1 && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              Esta receita é sincronizada automaticamente pela GIG vinculada. Para alterar valores, edite a GIG.
+            </div>
+          )}
           {!transaction && (
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => set("kind", "income")}
+                disabled={state.gig_sync === 1}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "income"
                     ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
                     : "border-input"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 Entrada (receita)
               </button>
@@ -203,11 +209,12 @@ export function TransactionForm({
                   set("kind", "expense");
                   if (!state.expense_type) set("expense_type", "Variável");
                 }}
+                disabled={state.gig_sync === 1}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "expense"
                     ? "border-destructive bg-destructive/10 text-destructive"
                     : "border-input"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 Saída (despesa)
               </button>
@@ -224,6 +231,7 @@ export function TransactionForm({
                 onChange={(e) =>
                   set("amount", parseFloat(e.target.value) || 0)
                 }
+                disabled={state.gig_sync === 1}
               />
             </Field>
             <Field label="Data" required error={errors.date}>
@@ -352,6 +360,7 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("contact_id", v === "none" ? null : Number(v))
                 }
+                disabled={state.gig_sync === 1}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—" />

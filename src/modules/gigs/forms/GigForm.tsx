@@ -492,6 +492,13 @@ export function GigForm({
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <RecurringFestField
+                enabled={state.event_category === FESTA_CATEGORY}
+                recurringName={state.recurring_event_name ?? null}
+                eventName={state.event_name ?? ""}
+                onChangeRecurring={(v) => set("recurring_event_name", v)}
+                onChangeEventName={(v) => set("event_name", v || null)}
+              />
               <Field label="Categoria" hint="Tipo de evento para filtrar nas GIGs.">
                 <Select
                   value={state.event_category ?? "none"}
@@ -514,13 +521,6 @@ export function GigForm({
                   </SelectContent>
                 </Select>
               </Field>
-              <RecurringFestField
-                enabled={state.event_category === FESTA_CATEGORY}
-                recurringName={state.recurring_event_name ?? null}
-                eventName={state.event_name ?? ""}
-                onChangeRecurring={(v) => set("recurring_event_name", v)}
-                onChangeEventName={(v) => set("event_name", v || null)}
-              />
             </div>
 
             <Field label="Status">

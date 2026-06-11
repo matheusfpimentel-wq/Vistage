@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toaster";
 import { updateGig } from "../api";
 import { GIG_STATUSES, PAYMENT_STATUSES, type Gig } from "../types";
@@ -43,10 +43,46 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   const [sel, setSel] = useState<Sel>(null);
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
 
+  // Sorting
+  const [sortCol, setSortCol] = useState<keyof Gig | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  // Column visibility
+  const [visibleKeys, setVisibleKeys] = useState<Set<keyof Gig>>(
+    () => new Set(COLS.map((c) => c.key))
+  );
+  const [showColPicker, setShowColPicker] = useState(false);
+  const colPickerRef = useRef<HTMLDivElement>(null);
+
+  const visibleCols = useMemo(
+    () => COLS.filter((c) => visibleKeys.has(c.key)),
+    [visibleKeys]
+  );
+
+  // Sorted gigs
+  const sortedGigs = useMemo(() => {
+    if (!sortCol) return gigs;
+    const col = COLS.find((c) => c.key === sortCol);
+    if (!col) return gigs;
+    return [...gigs].sort((a, b) => {
+      const av = col.read(a);
+      const bv = col.read(b);
+      const an = Number(av);
+      const bn = Number(bv);
+      let cmp: number;
+      if (!isNaN(an) && !isNaN(bn) && av !== "" && bv !== "") {
+        cmp = an - bn;
+      } else {
+        cmp = av.localeCompare(bv, undefined, { numeric: true });
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [gigs, sortCol, sortDir]);
+
   // Grade de strings derivada das GIGs (fonte da verdade são as props).
   const grid = useMemo(
-    () => gigs.map((g) => COLS.map((c) => c.read(g))),
-    [gigs]
+    () => sortedGigs.map((g) => visibleCols.map((c) => c.read(g))),
+    [sortedGigs, visibleCols]
   );
 
   const rect = (a: { r: number; c: number }, b: { r: number; c: number }): Sel => ({
@@ -60,15 +96,14 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     sel != null && r >= sel.r0 && r <= sel.r1 && c >= sel.c0 && c <= sel.c1;
 
   async function persist(rowIdx: number, colIdx: number, raw: string) {
-    const gig = gigs[rowIdx];
-    const col = COLS[colIdx];
-    if (!gig) return;
+    const gig = sortedGigs[rowIdx];
+    const col = visibleCols[colIdx];
+    if (!gig || !col) return;
     const parsed = col.parse(raw);
     if (parsed === null && (col.key === "status" || col.key === "venue_name")) {
-      // status/local não podem virar nulos inválidos — ignora
       if (col.key === "status") { toast.error("Status inválido"); return; }
     }
-    if (col.read(gig) === raw) return; // sem mudança
+    if (col.read(gig) === raw) return;
     try {
       await updateGig({ id: gig.id, [col.key]: parsed } as Parameters<typeof updateGig>[0]);
       await onRefresh();
@@ -122,18 +157,17 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     if (!text) return;
     e.preventDefault();
     const matrix = text.replace(/\r/g, "").split("\n").map((line) => line.split("\t"));
-    // remove última linha vazia gerada por \n final
     if (matrix.length > 1 && matrix[matrix.length - 1].every((c) => c === "")) matrix.pop();
 
     let saved = 0;
     for (let i = 0; i < matrix.length; i++) {
       const r = sel.r0 + i;
-      if (r >= gigs.length) break;
+      if (r >= sortedGigs.length) break;
       for (let j = 0; j < matrix[i].length; j++) {
         const c = sel.c0 + j;
-        if (c >= COLS.length) break;
-        const gig = gigs[r];
-        const col = COLS[c];
+        if (c >= visibleCols.length) break;
+        const gig = sortedGigs[r];
+        const col = visibleCols[c];
         const raw = matrix[i][j];
         if (col.read(gig) === raw) continue;
         const parsed = col.parse(raw);
@@ -150,6 +184,59 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     }
   }
 
+  function handleContainerKeyDown(e: React.KeyboardEvent) {
+    if (editing) return;
+    const arrows = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+    if (!arrows.includes(e.key)) return;
+    e.preventDefault();
+
+    const maxR = sortedGigs.length - 1;
+    const maxC = visibleCols.length - 1;
+    if (maxR < 0 || maxC < 0) return;
+
+    const cur = anchor ?? { r: 0, c: 0 };
+    let nr = cur.r;
+    let nc = cur.c;
+
+    if (e.key === "ArrowUp") nr = Math.max(0, nr - 1);
+    if (e.key === "ArrowDown") nr = Math.min(maxR, nr + 1);
+    if (e.key === "ArrowLeft") nc = Math.max(0, nc - 1);
+    if (e.key === "ArrowRight") nc = Math.min(maxC, nc + 1);
+
+    setAnchor({ r: nr, c: nc });
+    setSel({ r0: nr, c0: nc, r1: nr, c1: nc });
+  }
+
+  function handleHeaderClick(key: keyof Gig) {
+    if (sortCol === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(key);
+      setSortDir("asc");
+    }
+  }
+
+  function toggleColVisibility(key: keyof Gig) {
+    setVisibleKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        // Don't allow hiding all columns
+        if (next.size <= 1) return prev;
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
+
+  // Close col picker when clicking outside
+  function handleColPickerBlur(e: React.FocusEvent) {
+    if (colPickerRef.current && !colPickerRef.current.contains(e.relatedTarget as Node)) {
+      setShowColPicker(false);
+    }
+  }
+
   if (gigs.length === 0) {
     return (
       <div className="rounded-md border border-dashed bg-muted/30 p-8 text-center text-sm text-muted-foreground">
@@ -160,33 +247,77 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs text-muted-foreground">
-        Clique para editar. Selecione um intervalo (clique e arraste, ou shift+clique) e use Ctrl+C / Ctrl+V para copiar e colar como no Excel.
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Clique para editar. Selecione um intervalo (clique e arraste, ou shift+clique) e use Ctrl+C / Ctrl+V para copiar e colar como no Excel.
+        </p>
+        {/* Column visibility picker */}
+        <div
+          className="relative"
+          ref={colPickerRef}
+          onBlur={handleColPickerBlur}
+        >
+          <button
+            className="flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium hover:bg-muted focus:outline-none focus:ring-1 focus:ring-primary"
+            onClick={() => setShowColPicker((v) => !v)}
+          >
+            Colunas
+            <span className="text-muted-foreground">{showColPicker ? "▲" : "▼"}</span>
+          </button>
+          {showColPicker && (
+            <div
+              className="absolute right-0 z-20 mt-1 min-w-[160px] rounded-md border bg-popover p-2 shadow-md"
+              tabIndex={-1}
+            >
+              {COLS.map((col) => (
+                <label
+                  key={String(col.key)}
+                  className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleKeys.has(col.key)}
+                    onChange={() => toggleColVisibility(col.key)}
+                    className="accent-primary"
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
       <div
         className="overflow-auto rounded-md border"
         tabIndex={0}
         onCopy={handleCopy}
         onPaste={handlePaste}
+        onKeyDown={handleContainerKeyDown}
       >
         <table className="w-full border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
-              {COLS.map((col) => (
+              {visibleCols.map((col) => (
                 <th
                   key={String(col.key)}
-                  className="border-b border-r px-2 py-1.5 text-left font-medium text-muted-foreground"
+                  className="cursor-pointer select-none border-b border-r px-2 py-1.5 text-left font-medium text-muted-foreground hover:bg-muted/80"
                   style={{ minWidth: col.width }}
+                  onClick={() => handleHeaderClick(col.key)}
                 >
-                  {col.label}
+                  <span className="flex items-center gap-1">
+                    {col.label}
+                    {sortCol === col.key && (
+                      <span className="text-foreground">{sortDir === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </span>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {gigs.map((_, r) => (
-              <tr key={gigs[r].id}>
-                {COLS.map((col, c) => {
+            {sortedGigs.map((_, r) => (
+              <tr key={sortedGigs[r].id}>
+                {visibleCols.map((col, c) => {
                   const isEditing = editing?.r === r && editing?.c === c;
                   return (
                     <td

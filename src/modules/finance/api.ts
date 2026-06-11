@@ -500,11 +500,15 @@ export async function syncClassTransaction(classId: number): Promise<void> {
       date: string;
       subject: string | null;
       student_name: string | null;
+      class_number: number;
     }[]
   >(
-    `SELECT c.amount, c.status, c.date, c.subject, s.name AS student_name
-       FROM classes c LEFT JOIN students s ON s.id = c.student_id
-      WHERE c.id = $1`,
+    `SELECT c.amount, c.status, c.date, c.subject, s.name AS student_name,
+  (SELECT COUNT(*) FROM classes c2
+   WHERE c2.student_id = c.student_id
+     AND (c2.date < c.date OR (c2.date = c.date AND c2.id <= c.id))) as class_number
+FROM classes c LEFT JOIN students s ON s.id = c.student_id
+WHERE c.id = $1`,
     [classId]
   );
   const c = rows[0];
@@ -522,11 +526,8 @@ export async function syncClassTransaction(classId: number): Promise<void> {
     return;
   }
 
-  const subject = c.subject?.trim();
-  const studentLabel = c.student_name ?? "Aluno";
-  const desc = subject
-    ? `Aula: ${studentLabel} - ${subject}`
-    : `Aula: ${studentLabel}`;
+  const num = c.class_number ?? 1;
+  const desc = `[Aula] ${num} - ${c.student_name ?? "Aluno"}`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions

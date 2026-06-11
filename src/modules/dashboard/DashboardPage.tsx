@@ -635,7 +635,7 @@ function GigsCard({ data }: { data: DashData }) {
                       <StatusBadge status={g.status} />
                     </div>
                   </div>
-                  <PrepProgressMini state={prep} />
+                  <PrepProgressMini state={prep} groupFilter={g.event_category === "Festa" ? undefined : ["musical", "logistica"]} />
                 </Link>
               );
             })}

@@ -81,13 +81,15 @@ export function PrepChecklist({ state, onChange, groupFilter }: Props) {
  * Mini indicador agrupado para o card de "Próximas GIGs" no Dashboard.
  * Mostra três barrinhas (uma por subgrupo) + total.
  */
-export function PrepProgressMini({ state }: { state: Record<string, 1> }) {
+export function PrepProgressMini({ state, groupFilter }: { state: Record<string, 1>; groupFilter?: string[] }) {
   const byGroup = prepProgressByGroup(state);
+  const visibleGroups = PREP_GROUPS.filter((g) => !groupFilter || groupFilter.includes(g.id));
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1">
-        {PREP_GROUPS.map((g, i) => {
-          const progress = byGroup[i].progress;
+        {visibleGroups.map((g) => {
+          const idx = PREP_GROUPS.indexOf(g);
+          const progress = byGroup[idx].progress;
           const pct = progress.total ? (progress.done / progress.total) * 100 : 0;
           return (
             <div
@@ -104,7 +106,7 @@ export function PrepProgressMini({ state }: { state: Record<string, 1> }) {
         })}
       </div>
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-        {PREP_GROUPS.map((g) => (
+        {visibleGroups.map((g) => (
           <span key={g.id}>{g.title.split(" ")[0]}</span>
         ))}
       </div>
