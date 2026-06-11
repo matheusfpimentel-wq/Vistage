@@ -145,6 +145,63 @@ export async function exportEntityCsv(table: string): Promise<string | null> {
   return path;
 }
 
+/**
+ * Exporta uma lista já filtrada de transações financeiras em CSV, com colunas
+ * amigáveis (datas DD/MM/YYYY, categoria por nome, tipo em português). Usado
+ * pelo botão "Exportar CSV" do Financeiro, respeitando o filtro atual da tela.
+ */
+export async function exportTransactionsCsv(
+  rows: {
+    date: string;
+    kind: string;
+    description: string | null;
+    category_name?: string | null;
+    amount: number;
+    status: string;
+    payment_method?: string | null;
+    expense_type?: string | null;
+  }[]
+): Promise<string | null> {
+  if (rows.length === 0) {
+    throw new Error("Nenhuma transação no filtro atual — nada pra exportar.");
+  }
+  const fmtBR = (iso: string) => {
+    const [y, m, d] = iso.slice(0, 10).split("-");
+    return `${d}/${m}/${y}`;
+  };
+  const columns = [
+    "Data",
+    "Tipo",
+    "Descrição",
+    "Categoria",
+    "Valor",
+    "Status",
+    "Forma de pagamento",
+    "Tipo de despesa",
+  ];
+  const mapped = rows.map((t) => ({
+    Data: fmtBR(t.date),
+    Tipo: t.kind === "income" ? "Receita" : "Despesa",
+    Descrição: t.description ?? "",
+    Categoria: t.category_name ?? "",
+    Valor: t.amount.toFixed(2).replace(".", ","),
+    Status: t.status,
+    "Forma de pagamento": t.payment_method ?? "",
+    "Tipo de despesa": t.expense_type ?? "",
+  }));
+  const csv = buildCsv(columns, mapped);
+  const stamp = new Date().toISOString().slice(0, 10);
+  const path = await saveDialog({
+    title: "Exportar transações em CSV",
+    defaultPath: `vistage-financeiro-${stamp}.csv`,
+    filters: [{ name: "CSV", extensions: ["csv"] }],
+  });
+  if (!path) return null;
+  // BOM para o Excel reconhecer UTF-8 (acentos)
+  await writeTextFile(path, "﻿" + csv);
+  return path;
+}
+
 export type ExportAllResult = {
   folder: string;
   files: number;

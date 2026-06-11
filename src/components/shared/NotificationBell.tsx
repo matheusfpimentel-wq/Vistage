@@ -187,6 +187,37 @@ async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
   }
 }
 
+/** Recebíveis previstos cuja data já passou e ainda não foram marcados como recebidos. */
+async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
+  try {
+    const db = getDb();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db.select<
+      { id: number; date: string; amount: number; description: string | null }[]
+    >(
+      `SELECT id, date, amount, description FROM finance_transactions
+        WHERE kind = 'income' AND status = 'Previsto' AND date < $1
+        ORDER BY date ASC LIMIT 5`,
+      [today]
+    );
+    return rows.map((t) => {
+      const [y, m, d] = t.date.slice(0, 10).split("-");
+      const dateBR = `${d}/${m}/${y}`;
+      const valor = t.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+      const what = t.description?.trim() || "Recebível";
+      return {
+        key: `receivable-overdue-${t.id}`,
+        label: `Recebível previsto venceu em ${dateBR}: ${what} (${valor}) — ainda não recebido.`,
+        to: `/financeiro`,
+        critical: true,
+        icon: "dollar" as const,
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [crmAlerts, setCrmAlerts] = useState<AlertItem[]>([]);
@@ -208,16 +239,24 @@ export function NotificationBell() {
       } catch {
         // silently ignore
       }
-      void Promise.all([loadRelationshipAlerts(), loadStaleGigStatusAlerts()]).then(
-        ([rel, stale]) => setCrmAlerts([...stale, ...rel])
+      void Promise.all([
+        loadRelationshipAlerts(),
+        loadStaleGigStatusAlerts(),
+        loadOverdueReceivableAlerts(),
+      ]).then(([rel, stale, receivables]) =>
+        setCrmAlerts([...receivables, ...stale, ...rel])
       );
     }, 500);
   }, []);
 
   useEffect(() => {
     const load = () =>
-      void Promise.all([loadRelationshipAlerts(), loadStaleGigStatusAlerts()]).then(
-        ([rel, stale]) => setCrmAlerts([...stale, ...rel])
+      void Promise.all([
+        loadRelationshipAlerts(),
+        loadStaleGigStatusAlerts(),
+        loadOverdueReceivableAlerts(),
+      ]).then(([rel, stale, receivables]) =>
+        setCrmAlerts([...receivables, ...stale, ...rel])
       );
     load();
     const crmInterval = setInterval(load, 5 * 60_000);

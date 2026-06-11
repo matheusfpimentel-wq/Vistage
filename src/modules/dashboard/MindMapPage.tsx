@@ -282,19 +282,18 @@ export function MindMapPage() {
       p.vy = 0;
       forceTick((t) => t + 1);
     } else if (panRef.current) {
-      const dxPx = e.clientX - panRef.current.x;
-      const dyPx = e.clientY - panRef.current.y;
-      if (!panRef.current.moved && Math.abs(dxPx) < 4 && Math.abs(dyPx) < 4) return;
-      panRef.current.moved = true;
+      const pan = panRef.current; // captura local: setView é assíncrono e panRef pode virar null
+      const dxPx = e.clientX - pan.x;
+      const dyPx = e.clientY - pan.y;
+      if (!pan.moved && Math.abs(dxPx) < 4 && Math.abs(dyPx) < 4) return;
+      pan.moved = true;
       const { k } = viewRef.current; // usa ref para garantir zoom atual
       const rect = svgRef.current?.getBoundingClientRect();
       const scaleX = (WIDTH / k) / (rect?.width ?? WIDTH);
       const scaleY = (HEIGHT / k) / (rect?.height ?? HEIGHT);
-      setView((v) => ({
-        ...v,
-        x: panRef.current!.vx - dxPx * scaleX,
-        y: panRef.current!.vy - dyPx * scaleY,
-      }));
+      const baseX = pan.vx - dxPx * scaleX;
+      const baseY = pan.vy - dyPx * scaleY;
+      setView((v) => ({ ...v, x: baseX, y: baseY }));
     }
   };
 

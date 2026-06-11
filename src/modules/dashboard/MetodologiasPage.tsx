@@ -94,7 +94,9 @@ export function MetodologiasPage() {
 
   useEffect(() => {
     load();
-    const onChange = () => load();
+    // Reload silencioso: evita remount do spinner (que joga o scroll pro topo,
+    // ex.: ao arrastar/clicar tarefas na matriz de Eisenhower).
+    const onChange = () => load(true);
     window.addEventListener(DATA_CHANGED, onChange);
     return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, [load]);

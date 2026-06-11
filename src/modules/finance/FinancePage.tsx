@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Settings } from "lucide-react";
+import { Download, Plus, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -38,6 +38,7 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useConfirm } from "@/components/ui/confirm";
+import { exportTransactionsCsv } from "@/lib/csv";
 
 type KindFilter = TransactionKind | "all";
 type StatusFilter = TransactionStatus | "all";
@@ -183,6 +184,15 @@ export function FinancePage() {
     toast.success("Transação excluída");
   }
 
+  async function handleExportCsv() {
+    try {
+      const path = await exportTransactionsCsv(transactions);
+      if (path) toast.success("CSV exportado com sucesso");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao exportar CSV");
+    }
+  }
+
   const monthIncome = transactions
     .filter((t) => t.kind === "income")
     .reduce((s, t) => s + t.amount, 0);
@@ -311,6 +321,13 @@ export function FinancePage() {
                 onClick={() => setCategoryMgrOpen(true)}
               >
                 <Settings className="h-4 w-4" /> Categorias
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExportCsv}
+                disabled={transactions.length === 0}
+              >
+                <Download className="h-4 w-4" /> Exportar CSV
               </Button>
               <Button variant="outline" onClick={() => openCreate("expense")}>
                 <Plus className="h-4 w-4" /> Despesa
