@@ -29,7 +29,8 @@ import { getDb } from "@/lib/db";
 import {
   EXPENSE_TYPES,
   PAYMENT_METHODS,
-  TRANSACTION_STATUSES,
+  defaultStatus,
+  statusesForKind,
   type FinanceCategory,
   type FinanceTransaction,
   type FinanceTransactionCreateInput,
@@ -39,6 +40,7 @@ import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { listClasses, type ClassWithStudent } from "@/modules/classes/api";
 import { todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
 
@@ -61,7 +63,7 @@ function emptyState(kind: TransactionKind): FormState {
     category_id: null,
     gig_id: null,
     contact_id: null,
-    status: "Recebido/Pago",
+    status: defaultStatus(kind),
     payment_method: null,
     expense_type: kind === "expense" ? "Variável" : null,
     receipt_file_path: null,
@@ -112,6 +114,7 @@ export function TransactionForm({
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [classes, setClasses] = useState<ClassWithStudent[]>([]);
   const [gigHasSyncedTx, setGigHasSyncedTx] = useState(false);
 
   useEffect(() => {
@@ -145,6 +148,7 @@ export function TransactionForm({
     void refreshCategories();
     void listGigs().then(setGigs);
     void listContacts().then(setContacts);
+    void listClasses().then(setClasses);
   }, [open]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -185,6 +189,8 @@ export function TransactionForm({
   }
 
   const isExpense = state.kind === "expense";
+  const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
+  const isAulaCategory = selectedCategoryName === "Aulas / Mentorias";
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
@@ -295,7 +301,7 @@ export function TransactionForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TRANSACTION_STATUSES.map((s) => (
+                  {statusesForKind(state.kind).map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>
@@ -400,6 +406,30 @@ export function TransactionForm({
               </Select>
             </Field>
           </div>
+
+          {isAulaCategory && (
+            <Field label="Vincular a uma aula">
+              <Select
+                value={state.class_id?.toString() ?? "none"}
+                onValueChange={(v) =>
+                  set("class_id", v === "none" ? null : Number(v))
+                }
+                disabled={!!state.class_id && state.gig_sync === 1}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="—" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
+                  {classes.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.date} · {c.student_name ?? `Aula #${c.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <label className="flex items-center gap-2 text-sm">
             <input

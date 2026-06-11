@@ -134,7 +134,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <Badge variant={t.status === "Recebido/Pago" ? "success" : "warning"}>
+                  <Badge variant={(t.status === "Recebido" || t.status === "Pago") ? "success" : "warning"}>
                     {t.status}
                   </Badge>
                 </td>

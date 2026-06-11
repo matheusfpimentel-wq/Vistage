@@ -275,6 +275,7 @@ export async function syncGigPaymentTransaction(
   contactId?: number | null,
   paymentMethod?: string | null,
   hasDueDate?: boolean,
+  gigEventDate?: string | null,
 ): Promise<void> {
   const db = getDb();
   const existing = await db.select<{ id: number }[]>(
@@ -283,7 +284,8 @@ export async function syncGigPaymentTransaction(
   );
 
   const wantPrevista = !paid && (amount > 0) && !!hasDueDate;
-  const descWithDate = `${description} (${fmtDateBR(date)})`;
+  const eventDate = gigEventDate ?? date;
+  const descWithDate = `${description} (${fmtDateBR(eventDate)})`;
 
   if (!paid && !wantPrevista) {
     if (existing.length > 0) {
@@ -307,7 +309,7 @@ export async function syncGigPaymentTransaction(
     return;
   }
 
-  const status = paid ? 'Recebido/Pago' : 'Previsto';
+  const status = paid ? 'Recebido' : 'Previsto';
 
   if (existing.length > 0) {
     await db.execute(
@@ -382,7 +384,7 @@ export async function syncMusicCostTransaction(costId: number): Promise<void> {
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
-          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+          SET amount = $1, date = $2, description = $3, status = 'Pago',
               updated_at = CURRENT_TIMESTAMP
         WHERE id = $4`,
       [cost.amount, dateStr, desc, existing[0].id]
@@ -401,7 +403,7 @@ export async function syncMusicCostTransaction(costId: number): Promise<void> {
   await db.execute(
     `INSERT INTO finance_transactions
        (kind, amount, date, description, category_id, music_cost_id, status, expense_type)
-     VALUES ('expense', $1, $2, $3, $4, $5, 'Recebido/Pago', 'Variável')`,
+     VALUES ('expense', $1, $2, $3, $4, $5, 'Pago', 'Variável')`,
     [cost.amount, dateStr, desc, categoryId, costId]
   );
 }
@@ -465,12 +467,12 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
     const categoryId = catRows[0]?.id ?? null;
     if (existingIncome.length > 0) {
       await db.execute(
-        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido/Pago', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
+        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
         [income, dateStr, `Ingressos: ${party.title}`, existingIncome[0].id]
       );
     } else {
       await db.execute(
-        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago', NULL)`,
+        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('income', $1, $2, $3, $4, $5, 'Recebido', NULL)`,
         [income, dateStr, `Ingressos: ${party.title}`, categoryId, partyId]
       );
     }
@@ -489,12 +491,12 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
   if (expense > 0) {
     if (existingExpense.length > 0) {
       await db.execute(
-        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido/Pago', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
+        `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Pago', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
         [expense, dateStr, `Custos: ${party.title}`, existingExpense[0].id]
       );
     } else {
       await db.execute(
-        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('expense', $1, $2, $3, NULL, $4, 'Recebido/Pago', 'Variável')`,
+        `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('expense', $1, $2, $3, NULL, $4, 'Pago', 'Variável')`,
         [expense, dateStr, `Custos: ${party.title}`, partyId]
       );
     }
@@ -577,7 +579,7 @@ WHERE c.id = $1`,
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
-          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+          SET amount = $1, date = $2, description = $3, status = 'Recebido',
               updated_at = CURRENT_TIMESTAMP
         WHERE id = $4`,
       [c.amount, c.date, desc, existing[0].id]
@@ -587,7 +589,7 @@ WHERE c.id = $1`,
   const categoryId = await classIncomeCategoryId();
   await db.execute(
     `INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
-     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
+     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido')`,
     [c.amount, c.date, desc, categoryId, classId]
   );
 }
@@ -638,7 +640,7 @@ export async function syncStudentPackageTransaction(
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
-          SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
+          SET amount = $1, date = $2, description = $3, status = 'Recebido',
               updated_at = CURRENT_TIMESTAMP
         WHERE id = $4`,
       [p.price, p.purchased_at, desc, existing[0].id]
@@ -648,7 +650,7 @@ export async function syncStudentPackageTransaction(
   const categoryId = await classIncomeCategoryId();
   await db.execute(
     `INSERT INTO finance_transactions (kind, amount, date, description, category_id, student_package_id, status)
-     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago')`,
+     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido')`,
     [p.price, p.purchased_at, desc, categoryId, studentPackageId]
   );
 }

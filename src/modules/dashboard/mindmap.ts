@@ -11,6 +11,7 @@ export type MindNodeType =
   | "gig"
   | "party"
   | "student"
+  | "class"
   | "track"
   | "project"
   | "content"
@@ -46,6 +47,7 @@ export const MIND_TYPE_META: Record<
   gig:     { label: "GIG",             color: "#a78bfa", route: "/gigs" },       // violeta
   party:   { label: "Festa",           color: "#f472b6", route: "/festas" },      // rosa
   student: { label: "Aluno",           color: "#34d399", route: "/aulas" },       // verde-esmeralda
+  class:   { label: "Aula",            color: "#6ee7b7", route: "/aulas" },       // verde-menta
   track:   { label: "Faixa",           color: "#38bdf8", route: "/musica" },      // azul-céu
   project: { label: "Projeto musical", color: "#818cf8", route: "/musica" },      // índigo-claro
   content: { label: "Conteúdo",        color: "#fbbf24", route: "/conteudo" },    // âmbar
@@ -75,9 +77,10 @@ export async function buildMindGraph(): Promise<MindGraph> {
     venues,
     suppliers,
     fans,
+    classSessions,
   ] = await Promise.all([
     db.select<{ id: number; label: string; venue_id: number | null; promoter_contact_id: number | null; recurring_event_name: string | null }[]>(
-      `SELECT id, COALESCE(NULLIF(event_name,''), venue_name, 'GIG #'||id) AS label, venue_id, promoter_contact_id, recurring_event_name FROM gigs`
+      `SELECT id, COALESCE(NULLIF(recurring_event_name,''), NULLIF(event_name,''), venue_name, 'GIG #'||id) AS label, venue_id, promoter_contact_id, recurring_event_name FROM gigs`
     ),
     db.select<{ id: number; label: string; gig_id: number | null }[]>(
       `SELECT id, COALESCE(NULLIF(title,''), 'Festa #'||id) AS label, gig_id FROM parties`
@@ -109,6 +112,12 @@ export async function buildMindGraph(): Promise<MindGraph> {
     db.select<{ id: number; label: string }[]>(
       `SELECT id, COALESCE(NULLIF(name,''), 'Fã #'||id) AS label FROM fans`
     ),
+    db.select<{ id: number; label: string; student_id: number }[]>(
+      `SELECT c.id,
+              COALESCE(NULLIF(c.subject,''), s.name, 'Aula #'||c.id) AS label,
+              c.student_id
+         FROM classes c LEFT JOIN students s ON s.id = c.student_id`
+    ),
   ]);
 
   const gigFans = await db.select<{ gig_id: number; fan_id: number }[]>(
@@ -129,6 +138,7 @@ export async function buildMindGraph(): Promise<MindGraph> {
   gigs.forEach((g) => add("gig", g.id, g.label));
   parties.forEach((p) => add("party", p.id, p.label));
   students.forEach((s) => add("student", s.id, s.label));
+  classSessions.forEach((c) => add("class", c.id, c.label));
   tracks.forEach((t) => add("track", t.id, t.label));
   projects.forEach((p) => add("project", p.id, p.label));
   contents.forEach((c) => add("content", c.id, c.label));
@@ -147,6 +157,9 @@ export async function buildMindGraph(): Promise<MindGraph> {
   // vínculos adensados
   students.forEach((s) => {
     if (s.contact_id != null) link(nid("student", s.id), nid("contact", s.contact_id), "aluno é contato");
+  });
+  classSessions.forEach((c) => {
+    link(nid("class", c.id), nid("student", c.student_id), "aula do aluno");
   });
   contents.forEach((c) => {
     if (c.track_id != null) link(nid("content", c.id), nid("track", c.track_id), "conteúdo da faixa");

@@ -246,7 +246,7 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         const label = `Cachê: ${baseName}`;
         const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
-        await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date);
+        await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date, g.date ?? null);
 
         // ── Tarefa de cobrança ───────────────────────────────────────
         // Cria lembrete quando há previsão de recebimento e o cachê ainda não

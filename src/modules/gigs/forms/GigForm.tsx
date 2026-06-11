@@ -1435,7 +1435,7 @@ function GigExpensesSection({ gigId, gigDate }: { gigId: number; gigDate: string
         party_id: null,
         music_cost_id: null,
         gig_sync: 0,
-        status: "Recebido/Pago",
+        status: "Pago",
         payment_method: null,
         expense_type: "Variável",
         receipt_file_path: null,

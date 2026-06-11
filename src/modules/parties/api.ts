@@ -725,7 +725,7 @@ export async function syncPartyToFinanceiro(
     const amount = ticket.price * ticket.quantity_sold;
     await db.execute(
       `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido/Pago')`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido')`,
       ["income", amount, dateStr, `${party.title}: ingressos ${ticket.name}`, party.id, incomeCatId]
     );
   }
@@ -737,7 +737,7 @@ export async function syncPartyToFinanceiro(
     const dateUsed = item.date_paid ?? party.date ?? todayISO();
     await db.execute(
       `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido/Pago')`,
+       VALUES ($1, $2, $3, $4, $5, $6, 'Pago')`,
       ["expense", item.actual_amount, dateUsed, desc, party.id, expenseCatId]
     );
   }

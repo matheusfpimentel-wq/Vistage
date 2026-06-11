@@ -1,8 +1,18 @@
 export const TRANSACTION_KINDS = ["income", "expense"] as const;
 export type TransactionKind = (typeof TRANSACTION_KINDS)[number];
 
-export const TRANSACTION_STATUSES = ["Previsto", "Recebido/Pago"] as const;
+export const TRANSACTION_STATUSES = ["Previsto", "Recebido", "Pago"] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+/** Statuses disponíveis conforme o tipo (income/expense). */
+export function statusesForKind(kind: "income" | "expense"): TransactionStatus[] {
+  return kind === "income" ? ["Previsto", "Recebido"] : ["Previsto", "Pago"];
+}
+
+/** Default status quando cria um lançamento novo. */
+export function defaultStatus(kind: "income" | "expense"): TransactionStatus {
+  return kind === "income" ? "Recebido" : "Pago";
+}
 
 export const PAYMENT_METHODS = [
   "PIX",

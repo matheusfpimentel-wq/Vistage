@@ -1563,6 +1563,14 @@ const MIGRATIONS: Migration[] = [
     description: "parties.event_task_id — tarefa do dia do evento vinculada",
     sql: `ALTER TABLE parties ADD COLUMN event_task_id INTEGER;`,
   },
+  {
+    version: 101,
+    description: "finance — renomeia status Recebido/Pago para Recebido (income) ou Pago (expense)",
+    sql: `
+      UPDATE finance_transactions SET status = 'Recebido' WHERE status = 'Recebido/Pago' AND kind = 'income';
+      UPDATE finance_transactions SET status = 'Pago' WHERE status = 'Recebido/Pago' AND kind = 'expense';
+    `,
+  },
 ];
 
 
