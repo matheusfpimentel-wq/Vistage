@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +81,8 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   const [dirty, setDirty] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const dragFromRef = useRef<number | null>(null);
   const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
@@ -266,46 +268,64 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
 
           <TabsContent value="ementa" className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Itens estruturados da ementa. Cada item tem título, carga (em
-              minutos) e detalhamento. Arraste pela alça para reordenar — a soma
-              das cargas define a carga horária total do pacote.
+              Cada item tem título, carga em minutos e detalhamento. Arraste
+              pela alça ⠿ para reordenar. A soma das cargas define a carga
+              horária total do pacote.
             </p>
             {state.syllabus_items.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                 Nenhum item ainda.
               </div>
             ) : (
-              <div className="space-y-3">
+              <div ref={listRef} className="space-y-3">
                 {state.syllabus_items.map((it, idx) => (
                   <div
                     key={idx}
-                    className={`space-y-2 rounded-md border p-3 transition-colors ${
-                      overIdx === idx && dragIdx !== null && dragIdx !== idx
+                    data-syllabus-item
+                    className={`space-y-2 rounded-md border p-3 transition-colors select-none ${
+                      overIdx === idx && dragFromRef.current !== null && dragFromRef.current !== idx
                         ? "border-primary bg-primary/5"
                         : ""
-                    } ${dragIdx === idx ? "opacity-50" : ""}`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (overIdx !== idx) setOverIdx(idx);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragIdx !== null) moveItem(dragIdx, idx);
-                      setDragIdx(null);
-                      setOverIdx(null);
-                    }}
+                    } ${dragIdx === idx ? "opacity-40" : ""}`}
                   >
                     <div className="flex gap-2">
                       <div
-                        className="flex cursor-grab items-center pt-6 text-muted-foreground active:cursor-grabbing"
-                        draggable
-                        onDragStart={() => setDragIdx(idx)}
-                        onDragEnd={() => {
+                        className="flex cursor-grab touch-none items-center pt-6 text-muted-foreground"
+                        title="Arrastar para reordenar"
+                        onPointerDown={(e) => {
+                          e.stopPropagation();
+                          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                          dragFromRef.current = idx;
+                          setDragIdx(idx);
+                          setOverIdx(idx);
+                        }}
+                        onPointerMove={(e) => {
+                          if (dragFromRef.current === null || !listRef.current) return;
+                          const items = listRef.current.querySelectorAll<HTMLElement>("[data-syllabus-item]");
+                          let target = dragFromRef.current;
+                          for (let i = 0; i < items.length; i++) {
+                            const rect = items[i].getBoundingClientRect();
+                            if (e.clientY <= rect.top + rect.height / 2) {
+                              target = i;
+                              break;
+                            }
+                            target = i;
+                          }
+                          if (target !== overIdx) setOverIdx(target);
+                        }}
+                        onPointerUp={() => {
+                          if (dragFromRef.current !== null && overIdx !== null) {
+                            moveItem(dragFromRef.current, overIdx);
+                          }
+                          dragFromRef.current = null;
                           setDragIdx(null);
                           setOverIdx(null);
                         }}
-                        aria-label="Arrastar para reordenar"
-                        title="Arrastar para reordenar"
+                        onPointerCancel={() => {
+                          dragFromRef.current = null;
+                          setDragIdx(null);
+                          setOverIdx(null);
+                        }}
                       >
                         <GripVertical className="h-4 w-4" />
                       </div>
