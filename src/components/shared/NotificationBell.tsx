@@ -131,8 +131,19 @@ async function loadRelationshipAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
     const cutoff = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+    // Considera como "último contato" o mais recente entre last_interaction_at
+    // e a data da GIG mais recente com esse produtor (promoter_contact_id).
+    // Se houve GIG dentro de 45 dias, não alerta.
     const rows = await db.select<{ id: number; name: string }[]>(
-      `SELECT id, name FROM contacts WHERE (rating >= 4) AND (last_interaction_at IS NULL OR last_interaction_at < $1) ORDER BY rating DESC LIMIT 3`,
+      `SELECT c.id, c.name
+         FROM contacts c
+        WHERE c.rating >= 4
+          AND (c.last_interaction_at IS NULL OR c.last_interaction_at < $1)
+          AND COALESCE(
+                (SELECT MAX(g.date) FROM gigs g WHERE g.promoter_contact_id = c.id),
+                '0000-00-00'
+              ) < $1
+        ORDER BY c.rating DESC LIMIT 3`,
       [cutoff]
     );
     return rows.map((c) => ({
@@ -142,6 +153,34 @@ async function loadRelationshipAlerts(): Promise<AlertItem[]> {
       critical: false,
       icon: "heart" as const,
     }));
+  } catch {
+    return [];
+  }
+}
+
+/** GIGs cuja data já passou mas continuam como Confirmada/Proposta. */
+async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
+  try {
+    const db = getDb();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db.select<
+      { id: number; date: string; status: string; event_name: string | null; venue_name: string }[]
+    >(
+      `SELECT id, date, status, event_name, venue_name FROM gigs
+        WHERE date < $1 AND status IN ('Confirmada', 'Proposta')
+        ORDER BY date DESC LIMIT 5`,
+      [today]
+    );
+    return rows.map((g) => {
+      const name = g.event_name?.trim() || g.venue_name;
+      return {
+        key: `gig-stale-status-${g.id}`,
+        label: `GIG em ${name} (${g.date}) já passou e ainda está como ${g.status} — atualize o status.`,
+        to: `/gigs?open=${g.id}`,
+        critical: true,
+        icon: "warning" as const,
+      };
+    });
   } catch {
     return [];
   }
@@ -167,13 +206,19 @@ export function NotificationBell() {
       } catch {
         // silently ignore
       }
-      void loadRelationshipAlerts().then(setCrmAlerts);
+      void Promise.all([loadRelationshipAlerts(), loadStaleGigStatusAlerts()]).then(
+        ([rel, stale]) => setCrmAlerts([...stale, ...rel])
+      );
     }, 500);
   }, []);
 
   useEffect(() => {
-    void loadRelationshipAlerts().then(setCrmAlerts);
-    const crmInterval = setInterval(() => void loadRelationshipAlerts().then(setCrmAlerts), 5 * 60_000);
+    const load = () =>
+      void Promise.all([loadRelationshipAlerts(), loadStaleGigStatusAlerts()]).then(
+        ([rel, stale]) => setCrmAlerts([...stale, ...rel])
+      );
+    load();
+    const crmInterval = setInterval(load, 5 * 60_000);
     return () => clearInterval(crmInterval);
   }, []);
 

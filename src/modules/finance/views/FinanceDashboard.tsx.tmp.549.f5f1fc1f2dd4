@@ -33,8 +33,10 @@ import { loadFinanceInsights, type FinanceInsights } from "../api";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const INCOME_COLORS = ["#059669", "#2563eb", "#16a34a", "#0891b2", "#65a30d", "#0d9488", "#4f46e5", "#7c3aed"];
-const EXPENSE_COLORS = ["#dc2626", "#ea580c", "#d97706", "#db2777", "#9333ea", "#e11d48", "#a16207", "#475569"];
+// Paletas com matizes bem espaçados no círculo cromático pra ficarem
+// claramente distinguíveis lado a lado (não só tons da mesma cor).
+const INCOME_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1"];
+const EXPENSE_COLORS = ["#ef4444", "#0ea5e9", "#a855f7", "#eab308", "#22c55e", "#f43f5e", "#64748b", "#d946ef"];
 
 /** Opções de período: atalhos + últimos 12 meses nomeados. */
 function periodOptions(): { value: string; label: string }[] {

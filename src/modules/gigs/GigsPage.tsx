@@ -92,6 +92,15 @@ export function GigsPage() {
   }, [refreshKey]);
 
   useEffect(() => {
+    const debriefId = searchParams.get("debrief");
+    if (debriefId) {
+      const id = Number(debriefId);
+      void getGig(id).then((gig) => {
+        if (gig) openDebrief(gig);
+      });
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const openId = searchParams.get("open");
     if (!openId) return;
     const id = Number(openId);
@@ -250,6 +259,7 @@ export function GigsPage() {
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="bulk">Seleção múltipla</TabsTrigger>
+          <TabsTrigger value="sheet">Planilha</TabsTrigger>
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
@@ -269,6 +279,10 @@ export function GigsPage() {
             onEdit={openEdit}
             onRefresh={refresh}
           />
+        </TabsContent>
+
+        <TabsContent value="sheet">
+          <SpreadsheetView gigs={gigs} onRefresh={refresh} />
         </TabsContent>
 
         <TabsContent value="calendar">

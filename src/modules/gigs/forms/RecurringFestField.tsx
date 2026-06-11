@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  /** Habilita o modo recorrente — só quando a categoria é "Festa". */
+  enabled?: boolean;
   recurringName: string | null;
   eventName: string;
   onChangeRecurring: (v: string | null) => void;
@@ -37,8 +39,8 @@ async function deleteFest(name: string): Promise<void> {
   await db.execute("DELETE FROM recurring_fests WHERE name = $1", [name]);
 }
 
-export function RecurringFestField({ recurringName, eventName, onChangeRecurring, onChangeEventName }: Props) {
-  const isRecurring = recurringName !== null;
+export function RecurringFestField({ enabled = true, recurringName, eventName, onChangeRecurring, onChangeEventName }: Props) {
+  const isRecurring = enabled && recurringName !== null;
   const [fests, setFests] = useState<string[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
@@ -80,27 +82,9 @@ export function RecurringFestField({ recurringName, eventName, onChangeRecurring
 
   return (
     <div className="space-y-2">
-      {/* Label + toggle inline */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">
-          {isRecurring ? "Festa recorrente" : "Nome da festa / evento"}
-        </span>
-        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
-          <input
-            type="checkbox"
-            className="h-3.5 w-3.5"
-            checked={isRecurring}
-            onChange={(e) => {
-              if (!e.target.checked) {
-                onChangeRecurring(null);
-              } else {
-                onChangeRecurring("");
-              }
-            }}
-          />
-          Recorrente?
-        </label>
-      </div>
+      <span className="text-sm font-medium">
+        {isRecurring ? "Festa recorrente" : "Nome da festa / evento"}
+      </span>
 
       {!isRecurring ? (
         <Input
@@ -225,16 +209,28 @@ export function RecurringFestField({ recurringName, eventName, onChangeRecurring
             )}
           </div>
 
-          {/* Campo de edição/subtítulo */}
+          {/* Campo de edição */}
           <Input
-            placeholder='Edição / subtítulo (ex: "Aniversário 10 anos")'
+            placeholder='Edição (ex: "Aniversário 10 anos")'
             value={eventName}
             onChange={(e) => onChangeEventName(e.target.value)}
           />
-          <p className="text-[11px] text-muted-foreground">
-            Edição específica desta ocorrência da festa.
-          </p>
         </div>
+      )}
+
+      {/* Toggle "Festa recorrente?" — só quando a categoria é Festa */}
+      {enabled && (
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground select-none">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5"
+            checked={isRecurring}
+            onChange={(e) => {
+              onChangeRecurring(e.target.checked ? "" : null);
+            }}
+          />
+          Festa recorrente?
+        </label>
       )}
     </div>
   );

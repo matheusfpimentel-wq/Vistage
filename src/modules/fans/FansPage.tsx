@@ -822,19 +822,19 @@ function CriteriaFields({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <div className="space-y-1">
-        <label className="text-sm font-medium">Mínimo de interações totais</label>
+        <label className="text-sm font-medium">Interações totais para promoção</label>
         <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minInteractions} onChange={set("minInteractions")} />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium">Mínimo de presenças</label>
+        <label className="text-sm font-medium">Presenças para promoção</label>
         <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minPresences} onChange={set("minPresences")} />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium">Mínimo de feedbacks</label>
+        <label className="text-sm font-medium">Feedbacks para promoção</label>
         <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minFeedbacks} onChange={set("minFeedbacks")} />
       </div>
       <div className="space-y-1">
-        <label className="text-sm font-medium">Dias mínimos como cadastrado</label>
+        <label className="text-sm font-medium">Dias como cadastrado para promoção</label>
         <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minDaysSinceCreation} onChange={set("minDaysSinceCreation")} />
       </div>
     </div>

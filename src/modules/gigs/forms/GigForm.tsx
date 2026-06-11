@@ -33,6 +33,7 @@ import {
 import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
 import { syncGigPaymentTransaction, listEquipment, createEquipment } from "@/modules/finance/api";
 import type { Equipment } from "@/modules/finance/types";
+import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
 import { todayISO } from "@/lib/format";
@@ -61,6 +62,14 @@ type Props = {
   /** Chamado quando o usuário clica em "Ir para Debrief" (só GIGs concluídas). */
   onDebrief?: () => void;
 };
+
+/** Categoria que habilita festa recorrente. */
+export const FESTA_CATEGORY = "Festa";
+
+/** True quando a categoria indica um evento social/privado (não-festa). */
+function isSocialCategory(category: string | null | undefined): boolean {
+  return !!category && category !== FESTA_CATEGORY;
+}
 
 type FormState = Omit<GigCreateInput, "id"> & {
   prep: Record<string, 1>;
@@ -191,7 +200,9 @@ export function GigForm({
 
   useEffect(() => {
     if (!open) return;
-    void listContacts().then(setContacts);
+    void listContacts().then((cs) =>
+      setContacts([...cs].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")))
+    );
     void listVenues().then(setVenues);
     void listEquipment().then(setAllEquipment);
     void listTracks().then((ts) =>
@@ -307,15 +318,18 @@ export function GigForm({
       } else {
         savedId = await createGig(payload);
         toast.success("GIG criada");
-        // Cria tarefa de preparação para a nova GIG
-        try {
-          const newGig = await getGig(savedId);
-          if (newGig) {
-            const prepTaskId = await createGigPrepTask(newGig);
-            await updateGig({ id: savedId, prep_task_id: prepTaskId });
+        // Cria tarefa de preparação para a nova GIG — exceto GIGs retroativas
+        // (data no passado), que não precisam de preparação.
+        if (state.date >= todayISO()) {
+          try {
+            const newGig = await getGig(savedId);
+            if (newGig) {
+              const prepTaskId = await createGigPrepTask(newGig);
+              await updateGig({ id: savedId, prep_task_id: prepTaskId });
+            }
+          } catch {
+            /* não interrompe */
           }
-        } catch {
-          /* não interrompe */
         }
       }
 
@@ -340,6 +354,32 @@ export function GigForm({
           await updateGig({ id: savedId, main_goal_task_id: taskId });
         } catch {
           /* não interrompe se a tarefa falhar */
+        }
+      }
+
+      // Cada "objetivo concreto" (uma linha) vira uma tarefa — só na criação,
+      // pra não duplicar a cada edição.
+      if (isNew && state.concrete_goals && state.concrete_goals.trim().length > 0) {
+        const goals = state.concrete_goals
+          .split("\n")
+          .map((g) => g.trim())
+          .filter((g) => g.length > 0);
+        for (const goal of goals) {
+          try {
+            await createTask({
+              title: `Objetivo: ${goal}`,
+              description: `Objetivo concreto da GIG em ${state.venue_name}.`,
+              category: "GIG",
+              gig_id: savedId,
+              contact_id: state.promoter_contact_id,
+              priority: "Média",
+              status: "A fazer",
+              due_date: state.date,
+              tags: ["objetivo-gig"],
+            });
+          } catch {
+            /* não interrompe */
+          }
         }
       }
 
@@ -369,15 +409,12 @@ export function GigForm({
             typeof state.cache_amount === "number" ? state.cache_amount : 0;
           const paid =
             state.payment_status === "Pago integralmente" ||
-            state.payment_status === "50% pago" ||
             state.payment_status === "Pago parcialmente";
           let pct: number;
           if (state.cache_paid_pct !== null && state.cache_paid_pct !== undefined) {
             pct = state.cache_paid_pct / 100;
           } else if (state.payment_status === "Pago integralmente") {
             pct = 1;
-          } else if (state.payment_status === "50% pago") {
-            pct = 0.5;
           } else {
             pct = 1;
           }
@@ -453,16 +490,17 @@ export function GigForm({
           {/* ============================ CAIXA 1: INFORMAÇÕES GERAIS ============================ */}
           <Section title="Informações gerais">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <RecurringFestField
-                recurringName={state.recurring_event_name ?? null}
-                eventName={state.event_name ?? ""}
-                onChangeRecurring={(v) => set("recurring_event_name", v)}
-                onChangeEventName={(v) => set("event_name", v || null)}
-              />
-              <Field label="Categoria do evento" hint="Tipo de evento para filtrar nas GIGs.">
+              <Field label="Categoria" hint="Tipo de evento para filtrar nas GIGs.">
                 <Select
                   value={state.event_category ?? "none"}
-                  onValueChange={(v) => set("event_category", v === "none" ? null : v)}
+                  onValueChange={(v) => {
+                    const cat = v === "none" ? null : v;
+                    set("event_category", cat);
+                    // Se deixar de ser Festa, desliga o modo recorrente.
+                    if (cat !== FESTA_CATEGORY && state.recurring_event_name !== null) {
+                      set("recurring_event_name", null);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma categoria" />
@@ -474,6 +512,13 @@ export function GigForm({
                   </SelectContent>
                 </Select>
               </Field>
+              <RecurringFestField
+                enabled={state.event_category === FESTA_CATEGORY}
+                recurringName={state.recurring_event_name ?? null}
+                eventName={state.event_name ?? ""}
+                onChangeRecurring={(v) => set("recurring_event_name", v)}
+                onChangeEventName={(v) => set("event_name", v || null)}
+              />
             </div>
 
             <Field label="Status">
@@ -681,10 +726,6 @@ export function GigForm({
                   onValueChange={(v) => {
                     const ps = v as Gig["payment_status"];
                     set("payment_status", ps);
-                    // Auto-preenche % já recebido se não foi preenchido manualmente
-                    if (state.cache_paid_pct === null || state.cache_paid_pct === undefined) {
-                      if (ps === "50% pago") set("cache_paid_pct", 50);
-                    }
                   }}
                 >
                   <SelectTrigger>
@@ -714,7 +755,6 @@ export function GigForm({
                     min={0}
                     max={100}
                     step={1}
-                    placeholder={state.payment_status === "50% pago" ? "50" : ""}
                     value={state.cache_paid_pct ?? ""}
                     onChange={(e) => {
                       const v = e.target.value ? Number(e.target.value) : null;
@@ -727,11 +767,22 @@ export function GigForm({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Forma de pagamento">
-                <Input
-                  placeholder="PIX, transferência…"
-                  value={state.payment_method ?? ""}
-                  onChange={(e) => set("payment_method", e.target.value || null)}
-                />
+                <Select
+                  value={state.payment_method ?? "none"}
+                  onValueChange={(v) => set("payment_method", v === "none" ? null : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não definida</SelectItem>
+                    {PAYMENT_METHODS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </Field>
               <Field label="Previsão de recebimento">
                 <Input
@@ -801,22 +852,22 @@ export function GigForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label="Objetivos concretos"
-                hint="Métricas e marcas alcançáveis. Ex: tocar 4 unreleased, ligar 30s ao Insta."
+                hint="Métricas e marcas alcançáveis (uma por linha). Cada linha vira uma tarefa ao salvar."
               >
-                <Textarea
-                  rows={3}
-                  value={state.concrete_goals ?? ""}
-                  onChange={(e) => set("concrete_goals", e.target.value || null)}
+                <LineListField
+                  value={state.concrete_goals}
+                  onChange={(v) => set("concrete_goals", v)}
+                  placeholder="Ex: tocar 4 unreleased"
                 />
               </Field>
               <Field
                 label="Alvos"
-                hint="Pessoas, contatos, marcas que você quer atingir/conhecer durante a GIG."
+                hint="Pessoas, contatos, marcas que você quer atingir (um por linha)."
               >
-                <Textarea
-                  rows={3}
-                  value={state.targets ?? ""}
-                  onChange={(e) => set("targets", e.target.value || null)}
+                <LineListField
+                  value={state.targets}
+                  onChange={(v) => set("targets", v)}
+                  placeholder="Ex: dono da casa"
                 />
               </Field>
             </div>
@@ -846,7 +897,8 @@ export function GigForm({
           >
             <PrepChecklist
               state={state.prep}
-              onChange={(prep) => setState((s) => ({ ...s, prep }))}
+              groupFilter={isSocialCategory(state.event_category) ? ["musical", "logistica"] : undefined}
+              onChange={(prep) => { setState((s) => ({ ...s, prep })); setDirty(true); }}
             />
 
             <Field
@@ -863,9 +915,7 @@ export function GigForm({
             <EquipmentToCarry
               allEquipment={allEquipment}
               gigEquipment={state.gig_equipment}
-              equipmentToBring={state.equipment_to_bring}
               onEquipmentChange={(v) => set("gig_equipment", v)}
-              onBringChange={(v) => set("equipment_to_bring", v)}
               onEquipmentAdded={async (name) => {
                 const id = await createEquipment({ name, category: null, purchase_value: null, notes: null, transaction_id: null, purchase_date: null, state: "Em uso", location: null, quantity: 1, photo_path: null });
                 const fresh = await listEquipment();
@@ -1054,7 +1104,7 @@ export function GigForm({
         defaultType="Contratante"
         onCreated={async (id) => {
           const fresh = await listContacts();
-          setContacts(fresh);
+          setContacts([...fresh].sort((a, b) => a.name.localeCompare(b.name, "pt-BR")));
           set("promoter_contact_id", id);
         }}
       />
@@ -1157,19 +1207,71 @@ function ResearchList({
   );
 }
 
+/** Lista editável linha-a-linha. Persiste como texto com linhas separadas por \n. */
+function LineListField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string | null;
+  onChange: (v: string | null) => void;
+  placeholder?: string;
+}) {
+  const lines = (value ?? "").split("\n").filter((l) => l.trim().length > 0);
+  const rows = lines.length > 0 ? lines : [""];
+
+  function commit(next: string[]) {
+    const cleaned = next.map((l) => l.trim()).filter((l) => l.length > 0);
+    onChange(cleaned.length > 0 ? cleaned.join("\n") : null);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((line, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <Input
+            value={line}
+            placeholder={placeholder}
+            onChange={(e) => {
+              const next = [...rows];
+              next[i] = e.target.value;
+              commit(next);
+            }}
+          />
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={() => commit(rows.filter((_, idx) => idx !== i))}
+            aria-label="Remover"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="text-xs"
+        onClick={() => commit([...rows, ""])}
+      >
+        <Plus className="h-3.5 w-3.5" /> Adicionar
+      </Button>
+    </div>
+  );
+}
+
 function EquipmentToCarry({
   allEquipment,
   gigEquipment,
-  equipmentToBring,
   onEquipmentChange,
-  onBringChange,
   onEquipmentAdded,
 }: {
   allEquipment: Equipment[];
   gigEquipment: string;
-  equipmentToBring: string | null;
   onEquipmentChange: (v: string) => void;
-  onBringChange: (v: string | null) => void;
   onEquipmentAdded: (name: string) => Promise<void>;
 }) {
   const [quickName, setQuickName] = useState("");
@@ -1200,12 +1302,6 @@ function EquipmentToCarry({
   return (
     <div className="space-y-3">
       <Label className="text-sm">O que preciso levar</Label>
-      <Textarea
-        rows={2}
-        placeholder="Fone, pendrives, adaptador, cabos extras…"
-        value={equipmentToBring ?? ""}
-        onChange={(e) => onBringChange(e.target.value || null)}
-      />
       <div className="space-y-2">
         <p className="text-xs text-muted-foreground">Patrimônio cadastrado — marque o que vai usar nessa GIG:</p>
         {categories.map((cat) => {

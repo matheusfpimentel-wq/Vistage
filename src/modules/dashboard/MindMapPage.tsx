@@ -86,6 +86,10 @@ export function MindMapPage() {
     const pos = posRef.current;
     const present = new Set(visible.nodes.map((n) => n.id));
     for (const key of [...pos.keys()]) if (!present.has(key)) pos.delete(key);
+    // se o nó arrastado deixou de existir, encerra o arraste para não ler vx/vy de nulo
+    if (draggingRef.current && !present.has(draggingRef.current)) {
+      draggingRef.current = null;
+    }
     // distribui novos nós num círculo agrupado por tipo
     const byType = new Map<MindNodeType, number>();
     visible.nodes.forEach((n, i) => {
@@ -104,14 +108,36 @@ export function MindMapPage() {
     alphaRef.current = 1; // reaquece a simulação
   }, [visible.nodes]);
 
+  // conjunto de nós com grau 0 (sem arestas) → flutuam como "bolinhas" soltas
+  const isolated = useMemo(() => {
+    const connected = new Set<string>();
+    visible.edges.forEach((e) => {
+      connected.add(e.source);
+      connected.add(e.target);
+    });
+    const set = new Set<string>();
+    visible.nodes.forEach((n) => {
+      if (!connected.has(n.id)) set.add(n.id);
+    });
+    return set;
+  }, [visible.nodes, visible.edges]);
+
   // loop de simulação de forças (repulsão + molas + gravidade central)
   useEffect(() => {
     if (visible.nodes.length === 0) return;
     const pos = posRef.current;
+    const lone = isolated;
+    // margem de borda para os nós soltos não saírem da tela
+    const MARGIN = 60;
 
     function step() {
       const nodes = visible.nodes;
       const alpha = alphaRef.current;
+
+      // se o nó sendo arrastado sumiu do grafo, limpa o estado de arraste
+      if (draggingRef.current && !pos.has(draggingRef.current)) {
+        draggingRef.current = null;
+      }
 
       if (alpha > 0.005) {
         // repulsão entre todos os pares
@@ -164,6 +190,23 @@ export function MindMapPage() {
             p.vy = 0;
             continue;
           }
+          if (lone.has(n.id)) {
+            // nós soltos: deriva aleatória suave + gravidade central fraca → flutuam
+            p.vx += (Math.random() - 0.5) * 6;
+            p.vy += (Math.random() - 0.5) * 6;
+            p.vx += (WIDTH / 2 - p.x) * 0.0004;
+            p.vy += (HEIGHT / 2 - p.y) * 0.0004;
+            p.vx *= 0.9;
+            p.vy *= 0.9;
+            p.x += p.vx * Math.max(alpha, 0.25);
+            p.y += p.vy * Math.max(alpha, 0.25);
+            // limites suaves para manter na tela
+            if (p.x < MARGIN) { p.x = MARGIN; p.vx = Math.abs(p.vx); }
+            if (p.x > WIDTH - MARGIN) { p.x = WIDTH - MARGIN; p.vx = -Math.abs(p.vx); }
+            if (p.y < MARGIN) { p.y = MARGIN; p.vy = Math.abs(p.vy); }
+            if (p.y > HEIGHT - MARGIN) { p.y = HEIGHT - MARGIN; p.vy = -Math.abs(p.vy); }
+            continue;
+          }
           p.vx += (WIDTH / 2 - p.x) * 0.002;
           p.vy += (HEIGHT / 2 - p.y) * 0.002;
           p.vx *= 0.85;
@@ -173,6 +216,24 @@ export function MindMapPage() {
         }
         alphaRef.current = alpha * 0.99;
         forceTick((t) => t + 1);
+      } else if (lone.size > 0) {
+        // mesmo com a simulação "esfriada", mantém os nós soltos flutuando devagar
+        for (const id of lone) {
+          if (draggingRef.current === id) continue;
+          const p = pos.get(id);
+          if (!p) continue;
+          p.vx += (Math.random() - 0.5) * 4;
+          p.vy += (Math.random() - 0.5) * 4;
+          p.vx *= 0.9;
+          p.vy *= 0.9;
+          p.x += p.vx * 0.25;
+          p.y += p.vy * 0.25;
+          if (p.x < MARGIN) { p.x = MARGIN; p.vx = Math.abs(p.vx); }
+          if (p.x > WIDTH - MARGIN) { p.x = WIDTH - MARGIN; p.vx = -Math.abs(p.vx); }
+          if (p.y < MARGIN) { p.y = MARGIN; p.vy = Math.abs(p.vy); }
+          if (p.y > HEIGHT - MARGIN) { p.y = HEIGHT - MARGIN; p.vy = -Math.abs(p.vy); }
+        }
+        forceTick((t) => t + 1);
       }
       rafRef.current = requestAnimationFrame(step);
     }
@@ -180,7 +241,7 @@ export function MindMapPage() {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
-  }, [visible.nodes, visible.edges]);
+  }, [visible.nodes, visible.edges, isolated]);
 
   // ── interação: coordenadas de tela → mundo ────────────────────────────────
   // usa viewRef (não view) para nunca ter closure obsoleto

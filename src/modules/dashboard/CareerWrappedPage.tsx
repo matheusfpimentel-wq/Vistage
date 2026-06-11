@@ -9,7 +9,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { getDb } from "@/lib/db";
 
 type WrappedData = {
-  year: number;
+  year: number | "all";
   totalGigs: number;
   totalRevenue: number;
   avgCache: number;
@@ -31,9 +31,10 @@ type WrappedData = {
   highlights: { title: string; date: string }[];
 };
 
-async function loadWrapped(year: number): Promise<WrappedData> {
+async function loadWrapped(year: number | "all"): Promise<WrappedData> {
   const db = getDb();
-  const y = String(year);
+  // Para "all", o padrão "%" casa qualquer data (todos os anos).
+  const y = year === "all" ? "" : String(year);
 
   const [
     gigRows,
@@ -176,7 +177,7 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
     y += 17;
   };
 
-  h1(`Carreira em Números — ${data.year}`);
+  h1(`Carreira em Números — ${data.year === "all" ? "Todos os anos" : data.year}`);
   doc.setDrawColor(200); doc.line(mx, y, cr, y); y += 20;
 
   h2("GIGs"); y -= 4;
@@ -216,7 +217,7 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
     }
   }
 
-  doc.save(`carreira-${data.year}.pdf`);
+  doc.save(`carreira-${data.year === "all" ? "todos" : data.year}.pdf`);
 }
 
 function StatTile({ icon, label, value, sub, accent = false }: {
@@ -246,7 +247,7 @@ function StatTile({ icon, label, value, sub, accent = false }: {
 
 export function CareerWrappedPage() {
   const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState<number | "all">(currentYear);
   const [data, setData] = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -282,11 +283,12 @@ export function CareerWrappedPage() {
           <h1 className="text-xl font-bold">Carreira em Números</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-28">
+          <Select value={String(year)} onValueChange={(v) => setYear(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">Todos os anos</SelectItem>
               {years.map((y) => (
                 <SelectItem key={y} value={String(y)}>{y}</SelectItem>
               ))}
@@ -306,7 +308,7 @@ export function CareerWrappedPage() {
       ) : !data || data.totalGigs === 0 ? (
         <div className="rounded-md border border-dashed p-16 text-center text-sm text-muted-foreground">
           <Award className="mx-auto mb-2 h-8 w-8 opacity-30" />
-          Nenhuma GIG registrada em {year}.
+          {year === "all" ? "Nenhuma GIG registrada ainda." : `Nenhuma GIG registrada em ${year}.`}
         </div>
       ) : (
         <div className="space-y-6">
@@ -315,7 +317,7 @@ export function CareerWrappedPage() {
             <CardContent className="py-6">
               <div className="text-center space-y-1">
                 <div className="text-5xl font-extrabold tabular-nums text-primary">{data.totalGigs}</div>
-                <div className="text-sm text-muted-foreground">shows em {data.year}</div>
+                <div className="text-sm text-muted-foreground">{data.year === "all" ? "shows no total" : `shows em ${data.year}`}</div>
                 {data.uniqueCities > 0 && (
                   <div className="text-xs text-muted-foreground">em {data.uniqueCities} cidade{data.uniqueCities !== 1 ? "s" : ""} diferentes</div>
                 )}

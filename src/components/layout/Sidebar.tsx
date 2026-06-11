@@ -91,7 +91,7 @@ export function Sidebar({
           />
         </div>
         <div>
-          <div className="text-base font-semibold leading-tight tracking-tight bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent" style={{ fontFamily: "'Cinzel', serif" }}>
+          <div className="text-lg font-semibold leading-tight tracking-tight bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             Vistage
           </div>
           <div className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60 leading-tight">

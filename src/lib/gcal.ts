@@ -285,13 +285,43 @@ import type { Gig } from "@/modules/gigs/types";
 import { getGig, listGigs, updateGig } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 
+/** Soma N dias a uma data "YYYY-MM-DD" e devolve no mesmo formato. */
+function addDaysISO(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 function gigToEvent(gig: Gig, tz: string): EventInput {
-  const start = gig.start_time
-    ? `${gig.date}T${gig.start_time}:00`
-    : gig.date;
-  const end = gig.end_time
-    ? `${gig.date}T${gig.end_time}:00`
-    : gig.date;
+  const hasTime = !!gig.start_time;
+  let start: string;
+  let end: string;
+
+  if (hasTime) {
+    // Evento com hora. Garante que o fim seja >= início; se não houver hora de
+    // fim, ou se ela for anterior/igual ao início (ex.: vira a madrugada),
+    // considera +1h ou o dia seguinte.
+    start = `${gig.date}T${gig.start_time}:00`;
+    if (gig.end_time) {
+      end = `${gig.date}T${gig.end_time}:00`;
+      if (end <= start) {
+        // fim no dia seguinte (festa que atravessa a meia-noite)
+        end = `${addDaysISO(gig.date, 1)}T${gig.end_time}:00`;
+      }
+    } else {
+      // sem hora de fim: assume 1h de duração
+      const d = new Date(`${start}`);
+      d.setHours(d.getHours() + 1);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      end = `${gig.date}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+      if (end <= start) end = `${addDaysISO(gig.date, 1)}T00:00:00`;
+    }
+  } else {
+    // Evento de dia inteiro: o "end.date" no Google é exclusivo, então precisa
+    // ser o dia seguinte — senão a API rejeita (start == end) com 400.
+    start = gig.date;
+    end = addDaysISO(gig.date, 1);
+  }
 
   const descLines = [
     // Quando o título é o nome da festa, registra o local no corpo também.

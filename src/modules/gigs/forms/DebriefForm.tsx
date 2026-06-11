@@ -550,19 +550,9 @@ export function DebriefForm({
               onChange={(v) => set("debrief_future_opportunities", v)}
             />
             <DebriefField
-              label="Feedback do promoter / casa"
-              value={state.debrief_promoter_feedback}
-              onChange={(v) => set("debrief_promoter_feedback", v)}
-            />
-            <DebriefField
               label="Observações técnicas (som, equipamento, setup)"
               value={state.debrief_technical_notes}
               onChange={(v) => set("debrief_technical_notes", v)}
-            />
-            <DebriefField
-              label="Conteúdos / mídia — o que registrar ou pedir"
-              value={state.debrief_media_content}
-              onChange={(v) => set("debrief_media_content", v)}
             />
 
             <FansPresentPicker value={fansPresent} onChange={setFansPresent} />

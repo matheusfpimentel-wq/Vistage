@@ -1,7 +1,6 @@
 export const GIG_STATUSES = [
   "Proposta",
   "Confirmada",
-  "A Caminho",
   "Concluída",
   "Cancelada",
 ] as const;
@@ -9,7 +8,6 @@ export type GigStatus = (typeof GIG_STATUSES)[number];
 
 export const PAYMENT_STATUSES = [
   "Pendente",
-  "50% pago",
   "Pago parcialmente",
   "Pago integralmente",
 ] as const;
@@ -133,8 +131,6 @@ export function statusVariant(status: GigStatus):
       return "secondary";
     case "Confirmada":
       return "info";
-    case "A Caminho":
-      return "warning";
     case "Concluída":
       return "success";
     case "Cancelada":

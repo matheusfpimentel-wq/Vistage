@@ -18,7 +18,8 @@ export type MindNodeType =
   | "contact"
   | "venue"
   | "supplier"
-  | "fan";
+  | "fan"
+  | "fest";
 
 export type MindNode = {
   id: string; // `${type}:${dbId}`
@@ -53,6 +54,7 @@ export const MIND_TYPE_META: Record<
   venue:   { label: "Venue",           color: "#22d3ee", route: "/venues" },      // ciano
   supplier:{ label: "Fornecedor",      color: "#fb923c", route: "/fornecedores" },// laranja
   fan:     { label: "Fã",             color: "#f87171", route: "/fas" },          // vermelho-claro
+  fest:    { label: "Festa recorrente", color: "#e879f9", route: "/gigs" },        // fúcsia
 };
 
 const nid = (type: MindNodeType, id: number) => `${type}:${id}`;
@@ -74,8 +76,8 @@ export async function buildMindGraph(): Promise<MindGraph> {
     suppliers,
     fans,
   ] = await Promise.all([
-    db.select<{ id: number; label: string; venue_id: number | null; promoter_contact_id: number | null }[]>(
-      `SELECT id, COALESCE(NULLIF(event_name,''), venue_name, 'GIG #'||id) AS label, venue_id, promoter_contact_id FROM gigs`
+    db.select<{ id: number; label: string; venue_id: number | null; promoter_contact_id: number | null; recurring_event_name: string | null }[]>(
+      `SELECT id, COALESCE(NULLIF(event_name,''), venue_name, 'GIG #'||id) AS label, venue_id, promoter_contact_id, recurring_event_name FROM gigs`
     ),
     db.select<{ id: number; label: string; gig_id: number | null }[]>(
       `SELECT id, COALESCE(NULLIF(title,''), 'Festa #'||id) AS label, gig_id FROM parties`
@@ -172,6 +174,19 @@ export async function buildMindGraph(): Promise<MindGraph> {
   gigs.forEach((g) => {
     if (g.venue_id != null) link(nid("gig", g.id), nid("venue", g.venue_id), "na venue");
     if (g.promoter_contact_id != null) link(nid("gig", g.id), nid("contact", g.promoter_contact_id), "contratante");
+  });
+
+  // ── festas recorrentes — agrupa GIGs que compartilham recurring_event_name ─
+  // (mesma "festa" mesmo com venues/promoters diferentes, ex.: "Caliente")
+  const festId = (name: string) => `fest:${name.trim().toLowerCase()}`;
+  gigs.forEach((g) => {
+    const name = g.recurring_event_name?.trim();
+    if (!name) return;
+    const key = festId(name);
+    if (!catalog.has(key)) {
+      catalog.set(key, { id: key, type: "fest", label: name, route: MIND_TYPE_META.fest.route });
+    }
+    edges.push({ source: nid("gig", g.id), target: key, kind: "festa recorrente" });
   });
 
   // ── mantém só nós que participam de ao menos um vínculo ───────────────────

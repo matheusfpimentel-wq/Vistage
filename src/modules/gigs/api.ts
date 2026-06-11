@@ -159,6 +159,20 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   );
   // Auto-complete prep task when GIG is concluded
   if ("status" in rest && rest.status === "Concluída") {
+    // Marca debrief como pendente se as avaliações não estiverem todas preenchidas
+    // (a menos que o debrief já tenha sido finalizado).
+    try {
+      const rrows = await db.select<{ rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null; rating_contractor: number | null; debrief_completed_at: string | null }[]>(
+        "SELECT rating_charisma, rating_technique, rating_repertoire, rating_contractor, debrief_completed_at FROM gigs WHERE id = $1", [id]
+      );
+      const r = rrows[0];
+      if (r && !r.debrief_completed_at) {
+        const ratingsComplete =
+          r.rating_charisma != null && r.rating_technique != null &&
+          r.rating_repertoire != null && r.rating_contractor != null;
+        await db.execute("UPDATE gigs SET debrief_pending = $1 WHERE id = $2", [ratingsComplete ? 0 : 1, id]);
+      }
+    } catch { /* não interrompe */ }
     const rows = await db.select<{ prep_task_id: number | null; debrief_task_id: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
       "SELECT prep_task_id, debrief_task_id, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
     );
@@ -214,18 +228,15 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       if (g) {
         const paid =
           g.payment_status === "Pago integralmente" ||
-          g.payment_status === "50% pago" ||
           g.payment_status === "Pago parcialmente";
         const cache = g.cache_amount ?? 0;
-        // Usa cache_paid_pct quando disponível; fallback: 50% para "50% pago",
+        // Usa cache_paid_pct quando disponível; fallback:
         // 100% para "Pago integralmente", ou o percentual literal se definido.
         let pct: number;
         if (g.cache_paid_pct !== null && g.cache_paid_pct !== undefined) {
           pct = g.cache_paid_pct / 100;
         } else if (g.payment_status === "Pago integralmente") {
           pct = 1;
-        } else if (g.payment_status === "50% pago") {
-          pct = 0.5;
         } else {
           pct = 1;
         }
@@ -361,7 +372,6 @@ export async function loadInsights(): Promise<GigInsights> {
   const byStatus: Record<GigStatus, number> = {
     Proposta: 0,
     Confirmada: 0,
-    "A Caminho": 0,
     Concluída: 0,
     Cancelada: 0,
   };

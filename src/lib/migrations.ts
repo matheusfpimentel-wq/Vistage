@@ -1531,6 +1531,13 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 95,
+    description: "Converte payment_status '50% pago' para 'Pago parcialmente'",
+    sql: `
+      UPDATE gigs SET payment_status = 'Pago parcialmente' WHERE payment_status = '50% pago';
+    `,
+  },
 ];
 
 

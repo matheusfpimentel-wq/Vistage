@@ -5,9 +5,11 @@ import { PREP_GROUPS, prepProgressByGroup, type PrepItem } from "../prep";
 type Props = {
   state: Record<string, 1>;
   onChange: (state: Record<string, 1>) => void;
+  /** Se definido, mostra apenas os grupos cujo id está na lista. */
+  groupFilter?: string[];
 };
 
-export function PrepChecklist({ state, onChange }: Props) {
+export function PrepChecklist({ state, onChange, groupFilter }: Props) {
   function toggle(item: PrepItem) {
     const next = { ...state };
     if (next[item.id]) delete next[item.id];
@@ -15,7 +17,9 @@ export function PrepChecklist({ state, onChange }: Props) {
     onChange(next);
   }
 
-  const byGroup = prepProgressByGroup(state);
+  const byGroup = prepProgressByGroup(state).filter(
+    ({ group }) => !groupFilter || groupFilter.includes(group.id)
+  );
 
   return (
     <div className="space-y-4">

@@ -9,7 +9,7 @@ import type { Gig } from "./types";
 export function gigDisplayName(gig: Pick<Gig, "event_name" | "venue_name" | "recurring_event_name">): string {
   const recurring = gig.recurring_event_name?.trim();
   const event = gig.event_name?.trim();
-  if (recurring && event) return `${recurring} — ${event}`;
+  if (recurring && event) return `${recurring} - ${event}`;
   if (event) return event;
   return gig.venue_name;
 }

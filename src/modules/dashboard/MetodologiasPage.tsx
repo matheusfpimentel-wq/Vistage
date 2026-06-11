@@ -49,6 +49,8 @@ import type { WorkSession } from "@/modules/foco/api";
 import {
   loadSwot,
   saveSwot,
+  loadDismissedOpportunities,
+  saveDismissedOpportunities,
   type SwotData,
   type SwotKey,
 } from "./methodologies";
@@ -335,6 +337,23 @@ function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
   return out;
 }
 
+/**
+ * Oportunidades futuras anotadas nos debriefs de GIGs concluídas.
+ * Retornadas em separado porque o usuário pode dispensá-las como itens manuais.
+ */
+function debriefOpportunities(gigs: Gig[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const g of gigs) {
+    if (g.status !== "Concluída") continue;
+    const text = g.debrief_future_opportunities?.trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out;
+}
+
 function SwotSection({ data }: { data: Data }) {
   const [manual, setManual] = useState<SwotData | null>(null);
   const [draft, setDraft] = useState<Record<SwotKey, string>>({
@@ -345,15 +364,30 @@ function SwotSection({ data }: { data: Data }) {
   });
 
   const [extra, setExtra] = useState<SwotExtra | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     void loadSwot().then(setManual);
+    void loadDismissedOpportunities().then((items) => setDismissed(new Set(items)));
     void Promise.all([listContacts(), listSessions(200)])
       .then(([contacts, sessions]) => setExtra({ contacts, sessions }))
       .catch(() => setExtra({ contacts: [], sessions: [] }));
   }, []);
 
   const auto = useMemo(() => autoIndicators(data, extra), [data, extra]);
+
+  // Oportunidades vindas dos debriefs, ainda não dispensadas pelo usuário.
+  const debriefOpps = useMemo(
+    () => debriefOpportunities(data.gigs).filter((t) => !dismissed.has(t)),
+    [data.gigs, dismissed]
+  );
+
+  async function dismissOpportunity(text: string) {
+    const next = new Set(dismissed);
+    next.add(text);
+    setDismissed(next);
+    await saveDismissedOpportunities([...next]);
+  }
 
   async function addItem(key: SwotKey) {
     const text = draft[key].trim();
@@ -398,6 +432,19 @@ function SwotSection({ data }: { data: Data }) {
                       <span>{item}</span>
                     </li>
                   ))}
+                  {key === "opportunities" && debriefOpps.map((item) => (
+                    <li key={`deb-${item}`} className="group flex items-start justify-between gap-1.5 text-xs">
+                      <span>{item}</span>
+                      <button
+                        type="button"
+                        onClick={() => void dismissOpportunity(item)}
+                        className="shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:text-destructive"
+                        aria-label="Remover"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </li>
+                  ))}
                   {manual?.[key].map((item, i) => (
                     <li key={`man-${i}`} className="group flex items-start justify-between gap-1.5 text-xs">
                       <span>{item}</span>
@@ -411,7 +458,9 @@ function SwotSection({ data }: { data: Data }) {
                       </button>
                     </li>
                   ))}
-                  {auto[key].length === 0 && (manual?.[key].length ?? 0) === 0 && (
+                  {auto[key].length === 0 &&
+                    (manual?.[key].length ?? 0) === 0 &&
+                    !(key === "opportunities" && debriefOpps.length > 0) && (
                     <li className="text-xs text-muted-foreground/60">Sem itens ainda.</li>
                   )}
                 </ul>
@@ -488,6 +537,17 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
   const dragRef = useRef<{ taskId: number } | null>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
   const zoneRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Enquanto há um arraste em curso, bloqueia o scroll por toque na página:
+  // um listener touchmove não-passivo chamando preventDefault evita que o
+  // navegador role (e "pule" para o topo) durante o gesto.
+  useEffect(() => {
+    if (draggingId == null) return;
+    const prevent = (e: TouchEvent) => e.preventDefault();
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
+  }, [draggingId]);
 
   const open = tasks.filter((t) => t.status === "A fazer" || t.status === "Em andamento");
   const ungrouped = open.filter((t) => !t.eisenhower_quadrant);
@@ -513,7 +573,13 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
     if (e.button !== 0 && e.pointerType === "mouse") return;
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // Captura no container estável (e não no chip, que vira pointer-events-none
+    // ao arrastar — o que perderia a captura e podia disparar scroll/foco).
+    try {
+      containerRef.current?.setPointerCapture(e.pointerId);
+    } catch {
+      /* setPointerCapture pode falhar se o ponteiro já foi liberado */
+    }
     dragRef.current = { taskId: task.id };
     setDraggingId(task.id);
     if (ghostRef.current) {
@@ -568,6 +634,7 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         </CardDescription>
       </CardHeader>
       <CardContent
+        ref={containerRef}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
@@ -845,7 +912,7 @@ function NpsSection({ gigs }: { gigs: Gig[] }) {
             {drillGigs.map((g) => (
               <Link
                 key={g.id}
-                to={`/gigs?open=${g.id}`}
+                to={`/gigs?debrief=${g.id}`}
                 className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
               >
                 <div className="min-w-0">
