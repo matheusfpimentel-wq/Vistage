@@ -99,6 +99,25 @@ export async function createContent(input: ContentCreateInput): Promise<number> 
     values
   );
   const id = Number(res.lastInsertId);
+  // Tarefa de publicação a partir de publish_date (futuro)
+  const today = new Date().toISOString().slice(0, 10);
+  if (typeof input.publish_date === "string" && input.publish_date > today) {
+    try {
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskId = await createTask({
+        title: `Publicar: ${input.title}`,
+        description: "Data de publicação do conteúdo.",
+        category: "Conteúdo",
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: input.publish_date,
+        tags: ["conteúdo", "publicação"],
+      });
+      await db.execute("UPDATE content SET publish_task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch { /* não interrompe */ }
+  }
   emitDataChanged();
   return id;
 }
@@ -129,6 +148,22 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
         const { updateTask } = await import("@/modules/tasks/api");
         const patch: Parameters<typeof updateTask>[0] = { id: taskId };
         if ("due_date" in rest) patch.due_date = rest.due_date as string | null;
+        if (rest.status === "Publicado") patch.status = "Concluída";
+        await updateTask(patch);
+      } catch { /* não interrompe */ }
+    }
+  }
+  // Sincroniza a tarefa de publicação quando publish_date muda ou ao publicar
+  if ("publish_date" in rest || rest.status === "Publicado") {
+    const rows = await db.select<{ publish_task_id: number | null }[]>(
+      "SELECT publish_task_id FROM content WHERE id = $1", [id]
+    );
+    const ptId = rows[0]?.publish_task_id;
+    if (ptId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        const patch: Parameters<typeof updateTask>[0] = { id: ptId };
+        if ("publish_date" in rest) patch.due_date = rest.publish_date as string | null;
         if (rest.status === "Publicado") patch.status = "Concluída";
         await updateTask(patch);
       } catch { /* não interrompe */ }

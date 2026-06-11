@@ -31,12 +31,13 @@ import {
   type GigCreateInput,
 } from "../types";
 import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
-import { syncGigPaymentTransaction, listEquipment, createEquipment } from "@/modules/finance/api";
+import { syncGigPaymentTransaction, listEquipment, createEquipment, listGigExpenses, createTransaction, deleteTransaction } from "@/modules/finance/api";
+import type { FinanceTransactionWithCategory } from "@/modules/finance/types";
 import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { todayISO } from "@/lib/format";
+import { todayISO, formatCurrency } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues } from "@/modules/venues/api";
@@ -799,6 +800,8 @@ export function GigForm({
             </div>
           </Section>
 
+          {gig && <GigExpensesSection gigId={gig.id} gigDate={state.date} />}
+
           {gig && promotingContent.length > 0 && (
             <Section title="Conteúdos promovendo esta GIG">
               <ul className="space-y-1 text-sm">
@@ -1391,6 +1394,123 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * Editor de despesas da GIG. Substitui o antigo campo de texto livre
+ * `related_expenses`: cada custo vira uma despesa real no Financeiro,
+ * vinculada via gig_id — sem risco de duplo registro.
+ */
+function GigExpensesSection({ gigId, gigDate }: { gigId: number; gigDate: string | null }) {
+  const [expenses, setExpenses] = useState<FinanceTransactionWithCategory[]>([]);
+  const [desc, setDesc] = useState("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    void listGigExpenses(gigId).then(setExpenses).catch(() => {});
+  };
+  useEffect(refresh, [gigId]);
+
+  async function add() {
+    const value = parseFloat(amount);
+    if (!desc.trim() || !(value > 0)) {
+      toast.error("Informe descrição e valor da despesa.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await createTransaction({
+        kind: "expense",
+        amount: value,
+        date: gigDate ?? todayISO(),
+        description: desc.trim(),
+        category_id: null,
+        gig_id: gigId,
+        contact_id: null,
+        class_id: null,
+        student_package_id: null,
+        track_id: null,
+        party_id: null,
+        music_cost_id: null,
+        gig_sync: 0,
+        status: "Recebido/Pago",
+        payment_method: null,
+        expense_type: "Variável",
+        receipt_file_path: null,
+        tax_relevant: 0,
+        recurring_id: null,
+      });
+      setDesc("");
+      setAmount("");
+      refresh();
+      toast.success("Despesa adicionada ao Financeiro");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: number) {
+    await deleteTransaction(id);
+    refresh();
+  }
+
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+
+  return (
+    <Section
+      title="Despesas da GIG"
+      description="Cada custo vira uma despesa no Financeiro vinculada a esta GIG."
+    >
+      {expenses.length > 0 && (
+        <ul className="space-y-1.5">
+          {expenses.map((e) => (
+            <li key={e.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate">{e.description ?? "Despesa"}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span className="tabular-nums text-destructive">{formatCurrency(e.amount)}</span>
+                <button
+                  type="button"
+                  onClick={() => void remove(e.id)}
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label="Remover despesa"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </span>
+            </li>
+          ))}
+          <li className="flex items-center justify-between border-t pt-1.5 text-sm font-medium">
+            <span>Total</span>
+            <span className="tabular-nums text-destructive">{formatCurrency(total)}</span>
+          </li>
+        </ul>
+      )}
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <Label className="text-xs">Descrição</Label>
+          <Input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Ex.: Transporte, técnico de som…"
+          />
+        </div>
+        <div className="w-32">
+          <Label className="text-xs">Valor (R$)</Label>
+          <Input
+            type="number"
+            min={0}
+            step={0.01}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+        <Button type="button" onClick={() => void add()} disabled={busy}>
+          <Plus className="h-4 w-4" /> Adicionar
+        </Button>
+      </div>
+    </Section>
   );
 }
 

@@ -139,6 +139,19 @@ export async function listTransactions(
   return db.select<FinanceTransactionWithCategory[]>(sql, params);
 }
 
+/** Despesas (não-sincronizadas) vinculadas a uma GIG, para o editor de custos no formulário. */
+export async function listGigExpenses(
+  gigId: number
+): Promise<FinanceTransactionWithCategory[]> {
+  const db = getDb();
+  return db.select<FinanceTransactionWithCategory[]>(
+    `SELECT ${TX_COLUMNS} ${TX_FROM}
+      WHERE t.gig_id = $1 AND t.kind = 'expense'
+      ORDER BY t.date DESC, t.id DESC`,
+    [gigId]
+  );
+}
+
 export async function getTransaction(
   id: number
 ): Promise<FinanceTransactionWithCategory | null> {

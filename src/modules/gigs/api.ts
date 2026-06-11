@@ -221,14 +221,15 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
   if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
     try {
-      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null; payment_method: string | null }[]>(
-        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id, payment_method FROM gigs WHERE id = $1", [id]
+      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null; payment_method: string | null; payment_task_id: number | null }[]>(
+        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id, payment_method, payment_task_id FROM gigs WHERE id = $1", [id]
       );
       const g = row[0];
       if (g) {
         const paid =
           g.payment_status === "Pago integralmente" ||
           g.payment_status === "Pago parcialmente";
+        const fullyPaid = g.payment_status === "Pago integralmente";
         const cache = g.cache_amount ?? 0;
         let pct: number;
         if (g.cache_paid_pct !== null && g.cache_paid_pct !== undefined) {
@@ -246,6 +247,43 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
         await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date);
+
+        // ── Tarefa de cobrança ───────────────────────────────────────
+        // Cria lembrete quando há previsão de recebimento e o cachê ainda não
+        // foi integralmente pago; conclui a tarefa quando o pagamento entra.
+        try {
+          const { createTask } = await import("@/modules/tasks/api");
+          const wantTask = !fullyPaid && cache > 0 && !!g.payment_due_date;
+          if (wantTask && !g.payment_task_id) {
+            const taskId = await createTask({
+              title: `Cobrar cachê: ${baseName}`,
+              description: g.promoter_contact_id
+                ? "Confirmar recebimento do cachê com o contratante."
+                : "Confirmar recebimento do cachê.",
+              category: "GIG",
+              gig_id: id,
+              contact_id: g.promoter_contact_id,
+              priority: "Alta",
+              status: "A fazer",
+              due_date: g.payment_due_date,
+              tags: ["gig", "cobrança"],
+            });
+            await db.execute("UPDATE gigs SET payment_task_id = $1 WHERE id = $2", [taskId, id]);
+          } else if (g.payment_task_id) {
+            if (fullyPaid) {
+              await db.execute(
+                `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
+                [g.payment_task_id]
+              );
+            } else if (wantTask) {
+              // mantém a data de vencimento da cobrança sincronizada
+              await db.execute(
+                `UPDATE tasks SET due_date=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
+                [g.payment_due_date, g.payment_task_id]
+              );
+            }
+          }
+        } catch { /* não interrompe */ }
       }
     } catch { /* não interrompe */ }
   }

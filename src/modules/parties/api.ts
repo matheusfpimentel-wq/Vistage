@@ -103,6 +103,25 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     const { syncPartyTransactions } = await import("@/modules/finance/api");
     await syncPartyTransactions(id);
   } catch { /* não interrompe */ }
+  // Tarefa do dia do evento, se a festa é no futuro
+  const today = new Date().toISOString().slice(0, 10);
+  if (typeof input.date === "string" && input.date > today) {
+    try {
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskId = await createTask({
+        title: `Festa: ${input.title ?? "evento"}`,
+        description: "Dia do evento — confirmar produção, equipe e logística.",
+        category: "Festas",
+        gig_id: null,
+        contact_id: null,
+        priority: "Alta",
+        status: "A fazer",
+        due_date: input.date,
+        tags: ["festa"],
+      });
+      await db.execute("UPDATE parties SET event_task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch { /* não interrompe */ }
+  }
   emitDataChanged();
   return id;
 }
@@ -139,6 +158,28 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
           }
         }
       } catch { /* não interrompe */ }
+    }
+    // Sincroniza a tarefa do dia do evento
+    const ev = await db.select<{ event_task_id: number | null }[]>(
+      "SELECT event_task_id FROM parties WHERE id = $1", [id]
+    );
+    if (ev[0]?.event_task_id) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: ev[0].event_task_id, due_date: newDate });
+      } catch { /* não interrompe */ }
+    }
+  }
+  // Conclui a tarefa do evento quando a festa é marcada como Realizada
+  if ("status" in rest && rest.status === "Realizada") {
+    const ev = await db.select<{ event_task_id: number | null }[]>(
+      "SELECT event_task_id FROM parties WHERE id = $1", [id]
+    );
+    if (ev[0]?.event_task_id) {
+      await db.execute(
+        `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
+        [ev[0].event_task_id]
+      ).catch(() => {});
     }
   }
   // Auto-sync financeiro ao marcar como Realizada

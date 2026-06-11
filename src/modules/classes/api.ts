@@ -364,10 +364,11 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
   );
   // Sincroniza tarefa vinculada
   if ("date" in rest || input.status === "Realizada") {
-    const rows = await db.select<{ task_id: number | null }[]>(
-      "SELECT task_id FROM classes WHERE id = $1", [id]
+    const rows = await db.select<{ task_id: number | null; date: string | null; student_id: number; subject: string | null }[]>(
+      "SELECT task_id, date, student_id, subject FROM classes WHERE id = $1", [id]
     );
     const taskId = rows[0]?.task_id;
+    const today = new Date().toISOString().slice(0, 10);
     if (taskId) {
       try {
         const { updateTask } = await import("@/modules/tasks/api");
@@ -375,6 +376,29 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
         if ("date" in rest) patch.due_date = rest.date as string | null;
         if (input.status === "Realizada") patch.status = "Concluída";
         await updateTask(patch);
+      } catch {
+        /* não interrompe */
+      }
+    } else if ("date" in rest && rows[0]?.date && rows[0].date > today && input.status !== "Realizada") {
+      // Aula remarcada para o futuro sem tarefa (ex.: criada no passado) → cria agora
+      try {
+        const studentRows = await db.select<{ name: string }[]>(
+          "SELECT name FROM students WHERE id = $1", [rows[0].student_id]
+        );
+        const studentName = studentRows[0]?.name ?? "Aluno";
+        const { createTask } = await import("@/modules/tasks/api");
+        const newTaskId = await createTask({
+          title: `Aula: ${studentName}`,
+          description: rows[0].subject ?? null,
+          category: "Pessoal",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: rows[0].date,
+          tags: ["aula"],
+        });
+        await db.execute("UPDATE classes SET task_id = $1 WHERE id = $2", [newTaskId, id]);
       } catch {
         /* não interrompe */
       }

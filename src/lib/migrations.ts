@@ -1548,6 +1548,21 @@ const MIGRATIONS: Migration[] = [
     description: "music_projects.fans_notified — fãs comunicados no lançamento",
     sql: `ALTER TABLE music_projects ADD COLUMN fans_notified INTEGER;`,
   },
+  {
+    version: 98,
+    description: "gigs.payment_task_id — tarefa de cobrança vinculada ao recebimento",
+    sql: `ALTER TABLE gigs ADD COLUMN payment_task_id INTEGER;`,
+  },
+  {
+    version: 99,
+    description: "content.publish_task_id — tarefa de publicação vinculada",
+    sql: `ALTER TABLE content ADD COLUMN publish_task_id INTEGER;`,
+  },
+  {
+    version: 100,
+    description: "parties.event_task_id — tarefa do dia do evento vinculada",
+    sql: `ALTER TABLE parties ADD COLUMN event_task_id INTEGER;`,
+  },
 ];
 
 
