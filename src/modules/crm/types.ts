@@ -5,6 +5,7 @@ export const CONTACT_TYPES = [
   "DJ parceiro",
   "Músico",
   "Influencer",
+  "Jornalista",
   "Gerente de Club",
   "Dono de Club",
 ] as const;

@@ -167,6 +167,18 @@ export async function updateTransaction(
 ): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
+  const existingGigSync = await db.select<{ gig_sync: number }[]>(
+    'SELECT gig_sync FROM finance_transactions WHERE id = $1', [id]
+  );
+  const isGigSynced = existingGigSync[0]?.gig_sync === 1;
+  if (isGigSynced) {
+    // Strip locked fields — these come from the GIG
+    delete (rest as Record<string, unknown>).description;
+    delete (rest as Record<string, unknown>).date;
+    delete (rest as Record<string, unknown>).amount;
+    delete (rest as Record<string, unknown>).contact_id;
+    delete (rest as Record<string, unknown>).kind;
+  }
   const cols = Object.keys(rest);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");

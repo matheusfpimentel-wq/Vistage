@@ -1538,6 +1538,11 @@ const MIGRATIONS: Migration[] = [
       UPDATE gigs SET payment_status = 'Pago parcialmente' WHERE payment_status = '50% pago';
     `,
   },
+  {
+    version: 96,
+    description: "gigs.fans_notified — fãs comunicados em marketing",
+    sql: `ALTER TABLE gigs ADD COLUMN fans_notified INTEGER;`,
+  },
 ];
 
 

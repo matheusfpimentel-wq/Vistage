@@ -10,6 +10,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const STRATEGIES: { value: string; label: string; description: string }[] = [
+  { value: "waterfall", label: "Waterfall (Cascata)", description: "Lançamento de singles em sequência, onde cada novo lançamento agrupa e anexa as faixas lançadas anteriormente no mesmo arquivo para acumular reproduções." },
+  { value: "drop_unico", label: "Drop Único (Single Isolado)", description: "Lançamento de apenas uma música com 100% da verba, foco promocional e criação de conteúdo direcionados para um único link." },
+  { value: "album_direto", label: "Álbum Direto (Full Drop)", description: "Disponibilização de um projeto completo (8+ faixas) de uma só vez, focado em narrativa, conceito e retenção de fãs fiéis." },
+  { value: "surprise_drop", label: "Surprise Drop", description: "Lançamento sem aviso prévio, sem teasers ou campanha de pré-save, contando com o choque e o engajamento instantâneo das redes sociais." },
+  { value: "ep_focus_track", label: "EP com Focus Track", description: "Lançamento de um projeto curto (3 a 5 faixas), mas com todos os esforços de marketing e pitching focados estritamente em uma única música principal." },
+  { value: "singles_sequenciais", label: "Singles Sequenciais (Drip Feed)", description: "Lançamento constante de singles (ex: um por mês) para manter o algoritmo sempre alimentado e garantir presença no 'Radar de Novidades'." },
+  { value: "split_release", label: "Split Release (Collab / Feat)", description: "Lançamento conjunto onde a faixa é registrada com dois ou mais 'Artistas Principais', aparecendo no perfil de todos e unindo as bases de fãs." },
+  { value: "edits_bootlegs", label: "Edits / Bootlegs (Teste de Pista)", description: "Lançamento de versões não oficiais e remixes de hits no SoundCloud e YouTube para validar a sonoridade e ganhar tração na cena club e de DJs." },
+  { value: "sped_up", label: "Sped Up / Slowed Down", description: "Lançamento de versões com andamento acelerado ou desacelerado (com reverb) semanas após a original, visando viralização no TikTok e Reels." },
+  { value: "direct_to_fan", label: "Direct-to-Fan (Bandcamp/Patreon)", description: "Lançamento pago ou exclusivo diretamente para a comunidade de super fãs antes de disponibilizar gratuitamente nos streamings." },
+  { value: "live_set_id", label: "Live Set 'ID' (Estreia em Mixtape)", description: "Tocar a faixa de forma anônima ('ID') em um DJ set, podcast ou festa ao vivo, criando expectativa e escassez antes de revelar o lançamento oficial." },
+  { value: "dj_pool_promo", label: "DJ Pool Promo (Club First)", description: "Envio antecipado da faixa para plataformas exclusivas de DJs (DJ Pools), garantindo que a música já esteja tocando nas boates antes de chegar à internet." },
+  { value: "double_single", label: "Double Single (A/B Drop)", description: "Lançamento de duas faixas no mesmo dia (como um disco de vinil: um 'Lado A' mais comercial e um 'Lado B' conceitual) para testar a recepção do algoritmo." },
+  { value: "remix_pack", label: "Remix Pack", description: "Lançamento de um EP com a faixa original acompanhada de diversas versões feitas por produtores convidados, espalhando a música por outros nichos e gêneros." },
+  { value: "deluxe_edition", label: "Deluxe Edition (Re-lançamento)", description: "Relançamento de um álbum ou EP meses depois do original, adicionando faixas inéditas, remixes ou versões acústicas para reaquecer o projeto." },
+  { value: "visual_album", label: "Visual Album (Foco Audiovisual)", description: "Lançamento onde a música é inseparável do vídeo, liberando videoclipes para todas as faixas simultaneamente ou um curta-metragem contínuo." },
+  { value: "gated_release", label: "Gated Release (Lançamento Condicionado)", description: "A música ou o link de acesso só é liberado mediante uma ação coletiva dos fãs (ex: bater meta de comentários, meta de pré-saves ou compra de ingresso)." },
+];
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { listContacts } from "@/modules/crm/api";
@@ -133,21 +153,29 @@ export function MarketingPanel({ projectId, trackId }: Props) {
   return (
     <div className="space-y-5">
       <div className="space-y-1.5">
-        <Label className="text-xs">Estratégia de lançamento</Label>
-        <Select
-          value={releaseStrategy || "_none"}
-          onValueChange={(v) => setReleaseStrategy(v === "_none" ? "" : v)}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Não definido" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="_none">Não definido</SelectItem>
-            <SelectItem value="waterfall">Waterfall</SelectItem>
-            <SelectItem value="drop_unico">Drop único</SelectItem>
-            <SelectItem value="album_direto">Álbum direto</SelectItem>
-          </SelectContent>
-        </Select>
+        <Label className="text-xs">Estratégia de lançamento <span className="font-normal text-muted-foreground">(passe o mouse para ver detalhes)</span></Label>
+        <div className="max-h-48 overflow-y-auto rounded-md border p-1.5 space-y-0.5">
+          <button
+            type="button"
+            onClick={() => setReleaseStrategy("")}
+            className={`w-full flex items-center gap-2 rounded px-2 py-1 text-left text-xs transition hover:bg-accent ${!releaseStrategy ? "bg-primary/10 text-primary font-medium" : "text-muted-foreground"}`}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${!releaseStrategy ? "bg-primary" : "bg-muted-foreground/30"}`} />
+            Não definido
+          </button>
+          {STRATEGIES.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              title={s.description}
+              onClick={() => setReleaseStrategy(s.value === releaseStrategy ? "" : s.value)}
+              className={`w-full flex items-center gap-2 rounded px-2 py-1 text-left text-xs transition hover:bg-accent ${releaseStrategy === s.value ? "bg-primary/10 text-primary font-medium" : "text-foreground"}`}
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${releaseStrategy === s.value ? "bg-primary" : "bg-muted-foreground/30"}`} />
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="space-y-1.5">

@@ -11,5 +11,6 @@ export function gigDisplayName(gig: Pick<Gig, "event_name" | "venue_name" | "rec
   const event = gig.event_name?.trim();
   if (recurring && event) return `${recurring} - ${event}`;
   if (event) return event;
+  if (recurring) return recurring;
   return gig.venue_name;
 }

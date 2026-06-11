@@ -85,11 +85,11 @@ export function MetodologiasPage() {
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(() => {
-    setLoading(true);
+  const load = useCallback((silent?: boolean) => {
+    if (!silent) setLoading(true);
     void loadData()
       .then(setData)
-      .finally(() => setLoading(false));
+      .finally(() => { if (!silent) setLoading(false); });
   }, []);
 
   useEffect(() => {
@@ -116,14 +116,14 @@ export function MetodologiasPage() {
             Frameworks aplicados aos seus dados: OKRs, SWOT, Eisenhower, Pareto e NPS.
           </p>
         </div>
-        <Button variant="ghost" size="icon" onClick={load} aria-label="Atualizar">
+        <Button variant="ghost" size="icon" onClick={() => load()} aria-label="Atualizar">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
       <OkrsSection okrs={data.okrs} />
       <SwotSection data={data} />
-      <EisenhowerSection tasks={data.tasks} onChanged={load} />
+      <EisenhowerSection tasks={data.tasks} onChanged={() => load(true)} />
       <ParetoSection gigs={data.gigs} />
       <NpsSection gigs={data.gigs} />
     </div>
@@ -552,6 +552,13 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
   useEffect(() => {
     document.body.style.overflow = draggingId != null ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
+  }, [draggingId]);
+
+  useEffect(() => {
+    if (draggingId == null) return;
+    const prevent = (e: Event) => e.preventDefault();
+    document.addEventListener('pointermove', prevent, { passive: false });
+    return () => document.removeEventListener('pointermove', prevent);
   }, [draggingId]);
 
   const open = tasks.filter((t) => t.status === "A fazer" || t.status === "Em andamento");

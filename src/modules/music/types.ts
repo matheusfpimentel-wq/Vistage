@@ -2,7 +2,7 @@ import type { Stage } from "./stages";
 import type { TrackKind, ProjectKind } from "./stages";
 import type { GateDecisionRecord } from "./gates";
 
-export type ReleaseStrategy = "waterfall" | "drop_unico" | "album_direto";
+export type ReleaseStrategy = "waterfall" | "drop_unico" | "album_direto" | "surprise_drop" | "ep_focus_track" | "singles_sequenciais" | "split_release" | "edits_bootlegs" | "sped_up" | "direct_to_fan" | "live_set_id" | "dj_pool_promo" | "double_single" | "remix_pack" | "deluxe_edition" | "visual_album" | "gated_release";
 
 export type MusicProject = {
   id: number;

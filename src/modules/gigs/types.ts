@@ -56,6 +56,7 @@ export type Gig = {
   payment_due_date: string | null;
   invoice_file_path: string | null;
   general_notes: string | null;
+  fans_notified: number | null;
 
   // debrief
   debrief_strengths: string | null;

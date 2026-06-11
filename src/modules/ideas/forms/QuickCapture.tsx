@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 import { createIdea } from "../api";
+import { InsightDie } from "../InsightDie";
 
 type Props = {
   open: boolean;
@@ -136,6 +137,8 @@ export function QuickCapture({ open, onOpenChange }: Props) {
             onKeyDown={onKeyDown}
           />
         </div>
+
+        {brainDump && <InsightDie />}
 
         {brainDump && savedCount > 0 && (
           <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-600">
