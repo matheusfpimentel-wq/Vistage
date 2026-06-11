@@ -231,6 +231,8 @@ export function TransactionForm({
                 type="date"
                 value={state.date}
                 onChange={(e) => set("date", e.target.value)}
+                disabled={state.gig_sync === 1}
+                title={state.gig_sync === 1 ? "Data definida pela GIG" : undefined}
               />
             </Field>
           </div>
@@ -240,6 +242,8 @@ export function TransactionForm({
               rows={2}
               value={state.description ?? ""}
               onChange={(e) => set("description", e.target.value || null)}
+              disabled={state.gig_sync === 1}
+              title={state.gig_sync === 1 ? "Descrição gerada automaticamente pela GIG" : undefined}
             />
           </Field>
 

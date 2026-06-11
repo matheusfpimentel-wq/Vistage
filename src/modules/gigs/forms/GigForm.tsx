@@ -419,18 +419,20 @@ export function GigForm({
             pct = 1;
           }
           const received = cache * pct;
-          const gigName = state.event_name?.trim() || state.venue_name;
-          const pctLabel =
-            state.payment_status === "Pago integralmente"
-              ? ""
-              : ` (${Math.round(pct * 100)}%)`;
-          const label = `Cachê${pctLabel}: ${gigName} (${state.date})`;
+          const baseName = state.recurring_event_name?.trim()
+            ? state.event_name?.trim()
+              ? `${state.recurring_event_name.trim()} - ${state.event_name.trim()}`
+              : state.recurring_event_name.trim()
+            : state.event_name?.trim() || state.venue_name || "GIG";
+          const label = `Cachê: ${baseName}`;
           await syncGigPaymentTransaction(
             savedId,
             paid,
             received,
             state.payment_due_date ?? state.date,
-            label
+            label,
+            null,
+            state.promoter_contact_id ?? null
           );
         } catch {
           /* não interrompe */

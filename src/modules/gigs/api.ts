@@ -221,8 +221,8 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
   if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
     try {
-      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; date: string | null }[]>(
-        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, date FROM gigs WHERE id = $1", [id]
+      const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null }[]>(
+        "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id FROM gigs WHERE id = $1", [id]
       );
       const g = row[0];
       if (g) {
@@ -230,25 +230,22 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
           g.payment_status === "Pago integralmente" ||
           g.payment_status === "Pago parcialmente";
         const cache = g.cache_amount ?? 0;
-        // Usa cache_paid_pct quando disponível; fallback:
-        // 100% para "Pago integralmente", ou o percentual literal se definido.
         let pct: number;
         if (g.cache_paid_pct !== null && g.cache_paid_pct !== undefined) {
           pct = g.cache_paid_pct / 100;
-        } else if (g.payment_status === "Pago integralmente") {
-          pct = 1;
         } else {
           pct = 1;
         }
         const received = cache * pct;
-        const gigName = g.event_name?.trim() || g.venue_name?.trim() || "GIG";
-        const pctLabel =
-          g.payment_status === "Pago integralmente"
-            ? ""
-            : ` (${Math.round(pct * 100)}%)`;
-        const label = `Cachê${pctLabel}: ${gigName} (${g.date})`;
+        const baseName = g.recurring_event_name?.trim()
+          ? g.event_name?.trim()
+            ? `${g.recurring_event_name.trim()} - ${g.event_name.trim()}`
+            : g.recurring_event_name.trim()
+          : g.event_name?.trim() || g.venue_name?.trim() || "GIG";
+        const label = `Cachê: ${baseName}`;
+        const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
-        await syncGigPaymentTransaction(id, paid, received, g.date ?? new Date().toISOString().slice(0, 10), label);
+        await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id);
       }
     } catch { /* não interrompe */ }
   }

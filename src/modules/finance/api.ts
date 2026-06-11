@@ -241,7 +241,8 @@ export async function syncGigPaymentTransaction(
   amount: number,
   date: string,
   description: string,
-  _cachePaidPct?: number | null
+  _cachePaidPct?: number | null,
+  contactId?: number | null
 ): Promise<void> {
   const db = getDb();
   const existing = await db.select<{ id: number }[]>(
@@ -265,9 +266,9 @@ export async function syncGigPaymentTransaction(
     await db.execute(
       `UPDATE finance_transactions
           SET amount = $1, date = $2, description = $3, status = 'Recebido/Pago',
-              updated_at = CURRENT_TIMESTAMP
+              contact_id = $5, updated_at = CURRENT_TIMESTAMP
         WHERE id = $4 AND gig_sync = 1`,
-      [amount, date, description, existing[0].id]
+      [amount, date, description, existing[0].id, contactId ?? null]
     );
     emitDataChanged();
     return;
@@ -281,9 +282,9 @@ export async function syncGigPaymentTransaction(
 
   await db.execute(
     `INSERT INTO finance_transactions
-       (kind, amount, date, description, category_id, gig_id, status, gig_sync)
-     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido/Pago', 1)`,
-    [amount, date, description, categoryId, gigId]
+       (kind, amount, date, description, category_id, gig_id, contact_id, status, gig_sync)
+     VALUES ('income', $1, $2, $3, $4, $5, $6, 'Recebido/Pago', 1)`,
+    [amount, date, description, categoryId, gigId, contactId ?? null]
   );
   emitDataChanged();
 }
