@@ -2,8 +2,15 @@ import { loadIdentity } from "@/modules/identity/api";
 import { formatCurrency } from "@/lib/format";
 import type { ClassPackage } from "./types";
 
-const hoursLabel = (h: number | null | undefined): string =>
-  h != null ? `${String(h).replace(".", ",")}h` : "";
+const hoursLabel = (h: number | null | undefined): string => {
+  if (h == null) return "";
+  const totalMin = Math.round(h * 60);
+  const hh = Math.floor(totalMin / 60);
+  const mm = totalMin % 60;
+  if (hh === 0) return `${mm}min`;
+  if (mm === 0) return `${hh}h`;
+  return `${hh}h ${mm}min`;
+};
 
 /**
  * Exporta a ementa detalhada de um pacote-template em PDF, com layout limpo

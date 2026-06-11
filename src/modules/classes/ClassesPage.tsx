@@ -542,9 +542,7 @@ export function ClassesPage() {
                       <div>
                         <CardTitle className="text-base">{p.name}</CardTitle>
                         <CardDescription>
-                          {p.total_hours != null
-                            ? `${String(p.total_hours).replace(".", ",")}h`
-                            : "—"}
+                          {p.total_hours != null ? fmtItemLoad(p.total_hours) : "—"}
                           {p.price ? ` · ${formatCurrency(p.price)}` : ""}
                         </CardDescription>
                       </div>
@@ -567,9 +565,7 @@ export function ClassesPage() {
                         <ul className="space-y-0.5 text-xs">
                           {p.syllabus_items.map((it, i) => (
                             <li key={i} className="text-muted-foreground">
-                              {it.hours != null
-                                ? `${String(it.hours).replace(".", ",")}h — `
-                                : ""}
+                              {it.hours != null ? `${fmtItemLoad(it.hours)} — ` : ""}
                               {it.title || "(sem título)"}
                             </li>
                           ))}
@@ -644,6 +640,16 @@ export function ClassesPage() {
       />
     </div>
   );
+}
+
+/** Formata a carga de um item da ementa (horas decimais) como "Xh Ymin" / "Ymin". */
+function fmtItemLoad(hours: number): string {
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
 }
 
 function Kpi({

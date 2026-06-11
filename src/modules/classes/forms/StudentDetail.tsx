@@ -58,6 +58,17 @@ function minutesToHoursStr(min: number | null): string {
   return h.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
+/** Formata horas decimais como "Xh Ymin" / "Ymin" amigável. */
+function fmtHoursLabel(hours: number | null | undefined): string {
+  if (hours == null) return "";
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -284,7 +295,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                           <SelectItem key={t.id} value={t.id.toString()}>
                             {t.name}
                             {t.total_hours != null
-                              ? ` — ${String(t.total_hours).replace(".", ",")}h`
+                              ? ` — ${fmtHoursLabel(t.total_hours)}`
                               : ""}
                             {t.price ? ` · ${formatCurrency(t.price)}` : ""}
                           </SelectItem>
@@ -311,7 +322,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                         ? totalMin! > 0 ? (p.used_minutes / totalMin!) * 100 : 0
                         : p.total_classes > 0 ? (p.used_classes / p.total_classes) * 100 : 0;
                       const usedLabel = isHoursBased
-                        ? `${minutesToHoursStr(p.used_minutes)}h / ${tpl!.total_hours}h`
+                        ? `${minutesToHoursStr(p.used_minutes)}h / ${fmtHoursLabel(tpl!.total_hours)}`
                         : `${p.used_classes}/${p.total_classes} aulas`;
                       const remainingLabel = isHoursBased
                         ? `${minutesToHoursStr(totalMin! - p.used_minutes)}h restantes`
