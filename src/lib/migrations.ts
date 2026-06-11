@@ -1543,6 +1543,11 @@ const MIGRATIONS: Migration[] = [
     description: "gigs.fans_notified — fãs comunicados em marketing",
     sql: `ALTER TABLE gigs ADD COLUMN fans_notified INTEGER;`,
   },
+  {
+    version: 97,
+    description: "music_projects.fans_notified — fãs comunicados no lançamento",
+    sql: `ALTER TABLE music_projects ADD COLUMN fans_notified INTEGER;`,
+  },
 ];
 
 

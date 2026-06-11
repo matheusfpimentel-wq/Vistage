@@ -13,6 +13,7 @@ export type MusicProject = {
   press_release_draft: string | null;
   marketing_dates: string | null; // JSON
   partnerships_confirmed: string | null;
+  fans_notified: number | null;
   concept: string | null; // conceito do projeto
   notes: string | null;
   created_at: string;

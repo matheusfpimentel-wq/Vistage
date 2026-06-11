@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toaster";
 import { updateGig } from "../api";
 import { GIG_STATUSES, PAYMENT_STATUSES, type Gig } from "../types";
+import { gigDisplayName } from "../displayName";
 
 type Props = {
   gigs: Gig[];
@@ -23,7 +24,7 @@ const COLS: Col[] = [
   { key: "date", label: "Data", read: (g) => g.date ?? "", parse: (v) => v.trim() || null, width: "120px" },
   { key: "start_time", label: "Início", read: (g) => g.start_time ?? "", parse: (v) => v.trim() || null, width: "80px" },
   { key: "end_time", label: "Fim", read: (g) => g.end_time ?? "", parse: (v) => v.trim() || null, width: "80px" },
-  { key: "event_name", label: "Evento", read: (g) => g.event_name ?? "", parse: (v) => v.trim() || null, width: "180px" },
+  { key: "event_name", label: "Evento", read: (g) => gigDisplayName(g), parse: (v) => v.trim() || null, width: "180px" },
   { key: "venue_name", label: "Local", read: (g) => g.venue_name ?? "", parse: (v) => v.trim(), width: "180px" },
   { key: "venue_city", label: "Cidade", read: (g) => g.venue_city ?? "", parse: (v) => v.trim() || null, width: "140px" },
   { key: "status", label: "Status", read: (g) => g.status, parse: (v) => (GIG_STATUSES as readonly string[]).includes(v.trim()) ? v.trim() : null, width: "120px" },

@@ -25,6 +25,7 @@ import {
   listCategories,
   updateTransaction,
 } from "../api";
+import { getDb } from "@/lib/db";
 import {
   EXPENSE_TYPES,
   PAYMENT_METHODS,
@@ -111,6 +112,19 @@ export function TransactionForm({
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [gigHasSyncedTx, setGigHasSyncedTx] = useState(false);
+
+  useEffect(() => {
+    if (!state.gig_id || state.gig_sync === 1) { setGigHasSyncedTx(false); return; }
+    void (async () => {
+      const db = getDb();
+      const rows = await db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM finance_transactions WHERE gig_id = $1 AND gig_sync = 1 AND kind = 'income'${transaction ? ` AND id != ${transaction.id}` : ""}`,
+        [state.gig_id]
+      );
+      setGigHasSyncedTx((rows[0]?.n ?? 0) > 0);
+    })();
+  }, [state.gig_id, state.gig_sync, transaction]);
   const [errors, setErrors] = useState<{ amount?: string; date?: string }>({});
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
@@ -333,6 +347,11 @@ export function TransactionForm({
             </Field>
           )}
 
+          {gigHasSyncedTx && (
+            <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+              Atenção: essa GIG já tem uma receita gerada automaticamente. Criar outra aqui pode duplicar o lançamento.
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Vincular a uma GIG">
               <Select

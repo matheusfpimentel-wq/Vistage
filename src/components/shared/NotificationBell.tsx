@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRing } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { enableNotifications, notificationPermission } from "@/lib/notify";
-import { DATA_CHANGED } from "@/lib/events";
+import { DATA_CHANGED, emitDataChanged } from "@/lib/events";
 import { getDb } from "@/lib/db";
+import { updateGig } from "@/modules/gigs/api";
 
 const SESSION_SEEN_KEY = "notification_bell_seen_keys";
 
@@ -190,6 +191,7 @@ export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [crmAlerts, setCrmAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
   const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() =>
     notificationPermission()
   );
@@ -301,24 +303,66 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto">
-              {allAlerts.map((a) => (
-                <Link
-                  key={a.key}
-                  to={a.to}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "flex items-center gap-2.5 border-b px-3 py-2.5 text-sm transition last:border-0 hover:bg-accent",
-                    a.critical && "bg-red-500/5"
-                  )}
-                >
-                  <span className="shrink-0">
-                    <AlertIcon icon={a.icon} critical={a.critical} />
-                  </span>
-                  <span className={cn("flex-1 leading-tight", a.critical && "font-medium")}>
-                    {a.label}
-                  </span>
-                </Link>
-              ))}
+              {allAlerts.map((a) => {
+                const staleMatch = a.key.match(/^gig-stale-status-(\d+)$/);
+                const staleGigId = staleMatch ? Number(staleMatch[1]) : null;
+                return (
+                  <div
+                    key={a.key}
+                    className={cn(
+                      "border-b px-3 py-2.5 text-sm last:border-0",
+                      a.critical && "bg-red-500/5"
+                    )}
+                  >
+                    <Link
+                      to={a.to}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2.5 transition hover:text-primary",
+                        a.critical && "font-medium"
+                      )}
+                    >
+                      <span className="shrink-0">
+                        <AlertIcon icon={a.icon} critical={a.critical} />
+                      </span>
+                      <span className="flex-1 leading-tight">{a.label}</span>
+                    </Link>
+                    {staleGigId && (
+                      <div className="mt-1.5 flex gap-1.5 pl-7">
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
+                          onClick={async () => {
+                            await updateGig({ id: staleGigId, status: "Concluída" });
+                            emitDataChanged();
+                            setOpen(false);
+                          }}
+                        >
+                          Marcar Concluída
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
+                          onClick={async () => {
+                            await updateGig({ id: staleGigId, status: "Cancelada" });
+                            emitDataChanged();
+                            setOpen(false);
+                          }}
+                        >
+                          Marcar Cancelada
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
+                          onClick={() => { navigate(a.to); setOpen(false); }}
+                        >
+                          Abrir GIG
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

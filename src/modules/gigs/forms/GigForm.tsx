@@ -111,7 +111,6 @@ const EMPTY: FormState = {
   payment_due_date: null,
   invoice_file_path: null,
   general_notes: null,
-  fans_notified: null,
   debrief_strengths: null,
   debrief_weaknesses: null,
   debrief_learnings: null,
@@ -138,6 +137,7 @@ const EMPTY: FormState = {
   recurring_event_name: null,
   cache_paid_pct: null,
   prep_task_id: null,
+  fans_notified: null,
   prep: {},
 };
 
@@ -934,27 +934,14 @@ export function GigForm({
               }}
             />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field label="Observações">
-                <Textarea
-                  rows={2}
-                  placeholder="Dress code, estacionamento, etc."
-                  value={state.general_notes ?? ""}
-                  onChange={(e) => set("general_notes", e.target.value || null)}
-                />
-              </Field>
-              {!isSocialCategory(state.event_category) && (
-                <Field label="Fãs comunicados (marketing)">
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={state.fans_notified?.toString() ?? ""}
-                    onChange={(e) => set("fans_notified", e.target.value ? Number(e.target.value) : null)}
-                  />
-                </Field>
-              )}
-            </div>
+            <Field label="Observações">
+              <Textarea
+                rows={2}
+                placeholder="Dress code, estacionamento, etc."
+                value={state.general_notes ?? ""}
+                onChange={(e) => set("general_notes", e.target.value || null)}
+              />
+            </Field>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AttachmentField

@@ -194,6 +194,7 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
       press_release_draft: null,
       marketing_dates: null,
       partnerships_confirmed: null,
+      fans_notified: null,
       concept: null,
       notes: null,
     });

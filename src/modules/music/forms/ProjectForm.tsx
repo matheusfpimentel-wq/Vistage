@@ -61,6 +61,7 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
           press_release_draft: null,
           marketing_dates: null,
           partnerships_confirmed: null,
+          fans_notified: null,
           concept: concept.trim() || null,
           notes: notes.trim() || null,
         });

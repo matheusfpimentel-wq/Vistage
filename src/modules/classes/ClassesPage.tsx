@@ -217,6 +217,23 @@ export function ClassesPage() {
     });
   }, [classes, classSortKey, classSortDir]);
 
+  // Número sequencial por aluno (ordem cronológica data+id)
+  const classNumbers = useMemo(() => {
+    const byStudent: Record<number, { id: number; date: string }[]> = {};
+    for (const c of classes) {
+      if (!byStudent[c.student_id]) byStudent[c.student_id] = [];
+      byStudent[c.student_id].push({ id: c.id, date: c.date });
+    }
+    for (const arr of Object.values(byStudent)) {
+      arr.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    }
+    const nums: Record<number, number> = {};
+    for (const arr of Object.values(byStudent)) {
+      arr.forEach((item, idx) => { nums[item.id] = idx + 1; });
+    }
+    return nums;
+  }, [classes]);
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
@@ -327,6 +344,7 @@ export function ClassesPage() {
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
+                    <th className="w-8 px-3 py-2 text-left text-muted-foreground">#</th>
                     {(["date", "student_name", "subject", "status"] as const).map((col, i) => (
                       <th key={col} className="px-3 py-2 text-left">
                         <button type="button" onClick={() => toggleClassSort(col)} className="flex items-center gap-1 hover:text-foreground">
@@ -350,6 +368,9 @@ export function ClassesPage() {
                       key={c.id}
                       className="border-t transition-colors hover:bg-muted/40"
                     >
+                      <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
+                        {classNumbers[c.id] ?? "—"}
+                      </td>
                       <td className="px-3 py-2 tabular-nums">
                         {formatDate(c.date)}
                         {c.start_time && (

@@ -74,6 +74,7 @@ export function MarketingPanel({ projectId, trackId }: Props) {
   const [pressReleaseDraft, setPressReleaseDraft] = useState("");
   const [marketingDates, setMarketingDates] = useState<MarketingDates>(EMPTY_DATES);
   const [partnershipsConfirmed, setPartnershipsConfirmed] = useState("");
+  const [fansNotified, setFansNotified] = useState<number | "">("");
   const [mediaContacts, setMediaContacts] = useState<Contact[]>([]);
   const [selectedTargets, setSelectedTargets] = useState<
     { contact_id: number; role: string | null }[]
@@ -93,6 +94,7 @@ export function MarketingPanel({ projectId, trackId }: Props) {
       setPresaveLink(proj.presave_link ?? "");
       setPressReleaseDraft(proj.press_release_draft ?? "");
       setPartnershipsConfirmed(proj.partnerships_confirmed ?? "");
+      setFansNotified(proj.fans_notified ?? "");
 
       try {
         const parsed = proj.marketing_dates
@@ -140,6 +142,7 @@ export function MarketingPanel({ projectId, trackId }: Props) {
         press_release_draft: pressReleaseDraft.trim() || null,
         marketing_dates: JSON.stringify(marketingDates),
         partnerships_confirmed: partnershipsConfirmed.trim() || null,
+        fans_notified: fansNotified === "" ? null : Number(fansNotified),
       });
       await setTrackMediaTargets(trackId, selectedTargets);
       toast.success("Marketing salvo");
@@ -232,6 +235,17 @@ export function MarketingPanel({ projectId, trackId }: Props) {
           value={partnershipsConfirmed}
           onChange={(e) => setPartnershipsConfirmed(e.target.value)}
           placeholder="Marcas, curadores, influencers confirmados..."
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs">Fãs comunicados</Label>
+        <Input
+          type="number"
+          min={0}
+          placeholder="0"
+          value={fansNotified}
+          onChange={(e) => setFansNotified(e.target.value === "" ? "" : Number(e.target.value))}
         />
       </div>
 
