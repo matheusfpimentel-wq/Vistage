@@ -72,7 +72,7 @@ export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[]
       icon: "clock",
       to: "/tarefas",
       critical: true,
-      label: `${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} atrasada${plural(stats.tasksOverdue)}`,
+      label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
     });
   if (stats.pendingDebriefs > 0)
     alerts.push({
@@ -223,16 +223,6 @@ export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[]
   }
 
   // ── Pendências ─────────────────────────────────────────────────
-  if (stats.tasksOverdue > 0) {
-    alerts.push({
-      key: "tasks-overdue-detail",
-      icon: "warning",
-      to: "/tarefas",
-      critical: false,
-      label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
-    });
-  }
-
   if ((extra?.staleSuperFans ?? 0) > 0) {
     const n = extra!.staleSuperFans!;
     alerts.push({
