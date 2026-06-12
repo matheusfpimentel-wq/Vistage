@@ -90,17 +90,21 @@ export function WorkSessionWidget() {
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refresh = useCallback(async () => {
+  const booted = useRef(false);
+  const refresh = useCallback(async (openOverlay = false) => {
     const s = await getActiveSession();
     setSession(s);
-    // Reabre a mini-janela se houver sessão ativa (ex.: app reaberto).
-    if (s) void openSessionOverlay(s);
+    // Reabre a mini-janela apenas no boot (quando o app é reaberto com sessão ativa).
+    if (openOverlay && s) void openSessionOverlay(s);
   }, []);
 
   useEffect(() => {
-    void refresh();
-    // Sincroniza com sessões iniciadas fora deste widget (ex: FocoPage)
-    const onChange = () => void refresh();
+    if (booted.current) return;
+    booted.current = true;
+    // On boot: restore overlay if a session was already active.
+    void refresh(true);
+    // Sync session state on data changes but don't re-open the overlay.
+    const onChange = () => void refresh(false);
     window.addEventListener(DATA_CHANGED, onChange);
     return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, [refresh]);

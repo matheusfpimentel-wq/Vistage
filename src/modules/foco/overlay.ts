@@ -2,6 +2,9 @@ import type { WorkSession } from "./api";
 
 const OVERLAY_LABEL = "work-session";
 
+// Prevents concurrent calls from creating two windows before the first one is registered.
+let _creating = false;
+
 /** Detecta se estamos rodando dentro do Tauri (e não no browser de dev puro). */
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -35,6 +38,9 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
       return;
     }
 
+    if (_creating) return;
+    _creating = true;
+
     const isDark = document.documentElement.classList.contains("dark");
     const params = new URLSearchParams({
       overlay: "1",
@@ -57,10 +63,10 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
       shadow: true,
     });
 
-    win.once("tauri://error", () => {
-      /* falha ao criar janela não deve quebrar a sessão */
-    });
+    win.once("tauri://created", () => { _creating = false; });
+    win.once("tauri://error", () => { _creating = false; });
   } catch {
+    _creating = false;
     /* ambiente sem suporte a múltiplas janelas */
   }
 }
@@ -68,6 +74,7 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
 /** Fecha a mini-janela flutuante, se existir. */
 export async function closeSessionOverlay(): Promise<void> {
   if (!isTauri()) return;
+  _creating = false;
   try {
     // Emit event so the overlay can close itself (more reliable on Windows)
     const { emit } = await import("@tauri-apps/api/event");
