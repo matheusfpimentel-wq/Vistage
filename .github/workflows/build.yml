@@ -38,8 +38,27 @@ jobs:
       - name: Install npm deps
         run: npm ci
 
+      # As ferramentas do bundler (WiX/NSIS no Windows) são baixadas pelo Tauri
+      # e ficam em cache local. Persistir entre runs evita rebaixar — e evita o
+      # erro transitório de rede "HTTP2 framing layer" do curl na maioria dos casos.
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-bundler-${{ matrix.platform }}
+
+      # O download de WiX/NSIS às vezes falha com "HTTP2 framing layer" (curl 16),
+      # um erro transitório de rede. Tentamos o build até 3 vezes antes de desistir.
       - name: Build (Tauri)
-        run: npm run tauri:build
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 60
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm run tauri:build
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
