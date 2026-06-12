@@ -1,5 +1,16 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import {
   RefreshCw,
   Target,
@@ -507,61 +518,65 @@ const EISENHOWER_META: {
   { key: "eliminate", title: "Eliminar", subtitle: "Nem urgente nem importante", border: "border-muted-foreground/30 bg-muted/30", badge: "bg-muted text-muted-foreground", highlight: "border-primary border-2" },
 ];
 
-const EisenhowerTaskChip = React.memo(function EisenhowerTaskChip({
-  task,
-  isDragging,
-  onPointerDown,
-}: {
-  task: Task;
-  isDragging: boolean;
-  onPointerDown: (task: Task, e: React.PointerEvent<HTMLDivElement>) => void;
-}) {
+function EisenhowerChipContent({ task }: { task: Task }) {
   return (
-    <div
-      onPointerDown={(e) => onPointerDown(task, e)}
-      className={cn(
-        "cursor-grab select-none rounded-md border bg-background px-2 py-1.5 text-xs shadow-sm transition hover:border-primary touch-none",
-        isDragging && "opacity-30 pointer-events-none"
-      )}
-    >
+    <>
       <div className="font-medium leading-tight">{task.title}</div>
       {task.due_date && (
         <div className="mt-0.5 text-[10px] text-muted-foreground tabular-nums">{task.due_date}</div>
       )}
+    </>
+  );
+}
+
+const EisenhowerTaskChip = React.memo(function EisenhowerTaskChip({
+  task,
+}: {
+  task: Task;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task.id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "cursor-grab select-none rounded-md border bg-background px-2 py-1.5 text-xs shadow-sm transition hover:border-primary touch-none",
+        isDragging && "opacity-30"
+      )}
+    >
+      <EisenhowerChipContent task={task} />
     </div>
   );
 });
 
+function EisenhowerDropZone({
+  id,
+  className,
+  activeClassName,
+  children,
+}: {
+  id: string;
+  className?: string;
+  activeClassName?: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={cn(className, isOver && activeClassName)}>
+      {children}
+    </div>
+  );
+}
+
 function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () => void }) {
-  const [draggingId, setDraggingId] = useState<number | null>(null);
-  const [hoverKey, setHoverKey] = useState<string | null>(null);
+  const [activeTask, setActiveTask] = useState<Task | null>(null);
 
-  const dragRef = useRef<{ taskId: number } | null>(null);
-  const ghostRef = useRef<HTMLDivElement>(null);
-  const zoneRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Enquanto há um arraste em curso, bloqueia o scroll por toque na página:
-  // um listener touchmove não-passivo chamando preventDefault evita que o
-  // navegador role (e "pule" para o topo) durante o gesto.
-  useEffect(() => {
-    if (draggingId == null) return;
-    const prevent = (e: TouchEvent) => e.preventDefault();
-    document.addEventListener("touchmove", prevent, { passive: false });
-    return () => document.removeEventListener("touchmove", prevent);
-  }, [draggingId]);
-
-  useEffect(() => {
-    document.body.style.overflow = draggingId != null ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [draggingId]);
-
-  useEffect(() => {
-    if (draggingId == null) return;
-    const prevent = (e: Event) => e.preventDefault();
-    document.addEventListener('pointermove', prevent, { passive: false });
-    return () => document.removeEventListener('pointermove', prevent);
-  }, [draggingId]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   const open = tasks.filter((t) => t.status === "A fazer" || t.status === "Em andamento");
   const ungrouped = open.filter((t) => !t.eisenhower_quadrant);
@@ -575,66 +590,24 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
     onChanged();
   }
 
-  function zoneAtPoint(x: number, y: number): string | null {
-    for (const [key, el] of zoneRefs.current.entries()) {
-      const r = el.getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return key;
-    }
-    return null;
+  function onDragStart(e: DragStartEvent) {
+    const id = Number(e.active.id);
+    setActiveTask(open.find((t) => t.id === id) ?? null);
   }
 
-  const onChipPointerDown = useCallback((task: Task, e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 && e.pointerType === "mouse") return;
-    e.preventDefault();
-    e.stopPropagation();
-    // Captura no container estável (e não no chip, que vira pointer-events-none
-    // ao arrastar — o que perderia a captura e podia disparar scroll/foco).
-    try {
-      containerRef.current?.setPointerCapture(e.pointerId);
-    } catch {
-      /* setPointerCapture pode falhar se o ponteiro já foi liberado */
-    }
-    dragRef.current = { taskId: task.id };
-    setDraggingId(task.id);
-    if (ghostRef.current) {
-      ghostRef.current.textContent = task.title;
-      ghostRef.current.style.left = `${e.clientX + 12}px`;
-      ghostRef.current.style.top = `${e.clientY + 8}px`;
-      ghostRef.current.style.display = "block";
-    }
-  }, []);
-
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    e.preventDefault();
-    if (ghostRef.current) {
-      ghostRef.current.style.left = `${e.clientX + 12}px`;
-      ghostRef.current.style.top = `${e.clientY + 8}px`;
-    }
-    const key = zoneAtPoint(e.clientX, e.clientY);
-    setHoverKey(key);
-  }, []);
-
-  const onPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current) return;
-    const { taskId } = dragRef.current;
-    dragRef.current = null;
-    if (ghostRef.current) ghostRef.current.style.display = "none";
-    const key = zoneAtPoint(e.clientX, e.clientY);
-    setDraggingId(null);
-    setHoverKey(null);
-    if (key !== null) {
-      const quadrant = key === "ungrouped" ? null : (key as EisenhowerQuadrant);
-      void move(taskId, quadrant);
-    }
-  }, []);
-
-  const onPointerCancel = useCallback(() => {
-    dragRef.current = null;
-    setDraggingId(null);
-    setHoverKey(null);
-    if (ghostRef.current) ghostRef.current.style.display = "none";
-  }, []);
+  function onDragEnd(e: DragEndEvent) {
+    setActiveTask(null);
+    const { active, over } = e;
+    if (!over) return;
+    const taskId = Number(active.id);
+    const task = open.find((t) => t.id === taskId);
+    if (!task) return;
+    const key = String(over.id);
+    const quadrant = key === "ungrouped" ? null : (key as EisenhowerQuadrant);
+    const current = task.eisenhower_quadrant ?? null;
+    if (current === quadrant) return;
+    void move(taskId, quadrant);
+  }
 
   return (
     <Card>
@@ -647,91 +620,78 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
           Arraste cada tarefa para um quadrante. As que você ainda não classificou ficam em "Não agrupadas".
         </CardDescription>
       </CardHeader>
-      <CardContent
-        ref={containerRef}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerCancel}
-        className="space-y-3 touch-none"
-        style={{ overscrollBehavior: "none", overflow: draggingId != null ? "hidden" : undefined }}
-      >
-        {/* Não agrupadas */}
-        <div
-          ref={(el) => { if (el) zoneRefs.current.set("ungrouped", el); else zoneRefs.current.delete("ungrouped"); }}
-          className={cn(
-            "rounded-lg border border-dashed p-3 transition",
-            hoverKey === "ungrouped" && "border-primary border-2 bg-primary/5"
-          )}
+      <CardContent className="space-y-3">
+        <DndContext
+          sensors={sensors}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setActiveTask(null)}
         >
-          <div className="mb-2 text-xs font-semibold text-muted-foreground">
-            Não agrupadas ({ungrouped.length})
-          </div>
-          {ungrouped.length === 0 ? (
-            <p className="text-xs text-muted-foreground/60">
-              Tudo classificado. Arraste de volta aqui para remover de um quadrante.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {ungrouped.map((t) => (
-                <EisenhowerTaskChip
-                  key={t.id}
-                  task={t}
-                  isDragging={draggingId === t.id}
-                  onPointerDown={onChipPointerDown}
-                />
-              ))}
+          {/* Não agrupadas */}
+          <EisenhowerDropZone
+            id="ungrouped"
+            className="rounded-lg border border-dashed p-3 transition"
+            activeClassName="border-primary border-2 bg-primary/5"
+          >
+            <div className="mb-2 text-xs font-semibold text-muted-foreground">
+              Não agrupadas ({ungrouped.length})
             </div>
-          )}
-        </div>
-
-        {/* Quadrantes */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {EISENHOWER_META.map((q) => {
-            const items = byQuadrant(q.key);
-            const isHovered = hoverKey === q.key;
-            return (
-              <div
-                key={q.key}
-                ref={(el) => { if (el) zoneRefs.current.set(q.key, el); else zoneRefs.current.delete(q.key); }}
-                className={cn(
-                  "min-h-28 rounded-lg border p-3 transition",
-                  isHovered ? q.highlight : q.border
-                )}
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-semibold">{q.title}</div>
-                    <div className="text-[10px] text-muted-foreground">{q.subtitle}</div>
-                  </div>
-                  <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums", q.badge)}>
-                    {items.length}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {items.map((t) => (
-                    <EisenhowerTaskChip
-                      key={t.id}
-                      task={t}
-                      isDragging={draggingId === t.id}
-                      onPointerDown={onChipPointerDown}
-                    />
-                  ))}
-                </div>
+            {ungrouped.length === 0 ? (
+              <p className="text-xs text-muted-foreground/60">
+                Tudo classificado. Arraste de volta aqui para remover de um quadrante.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {ungrouped.map((t) => (
+                  <EisenhowerTaskChip key={t.id} task={t} />
+                ))}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </EisenhowerDropZone>
+
+          {/* Quadrantes */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {EISENHOWER_META.map((q) => {
+              const items = byQuadrant(q.key);
+              return (
+                <EisenhowerDropZone
+                  key={q.key}
+                  id={q.key}
+                  className={cn("min-h-28 rounded-lg border p-3 transition", q.border)}
+                  activeClassName={q.highlight}
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">{q.title}</div>
+                      <div className="text-[10px] text-muted-foreground">{q.subtitle}</div>
+                    </div>
+                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium tabular-nums", q.badge)}>
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {items.map((t) => (
+                      <EisenhowerTaskChip key={t.id} task={t} />
+                    ))}
+                  </div>
+                </EisenhowerDropZone>
+              );
+            })}
+          </div>
+
+          <DragOverlay>
+            {activeTask ? (
+              <div className="cursor-grabbing rounded-md border border-primary bg-background px-2 py-1.5 text-xs shadow-lg">
+                <EisenhowerChipContent task={activeTask} />
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+
         <Link to="/tarefas" className="block text-xs text-primary hover:underline">
           Gerenciar tarefas →
         </Link>
       </CardContent>
-
-      {/* Ghost element — positioned fixed, updated via direct DOM mutation */}
-      <div
-        ref={ghostRef}
-        style={{ display: "none", position: "fixed", pointerEvents: "none", zIndex: 9999 }}
-        className="rounded-md border border-primary bg-background px-2 py-1.5 text-xs shadow-lg font-medium"
-      />
     </Card>
   );
 }

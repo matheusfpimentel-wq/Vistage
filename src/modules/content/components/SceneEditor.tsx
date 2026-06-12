@@ -1,5 +1,26 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  GripVertical,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +40,148 @@ const EMPTY_SCENE: ContentSceneInput = {
   scenery: null,
 };
 
+type SceneRowProps = {
+  id: string;
+  scene: ContentSceneInput;
+  index: number;
+  isFirst: boolean;
+  isLast: boolean;
+  onUpdate: (index: number, patch: Partial<ContentSceneInput>) => void;
+  onMove: (index: number, dir: -1 | 1) => void;
+  onRemove: (index: number) => void;
+};
+
+function SceneRow({
+  id,
+  scene,
+  index,
+  isFirst,
+  isLast,
+  onUpdate,
+  onMove,
+  onRemove,
+}: SceneRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="space-y-3 rounded-lg border p-3"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div
+            className="flex cursor-grab touch-none items-center text-muted-foreground/60 active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+            aria-label="Arrastar cena"
+          >
+            <GripVertical className="h-4 w-4 shrink-0" />
+          </div>
+          <span className="inline-flex items-center rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+            Cena {index + 1}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="Mover para cima"
+            disabled={isFirst}
+            onClick={() => onMove(index, -1)}
+          >
+            <ChevronUp className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            aria-label="Mover para baixo"
+            disabled={isLast}
+            onClick={() => onMove(index, 1)}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive"
+            aria-label="Excluir cena"
+            onClick={() => onRemove(index)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>Título da cena</Label>
+        <Input
+          value={scene.title ?? ""}
+          onChange={(e) => onUpdate(index, { title: e.target.value || null })}
+          placeholder="Título da cena"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>O que acontece</Label>
+        <Textarea
+          rows={3}
+          value={scene.description ?? ""}
+          onChange={(e) =>
+            onUpdate(index, { description: e.target.value || null })
+          }
+          placeholder="O que acontece"
+        />
+      </div>
+
+      <TagInput
+        label="Equipamento"
+        placeholder="Adicionar equipamento…"
+        values={scene.equipment}
+        onChange={(equipment) => onUpdate(index, { equipment })}
+      />
+
+      <TagInput
+        label="Materiais"
+        placeholder="Adicionar material…"
+        values={scene.materials}
+        onChange={(materials) => onUpdate(index, { materials })}
+      />
+
+      <div className="space-y-1.5">
+        <Label>Cenário</Label>
+        <Input
+          value={scene.scenery ?? ""}
+          onChange={(e) => onUpdate(index, { scenery: e.target.value || null })}
+          placeholder="Cenário"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function SceneEditor({ scenes, onChange }: Props) {
+  const sensors = useSensors(useSensor(PointerSensor));
+
   function update(index: number, patch: Partial<ContentSceneInput>) {
     onChange(scenes.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
@@ -42,6 +204,17 @@ export function SceneEditor({ scenes, onChange }: Props) {
     onChange([...scenes, { ...EMPTY_SCENE }]);
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = Number(active.id);
+    const to = Number(over.id);
+    if (Number.isNaN(from) || Number.isNaN(to)) return;
+    onChange(arrayMove(scenes, from, to));
+  }
+
+  const ids = scenes.map((_, i) => String(i));
+
   return (
     <div className="space-y-3">
       {scenes.length === 0 && (
@@ -51,93 +224,23 @@ export function SceneEditor({ scenes, onChange }: Props) {
         </p>
       )}
 
-      {scenes.map((scene, i) => (
-        <div key={i} className="space-y-3 rounded-lg border p-3">
-          <div className="flex items-center justify-between">
-            <span className="inline-flex items-center rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-              Cena {i + 1}
-            </span>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                aria-label="Mover para cima"
-                disabled={i === 0}
-                onClick={() => move(i, -1)}
-              >
-                <ChevronUp className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                aria-label="Mover para baixo"
-                disabled={i === scenes.length - 1}
-                onClick={() => move(i, 1)}
-              >
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive"
-                aria-label="Excluir cena"
-                onClick={() => remove(i)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Título da cena</Label>
-            <Input
-              value={scene.title ?? ""}
-              onChange={(e) => update(i, { title: e.target.value || null })}
-              placeholder="Título da cena"
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          {scenes.map((scene, i) => (
+            <SceneRow
+              key={i}
+              id={String(i)}
+              scene={scene}
+              index={i}
+              isFirst={i === 0}
+              isLast={i === scenes.length - 1}
+              onUpdate={update}
+              onMove={move}
+              onRemove={remove}
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>O que acontece</Label>
-            <Textarea
-              rows={3}
-              value={scene.description ?? ""}
-              onChange={(e) =>
-                update(i, { description: e.target.value || null })
-              }
-              placeholder="O que acontece"
-            />
-          </div>
-
-          <TagInput
-            label="Equipamento"
-            placeholder="Adicionar equipamento…"
-            values={scene.equipment}
-            onChange={(equipment) => update(i, { equipment })}
-          />
-
-          <TagInput
-            label="Materiais"
-            placeholder="Adicionar material…"
-            values={scene.materials}
-            onChange={(materials) => update(i, { materials })}
-          />
-
-          <div className="space-y-1.5">
-            <Label>Cenário</Label>
-            <Input
-              value={scene.scenery ?? ""}
-              onChange={(e) => update(i, { scenery: e.target.value || null })}
-              placeholder="Cenário"
-            />
-          </div>
-        </div>
-      ))}
+          ))}
+        </SortableContext>
+      </DndContext>
 
       <Button type="button" variant="outline" size="sm" onClick={add}>
         <Plus className="h-4 w-4" />
