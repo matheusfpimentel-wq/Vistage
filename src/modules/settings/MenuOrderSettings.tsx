@@ -154,7 +154,7 @@ export function MenuOrderSettings() {
     const overId = String(over.id);
     // Find which group the active item belongs to
     const activeItem = reorderable.find((i) => i.to === activeId);
-    if (!activeItem) return;
+    if (!activeItem || !activeItem.group) return;
     reorder(activeItem.group, activeId, overId);
   }
 
