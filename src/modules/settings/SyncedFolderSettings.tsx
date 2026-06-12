@@ -22,7 +22,7 @@ export function SyncedFolderSettings() {
   async function handleMove() {
     const ok = await confirmDialog(
       "Vou copiar seu banco e anexos para a pasta que você escolher (ex.: a pasta do Google Drive) e passar a trabalhar de lá.\n\n" +
-        "Importante: use o Google Drive para Desktop no modo 'Espelhar arquivos' e NUNCA abra o app em duas máquinas ao mesmo tempo. Continuar?"
+        "Importante: marque essa pasta como 'Disponível off-line' no Google Drive e NUNCA abra o app em duas máquinas ao mesmo tempo. Continuar?"
     );
     if (!ok) return;
     try {
@@ -73,24 +73,39 @@ export function SyncedFolderSettings() {
       <CardContent className="space-y-4 text-sm">
         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1.5">
           <p>
-            <strong className="text-foreground">Como configurar com o Google Drive:</strong>
+            <strong className="text-foreground">Como configurar com o Google Drive (sem espelhar o Drive todo):</strong>
           </p>
           <ol className="ml-4 list-decimal space-y-1">
             <li>
-              No Google Drive para Desktop, ative{" "}
-              <strong className="text-foreground">“Espelhar arquivos”</strong>{" "}
-              (não “Fazer streaming”, que corrompe o banco).
+              Deixe o Drive no modo{" "}
+              <strong className="text-foreground">“Fazer streaming”</strong>{" "}
+              (não precisa “Espelhar”, que baixaria o Drive inteiro).
             </li>
             <li>Use o botão abaixo para mover seus dados para dentro da pasta do Drive.</li>
             <li>
-              Na outra máquina, instale o Drive, espere sincronizar e use{" "}
+              No Finder/Explorer, clique com o botão direito{" "}
+              <strong className="text-foreground">só na pasta do Vistage</strong>{" "}
+              → <strong className="text-foreground">“Disponível off-line”</strong>.
+              Assim apenas essa pasta ocupa espaço local — o resto do Drive
+              continua na nuvem.
+            </li>
+            <li>
+              Pouco espaço no Mac? Nas preferências do Drive dá para apontar a
+              pasta local dele para o <strong className="text-foreground">HD externo</strong>,
+              e aí nem o disco interno é usado.
+            </li>
+            <li>
+              Na outra máquina, instale o Drive, marque a mesma pasta como
+              “Disponível off-line”, espere sincronizar e use{" "}
               <strong className="text-foreground">“Abrir banco existente”</strong>{" "}
               apontando para o <code>vistage.config.json</code> dentro da pasta.
             </li>
           </ol>
           <p className="pt-1 text-amber-600 dark:text-amber-400">
-            ⚠️ Nunca deixe o app aberto em duas máquinas ao mesmo tempo — espere o
-            ícone do Drive ficar sincronizado antes de abrir na outra.
+            ⚠️ A pasta precisa estar “Disponível off-line” — em streaming puro o
+            Drive descarrega o arquivo e corrompe o banco. E nunca deixe o app
+            aberto em duas máquinas ao mesmo tempo: espere o ícone do Drive ficar
+            sincronizado antes de abrir na outra.
           </p>
         </div>
 
