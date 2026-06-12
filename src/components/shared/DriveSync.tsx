@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/ui/toaster";
 import { DATA_CHANGED } from "@/lib/events";
+import { useConfigStore } from "@/lib/config";
 import {
   loadAuth,
   maybeAutoBackupAfterChange,
@@ -20,6 +21,10 @@ export function DriveSync() {
     ranBoot.current = true;
     void (async () => {
       try {
+        // No modo "pasta sincronizada" o próprio arquivo .db é sincronizado
+        // pelo Google Drive/OneDrive — a camada de backup JSON é desligada
+        // para não brigar com o arquivo (era o que forçava versões antigas).
+        if (useConfigStore.getState().config?.syncedFolder) return;
         const auth = await loadAuth();
         if (auth?.autoBackup) {
           const restored = await restoreLatestBackupSilently();
@@ -38,6 +43,7 @@ export function DriveSync() {
   // prazo expirar. Assim nenhum upload acontece mais de uma vez a cada 5 min.
   useEffect(() => {
     const onChange = () => {
+      if (useConfigStore.getState().config?.syncedFolder) return; // pasta sincronizada: sem backup JSON
       if (pending.current) return; // já tem upload agendado
       const now = Date.now();
       const elapsed = now - lastUpload.current;

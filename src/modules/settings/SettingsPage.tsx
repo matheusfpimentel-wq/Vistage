@@ -14,6 +14,7 @@ import {
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
+import { SyncedFolderSettings } from "./SyncedFolderSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { MenuOrderSettings } from "./MenuOrderSettings";
@@ -123,6 +124,8 @@ export function SettingsPage() {
       </Card>
 
       <MenuOrderSettings />
+
+      <SyncedFolderSettings />
 
       <GoogleCalendarSettings />
 

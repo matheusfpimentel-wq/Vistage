@@ -126,7 +126,8 @@ export function Setup() {
                 <code className="rounded bg-muted px-1 text-xs">
                   vistage.config.json
                 </code>{" "}
-                que já existe no HD.
+                que já existe no HD ou na sua pasta sincronizada (Google Drive,
+                OneDrive, Dropbox).
               </span>
             </button>
           </div>

@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  copyFile,
+  exists,
+  mkdir,
+  readDir,
+  readTextFile,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
 
 // O arquivo de configuração mora ao lado do banco para que o conjunto inteiro
 // (config + db + uploads) seja portátil. Mantemos também uma chave em localStorage
@@ -12,6 +19,7 @@ export type AppConfig = {
   dbPath: string;            // caminho absoluto do .db
   uploadsDir: string;        // pasta para anexos
   createdAt: string;         // ISO timestamp
+  syncedFolder?: boolean;    // true quando o banco mora numa pasta sincronizada (Google Drive, etc.)
 };
 
 type ConfigState = {
@@ -20,14 +28,31 @@ type ConfigState = {
   configPath: string | null;
   errorMessage: string | null;
   hydrate: () => Promise<void>;
-  setupNew: (folder: string) => Promise<AppConfig>;
+  setupNew: (folder: string, syncedFolder?: boolean) => Promise<AppConfig>;
   loadExisting: (configFile: string) => Promise<AppConfig>;
+  setSyncedFolder: (value: boolean) => Promise<void>;
+  relocateData: (folder: string, syncedFolder: boolean) => Promise<AppConfig>;
   reset: () => void;
 };
 
 function joinPath(base: string, ...parts: string[]): string {
   const sep = base.includes("\\") && !base.includes("/") ? "\\" : "/";
   return [base.replace(/[\\/]+$/, ""), ...parts].join(sep);
+}
+
+/** Copia recursivamente o conteúdo de uma pasta para outra (cria destino). */
+async function copyDirRecursive(src: string, dest: string): Promise<void> {
+  if (!(await exists(dest))) await mkdir(dest, { recursive: true });
+  const entries = await readDir(src);
+  for (const entry of entries) {
+    const from = joinPath(src, entry.name);
+    const to = joinPath(dest, entry.name);
+    if (entry.isDirectory) {
+      await copyDirRecursive(from, to);
+    } else {
+      await copyFile(from, to);
+    }
+  }
 }
 
 export const useConfigStore = create<ConfigState>((set) => ({
@@ -60,7 +85,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
     }
   },
 
-  async setupNew(folder: string) {
+  async setupNew(folder: string, syncedFolder = false) {
     // cria pastas e arquivos necessários
     if (!(await exists(folder))) {
       await mkdir(folder, { recursive: true });
@@ -75,11 +100,57 @@ export const useConfigStore = create<ConfigState>((set) => ({
       dbPath,
       uploadsDir,
       createdAt: new Date().toISOString(),
+      syncedFolder,
     };
     await writeTextFile(configPath, JSON.stringify(cfg, null, 2));
     localStorage.setItem(LS_KEY, configPath);
     set({ ready: true, config: cfg, configPath, errorMessage: null });
     return cfg;
+  },
+
+  /** Liga/desliga o modo "pasta sincronizada" e reescreve o config.json. */
+  async setSyncedFolder(value: boolean) {
+    const { config, configPath } = useConfigStore.getState();
+    if (!config || !configPath) return;
+    const next: AppConfig = { ...config, syncedFolder: value };
+    await writeTextFile(configPath, JSON.stringify(next, null, 2));
+    set({ config: next });
+  },
+
+  /**
+   * Copia o banco + anexos + config para `folder` (ex.: pasta do Google Drive)
+   * e repassa o app a apontar para lá. O banco deve estar fechado antes de
+   * chamar (arquivo travado durante a cópia). Retorna o novo config.
+   */
+  async relocateData(folder: string, syncedFolder: boolean) {
+    const { config } = useConfigStore.getState();
+    if (!config) throw new Error("Nenhum banco carregado para mover.");
+    if (!(await exists(folder))) {
+      await mkdir(folder, { recursive: true });
+    }
+    const newDbPath = joinPath(folder, "vistage.db");
+    const newUploadsDir = joinPath(folder, "uploads");
+    const newConfigPath = joinPath(folder, "vistage.config.json");
+
+    // copia o arquivo do banco
+    await copyFile(config.dbPath, newDbPath);
+    // copia anexos (se houver)
+    if (await exists(config.uploadsDir)) {
+      await copyDirRecursive(config.uploadsDir, newUploadsDir);
+    } else {
+      await mkdir(newUploadsDir, { recursive: true });
+    }
+
+    const next: AppConfig = {
+      dbPath: newDbPath,
+      uploadsDir: newUploadsDir,
+      createdAt: config.createdAt,
+      syncedFolder,
+    };
+    await writeTextFile(newConfigPath, JSON.stringify(next, null, 2));
+    localStorage.setItem(LS_KEY, newConfigPath);
+    set({ ready: true, config: next, configPath: newConfigPath, errorMessage: null });
+    return next;
   },
 
   async loadExisting(configFile: string) {
