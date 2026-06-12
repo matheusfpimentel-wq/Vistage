@@ -26,7 +26,6 @@ dist-ssr
 # Tauri
 src-tauri/target
 src-tauri/gen
-src-tauri/Cargo.lock
 
 # Builds & artefatos locais
 build
