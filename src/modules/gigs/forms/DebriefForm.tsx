@@ -289,9 +289,7 @@ export function DebriefForm({
 
   async function saveAsComplete() {
     if (!complete) {
-      toast.error(
-        "Preencha pontos fortes, fracos, insights e as três avaliações."
-      );
+      toast.error("Preencha as três avaliações para concluir o debrief.");
       return;
     }
     setSaving(true);

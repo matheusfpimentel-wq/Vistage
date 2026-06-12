@@ -130,7 +130,7 @@ export function RecurringView({ onChanged }: Props) {
                 <input
                   type="checkbox"
                   checked={r.active === 1}
-                  onChange={() => handleToggle(r)}
+                  onChange={() => void handleToggle(r)}
                   className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
                 />
                 <div>

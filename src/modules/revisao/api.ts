@@ -46,7 +46,7 @@ function weekRange(): { start: string; end: string } {
 
 type CountRow = { c: number };
 type TrackRow = { standby: number; stage_entered_at: string | null };
-type RatingRow = { rating_sound: number | null; rating_crowd: number | null; rating_overall: number | null };
+type RatingRow = { rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null };
 
 // Roda um SELECT isolado: se a query falhar (ex.: coluna ausente em banco
 // antigo), devolve o fallback ao invés de derrubar todo o painel de alertas.
@@ -151,7 +151,7 @@ async function computeWeekStats(): Promise<WeekStats> {
       []
     ), []),
     safeSelect<RatingRow>(() => db.select(
-      `SELECT rating_sound, rating_crowd, rating_overall FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
+      `SELECT rating_charisma, rating_technique, rating_repertoire FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
       [start, end]
     ), []),
     // ideias quentes (heat 3) presas em Embrião há +15 dias
@@ -268,7 +268,7 @@ async function computeWeekStats(): Promise<WeekStats> {
 
   const ratings = gigRatingRows
     .map((g: RatingRow) => {
-      const vals = [g.rating_sound, g.rating_crowd, g.rating_overall].filter(
+      const vals = [g.rating_charisma, g.rating_technique, g.rating_repertoire].filter(
         (v): v is number => v !== null
       );
       return vals.length > 0 ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : null;
