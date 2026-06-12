@@ -510,7 +510,7 @@ export function IdentityPage() {
                           className="text-xs"
                           value=""
                           onChange={(e) =>
-                            updateSocial(idx, { network: e.target.value || "Outro" })
+                            updateSocial(idx, { network: e.target.value })
                           }
                         />
                       ) : !SOCIAL_NETWORKS.includes(s.network as (typeof SOCIAL_NETWORKS)[number]) ? (

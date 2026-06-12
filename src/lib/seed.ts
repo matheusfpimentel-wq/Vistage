@@ -351,7 +351,7 @@ export async function seedExampleData(): Promise<{
       "Cachê — Cãmara (BH)",
       catId("DJ", "income"),
       pastConcluida,
-      "Recebido/Pago",
+      "Recebido",
       "PIX",
     ]
   );
@@ -366,7 +366,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-9),
       "Royalties — DistroKid jan/2024",
       catId("Royalties", "income"),
-      "Recebido/Pago",
+      "Recebido",
       "Transferência",
     ]
   );
@@ -381,7 +381,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-14),
       "Aula particular de produção (Pedro)",
       catId("Aulas / Mentorias", "income"),
-      "Recebido/Pago",
+      "Recebido",
     ]
   );
 
@@ -396,7 +396,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-10),
       "Estúdio Mood — 3h",
       catId("Estúdio", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "PIX",
       "Variável",
     ]
@@ -412,7 +412,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-3),
       "Distroideal mensal",
       catId("Plataformas", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "Cartão",
       "Fixa",
     ]
@@ -428,7 +428,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-40),
       "CDJ-3000 (par)",
       catId("Equipamentos", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "Cartão",
       "Variável",
     ]
