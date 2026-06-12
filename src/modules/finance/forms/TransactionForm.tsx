@@ -75,6 +75,7 @@ function emptyState(kind: TransactionKind): FormState {
     party_id: null,
     music_cost_id: null,
     gig_sync: 0,
+    class_sync: 0,
   };
 }
 
@@ -99,6 +100,7 @@ function txToState(t: FinanceTransaction): FormState {
     party_id: t.party_id ?? null,
     music_cost_id: t.music_cost_id ?? null,
     gig_sync: t.gig_sync ?? 0,
+    class_sync: t.class_sync ?? 0,
   };
 }
 
@@ -189,6 +191,8 @@ export function TransactionForm({
   }
 
   const isExpense = state.kind === "expense";
+  const isLocked = state.gig_sync === 1 || state.class_sync === 1;
+  const lockedSource = state.gig_sync === 1 ? "GIG" : "aula";
   const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
   const isAulaCategory = selectedCategoryName === "Aulas / Mentorias";
 
@@ -204,12 +208,10 @@ export function TransactionForm({
         </DialogHeader>
 
         <div className="space-y-4">
-          {(state.gig_sync === 1 || state.class_id || state.party_id) && (
+          {(isLocked || state.party_id) && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-              {state.gig_sync === 1
-                ? "Esta receita é sincronizada automaticamente pela GIG vinculada. Para alterar valores, edite a GIG."
-                : state.class_id
-                ? "Esta receita é sincronizada automaticamente pela aula vinculada. Para alterar valores, edite a aula."
+              {isLocked
+                ? `Este lançamento é sincronizado automaticamente pela ${lockedSource} vinculada. Para alterar valores, edite a ${lockedSource}.`
                 : "Este lançamento é sincronizado automaticamente pela festa vinculada. Para alterar valores, edite a festa."}
             </div>
           )}
@@ -218,7 +220,7 @@ export function TransactionForm({
               <button
                 type="button"
                 onClick={() => set("kind", "income")}
-                disabled={state.gig_sync === 1}
+                disabled={isLocked}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "income"
                     ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
@@ -233,7 +235,7 @@ export function TransactionForm({
                   set("kind", "expense");
                   if (!state.expense_type) set("expense_type", "Variável");
                 }}
-                disabled={state.gig_sync === 1}
+                disabled={isLocked}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "expense"
                     ? "border-destructive bg-destructive/10 text-destructive"
@@ -255,7 +257,7 @@ export function TransactionForm({
                 onChange={(e) =>
                   set("amount", parseFloat(e.target.value) || 0)
                 }
-                disabled={state.gig_sync === 1}
+                disabled={isLocked}
               />
             </Field>
             <Field label="Data" required error={errors.date}>
@@ -263,8 +265,8 @@ export function TransactionForm({
                 type="date"
                 value={state.date}
                 onChange={(e) => set("date", e.target.value)}
-                disabled={state.gig_sync === 1}
-                title={state.gig_sync === 1 ? "Data definida pela GIG" : undefined}
+                disabled={isLocked}
+                title={isLocked ? `Data definida pela ${lockedSource}` : undefined}
               />
             </Field>
           </div>
@@ -274,8 +276,8 @@ export function TransactionForm({
               rows={2}
               value={state.description ?? ""}
               onChange={(e) => set("description", e.target.value || null)}
-              disabled={state.gig_sync === 1}
-              title={state.gig_sync === 1 ? "Descrição gerada automaticamente pela GIG" : undefined}
+              disabled={isLocked}
+              title={isLocked ? `Descrição gerada automaticamente pela ${lockedSource}` : undefined}
             />
           </Field>
 
@@ -296,6 +298,7 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("status", v as FormState["status"])
                 }
+                disabled={isLocked}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -318,7 +321,7 @@ export function TransactionForm({
                     v === "none" ? null : (v as FormState["payment_method"])
                   )
                 }
-                disabled={state.gig_sync === 1}
+                disabled={isLocked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—" />
@@ -390,7 +393,7 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("contact_id", v === "none" ? null : Number(v))
                 }
-                disabled={state.gig_sync === 1}
+                disabled={isLocked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—" />
@@ -414,7 +417,7 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("class_id", v === "none" ? null : Number(v))
                 }
-                disabled={!!state.class_id && state.gig_sync === 1}
+                disabled={isLocked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="—" />

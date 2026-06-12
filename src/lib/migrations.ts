@@ -1571,6 +1571,11 @@ const MIGRATIONS: Migration[] = [
       UPDATE finance_transactions SET status = 'Pago' WHERE status = 'Recebido/Pago' AND kind = 'expense';
     `,
   },
+  {
+    version: 102,
+    description: "finance_transactions.class_sync — trava campos em transações vinculadas a aulas",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN class_sync INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 

@@ -21,7 +21,7 @@ import type {
 
 const TX_COLUMNS = `t.id, t.kind, t.amount, t.date, t.description, t.category_id,
   t.gig_id, t.contact_id, t.class_id, t.student_package_id, t.track_id, t.party_id,
-  t.music_cost_id, t.gig_sync, t.status, t.payment_method, t.expense_type,
+  t.music_cost_id, t.gig_sync, t.class_sync, t.status, t.payment_method, t.expense_type,
   t.receipt_file_path, t.tax_relevant, t.recurring_id, t.created_at, t.updated_at,
   c.name as category_name`;
 
@@ -185,17 +185,19 @@ export async function updateTransaction(
 ): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
-  const existingGigSync = await db.select<{ gig_sync: number }[]>(
-    'SELECT gig_sync FROM finance_transactions WHERE id = $1', [id]
+  const existingSync = await db.select<{ gig_sync: number; class_sync: number }[]>(
+    'SELECT gig_sync, class_sync FROM finance_transactions WHERE id = $1', [id]
   );
-  const isGigSynced = existingGigSync[0]?.gig_sync === 1;
-  if (isGigSynced) {
-    // Strip locked fields — these come from the GIG
+  const isGigSynced = existingSync[0]?.gig_sync === 1;
+  const isClassSynced = existingSync[0]?.class_sync === 1;
+  if (isGigSynced || isClassSynced) {
+    // Strip locked fields — these come from the linked module
     delete (rest as Record<string, unknown>).description;
     delete (rest as Record<string, unknown>).date;
     delete (rest as Record<string, unknown>).amount;
     delete (rest as Record<string, unknown>).contact_id;
     delete (rest as Record<string, unknown>).kind;
+    delete (rest as Record<string, unknown>).status;
   }
   const cols = Object.keys(rest);
   if (cols.length === 0) return;
@@ -580,7 +582,7 @@ WHERE c.id = $1`,
     await db.execute(
       `UPDATE finance_transactions
           SET amount = $1, date = $2, description = $3, status = 'Recebido',
-              updated_at = CURRENT_TIMESTAMP
+              class_sync = 1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $4`,
       [c.amount, c.date, desc, existing[0].id]
     );
@@ -588,8 +590,8 @@ WHERE c.id = $1`,
   }
   const categoryId = await classIncomeCategoryId();
   await db.execute(
-    `INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
-     VALUES ('income', $1, $2, $3, $4, $5, 'Recebido')`,
+    `INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, class_sync, status)
+     VALUES ('income', $1, $2, $3, $4, $5, 1, 'Recebido')`,
     [c.amount, c.date, desc, categoryId, classId]
   );
 }
