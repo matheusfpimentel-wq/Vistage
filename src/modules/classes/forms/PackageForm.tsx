@@ -1,5 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -75,15 +89,98 @@ function fmtHours(hours: number): string {
   return `${h}h ${m}min`;
 }
 
+type SyllabusRowProps = {
+  id: string;
+  idx: number;
+  it: SyllabusItem;
+  updateItem: (idx: number, patch: Partial<SyllabusItem>) => void;
+  removeItem: (idx: number) => void;
+};
+
+function SyllabusRow({ id, idx, it, updateItem, removeItem }: SyllabusRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="space-y-2 rounded-md border p-3 transition-colors select-none bg-card"
+    >
+      <div className="flex gap-2">
+        <div
+          className="flex cursor-grab touch-none items-center pt-6 text-muted-foreground"
+          title="Arrastar para reordenar"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+        <div className="flex-1 space-y-1.5">
+          <Label className="text-xs">Título</Label>
+          <Input
+            placeholder="Ex: Beatmatching"
+            value={it.title}
+            onChange={(e) => updateItem(idx, { title: e.target.value })}
+          />
+        </div>
+        <div className="w-28 space-y-1.5">
+          <Label className="text-xs">Carga (min)</Label>
+          <div className="relative">
+            <Input
+              type="number"
+              min={0}
+              step={5}
+              placeholder="Ex: 120"
+              value={hoursToMinutesStr(it.hours)}
+              onChange={(e) =>
+                updateItem(idx, { hours: minutesToHours(e.target.value) })
+              }
+            />
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+              min
+            </span>
+          </div>
+        </div>
+        <div className="flex items-end">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Remover item"
+            onClick={() => removeItem(idx)}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Detalhamento</Label>
+        <Textarea
+          rows={2}
+          value={it.detail ?? ""}
+          onChange={(e) =>
+            updateItem(idx, { detail: e.target.value || null })
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
 export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
   const [state, setState] = useState<ClassPackageCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const dragFromRef = useRef<number | null>(null);
   const confirmClose = useUnsavedConfirm(dirty);
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   useEffect(() => {
     if (pkg) {
@@ -137,19 +234,26 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
     setDirty(true);
   }
 
-  /** Reordena a ementa movendo o item `from` para a posição `to`. */
-  function moveItem(from: number, to: number) {
-    if (from === to) return;
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
     setState((s) => {
-      const items = [...s.syllabus_items];
-      const [moved] = items.splice(from, 1);
-      items.splice(to, 0, moved);
-      return { ...s, syllabus_items: items };
+      const ids = s.syllabus_items.map((_, i) => String(i));
+      const oldIndex = ids.indexOf(String(active.id));
+      const newIndex = ids.indexOf(String(over.id));
+      if (oldIndex < 0 || newIndex < 0) return s;
+      return {
+        ...s,
+        syllabus_items: arrayMove(s.syllabus_items, oldIndex, newIndex),
+      };
     });
     setDirty(true);
   }
 
   const totalHours = sumItemHours(state.syllabus_items);
+
+  // Stable ids based on current index (list is re-initialized on open)
+  const sortableIds = state.syllabus_items.map((_, i) => String(i));
 
   async function handleSubmit() {
     if (!state.name.trim()) {
@@ -277,109 +381,25 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
                 Nenhum item ainda.
               </div>
             ) : (
-              <div ref={listRef} className="space-y-3">
-                {state.syllabus_items.map((it, idx) => (
-                  <div
-                    key={idx}
-                    data-syllabus-item
-                    className={`space-y-2 rounded-md border p-3 transition-colors select-none ${
-                      overIdx === idx && dragFromRef.current !== null && dragFromRef.current !== idx
-                        ? "border-primary bg-primary/5"
-                        : ""
-                    } ${dragIdx === idx ? "opacity-40" : ""}`}
-                  >
-                    <div className="flex gap-2">
-                      <div
-                        className="flex cursor-grab touch-none items-center pt-6 text-muted-foreground"
-                        title="Arrastar para reordenar"
-                        onPointerDown={(e) => {
-                          e.stopPropagation();
-                          (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                          dragFromRef.current = idx;
-                          setDragIdx(idx);
-                          setOverIdx(idx);
-                        }}
-                        onPointerMove={(e) => {
-                          if (dragFromRef.current === null || !listRef.current) return;
-                          const items = listRef.current.querySelectorAll<HTMLElement>("[data-syllabus-item]");
-                          let target = dragFromRef.current;
-                          for (let i = 0; i < items.length; i++) {
-                            const rect = items[i].getBoundingClientRect();
-                            if (e.clientY <= rect.top + rect.height / 2) {
-                              target = i;
-                              break;
-                            }
-                            target = i;
-                          }
-                          if (target !== overIdx) setOverIdx(target);
-                        }}
-                        onPointerUp={() => {
-                          if (dragFromRef.current !== null && overIdx !== null) {
-                            moveItem(dragFromRef.current, overIdx);
-                          }
-                          dragFromRef.current = null;
-                          setDragIdx(null);
-                          setOverIdx(null);
-                        }}
-                        onPointerCancel={() => {
-                          dragFromRef.current = null;
-                          setDragIdx(null);
-                          setOverIdx(null);
-                        }}
-                      >
-                        <GripVertical className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 space-y-1.5">
-                        <Label className="text-xs">Título</Label>
-                        <Input
-                          placeholder="Ex: Beatmatching"
-                          value={it.title}
-                          onChange={(e) => updateItem(idx, { title: e.target.value })}
-                        />
-                      </div>
-                      <div className="w-28 space-y-1.5">
-                        <Label className="text-xs">Carga (min)</Label>
-                        <div className="relative">
-                          <Input
-                            type="number"
-                            min={0}
-                            step={5}
-                            placeholder="Ex: 120"
-                            value={hoursToMinutesStr(it.hours)}
-                            onChange={(e) =>
-                              updateItem(idx, { hours: minutesToHours(e.target.value) })
-                            }
-                          />
-                          <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                            min
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-end">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          aria-label="Remover item"
-                          onClick={() => removeItem(idx)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Detalhamento</Label>
-                      <Textarea
-                        rows={2}
-                        value={it.detail ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, { detail: e.target.value || null })
-                        }
+              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={sortableIds}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {state.syllabus_items.map((it, idx) => (
+                      <SyllabusRow
+                        key={idx}
+                        id={String(idx)}
+                        idx={idx}
+                        it={it}
+                        updateItem={updateItem}
+                        removeItem={removeItem}
                       />
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             )}
             <div className="flex items-center justify-between">
               <Button type="button" variant="outline" size="sm" onClick={addItem}>

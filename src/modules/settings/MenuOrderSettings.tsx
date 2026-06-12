@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, GripVertical, RotateCcw } from "lucide-react";
 import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -19,9 +32,72 @@ import {
   type NavItem,
 } from "@/lib/nav";
 
+type NavRowProps = {
+  item: NavItem;
+  isFirst: boolean;
+  isLast: boolean;
+  onMove: (to: string, dir: -1 | 1) => void;
+  group: NavGroup;
+};
+
+function NavRow({ item, isFirst, isLast, onMove }: NavRowProps) {
+  const { to, label, icon: Icon } = item;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: to });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-3 rounded-md border bg-card px-3 py-2 transition",
+        isDragging && "opacity-50"
+      )}
+    >
+      <div
+        className="flex cursor-grab touch-none items-center text-muted-foreground/60 active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4 shrink-0" />
+      </div>
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="flex-1 text-sm">{label}</span>
+      <div className="flex gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          disabled={isFirst}
+          onClick={() => onMove(to, -1)}
+          aria-label={`Mover ${label} para cima`}
+        >
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          disabled={isLast}
+          onClick={() => onMove(to, 1)}
+          aria-label={`Mover ${label} para baixo`}
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </li>
+  );
+}
+
 export function MenuOrderSettings() {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
-  const [drag, setDrag] = useState<{ group: NavGroup; to: string } | null>(null);
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   useEffect(() => {
     void loadOrderedNav().then(setNav);
@@ -71,6 +147,17 @@ export function MenuOrderSettings() {
     persistGroup(group, reordered);
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    // Find which group the active item belongs to
+    const activeItem = reorderable.find((i) => i.to === activeId);
+    if (!activeItem) return;
+    reorder(activeItem.group, activeId, overId);
+  }
+
   async function reset() {
     setNav(DEFAULT_NAV);
     await saveNavOrder(DEFAULT_NAV.filter((i) => !i.fixed).map((i) => i.to));
@@ -94,63 +181,36 @@ export function MenuOrderSettings() {
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {NAV_GROUP_ORDER.map((group) => {
-          const groupItems = reorderable.filter((i) => i.group === group);
-          if (groupItems.length === 0) return null;
-          return (
-            <div key={group} className="space-y-1">
-              <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {group}
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          {NAV_GROUP_ORDER.map((group) => {
+            const groupItems = reorderable.filter((i) => i.group === group);
+            if (groupItems.length === 0) return null;
+            return (
+              <div key={group} className="space-y-1">
+                <div className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group}
+                </div>
+                <SortableContext
+                  items={groupItems.map((i) => i.to)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ul className="space-y-1">
+                    {groupItems.map((item, i) => (
+                      <NavRow
+                        key={item.to}
+                        item={item}
+                        group={group}
+                        isFirst={i === 0}
+                        isLast={i === groupItems.length - 1}
+                        onMove={(to, dir) => move(group, to, dir)}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
               </div>
-              <ul className="space-y-1">
-                {groupItems.map(({ to, label, icon: Icon }, i) => (
-                  <li
-                    key={to}
-                    draggable
-                    onDragStart={() => setDrag({ group, to })}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                      if (drag && drag.group === group) reorder(group, drag.to, to);
-                      setDrag(null);
-                    }}
-                    onDragEnd={() => setDrag(null)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-md border bg-card px-3 py-2 transition",
-                      drag?.to === to && "opacity-50",
-                      drag && drag.group === group && drag.to !== to && "hover:border-primary"
-                    )}
-                  >
-                    <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/60 active:cursor-grabbing" />
-                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 text-sm">{label}</span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={i === 0}
-                        onClick={() => move(group, to, -1)}
-                        aria-label={`Mover ${label} para cima`}
-                      >
-                        <ArrowUp className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        disabled={i === groupItems.length - 1}
-                        onClick={() => move(group, to, 1)}
-                        aria-label={`Mover ${label} para baixo`}
-                      >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
+            );
+          })}
+        </DndContext>
       </CardContent>
     </Card>
   );
