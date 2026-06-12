@@ -74,7 +74,9 @@ export const useConfigStore = create<ConfigState>((set) => ({
             config: null,
             configPath: last,
             errorMessage:
-              "Banco de dados não encontrado no caminho salvo. O HD externo pode estar desconectado.",
+              "Banco de dados não encontrado no caminho salvo. " +
+              "Se está no Google Drive, marque a pasta como 'Disponível off-line' no Finder e tente de novo. " +
+              "Se está num HD externo, verifique se está conectado.",
           });
           return;
         }
@@ -156,7 +158,10 @@ export const useConfigStore = create<ConfigState>((set) => ({
   async loadExisting(configFile: string) {
     const cfg = JSON.parse(await readTextFile(configFile)) as AppConfig;
     if (!(await exists(cfg.dbPath))) {
-      throw new Error(`O banco de dados em ${cfg.dbPath} não foi encontrado.`);
+      throw new Error(
+        `O banco de dados em ${cfg.dbPath} não foi encontrado.\n\n` +
+        `Se a pasta está no Google Drive em modo streaming, clique com o botão direito nela no Finder → "Disponível off-line" para baixar o arquivo localmente antes de abrir o app.`
+      );
     }
     localStorage.setItem(LS_KEY, configFile);
     set({ ready: true, config: cfg, configPath: configFile, errorMessage: null });
