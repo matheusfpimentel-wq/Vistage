@@ -51,7 +51,17 @@ export function Setup() {
       const cfg = await loadExisting(file);
       await loadDatabase(cfg.dbPath);
     } catch (e) {
-      setError(`Falha ao carregar: ${String(e)}`);
+      const msg = String(e);
+      const isCloudFile =
+        msg.includes("unable to open") ||
+        msg.includes("no such file") ||
+        msg.includes("not found") ||
+        msg.includes("os error 2");
+      setError(
+        isCloudFile
+          ? "O banco de dados não foi encontrado. Se ele está no Google Drive ou OneDrive, aguarde a sincronização terminar (ícone na barra de menus) e tente de novo. Se necessário, clique com botão direito na pasta → \"Disponível off-line\"."
+          : `Falha ao carregar: ${msg}`
+      );
     } finally {
       setMode("idle");
     }

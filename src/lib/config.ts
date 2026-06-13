@@ -75,7 +75,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
             configPath: last,
             errorMessage:
               "Banco de dados não encontrado no caminho salvo. " +
-              "Se está no Google Drive, marque a pasta como 'Disponível off-line' no Finder e tente de novo. " +
+              "Se está no Google Drive, aguarde a sincronização terminar e tente de novo. " +
               "Se está num HD externo, verifique se está conectado.",
           });
           return;
@@ -157,12 +157,10 @@ export const useConfigStore = create<ConfigState>((set) => ({
 
   async loadExisting(configFile: string) {
     const cfg = JSON.parse(await readTextFile(configFile)) as AppConfig;
-    if (!(await exists(cfg.dbPath))) {
-      throw new Error(
-        `O banco de dados em ${cfg.dbPath} não foi encontrado.\n\n` +
-        `Se a pasta está no Google Drive em modo streaming, clique com o botão direito nela no Finder → "Disponível off-line" para baixar o arquivo localmente antes de abrir o app.`
-      );
-    }
+    // Não usa exists() para checar o .db — em pastas do Google Drive/OneDrive
+    // (File Provider) o arquivo pode estar visível no Finder mas exists()
+    // retorna false até a primeira leitura real materializar o download.
+    // Deixamos o SQLite tentar abrir e capturamos o erro se não existir.
     localStorage.setItem(LS_KEY, configFile);
     set({ ready: true, config: cfg, configPath: configFile, errorMessage: null });
     return cfg;
