@@ -66,7 +66,7 @@ export function classifyDbError(raw: string): DbErrorInfo {
     return {
       kind: "not_found",
       title: "Banco não encontrado",
-      hint: "O arquivo do banco não foi localizado. Verifique se o HD externo está conectado e se a pasta dos dados não foi movida, depois tente de novo.",
+      hint: "O arquivo do banco não foi localizado. Se ele está no Google Drive ou OneDrive, aguarde a sincronização terminar (ícone na barra de tarefas) e clique em 'Tentar de novo'. Se está num HD externo, verifique se está conectado.",
     };
   }
   if (e.includes("locked") || e.includes("busy")) {

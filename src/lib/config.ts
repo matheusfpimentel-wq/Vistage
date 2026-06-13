@@ -67,19 +67,11 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       if (await exists(last)) {
         const cfg = JSON.parse(await readTextFile(last)) as AppConfig;
-        // Sanity: o .db precisa existir (HD pode estar desconectado).
-        if (!(await exists(cfg.dbPath))) {
-          set({
-            ready: false,
-            config: null,
-            configPath: last,
-            errorMessage:
-              "Banco de dados não encontrado no caminho salvo. " +
-              "Se está no Google Drive, aguarde a sincronização terminar e tente de novo. " +
-              "Se está num HD externo, verifique se está conectado.",
-          });
-          return;
-        }
+        // Não checa exists(cfg.dbPath) — em Google Drive/OneDrive (Cloud Files
+        // no Windows, File Provider no macOS) o exists() pode retornar false
+        // para arquivos placeholder ainda não baixados, mesmo que visíveis no
+        // Explorer/Finder. Deixamos o SQLite tentar abrir e falhar com mensagem
+        // útil se o arquivo realmente não estiver acessível.
         set({ ready: true, config: cfg, configPath: last, errorMessage: null });
       }
     } catch (err) {
