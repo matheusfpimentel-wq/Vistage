@@ -8,6 +8,34 @@ mod gdrive;
 use gcal::GcalState;
 use gdrive::GdriveState;
 
+/// Garante que o arquivo do banco NÃO esteja em modo WAL antes do tauri-plugin-sql
+/// abri-lo. Bancos em WAL exigem criar e mapear (mmap) o arquivo auxiliar "-shm" na
+/// mesma pasta; em pastas sincronizadas (Google Drive, OneDrive — inclusive a pasta
+/// Documentos redirecionada do Windows) esse mmap falha e o open quebra com
+/// SQLITE_CANTOPEN (code 14, "unable to open database file").
+///
+/// Abrimos aqui com locking_mode=EXCLUSIVE, que faz o SQLite manter o índice do WAL
+/// em memória (heap) em vez do "-shm" — então a conversão para journal DELETE roda
+/// sem nenhum arquivo auxiliar. Depois de fechar, o arquivo fica em journal rollback
+/// e o plugin consegue abrir normalmente. Também cria o banco (em DELETE) se faltar.
+#[tauri::command]
+async fn prepare_database(path: String) -> Result<(), String> {
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteLockingMode};
+    use sqlx::{ConnectOptions, Connection};
+
+    let opts = SqliteConnectOptions::new()
+        .filename(&path)
+        .create_if_missing(true)
+        // ordem importa: o sqlx aplica locking_mode antes de journal_mode, então o
+        // índice do WAL já nasce em heap quando a conversão para DELETE acontece.
+        .locking_mode(SqliteLockingMode::Exclusive)
+        .journal_mode(SqliteJournalMode::Delete);
+
+    let conn = opts.connect().await.map_err(|e| e.to_string())?;
+    conn.close().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // O banco costuma ficar numa pasta sincronizada (Google Drive/OneDrive). Quando
@@ -27,6 +55,7 @@ pub fn run() {
         .manage(GcalState::default())
         .manage(GdriveState::default())
         .invoke_handler(tauri::generate_handler![
+            prepare_database,
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,
             gcal::gcal_exchange_code,

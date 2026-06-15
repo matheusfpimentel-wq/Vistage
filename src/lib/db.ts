@@ -1,4 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 import { runMigrations } from "./migrations";
 
 let dbInstance: Database | null = null;
@@ -11,11 +12,21 @@ export async function loadDatabase(absolutePath: string): Promise<Database> {
     await dbInstance.close();
     dbInstance = null;
   }
-  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>" e cria o arquivo se não
-  // existir (chama Sqlite::create_database antes de conectar). NÃO usamos query
-  // params como "?mode=rwc": com SQLITE_OPEN_URI sempre ligado no sqlx, um path
-  // do Windows ("C:\...\Google Drive\...") com "?" vira ambíguo. O modo de
-  // journal (rollback/DELETE em vez de WAL) é forçado no Rust em lib.rs.
+  // ANTES de abrir, garantimos que o arquivo não esteja em modo WAL: o
+  // tauri-plugin-sql abriria o banco já em WAL e a criação/mmap do "-shm" falha
+  // em pastas de nuvem (Google Drive/OneDrive, incl. a pasta Documentos
+  // redirecionada do Windows) → SQLITE_CANTOPEN (code 14). O comando Rust abre
+  // com locking EXCLUSIVE (índice do WAL em heap, sem "-shm") e converte para
+  // journal DELETE. É best-effort: se falhar, deixamos o load tentar e produzir
+  // o erro classificado para o usuário.
+  try {
+    await invoke("prepare_database", { path: absolutePath });
+  } catch {
+    // segue para o load — ele dará o erro classificado se realmente não abrir
+  }
+  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>". NÃO usamos query params
+  // como "?mode=rwc": com SQLITE_OPEN_URI sempre ligado no sqlx, um path do
+  // Windows ("C:\...\Google Drive\...") com "?" vira ambíguo.
   let db: Database;
   try {
     db = await Database.load(`sqlite:${absolutePath}`);
