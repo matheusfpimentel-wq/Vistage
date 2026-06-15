@@ -1116,11 +1116,7 @@ export type ProjectProfit = {
  *  - Festas: bilheteria (price × quantity_sold) e custos do orçamento.
  *  - Alunos: soma de aulas realizadas com valor + pacotes vendidos.
  */
-export async function loadProjectProfit(): Promise<{
-  gigs: ProjectProfit[];
-  parties: ProjectProfit[];
-  students: ProjectProfit[];
-}> {
+export async function loadProjectProfit(): Promise<ProjectProfit[]> {
   const db = getDb();
 
   const [gigRows, partyRows, studentRows] = await Promise.all([
@@ -1194,7 +1190,7 @@ export async function loadProjectProfit(): Promise<{
     profit: r.income,
   }));
 
-  return { gigs, parties, students };
+  return [...gigs, ...parties, ...students];
 }
 
 /**

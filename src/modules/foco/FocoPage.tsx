@@ -163,7 +163,7 @@ export function FocoPage() {
               {sessions.map((s) => {
                 const start = new Date(s.started_at);
                 const end = new Date(s.ended_at!);
-                const mins = Math.round((end.getTime() - start.getTime()) / 60000);
+                const mins = Math.round((end.getTime() - start.getTime() - (s.pause_ms ?? 0)) / 60000);
                 const dur = mins >= 60
                   ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}m`
                   : `${mins}min`;

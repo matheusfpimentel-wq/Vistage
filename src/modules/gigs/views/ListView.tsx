@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +6,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate, formatRating } from "@/lib/format";
-
-type SortKey = "date" | "venue" | "status" | "cache" | "rating";
-type SortDir = "asc" | "desc";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type Props = {
   gigs: Gig[];
@@ -19,27 +16,7 @@ type Props = {
 };
 
 export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  }
-
-  const sorted = [...gigs].sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "date") cmp = a.date.localeCompare(b.date);
-    else if (sortKey === "venue") cmp = gigDisplayName(a).localeCompare(gigDisplayName(b));
-    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
-    else if (sortKey === "cache") cmp = (a.cache_amount ?? 0) - (b.cache_amount ?? 0);
-    else if (sortKey === "rating") {
-      const ra = averageRating(a) ?? -1;
-      const rb = averageRating(b) ?? -1;
-      cmp = ra - rb;
-    }
-    return sortDir === "asc" ? cmp : -cmp;
-  });
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
 
   if (sorted.length === 0) {
     return (
@@ -51,12 +28,10 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
     );
   }
 
-  const cols: { key: SortKey; label: string; align: "left" | "right" }[] = [
-    { key: "date", label: "Data", align: "left" },
-    { key: "venue", label: "Show / Venue", align: "left" },
-    { key: "status", label: "Status", align: "left" },
-    { key: "cache", label: "Cachê", align: "right" },
-    { key: "rating", label: "Avaliação", align: "right" },
+  const cols: { key: keyof Gig; label: string }[] = [
+    { key: "date", label: "Data" },
+    { key: "status", label: "Status" },
+    { key: "cache_amount", label: "Cachê" },
   ];
 
   return (
@@ -70,7 +45,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
             {cols.map((col) => (
               <button
                 key={col.key}
-                onClick={() => toggleSort(col.key)}
+                onClick={() => handleSort(col.key)}
                 className={`rounded-full border px-2 py-0.5 transition ${
                   sortKey === col.key
                     ? "border-primary bg-primary/10 text-foreground"
@@ -153,18 +128,11 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            {cols.map((col) => (
-              <th
-                key={col.key}
-                className={`cursor-pointer select-none px-3 py-2 hover:text-foreground ${col.align === "right" ? "text-right" : "text-left"}`}
-                onClick={() => toggleSort(col.key)}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {col.label}
-                  {sortKey === col.key && <ArrowUpDown className="h-3 w-3 opacity-60" />}
-                </span>
-              </th>
-            ))}
+            <SortableHeader<Gig> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <th className="px-3 py-2 text-left">Show / Venue</th>
+            <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader<Gig> col="cache_amount" label="Cachê" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground" />
+            <th className="px-3 py-2 text-right">Avaliação</th>
             <th className="px-3 py-2 text-right">Ações</th>
           </tr>
         </thead>

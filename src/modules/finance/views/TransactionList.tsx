@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { ArrowDownCircle, ArrowUpCircle, ArrowUpDown, Pencil, Trash2, Wallet } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +6,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import type { FinanceTransactionWithCategory } from "../types";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
-
-type SortKey = "date" | "description" | "amount" | "status";
-type SortDir = "asc" | "desc";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type Props = {
   transactions: FinanceTransactionWithCategory[];
@@ -18,22 +15,7 @@ type Props = {
 };
 
 export function TransactionList({ transactions, onEdit, onDelete }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("desc"); }
-  }
-
-  const sorted = [...transactions].sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "date") cmp = a.date.localeCompare(b.date);
-    else if (sortKey === "description") cmp = (a.description ?? "").localeCompare(b.description ?? "");
-    else if (sortKey === "amount") cmp = a.amount - b.amount;
-    else if (sortKey === "status") cmp = a.status.localeCompare(b.status);
-    return sortDir === "asc" ? cmp : -cmp;
-  });
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(transactions);
 
   if (sorted.length === 0) {
     return (
@@ -44,32 +26,16 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
     );
   }
 
-  type ColDef = { key: SortKey; label: string; align: "left" | "right" };
-  const cols: ColDef[] = [
-    { key: "date", label: "Data", align: "left" },
-    { key: "description", label: "Descrição", align: "left" },
-    { key: "status", label: "Status", align: "left" },
-    { key: "amount", label: "Valor", align: "right" },
-  ];
-
   return (
     <div className="overflow-x-auto rounded-md border">
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="w-8 px-3 py-2 text-left"></th>
-            {cols.map((col) => (
-              <th
-                key={col.key}
-                className={`cursor-pointer select-none px-3 py-2 hover:text-foreground ${col.align === "right" ? "text-right" : "text-left"}`}
-                onClick={() => toggleSort(col.key)}
-              >
-                <span className="inline-flex items-center gap-1">
-                  {col.label}
-                  {sortKey === col.key && <ArrowUpDown className="h-3 w-3 opacity-60" />}
-                </span>
-              </th>
-            ))}
+            <SortableHeader col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="description" label="Descrição" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="amount" label="Valor" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground" />
             <th className="px-3 py-2 text-left">Categoria</th>
             <th className="px-3 py-2 text-right">Ações</th>
           </tr>

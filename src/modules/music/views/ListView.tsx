@@ -5,6 +5,7 @@ import { TRACK_KIND_LABEL } from "../stages";
 import { daysInStage } from "../api";
 import { StageBadge } from "../components/StageBadge";
 import { trackDisplayName, type TrackWithProject } from "../types";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
 
@@ -18,21 +19,22 @@ export function ListView({
   onDelete: (t: TrackWithProject) => void;
 }) {
   const navigate = useNavigate();
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(tracks);
   return (
     <div className="overflow-x-auto rounded-md border">
       <table className="w-full text-sm">
         <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
           <tr>
             <th className="px-3 py-2 text-left">Track</th>
-            <th className="px-3 py-2 text-left">Projeto</th>
-            <th className="px-3 py-2 text-left">Tipo</th>
-            <th className="px-3 py-2 text-left">Stage</th>
+            <SortableHeader<TrackWithProject> col="project_title" label="Projeto" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+            <SortableHeader<TrackWithProject> col="kind" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+            <SortableHeader<TrackWithProject> col="current_stage" label="Stage" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
             <th className="px-3 py-2 text-right">Tempo no stage</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody>
-          {tracks.map((t) => {
+          {sorted.map((t) => {
             const days = daysInStage(t);
             const stalled = !t.standby && days !== null && days > 30;
             return (

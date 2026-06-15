@@ -34,6 +34,7 @@ import {
 } from "../types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { AttachmentField } from "@/components/shared/AttachmentField";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 const STATE_VARIANT: Record<
   EquipmentState,
@@ -49,6 +50,7 @@ export function EquipmentView() {
   const [items, setItems] = useState<Equipment[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Equipment | null>(null);
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(items);
 
   async function refresh() {
     setItems(await listEquipment());
@@ -88,16 +90,16 @@ export function EquipmentView() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left">Item</th>
-                <th className="px-3 py-2 text-left">Estado</th>
-                <th className="px-3 py-2 text-left">Compra</th>
-                <th className="px-3 py-2 text-right">Valor</th>
-                <th className="px-3 py-2 text-left">Localização</th>
+                <SortableHeader<Equipment> col="name" label="Item" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Equipment> col="state" label="Estado" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Equipment> col="purchase_date" label="Compra" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Equipment> col="purchase_value" label="Valor" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
+                <SortableHeader<Equipment> col="location" label="Localização" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
+              {sorted.map((it) => (
                 <tr
                   key={it.id}
                   className="border-t transition-colors hover:bg-muted/40"

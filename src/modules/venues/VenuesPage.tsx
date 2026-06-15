@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ArrowUpDown, Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 const VenueMap = lazy(() =>
@@ -16,9 +16,7 @@ import { VenueDetail } from "./forms/VenueDetail";
 import { deleteVenue, getVenue, listVenues, updateVenue, type VenueFilters } from "./api";
 import type { Venue, VenueType } from "./types";
 import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
-
-type SortKey = "name" | "type" | "city" | "capacity" | "priority";
-type SortDir = "asc" | "desc";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
@@ -35,8 +33,6 @@ export function VenuesPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ city: "", search: "" });
   const [view, setView] = useState<ViewMode>("cards");
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Venue | null>(null);
@@ -83,10 +79,7 @@ export function VenuesPage() {
     setSearchParams({}, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  }
+  const { sorted: sortedVenues, sortKey, sortDir, handleSort } = useTableSort(venues);
 
   async function cyclePriority(v: Venue) {
     const priorities: Array<Venue["priority"]> = [null, "Alta", "Média", "Baixa"];
@@ -102,16 +95,6 @@ export function VenuesPage() {
       await refresh();
     }
   }
-
-  const sortedVenues = [...venues].sort((a, b) => {
-    let cmp = 0;
-    if (sortKey === "name") cmp = a.name.localeCompare(b.name);
-    else if (sortKey === "type") cmp = (a.venue_type ?? "").localeCompare(b.venue_type ?? "");
-    else if (sortKey === "city") cmp = (a.city ?? "").localeCompare(b.city ?? "");
-    else if (sortKey === "capacity") cmp = (a.capacity ?? 0) - (b.capacity ?? 0);
-    else if (sortKey === "priority") cmp = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
-    return sortDir === "asc" ? cmp : -cmp;
-  });
 
   const cardVenues = cardOrderRef.current.length > 0 ? cardOrderRef.current : [...venues];
 
@@ -292,32 +275,12 @@ export function VenuesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th
-                  className="cursor-pointer select-none px-3 py-2 text-left hover:text-foreground"
-                  onClick={() => toggleSort("priority")}
-                >
-                  <span className="inline-flex items-center gap-1">
-                    Prioridade
-                    {sortKey === "priority" && <ArrowUpDown className="h-3 w-3 opacity-60" />}
-                  </span>
-                </th>
-                {(["name", "type", "city", "capacity"] as SortKey[]).map((key) => {
-                  const labels: Record<SortKey, string> = { name: "Nome", type: "Tipo", city: "Cidade", capacity: "Capacidade", priority: "" };
-                  const isRight = key === "capacity";
-                  return (
-                    <th
-                      key={key}
-                      className={`cursor-pointer select-none px-3 py-2 hover:text-foreground ${isRight ? "text-right" : "text-left"}`}
-                      onClick={() => toggleSort(key)}
-                    >
-                      <span className="inline-flex items-center gap-1">
-                        {labels[key]}
-                        {sortKey === key && <ArrowUpDown className="h-3 w-3 opacity-60" />}
-                      </span>
-                    </th>
-                  );
-                })}
-                <th className="px-3 py-2 text-left">Dono</th>
+                <SortableHeader<Venue> col="priority" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="venue_type" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="capacity" label="Capacidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
+                <SortableHeader<Venue> col="owner_name" label="Dono" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>

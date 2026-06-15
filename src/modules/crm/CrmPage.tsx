@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronsUpDown, LayoutGrid, List, Pencil, Plus, Search, Star, Trash2, User, Users } from "lucide-react";
+import { LayoutGrid, List, Pencil, Plus, Search, Star, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,18 +28,10 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type TypeFilter = ContactType | "Todos";
 type ViewMode = "cards" | "list";
-type SortKey = "nome" | "tipo" | "cidade" | "ultimo_contato" | "prioridade";
-type SortDir = "asc" | "desc";
-
-function priorityWeight(rating: number | null): number {
-  if (rating === null) return -1;
-  if (rating >= 4) return 2;
-  if (rating >= 2) return 1;
-  return 0;
-}
 
 export function CrmPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -50,8 +42,6 @@ export function CrmPage() {
     city: string;
     search: string;
   }>({ type: "Todos", city: "", search: "" });
-  const [sortKey, setSortKey] = useState<SortKey>("prioridade");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -99,28 +89,7 @@ export function CrmPage() {
     setSearchParams({}, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sorted = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...contacts].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === "nome") cmp = a.name.localeCompare(b.name, "pt");
-      else if (sortKey === "tipo") cmp = (a.types[0] ?? "").localeCompare(b.types[0] ?? "", "pt");
-      else if (sortKey === "cidade") cmp = (a.city ?? "").localeCompare(b.city ?? "", "pt");
-      else if (sortKey === "ultimo_contato") {
-        const at = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
-        const bt = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
-        cmp = at - bt;
-      } else if (sortKey === "prioridade") {
-        cmp = priorityWeight(a.rating) - priorityWeight(b.rating);
-      }
-      return cmp * dir;
-    });
-  }, [contacts, sortKey, sortDir]);
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  }
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(contacts);
 
   function openCreate() {
     setEditing(null);
@@ -271,17 +240,11 @@ export function CrmPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                {(["nome", "tipo", "cidade", "ultimo_contato", "prioridade"] as SortKey[]).map((key) => {
-                  const labels: Record<SortKey, string> = { nome: "Nome", tipo: "Tipo", cidade: "Cidade", ultimo_contato: "Último contato", prioridade: "Prioridade" };
-                  const Icon = sortKey === key ? (sortDir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
-                  return (
-                    <th key={key} className="px-3 py-2 text-left">
-                      <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
-                        {labels[key]}<Icon className="h-3 w-3" />
-                      </button>
-                    </th>
-                  );
-                })}
+                <SortableHeader<Contact> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <th className="px-3 py-2 text-left">Tipo</th>
+                <SortableHeader<Contact> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Contact> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Contact> col="rating" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-left">Contato</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>

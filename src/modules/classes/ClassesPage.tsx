@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   CalendarRange,
-  ChevronDown,
-  ChevronUp,
-  ChevronsUpDown,
   FileDown,
   GraduationCap,
   Package as PackageIcon,
@@ -68,10 +65,9 @@ import {
 } from "./types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type StatusFilter = ClassStatus | "Todas";
-type ClassSortKey = "date" | "student_name" | "subject" | "status" | "amount";
-type SortDir = "asc" | "desc";
 
 export function ClassesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -97,19 +93,6 @@ export function ClassesPage() {
 
   const [pkgFormOpen, setPkgFormOpen] = useState(false);
   const [editingPkg, setEditingPkg] = useState<ClassPackage | null>(null);
-
-  const [classSortKey, setClassSortKey] = useState<ClassSortKey>("date");
-  const [classSortDir, setClassSortDir] = useState<SortDir>("desc");
-
-  function toggleClassSort(key: ClassSortKey) {
-    if (classSortKey === key) setClassSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setClassSortKey(key); setClassSortDir("asc"); }
-  }
-
-  function ClassSortIcon({ col }: { col: ClassSortKey }) {
-    if (classSortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
-    return classSortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
-  }
 
   const queryFilters: ClassFilters = useMemo(
     () => ({
@@ -205,17 +188,7 @@ export function ClassesPage() {
     await refresh();
   }
 
-  const sortedClasses = useMemo(() => {
-    return [...classes].sort((a, b) => {
-      const av = (a[classSortKey] ?? "") as string | number;
-      const bv = (b[classSortKey] ?? "") as string | number;
-      if (typeof av === "number" && typeof bv === "number")
-        return classSortDir === "asc" ? av - bv : bv - av;
-      return classSortDir === "asc"
-        ? String(av).localeCompare(String(bv), "pt-BR")
-        : String(bv).localeCompare(String(av), "pt-BR");
-    });
-  }, [classes, classSortKey, classSortDir]);
+  const { sorted: sortedClasses, sortKey: classSortKey, sortDir: classSortDir, handleSort: toggleClassSort } = useTableSort(classes);
 
   // Número sequencial por aluno (ordem cronológica data+id)
   const classNumbers = useMemo(() => {
@@ -345,20 +318,12 @@ export function ClassesPage() {
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="w-8 px-3 py-2 text-left text-muted-foreground">#</th>
-                    {(["date", "student_name", "subject", "status"] as const).map((col, i) => (
-                      <th key={col} className="px-3 py-2 text-left">
-                        <button type="button" onClick={() => toggleClassSort(col)} className="flex items-center gap-1 hover:text-foreground">
-                          {["Data", "Aluno", "Matéria", "Status"][i]}
-                          <ClassSortIcon col={col} />
-                        </button>
-                      </th>
-                    ))}
+                    <SortableHeader<ClassWithStudent> col="date" label="Data" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="student_name" label="Aluno" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="subject" label="Matéria" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="status" label="Status" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
                     <th className="px-3 py-2 text-left">Modalidade</th>
-                    <th className="px-3 py-2 text-right">
-                      <button type="button" onClick={() => toggleClassSort("amount")} className="flex items-center gap-1 justify-end w-full hover:text-foreground">
-                        Valor <ClassSortIcon col="amount" />
-                      </button>
-                    </th>
+                    <SortableHeader<ClassWithStudent> col="amount" label="Valor" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-right" />
                     <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>

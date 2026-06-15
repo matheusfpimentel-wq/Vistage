@@ -17,6 +17,7 @@ import { formatDate } from "@/lib/format";
 import { updateGig } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type BulkField = "status" | "event_category" | "venue_city" | "payment_status" | "cache_amount" | "promoter_contact_id";
 
@@ -43,6 +44,7 @@ export function BulkListView({ gigs, onEdit, onRefresh }: Props) {
   const [newCache, setNewCache] = useState("");
   const [newContactId, setNewContactId] = useState<string>("none");
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
 
   useEffect(() => {
     if (field === "promoter_contact_id" && contacts.length === 0) {
@@ -229,13 +231,13 @@ export function BulkListView({ gigs, onEdit, onRefresh }: Props) {
                 />
               </th>
               <th className="px-3 py-2 text-left">GIG</th>
-              <th className="px-3 py-2 text-left">Data</th>
-              <th className="px-3 py-2 text-left">Status</th>
+              <SortableHeader<Gig> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+              <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
               <th className="px-3 py-2 text-right">Ação</th>
             </tr>
           </thead>
           <tbody>
-            {gigs.map((g) => (
+            {sorted.map((g) => (
               <tr key={g.id} className="border-b last:border-0 hover:bg-muted/20">
                 <td className="px-3 py-2">
                   <input

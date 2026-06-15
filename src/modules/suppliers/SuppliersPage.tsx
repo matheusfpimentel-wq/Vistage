@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
-  ChevronsUpDown,
   Instagram,
   LayoutGrid,
   List,
@@ -29,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { deleteSupplier, listSuppliers, type SupplierFilters } from "./api";
 import { SUPPLIER_CATEGORIES, type Supplier, type SupplierCategory } from "./types";
@@ -36,8 +34,6 @@ import { SupplierForm } from "./forms/SupplierForm";
 import { SupplierDetail } from "./SupplierDetail";
 
 type ViewMode = "cards" | "list";
-type SortKey = "name" | "category" | "city" | "rating";
-type SortDir = "asc" | "desc";
 
 function StarRating({ rating }: { rating: number | null }) {
   if (!rating) return null;
@@ -61,8 +57,6 @@ export function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<SupplierCategory | "Todos">("Todos");
   const [view, setView] = useState<ViewMode>("cards");
-  const [sortKey, setSortKey] = useState<SortKey>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
@@ -75,27 +69,7 @@ export function SuppliersPage() {
     [search, category]
   );
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  }
-
-  const sorted = useMemo(() => {
-    return [...suppliers].sort((a, b) => {
-      const av = a[sortKey] ?? "";
-      const bv = b[sortKey] ?? "";
-      if (typeof av === "number" && typeof bv === "number")
-        return sortDir === "asc" ? av - bv : bv - av;
-      return sortDir === "asc"
-        ? String(av).localeCompare(String(bv), "pt-BR")
-        : String(bv).localeCompare(String(av), "pt-BR");
-    });
-  }, [suppliers, sortKey, sortDir]);
-
-  function SortIcon({ col }: { col: SortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
-    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
-  }
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(suppliers);
 
   const refresh = useCallback(async () => {
     const data = await listSuppliers(filters);
@@ -273,20 +247,11 @@ export function SuppliersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-xs">
-                {(["name", "category", "city"] as const).map((col, i) => (
-                  <th key={col} className="px-4 py-3 text-left font-medium">
-                    <button type="button" onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-foreground">
-                      {["Nome", "Categoria", "Cidade"][i]}
-                      <SortIcon col={col} />
-                    </button>
-                  </th>
-                ))}
+                <SortableHeader<Supplier> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-medium" />
+                <SortableHeader<Supplier> col="category" label="Categoria" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-medium" />
+                <SortableHeader<Supplier> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-medium" />
                 <th className="px-4 py-3 text-left font-medium">Telefone</th>
-                <th className="px-4 py-3 text-left font-medium">
-                  <button type="button" onClick={() => toggleSort("rating")} className="flex items-center gap-1 hover:text-foreground">
-                    Avaliação <SortIcon col="rating" />
-                  </button>
-                </th>
+                <SortableHeader<Supplier> col="rating" label="Avaliação" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-4 py-3 text-left font-medium" />
                 <th className="px-4 py-3" />
               </tr>
             </thead>

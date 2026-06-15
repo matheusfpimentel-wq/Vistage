@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
   ChevronUp,
-  ChevronsUpDown,
   Crown,
   Flame,
   Heart,
@@ -66,15 +65,13 @@ import {
 } from "./api";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
-type FanSortKey = "name" | "level" | "city" | "last_interaction_at" | "interactions";
-type SortDir = "asc" | "desc";
-const LEVEL_ORDER: Record<FanLevel, number> = { "Possível fã": 0, "Quase fã": 1, "Fã": 2, "Superfã": 3, "Embaixador": 4 };
 
 export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -98,36 +95,7 @@ export function FansPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>("list");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
-  const [sortKey, setSortKey] = useState<FanSortKey>("name");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  function toggleSort(key: FanSortKey) {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  }
-
-  const sortedFans = useMemo(() => {
-    return [...fans].sort((a, b) => {
-      if (sortKey === "level") {
-        const diff = (LEVEL_ORDER[a.level] ?? 0) - (LEVEL_ORDER[b.level] ?? 0);
-        return sortDir === "asc" ? diff : -diff;
-      }
-      if (sortKey === "interactions") {
-        const diff = (interactionCounts.get(a.id) ?? 0) - (interactionCounts.get(b.id) ?? 0);
-        return sortDir === "asc" ? diff : -diff;
-      }
-      const av = (a[sortKey] ?? "") as string;
-      const bv = (b[sortKey] ?? "") as string;
-      return sortDir === "asc"
-        ? av.localeCompare(bv, "pt-BR")
-        : bv.localeCompare(av, "pt-BR");
-    });
-  }, [fans, sortKey, sortDir, interactionCounts]);
-
-  function FanSortIcon({ col }: { col: FanSortKey }) {
-    if (sortKey !== col) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
-    return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
-  }
+  const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
 
   const queryFilters: FanFilters = useMemo(
     () => ({
@@ -351,25 +319,12 @@ export function FansPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground">
               <tr>
-                {(["name", "level", "city"] as const).map((col, i) => (
-                  <th key={col} className="px-3 py-2 text-left">
-                    <button type="button" onClick={() => toggleSort(col)} className="flex items-center gap-1 hover:text-foreground">
-                      {["Nome", "Nível", "Cidade"][i]}
-                      <FanSortIcon col={col} />
-                    </button>
-                  </th>
-                ))}
+                <SortableHeader<Fan> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Fan> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Fan> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-left">Contato</th>
-                <th className="px-3 py-2 text-left">
-                  <button type="button" onClick={() => toggleSort("last_interaction_at")} className="flex items-center gap-1 hover:text-foreground">
-                    Último contato <FanSortIcon col="last_interaction_at" />
-                  </button>
-                </th>
-                <th className="px-3 py-2 text-left">
-                  <button type="button" onClick={() => toggleSort("interactions")} className="flex items-center gap-1 hover:text-foreground">
-                    Interações <FanSortIcon col="interactions" />
-                  </button>
-                </th>
+                <SortableHeader<Fan> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <th className="px-3 py-2 text-left">Interações</th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
