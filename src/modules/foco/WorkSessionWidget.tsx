@@ -1,0 +1,265 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Play, Square, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
+import {
+  ACTIVITY_TYPES,
+  type ActivityType,
+  type WorkSession,
+  endSession,
+  getActiveSession,
+  startSession,
+} from "./api";
+
+type Props = {
+  focusMode: boolean;
+  onToggleFocus: () => void;
+};
+
+function elapsed(startedAt: string): string {
+  const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  if (h > 0) return `${h}h${m.toString().padStart(2, "0")}m`;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+export function WorkSessionWidget({ focusMode, onToggleFocus }: Props) {
+  const [session, setSession] = useState<WorkSession | null>(null);
+  const [timer, setTimer] = useState("");
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const [activityType, setActivityType] = useState<ActivityType>("Criação musical");
+  const [energy, setEnergy] = useState(3);
+  const [focus, setFocus] = useState(3);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const refresh = useCallback(async () => {
+    const s = await getActiveSession();
+    setSession(s);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    if (session) {
+      const tick = () => setTimer(elapsed(session.started_at));
+      tick();
+      intervalRef.current = setInterval(tick, 1000);
+    } else {
+      setTimer("");
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [session]);
+
+  // Ctrl+Shift+F to toggle focus mode
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "F") {
+        e.preventDefault();
+        onToggleFocus();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onToggleFocus]);
+
+  async function handleStart() {
+    setSaving(true);
+    try {
+      await startSession(activityType);
+      await refresh();
+      setStartOpen(false);
+      toast.success(`Sessão iniciada: ${activityType}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEnd() {
+    if (!session) return;
+    setSaving(true);
+    try {
+      await endSession(session.id, energy, focus, notes || null);
+      setSession(null);
+      setEndOpen(false);
+      setNotes("");
+      setEnergy(3);
+      setFocus(3);
+      toast.success("Sessão encerrada — dados salvos!");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-1.5">
+        {session ? (
+          <>
+            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary tabular-nums">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              {session.activity_type.split(" ")[0]} · {timer}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setEndOpen(true)}
+            >
+              <Square className="h-3 w-3" />
+              <span className="hidden sm:inline">Encerrar</span>
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setStartOpen(true)}
+          >
+            <Play className="h-3 w-3" />
+            <span className="hidden sm:inline">Sessão</span>
+          </Button>
+        )}
+
+        <Button
+          size="icon"
+          variant={focusMode ? "default" : "ghost"}
+          className={cn("h-8 w-8", focusMode && "bg-primary text-primary-foreground")}
+          onClick={onToggleFocus}
+          title="Modo Foco Profundo (Ctrl+Shift+F)"
+        >
+          <Zap className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {/* Start dialog */}
+      <Dialog open={startOpen} onOpenChange={setStartOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Iniciar sessão de trabalho</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Tipo de atividade</Label>
+              <Select
+                value={activityType}
+                onValueChange={(v) => setActivityType(v as ActivityType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ACTIVITY_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStartOpen(false)}>Cancelar</Button>
+            <Button onClick={handleStart} disabled={saving}>
+              <Play className="h-4 w-4" /> Iniciar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* End dialog */}
+      <Dialog open={endOpen} onOpenChange={setEndOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Encerrar sessão — {session?.activity_type}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <RatingRow
+              label="Nível de energia"
+              value={energy}
+              onChange={setEnergy}
+            />
+            <RatingRow
+              label="Nível de foco"
+              value={focus}
+              onChange={setFocus}
+            />
+            <div className="space-y-1.5">
+              <Label>Observações (opcional)</Label>
+              <Textarea
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="O que rolou? O que travou?"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndOpen(false)}>Cancelar</Button>
+            <Button onClick={handleEnd} disabled={saving}>
+              <Square className="h-4 w-4" /> Encerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function RatingRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>{label}: <span className="font-semibold text-primary">{value}</span>/5</Label>
+      <div className="flex gap-1.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            className={cn(
+              "flex-1 rounded border py-1 text-xs transition",
+              value >= n
+                ? "border-primary bg-primary/20 text-primary"
+                : "border-input hover:bg-accent"
+            )}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
