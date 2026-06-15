@@ -10,6 +10,15 @@ use gdrive::GdriveState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // O banco costuma ficar numa pasta sincronizada (Google Drive/OneDrive). Quando
+    // o tauri-plugin-sql não acha o arquivo (placeholder de nuvem ainda não baixado,
+    // ou path novo), ele chama Sqlite::create_database, que por padrão do sqlx cria
+    // o banco em modo WAL (CREATE_DB_WAL = true). O WAL exige criar/mmap os arquivos
+    // "-wal"/"-shm" na mesma pasta — o cliente do Drive bloqueia isso e o open falha
+    // com SQLITE_CANTOPEN (code 14, "unable to open database file"). Desligar aqui
+    // faz o banco ser criado/aberto em journal rollback (DELETE), sem sidecars.
+    sqlx::sqlite::CREATE_DB_WAL.store(false, std::sync::atomic::Ordering::Release);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

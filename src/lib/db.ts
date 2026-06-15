@@ -11,12 +11,14 @@ export async function loadDatabase(absolutePath: string): Promise<Database> {
     await dbInstance.close();
     dbInstance = null;
   }
-  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>". O "?mode=rwc" garante
-  // que o arquivo seja aberto para leitura/escrita e criado se não existir, em
-  // vez de falhar com "unable to open" (SQLITE_CANTOPEN code 14).
+  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>" e cria o arquivo se não
+  // existir (chama Sqlite::create_database antes de conectar). NÃO usamos query
+  // params como "?mode=rwc": com SQLITE_OPEN_URI sempre ligado no sqlx, um path
+  // do Windows ("C:\...\Google Drive\...") com "?" vira ambíguo. O modo de
+  // journal (rollback/DELETE em vez de WAL) é forçado no Rust em lib.rs.
   let db: Database;
   try {
-    db = await Database.load(`sqlite:${absolutePath}?mode=rwc`);
+    db = await Database.load(`sqlite:${absolutePath}`);
   } catch (e) {
     // tauri-plugin-sql guarda a conexão no pool pela connection string. Se a
     // primeira tentativa abriu mas falhou depois, uma reabertura pode pegar a
@@ -26,12 +28,11 @@ export async function loadDatabase(absolutePath: string): Promise<Database> {
     currentPath = null;
     throw e;
   }
-  // IMPORTANTE: em pastas sincronizadas (Google Drive, OneDrive, Dropbox) o WAL
-  // mode falha com "unable to open database file" (code 14, SQLITE_CANTOPEN)
-  // porque os arquivos auxiliares "-wal" e "-shm" precisam ser criados/mapeados
-  // (mmap) na mesma pasta, algo que o cliente do Drive frequentemente bloqueia.
-  // O journal mode DELETE não cria esses arquivos persistentes e abre normal.
-  // Precisa rodar ANTES de qualquer outra coisa para destravar a abertura.
+  // A criação de bancos novos já é forçada para journal rollback no Rust (ver
+  // lib.rs: CREATE_DB_WAL=false). Este PRAGMA cobre o caso de um arquivo .db
+  // PRÉ-EXISTENTE que já estava em WAL: em pastas de nuvem (Google Drive/
+  // OneDrive/Dropbox) o WAL falha porque os sidecars "-wal"/"-shm" não podem
+  // ser criados/mapeados. Migrar para DELETE remove essa dependência.
   try {
     try {
       await db.execute("PRAGMA journal_mode=DELETE;");

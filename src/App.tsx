@@ -13,7 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
-import { classifyDbError, loadDatabase } from "@/lib/db";
+import { classifyDbError, closeDatabase, loadDatabase } from "@/lib/db";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
@@ -118,7 +118,7 @@ export default function App() {
 }
 
 function MainApp() {
-  const { ready, config, hydrate } = useConfigStore();
+  const { ready, config, hydrate, reset } = useConfigStore();
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const [booting, setBooting] = useState(true);
   const [dbReady, setDbReady] = useState(false);
@@ -180,16 +180,30 @@ function MainApp() {
             <summary className="cursor-pointer">Detalhes técnicos</summary>
             <div className="mt-1 break-words font-mono">{dbError}</div>
           </details>
-          <button
-            type="button"
-            onClick={() => {
-              setDbError(null);
-              setDbRetry((n) => n + 1);
-            }}
-            className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
-          >
-            Tentar novamente
-          </button>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setDbError(null);
+                setDbRetry((n) => n + 1);
+              }}
+              className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground"
+            >
+              Tentar novamente
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await closeDatabase().catch(() => {});
+                setDbError(null);
+                setDbReady(false);
+                reset();
+              }}
+              className="rounded-md border border-destructive/50 px-3 py-1.5 text-xs font-medium"
+            >
+              Escolher outra pasta
+            </button>
+          </div>
         </div>
       </div>
     );
