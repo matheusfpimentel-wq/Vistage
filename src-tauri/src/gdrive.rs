@@ -411,9 +411,16 @@ pub async fn gdrive_list_backups(
     access_token: String,
     folder_id: String,
 ) -> Result<Vec<DriveFile>, String> {
-    let q = format!("'{}' in parents and trashed=false", folder_id);
+    // Filtra apenas os arquivos de backup do app (nome "vistage-backup-*.json"),
+    // ignorando mídias e outros arquivos na pasta. pageSize alto para que a
+    // limpeza de backups antigos (pruneOldBackups) enxergue TODOS os backups —
+    // com pageSize=20 a lista nunca excedia MAX_BACKUPS e nada era apagado.
+    let q = format!(
+        "'{}' in parents and trashed=false and name contains 'vistage-backup-'",
+        folder_id
+    );
     let url = format!(
-        "{}?q={}&fields=files(id,name,size,createdTime,modifiedTime)&orderBy=createdTime+desc&pageSize=20",
+        "{}?q={}&fields=files(id,name,size,createdTime,modifiedTime)&orderBy=createdTime+desc&pageSize=1000",
         DRIVE_FILES_URL,
         url_encode(&q)
     );
