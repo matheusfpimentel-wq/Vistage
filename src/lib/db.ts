@@ -11,10 +11,47 @@ export async function loadDatabase(absolutePath: string): Promise<Database> {
     await dbInstance.close();
     dbInstance = null;
   }
-  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>".
-  const db = await Database.load(`sqlite:${absolutePath}`);
-  await db.execute("PRAGMA foreign_keys = ON;");
-  await runMigrations(db);
+  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>". O "?mode=rwc" garante
+  // que o arquivo seja aberto para leitura/escrita e criado se não existir, em
+  // vez de falhar com "unable to open" (SQLITE_CANTOPEN code 14).
+  let db: Database;
+  try {
+    db = await Database.load(`sqlite:${absolutePath}?mode=rwc`);
+  } catch (e) {
+    // tauri-plugin-sql guarda a conexão no pool pela connection string. Se a
+    // primeira tentativa abriu mas falhou depois, uma reabertura pode pegar a
+    // conexão ruim do pool e "Tentar novamente" nunca avança. Garantimos um
+    // estado limpo antes de propagar o erro.
+    dbInstance = null;
+    currentPath = null;
+    throw e;
+  }
+  // IMPORTANTE: em pastas sincronizadas (Google Drive, OneDrive, Dropbox) o WAL
+  // mode falha com "unable to open database file" (code 14, SQLITE_CANTOPEN)
+  // porque os arquivos auxiliares "-wal" e "-shm" precisam ser criados/mapeados
+  // (mmap) na mesma pasta, algo que o cliente do Drive frequentemente bloqueia.
+  // O journal mode DELETE não cria esses arquivos persistentes e abre normal.
+  // Precisa rodar ANTES de qualquer outra coisa para destravar a abertura.
+  try {
+    try {
+      await db.execute("PRAGMA journal_mode=DELETE;");
+    } catch {
+      // se já estiver em DELETE ou o pragma falhar, segue — não é fatal
+    }
+    await db.execute("PRAGMA foreign_keys = ON;");
+    await runMigrations(db);
+  } catch (e) {
+    // fecha a conexão pela qual o erro veio para que "Tentar novamente"
+    // recomece do zero, sem reaproveitar uma conexão num estado inconsistente.
+    try {
+      await db.close();
+    } catch {
+      // ignora — já estamos tratando o erro original
+    }
+    dbInstance = null;
+    currentPath = null;
+    throw e;
+  }
   dbInstance = db;
   currentPath = absolutePath;
   return db;
