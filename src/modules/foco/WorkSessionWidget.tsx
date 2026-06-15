@@ -33,11 +33,31 @@ import { listTracks } from "@/modules/music/api";
 import { listGigs } from "@/modules/gigs/api";
 import { listContent } from "@/modules/content/api";
 import { listTasks } from "@/modules/tasks/api";
+import { listClasses } from "@/modules/classes/api";
+import { listParties } from "@/modules/parties/api";
 
 type EntityOption = { id: number; name: string };
 
+const ACTIVITY_CONTEXT: Record<string, string> = {
+  "Tempo de palco": "gig",
+  "Criação musical": "track",
+  Aulas: "class",
+  "Produção de festa": "party",
+};
+
 async function loadEntityOptions(type: string): Promise<EntityOption[]> {
   switch (type) {
+    case "class": {
+      const rows = await listClasses();
+      return rows.map((c) => ({
+        id: c.id,
+        name: `${c.student_name} · ${c.date}`,
+      }));
+    }
+    case "party": {
+      const rows = await listParties();
+      return rows.map((p) => ({ id: p.id, name: p.title }));
+    }
     case "track": {
       const rows = await listTracks();
       return rows.map((t) => ({
@@ -87,8 +107,12 @@ export function WorkSessionWidget() {
   const [contextType, setContextType] = useState("none");
   const [contextId, setContextId] = useState("none");
   const [entityOptions, setEntityOptions] = useState<EntityOption[]>([]);
+  const [startContextType, setStartContextType] = useState<string | null>(null);
+  const [startContextId, setStartContextId] = useState("none");
+  const [startEntityOptions, setStartEntityOptions] = useState<EntityOption[]>([]);
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pauseMsRef = useRef(0);
 
   const booted = useRef(false);
   const refresh = useCallback(async (openOverlay = false) => {
@@ -110,6 +134,19 @@ export function WorkSessionWidget() {
   }, [refresh]);
 
   useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<{ pauseMs: number }>("work-session-pause", (e) => {
+          pauseMsRef.current = e.payload?.pauseMs ?? 0;
+        });
+      } catch { /* ignore */ }
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
+  useEffect(() => {
     if (session) {
       const tick = () => setTimer(elapsed(session.started_at));
       tick();
@@ -123,10 +160,30 @@ export function WorkSessionWidget() {
     };
   }, [session]);
 
+  useEffect(() => {
+    const ctxType = ACTIVITY_CONTEXT[activityType] ?? null;
+    setStartContextType(ctxType);
+    setStartContextId("none");
+    if (!ctxType) {
+      setStartEntityOptions([]);
+      return;
+    }
+    let active = true;
+    void loadEntityOptions(ctxType).then((opts) => {
+      if (active) setStartEntityOptions(opts);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activityType]);
+
   async function handleStart() {
     setSaving(true);
     try {
-      const id = await startSession(activityType);
+      pauseMsRef.current = 0;
+      const ctxType = startContextType;
+      const ctxId = startContextId === "none" ? null : Number(startContextId);
+      const id = await startSession(activityType, ctxId ? ctxType : null, ctxId);
       const fresh = await getActiveSession();
       setSession(fresh);
       if (fresh) void openSessionOverlay(fresh);
@@ -141,6 +198,7 @@ export function WorkSessionWidget() {
         context: null,
         context_type: null,
         context_id: null,
+        pause_ms: 0,
         created_at: new Date().toISOString(),
       });
       setStartOpen(false);
@@ -179,7 +237,8 @@ export function WorkSessionWidget() {
         notes || null,
         context || null,
         ctxType,
-        ctxType ? ctxId : null
+        ctxType ? ctxId : null,
+        pauseMsRef.current
       );
       void closeSessionOverlay();
       setSession(null);
@@ -255,6 +314,24 @@ export function WorkSessionWidget() {
                 </SelectContent>
               </Select>
             </div>
+            {startContextType && startEntityOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label>Vincular a…</Label>
+                <Select value={startContextId} onValueChange={setStartContextId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    {startEntityOptions.map((o) => (
+                      <SelectItem key={o.id} value={String(o.id)}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStartOpen(false)}>Cancelar</Button>

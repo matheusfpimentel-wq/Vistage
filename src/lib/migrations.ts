@@ -1576,6 +1576,11 @@ const MIGRATIONS: Migration[] = [
     description: "finance_transactions.class_sync — trava campos em transações vinculadas a aulas",
     sql: `ALTER TABLE finance_transactions ADD COLUMN class_sync INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 103,
+    description: "work_sessions.pause_ms — desconta tempo pausado da duração da sessão",
+    sql: `ALTER TABLE work_sessions ADD COLUMN pause_ms INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 

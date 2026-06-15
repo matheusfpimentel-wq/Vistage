@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Square, X } from "lucide-react";
+import { emit } from "@tauri-apps/api/event";
 import { readOverlayParams } from "./overlay";
 
 function elapsed(startedAt: string, pauseOffset: number): string {
@@ -48,6 +49,7 @@ export function SessionOverlay() {
       const extra = Date.now() - pauseStartRef.current;
       pauseOffsetRef.current += extra;
       pauseStartRef.current = null;
+      void emit("work-session-pause", { pauseMs: pauseOffsetRef.current });
     }
     const tick = () => setTimer(elapsed(params.start, pauseOffsetRef.current));
     tick();

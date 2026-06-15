@@ -26,15 +26,20 @@ export type WorkSession = {
   context: string | null;
   context_type: string | null;
   context_id: number | null;
+  pause_ms: number;
   created_at: string;
 };
 
-export async function startSession(activity_type: ActivityType): Promise<number> {
+export async function startSession(
+  activity_type: ActivityType,
+  context_type: string | null = null,
+  context_id: number | null = null
+): Promise<number> {
   const db = getDb();
   const started_at = new Date().toISOString();
   const res = await db.execute(
-    `INSERT INTO work_sessions (started_at, activity_type) VALUES ($1, $2)`,
-    [started_at, activity_type]
+    `INSERT INTO work_sessions (started_at, activity_type, context_type, context_id) VALUES ($1, $2, $3, $4)`,
+    [started_at, activity_type, context_type, context_id]
   );
   emitDataChanged();
   return res.lastInsertId as number;
@@ -47,13 +52,14 @@ export async function endSession(
   notes: string | null,
   context: string | null = null,
   context_type: string | null = null,
-  context_id: number | null = null
+  context_id: number | null = null,
+  pause_ms: number = 0
 ): Promise<void> {
   const db = getDb();
   const ended_at = new Date().toISOString();
   await db.execute(
-    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5, context_type=$6, context_id=$7 WHERE id=$8`,
-    [ended_at, energy_level, focus_level, notes, context, context_type, context_id, id]
+    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5, context_type=$6, context_id=$7, pause_ms=$8 WHERE id=$9`,
+    [ended_at, energy_level, focus_level, notes, context, context_type, context_id, pause_ms, id]
   );
   emitDataChanged();
 }
