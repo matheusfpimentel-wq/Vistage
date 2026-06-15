@@ -315,8 +315,8 @@ export async function uploadBackup(): Promise<DriveFile> {
   // — limpeza falhando em silêncio era o que deixava os backups acumularem.
   try {
     await pruneOldBackups();
-  } catch (e) {
-    console.warn("Falha ao limpar backups antigos do Drive:", e);
+  } catch {
+    // best-effort — falha na limpeza não cancela o upload
   }
   return file;
 }
@@ -355,7 +355,7 @@ export async function pruneOldBackups(): Promise<number> {
     } catch (e) {
       // best-effort, mas registra: deletes que falham em silêncio são a causa
       // do acúmulo indefinido de backups no Drive.
-      console.warn(`Falha ao apagar backup antigo (${f.name}):`, e);
+      void e; // best-effort delete, acúmulo visível na listagem do Drive
     }
   }
   return deleted;
