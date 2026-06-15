@@ -123,8 +123,12 @@ export async function readAsDataUrl(
         ? "image/webp"
         : "application/octet-stream";
     // converte Uint8Array em base64
+    // Chunk to avoid stack overflow on large files and O(n²) string builds.
+    const CHUNK = 8192;
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
     return `data:${mime};base64,${btoa(bin)}`;
   } catch {
     return null;

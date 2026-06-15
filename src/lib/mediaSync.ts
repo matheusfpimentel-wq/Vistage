@@ -57,9 +57,11 @@ export async function syncFileToDrive(absPath: string): Promise<void> {
     const bytes = await readFile(absPath);
     const ext = getExtension(absPath);
     const mime = extToMime(ext);
-    // base64 encode
+    const CHUNK = 8192;
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
     const base64 = btoa(bin);
     const driveId = await uploadMediaToDrive(relPath, base64, mime);
     if (driveId) await setDriveMediaId(relPath, driveId);

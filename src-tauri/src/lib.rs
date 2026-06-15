@@ -8,27 +8,73 @@ mod gdrive;
 use gcal::GcalState;
 use gdrive::GdriveState;
 
-/// Garante que o arquivo do banco NÃO esteja em modo WAL antes do tauri-plugin-sql
-/// abri-lo. Bancos em WAL exigem criar e mapear (mmap) o arquivo auxiliar "-shm" na
-/// mesma pasta; em pastas sincronizadas (Google Drive, OneDrive — inclusive a pasta
-/// Documentos redirecionada do Windows) esse mmap falha e o open quebra com
-/// SQLITE_CANTOPEN (code 14, "unable to open database file").
+/// Magic header do SQLite (primeiros 16 bytes do arquivo).
+const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
+
+/// Garante que o arquivo do banco esteja em journal rollback (DELETE) antes do
+/// tauri-plugin-sql abri-lo, sem precisar abrir o arquivo via SQLite.
 ///
-/// Abrimos aqui com locking_mode=EXCLUSIVE, que faz o SQLite manter o índice do WAL
-/// em memória (heap) em vez do "-shm" — então a conversão para journal DELETE roda
-/// sem nenhum arquivo auxiliar. Depois de fechar, o arquivo fica em journal rollback
-/// e o plugin consegue abrir normalmente. Também cria o banco (em DELETE) se faltar.
+/// **Por que isso é necessário:** bancos em modo WAL exigem criar e mapear (mmap)
+/// o arquivo auxiliar "-shm" na mesma pasta. Em pastas sincronizadas (Google Drive,
+/// OneDrive, Dropbox — inclusive a pasta Documentos redirecionada do Windows), esse
+/// mmap falha com SQLITE_CANTOPEN (code 14) **no próprio sqlite3_open_v2**, antes
+/// de qualquer PRAGMA chegar a ser executado.
+///
+/// **Como funciona:** o modo de journal é armazenado nos bytes 18-19 do header
+/// SQLite (write/read version: 1 = rollback, 2 = WAL). Quando o banco foi fechado
+/// corretamente em WAL e não há arquivo "-wal" com dados pendentes, podemos mudar
+/// esses bytes diretamente para 1 — o que é exatamente o que `PRAGMA journal_mode=DELETE`
+/// faria internamente. Se houver um "-wal" não vazio (crash/shutdown abrupto), a
+/// operação é abortada e deixamos o tauri-plugin-sql tentar (e falhar com uma
+/// mensagem clara).
+///
+/// Se o arquivo não existir, criamos via sqlx com journal DELETE para que o sqlx
+/// nunca escreva bytes de WAL no header.
 #[tauri::command]
 async fn prepare_database(path: String) -> Result<(), String> {
-    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteLockingMode};
+    use std::io::{Read, Seek, SeekFrom, Write};
+
+    let p = std::path::Path::new(&path);
+
+    if p.exists() {
+        // Verifica se há WAL pendente com dados — se sim, não podemos patchear.
+        let wal = format!("{}-wal", path);
+        let wal_has_data = std::path::Path::new(&wal).exists()
+            && std::fs::metadata(&wal).map(|m| m.len() > 32).unwrap_or(false);
+
+        if !wal_has_data {
+            // Tenta patchear o header do arquivo: bytes 18-19 de 2 (WAL) para 1 (rollback).
+            if let Ok(mut f) = std::fs::OpenOptions::new().read(true).write(true).open(&path) {
+                let mut header = [0u8; 20];
+                if f.read_exact(&mut header).is_ok()
+                    && &header[0..16] == SQLITE_MAGIC
+                    && header[18] == 2
+                    && header[19] == 2
+                {
+                    header[18] = 1;
+                    header[19] = 1;
+                    let _ = f.seek(SeekFrom::Start(18));
+                    let _ = f.write_all(&header[18..20]);
+                    let _ = f.flush();
+                }
+            }
+            // Remove o "-shm" obsoleto se houver — ele é recriado limpo pelo SQLite.
+            let shm = format!("{}-shm", path);
+            if std::path::Path::new(&shm).exists() {
+                let _ = std::fs::remove_file(&shm);
+            }
+        }
+
+        return Ok(());
+    }
+
+    // Arquivo não existe → cria em journal rollback para que o sqlx não escreva WAL.
+    use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
     use sqlx::{ConnectOptions, Connection};
 
     let opts = SqliteConnectOptions::new()
         .filename(&path)
         .create_if_missing(true)
-        // ordem importa: o sqlx aplica locking_mode antes de journal_mode, então o
-        // índice do WAL já nasce em heap quando a conversão para DELETE acontece.
-        .locking_mode(SqliteLockingMode::Exclusive)
         .journal_mode(SqliteJournalMode::Delete);
 
     let conn = opts.connect().await.map_err(|e| e.to_string())?;
