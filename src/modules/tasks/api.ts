@@ -5,6 +5,8 @@ import type {
   Task,
   TaskCategory,
   TaskCreateInput,
+  TaskLink,
+  TaskLinkType,
   TaskPriority,
   TaskStatus,
   TaskUpdateInput,
@@ -290,4 +292,50 @@ export async function completeAndRecur(task: Task): Promise<number | null> {
     ]
   );
   return Number(res.lastInsertId);
+}
+
+// ============================================================
+// Task links — vínculos polimórficos
+// ============================================================
+
+export async function listTaskLinks(taskId: number): Promise<TaskLink[]> {
+  const db = getDb();
+  return db.select<TaskLink[]>(
+    "SELECT * FROM task_links WHERE task_id = $1 ORDER BY created_at ASC",
+    [taskId]
+  );
+}
+
+/**
+ * Substitui todos os vínculos de uma tarefa pelos fornecidos.
+ * Usado ao salvar o TaskForm (tanto criação quanto edição).
+ */
+export async function setTaskLinks(
+  taskId: number,
+  links: { entity_type: TaskLinkType; entity_id: number; label: string | null }[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM task_links WHERE task_id = $1", [taskId]);
+  for (const l of links) {
+    await db.execute(
+      "INSERT OR IGNORE INTO task_links (task_id, entity_type, entity_id, label) VALUES ($1, $2, $3, $4)",
+      [taskId, l.entity_type, l.entity_id, l.label]
+    );
+  }
+}
+
+/** Tarefas vinculadas a qualquer entidade (para o painel inverso). */
+export async function listTasksLinkedTo(
+  entityType: string,
+  entityId: number
+): Promise<Task[]> {
+  const db = getDb();
+  const rows = await db.select<TaskRow[]>(
+    `SELECT t.* FROM tasks t
+       JOIN task_links tl ON tl.task_id = t.id
+      WHERE tl.entity_type = $1 AND tl.entity_id = $2
+      ORDER BY t.due_date ASC, t.created_at DESC`,
+    [entityType, entityId]
+  );
+  return rows.map(rowToTask);
 }

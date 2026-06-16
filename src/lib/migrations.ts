@@ -1615,6 +1615,24 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE content ADD COLUMN task_edicao_id INTEGER;
     `,
   },
+  {
+    version: 106,
+    description: "task_links — vínculos polimórficos entre tarefas e qualquer entidade",
+    sql: `
+      CREATE TABLE IF NOT EXISTS task_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER NOT NULL,
+        label TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        UNIQUE(task_id, entity_type, entity_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_links_task ON task_links(task_id);
+      CREATE INDEX IF NOT EXISTS idx_task_links_entity ON task_links(entity_type, entity_id);
+    `,
+  },
 ];
 
 

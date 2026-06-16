@@ -59,6 +59,43 @@ export type TaskCreateInput = Omit<
 };
 export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
 
+// ============================================================
+// Task links — vínculos polimórficos
+// ============================================================
+
+export const TASK_LINK_TYPES = [
+  "fan",
+  "student",
+  "supplier",
+  "venue",
+  "track",
+  "party",
+  "content",
+  "meeting",
+] as const;
+export type TaskLinkType = (typeof TASK_LINK_TYPES)[number];
+
+export const TASK_LINK_LABELS: Record<TaskLinkType, string> = {
+  fan: "Fã",
+  student: "Aluno",
+  supplier: "Fornecedor",
+  venue: "Venue",
+  track: "Track Musical",
+  party: "Festa",
+  content: "Conteúdo",
+  meeting: "Reunião",
+};
+
+export type TaskLink = {
+  id: number;
+  task_id: number;
+  entity_type: TaskLinkType;
+  entity_id: number;
+  /** Label cacheado no momento da criação do vínculo. */
+  label: string | null;
+  created_at: string;
+};
+
 export type Subtask = {
   id: number;
   task_id: number;
