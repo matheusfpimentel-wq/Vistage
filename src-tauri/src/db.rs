@@ -1,6 +1,7 @@
-// Conexão remota direta ao Turso via HTTP (libsql::new_remote).
-// Sem arquivo local, sem WAL, sem sync — cada query vai direto para o Turso.
-// A migração one-shot lê o .db legado com new_local e escreve no Turso via conn.
+// Banco com escrita offline + sync ao Turso (libsql::new_synced_database).
+// build() abre só o arquivo local (instantâneo, funciona offline); as escritas
+// vão para o arquivo local e o db.sync() empurra para o Turso e puxa mudanças.
+// A migração one-shot lê o .db legado com new_local e escreve via conn.
 
 use base64::Engine;
 use serde::Serialize;
@@ -10,6 +11,7 @@ use tokio::sync::Mutex;
 
 #[derive(Default)]
 pub struct DbState {
+    db: Arc<Mutex<Option<libsql::Database>>>,
     conn: Arc<Mutex<Option<libsql::Connection>>>,
 }
 
@@ -49,21 +51,35 @@ fn params_from(json: &[serde_json::Value]) -> Vec<libsql::Value> {
     json.iter().map(json_to_libsql).collect()
 }
 
-/// Abre conexão HTTP direta com o Turso. O parâmetro replica_path é ignorado
-/// (mantido para compatibilidade com o JS existente).
+/// Abre o banco local com capacidade de sync ao Turso. build() não faz rede
+/// (não setamos sync_interval), então a abertura é instantânea e funciona
+/// offline. O sync inicial roda em background.
 #[tauri::command]
 pub async fn db_init(
     state: State<'_, DbState>,
-    _replica_path: String,
+    replica_path: String,
     turso_url: String,
     turso_token: String,
 ) -> Result<(), String> {
-    let db = libsql::Builder::new_remote(turso_url, turso_token)
+    let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
         .build()
         .await
         .map_err(|e| e.to_string())?;
     let conn = db.connect().map_err(|e| e.to_string())?;
+    conn.execute("PRAGMA foreign_keys = ON;", ())
+        .await
+        .map_err(|e| e.to_string())?;
+    *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
+
+    // Sync inicial em background — não bloqueia a abertura. Erros (offline)
+    // são silenciosos; a próxima chamada a db_sync tenta de novo.
+    let db_arc = Arc::clone(&state.db);
+    tokio::spawn(async move {
+        if let Some(db) = db_arc.lock().await.as_ref() {
+            let _ = db.sync().await;
+        }
+    });
     Ok(())
 }
 
@@ -126,9 +142,12 @@ pub async fn db_execute(
     })
 }
 
-/// No-op: com new_remote não há réplica local para sincronizar.
+/// Empurra escritas locais para o Turso e puxa mudanças remotas.
 #[tauri::command]
-pub async fn db_sync(_state: State<'_, DbState>) -> Result<(), String> {
+pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
+    let guard = state.db.lock().await;
+    let db = guard.as_ref().ok_or("banco não inicializado")?;
+    db.sync().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -139,8 +158,17 @@ pub async fn db_migrate_from_sqlite(
     state: State<'_, DbState>,
     sqlite_path: String,
 ) -> Result<Vec<(String, u64)>, String> {
+    let db_guard = state.db.lock().await;
+    let db = db_guard.as_ref().ok_or("banco não inicializado")?;
     let conn_guard = state.conn.lock().await;
     let conn = conn_guard.as_ref().ok_or("banco não inicializado")?;
+
+    // Desliga a checagem de FK durante a cópia: inserimos as tabelas em ordem
+    // alfabética, então uma linha-filha pode entrar antes da linha-pai. Sem isso
+    // o SQLite recusa com "FOREIGN KEY constraint failed".
+    conn.execute("PRAGMA foreign_keys = OFF;", ())
+        .await
+        .map_err(|e| e.to_string())?;
 
     let src_db = libsql::Builder::new_local(&sqlite_path)
         .build()
@@ -222,5 +250,11 @@ pub async fn db_migrate_from_sqlite(
         report.push((table.clone(), count));
     }
 
+    conn.execute("PRAGMA foreign_keys = ON;", ())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Empurra tudo o que foi migrado para o Turso.
+    db.sync().await.map_err(|e| e.to_string())?;
     Ok(report)
 }

@@ -1,63 +1,45 @@
 import { useEffect, useRef } from "react";
-import { toast } from "@/components/ui/toaster";
 import { DATA_CHANGED } from "@/lib/events";
-import { useConfigStore } from "@/lib/config";
-import {
-  loadAuth,
-  maybeAutoBackupAfterChange,
-  restoreLatestBackupSilently,
-  uploadBackup,
-} from "@/lib/gdrive";
+import { syncDatabase } from "@/lib/db";
 
-const THROTTLE_MS = 5 * 60 * 1000; // 5 minutos entre uploads automáticos
+const THROTTLE_MS = 30 * 1000; // no máx. um sync a cada 30s
 
+/**
+ * Sincronização com o Turso. O banco escreve localmente (offline) e este
+ * componente empurra/puxa mudanças via syncDatabase():
+ *  - uma vez ao abrir o app;
+ *  - após cada mudança de dados (DATA_CHANGED), com throttle.
+ * O resultado é publicado no evento `vistage:sync-result` para o indicador.
+ */
 export function DriveSync() {
   const ranBoot = useRef(false);
-  const lastUpload = useRef<number>(0);
+  const lastSync = useRef<number>(0);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const runSync = async () => {
+    try {
+      await syncDatabase();
+      lastSync.current = Date.now();
+      window.dispatchEvent(new CustomEvent("vistage:sync-result", { detail: { ok: true } }));
+    } catch {
+      window.dispatchEvent(new CustomEvent("vistage:sync-result", { detail: { ok: false } }));
+    }
+  };
 
   useEffect(() => {
     if (ranBoot.current) return;
     ranBoot.current = true;
-    void (async () => {
-      try {
-        // No modo "pasta sincronizada" o próprio arquivo .db é sincronizado
-        // pelo Google Drive/OneDrive — a camada de backup JSON é desligada
-        // para não brigar com o arquivo (era o que forçava versões antigas).
-        if (useConfigStore.getState().config?.syncedFolder) return;
-        const auth = await loadAuth();
-        if (auth?.autoBackup) {
-          const restored = await restoreLatestBackupSilently();
-          if (restored) toast.success("Dados sincronizados do Drive");
-          await uploadBackup().catch(() => {});
-          lastUpload.current = Date.now();
-        }
-      } catch {
-        // silencioso: Drive offline não deve travar o app
-      }
-    })();
+    void runSync();
   }, []);
 
-  // Throttle real: agrupa mudanças num intervalo de até 5 minutos.
-  // Se a última subida foi há menos de THROTTLE_MS, agenda para quando o
-  // prazo expirar. Assim nenhum upload acontece mais de uma vez a cada 5 min.
   useEffect(() => {
     const onChange = () => {
-      if (useConfigStore.getState().config?.syncedFolder) return; // pasta sincronizada: sem backup JSON
-      if (pending.current) return; // já tem upload agendado
-      const now = Date.now();
-      const elapsed = now - lastUpload.current;
+      if (pending.current) return; // já agendado
+      const elapsed = Date.now() - lastSync.current;
       const delay = elapsed >= THROTTLE_MS ? 0 : THROTTLE_MS - elapsed;
       pending.current = setTimeout(() => {
         pending.current = null;
-        void maybeAutoBackupAfterChange()
-          .then(() => {
-            lastUpload.current = Date.now();
-            window.dispatchEvent(new CustomEvent('vistage:sync-result', { detail: { ok: true } }));
-          })
-          .catch(() => {
-            window.dispatchEvent(new CustomEvent('vistage:sync-result', { detail: { ok: false } }));
-          });
+        void runSync();
       }, delay);
     };
     window.addEventListener(DATA_CHANGED, onChange);
