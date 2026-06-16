@@ -20,7 +20,6 @@ const DRIVE_FILES_URL: &str = "https://www.googleapis.com/drive/v3/files";
 const DRIVE_UPLOAD_URL: &str =
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
 const FOLDER_MIME: &str = "application/vnd.google-apps.folder";
-const FOLDER_NAME: &str = "MusicGest Backups";
 
 // ============================================================
 // Estado global: servidores HTTP loopback rodando
@@ -62,15 +61,6 @@ pub struct DriveTokens {
     pub expires_in: i64,
     pub scope: Option<String>,
     pub token_type: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriveFile {
-    pub id: String,
-    pub name: String,
-    pub size: Option<String>,
-    pub created_time: Option<String>,
-    pub modified_time: Option<String>,
 }
 
 // ============================================================
@@ -339,158 +329,6 @@ pub async fn gdrive_ensure_folder(
         .and_then(|x| x.as_str())
         .map(|s| s.to_string())
         .ok_or_else(|| "Pasta criada sem ID na resposta".to_string())
-}
-
-/// Faz upload de um backup JSON para a pasta no Drive.
-#[tauri::command]
-pub async fn gdrive_upload_backup(
-    access_token: String,
-    folder_id: String,
-    file_name: String,
-    content: String,
-) -> Result<DriveFile, String> {
-    let boundary = format!("boundary_{}", random_base64(12));
-    let meta = format!(
-        r#"{{"name":"{file_name}","parents":["{folder_id}"],"mimeType":"application/json"}}"#
-    );
-
-    let mut body: Vec<u8> = Vec::new();
-    body.extend_from_slice(
-        format!(
-            "--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{meta}\r\n\
-             --{boundary}\r\nContent-Type: application/json\r\n\r\n"
-        )
-        .as_bytes(),
-    );
-    body.extend_from_slice(content.as_bytes());
-    body.extend_from_slice(format!("\r\n--{boundary}--").as_bytes());
-
-    let url = format!(
-        "{}&fields=id,name,size,createdTime,modifiedTime",
-        DRIVE_UPLOAD_URL
-    );
-    let resp = ureq::post(&url)
-        .set("Authorization", &format!("Bearer {access_token}"))
-        .set(
-            "Content-Type",
-            &format!("multipart/related; boundary={boundary}"),
-        )
-        .send_bytes(&body)
-        .map_err(|e| format!("Falha no upload: {e}"))?;
-
-    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
-    Ok(DriveFile {
-        id: v
-            .get("id")
-            .and_then(|x| x.as_str())
-            .unwrap_or("")
-            .to_string(),
-        name: v
-            .get("name")
-            .and_then(|x| x.as_str())
-            .unwrap_or(&file_name)
-            .to_string(),
-        size: v
-            .get("size")
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string()),
-        created_time: v
-            .get("createdTime")
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string()),
-        modified_time: v
-            .get("modifiedTime")
-            .and_then(|x| x.as_str())
-            .map(|s| s.to_string()),
-    })
-}
-
-/// Lista os backups na pasta, ordenados por data de criação (mais recente primeiro).
-#[tauri::command]
-pub async fn gdrive_list_backups(
-    access_token: String,
-    folder_id: String,
-) -> Result<Vec<DriveFile>, String> {
-    // Filtra apenas os arquivos de backup do app (nome "vistage-backup-*.json"),
-    // ignorando mídias e outros arquivos na pasta. pageSize alto para que a
-    // limpeza de backups antigos (pruneOldBackups) enxergue TODOS os backups —
-    // com pageSize=20 a lista nunca excedia MAX_BACKUPS e nada era apagado.
-    let q = format!(
-        "'{}' in parents and trashed=false and name contains 'vistage-backup-'",
-        folder_id
-    );
-    let url = format!(
-        "{}?q={}&fields=files(id,name,size,createdTime,modifiedTime)&orderBy=createdTime+desc&pageSize=1000",
-        DRIVE_FILES_URL,
-        url_encode(&q)
-    );
-    let resp = ureq::get(&url)
-        .set("Authorization", &format!("Bearer {access_token}"))
-        .call()
-        .map_err(|e| format!("Falha ao listar backups: {e}"))?;
-    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
-    let files = v
-        .get("files")
-        .and_then(|x| x.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let out = files
-        .iter()
-        .map(|f| DriveFile {
-            id: f
-                .get("id")
-                .and_then(|x| x.as_str())
-                .unwrap_or("")
-                .to_string(),
-            name: f
-                .get("name")
-                .and_then(|x| x.as_str())
-                .unwrap_or("")
-                .to_string(),
-            size: f
-                .get("size")
-                .and_then(|x| x.as_str())
-                .map(|s| s.to_string()),
-            created_time: f
-                .get("createdTime")
-                .and_then(|x| x.as_str())
-                .map(|s| s.to_string()),
-            modified_time: f
-                .get("modifiedTime")
-                .and_then(|x| x.as_str())
-                .map(|s| s.to_string()),
-        })
-        .collect();
-    Ok(out)
-}
-
-/// Baixa o conteúdo de um arquivo do Drive e retorna como string.
-#[tauri::command]
-pub async fn gdrive_download_backup(
-    access_token: String,
-    file_id: String,
-) -> Result<String, String> {
-    let url = format!("{}/{}?alt=media", DRIVE_FILES_URL, url_encode(&file_id));
-    let resp = ureq::get(&url)
-        .set("Authorization", &format!("Bearer {access_token}"))
-        .call()
-        .map_err(|e| format!("Falha ao baixar backup: {e}"))?;
-    resp.into_string()
-        .map_err(|e| format!("Falha ao ler conteúdo: {e}"))
-}
-
-/// Move um arquivo para a lixeira do Drive.
-#[tauri::command]
-pub async fn gdrive_delete_backup(
-    access_token: String,
-    file_id: String,
-) -> Result<(), String> {
-    let url = format!("{}/{}", DRIVE_FILES_URL, url_encode(&file_id));
-    ureq::request("DELETE", &url)
-        .set("Authorization", &format!("Bearer {access_token}"))
-        .call()
-        .map_err(|e| format!("Falha ao deletar: {e}"))?;
-    Ok(())
 }
 
 /// Faz upload de um arquivo de mídia (imagem, etc.) para o Drive.

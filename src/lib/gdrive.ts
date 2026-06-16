@@ -16,8 +16,6 @@ const K = {
   FOLDER_NAME: "gdrive.folder_name",
   SUBFOLDER_NAME: "gdrive.subfolder_name",
   SUBFOLDER_ID: "gdrive.subfolder_id",
-  AUTO_BACKUP: "gdrive.auto_backup",
-  LAST_BACKUP_AT: "gdrive.last_backup_at",
   LAST_SYNC_AT: "gdrive.last_sync_at",
 } as const;
 
@@ -35,14 +33,6 @@ export type DriveTokens = {
   token_type?: string | null;
 };
 
-export type DriveFile = {
-  id: string;
-  name: string;
-  size?: string | null;
-  created_time?: string | null;
-  modified_time?: string | null;
-};
-
 export type DriveConfig = {
   clientId: string;
   clientSecret: string;
@@ -56,8 +46,6 @@ export type DriveAuth = {
   folderName: string;
   subfolderName: string;
   subfolderIdCached?: string | null;
-  autoBackup: boolean;
-  lastBackupAt?: string | null;
 };
 
 // ============================================================
@@ -102,7 +90,7 @@ export async function saveDriveConfig(cfg: DriveConfig): Promise<void> {
 }
 
 export async function loadAuth(): Promise<DriveAuth | null> {
-  const [access, refresh, expiry, folderId, folderName, subfolderName, subfolderIdCached, auto, lastBackup] =
+  const [access, refresh, expiry, folderId, folderName, subfolderName, subfolderIdCached] =
     await Promise.all([
       getSetting(K.ACCESS_TOKEN),
       getSetting(K.REFRESH_TOKEN),
@@ -111,8 +99,6 @@ export async function loadAuth(): Promise<DriveAuth | null> {
       getSetting(K.FOLDER_NAME),
       getSetting(K.SUBFOLDER_NAME),
       getSetting(K.SUBFOLDER_ID),
-      getSetting(K.AUTO_BACKUP),
-      getSetting(K.LAST_BACKUP_AT),
     ]);
   if (!access || !refresh || !expiry) return null;
   return {
@@ -123,8 +109,6 @@ export async function loadAuth(): Promise<DriveAuth | null> {
     folderName: folderName ?? DEFAULT_FOLDER_NAME,
     subfolderName: subfolderName ?? "",
     subfolderIdCached,
-    autoBackup: auto === "true",
-    lastBackupAt: lastBackup,
   };
 }
 
@@ -270,14 +254,7 @@ async function getEffectiveFolderId(accessToken: string): Promise<string> {
 
 export async function disconnect(): Promise<void> {
   await Promise.all(
-    [
-      K.ACCESS_TOKEN,
-      K.REFRESH_TOKEN,
-      K.TOKEN_EXPIRY,
-      K.FOLDER_ID,
-      K.AUTO_BACKUP,
-      K.LAST_BACKUP_AT,
-    ].map(deleteSetting)
+    [K.ACCESS_TOKEN, K.REFRESH_TOKEN, K.TOKEN_EXPIRY, K.FOLDER_ID].map(deleteSetting)
   );
 }
 

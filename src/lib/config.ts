@@ -22,7 +22,6 @@ export type AppConfig = {
   syncedFolder?: boolean;    // true quando o banco mora numa pasta sincronizada (Google Drive, etc.)
   tursoUrl?: string;         // URL do banco Turso (sobrescreve o default)
   tursoToken?: string;       // token de acesso ao Turso (sobrescreve o default)
-  replicaPath?: string;      // caminho absoluto da réplica embarcada local
   migrated?: boolean;        // true depois que os dados do .db legado foram migrados para o Turso
 };
 
