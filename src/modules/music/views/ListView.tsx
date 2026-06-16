@@ -5,6 +5,7 @@ import { TRACK_KIND_LABEL } from "../stages";
 import { daysInStage } from "../api";
 import { StageBadge } from "../components/StageBadge";
 import { trackDisplayName, type TrackWithProject } from "../types";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
@@ -58,7 +59,10 @@ export function ListView({
                   {TRACK_KIND_LABEL[t.kind]}
                 </td>
                 <td className="px-3 py-2">
-                  <StageBadge stage={t.current_stage} standby={t.standby} />
+                  <div className="flex items-center gap-1.5">
+                    <StageBadge stage={t.current_stage} standby={t.standby} />
+                    <PendingTasksBadge entityType="track" entityId={t.id} />
+                  </div>
                 </td>
                 <td
                   className={cn(

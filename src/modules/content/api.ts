@@ -224,6 +224,17 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
       }
     } catch { /* não interrompe */ }
   }
+  // Espelha o estado do conteúdo nas tarefas vinculadas
+  if (rest.status === "Publicado" || rest.status === "Arquivado") {
+    try {
+      const { syncLinkedTasksStatus } = await import("@/modules/tasks/api");
+      await syncLinkedTasksStatus(
+        "content",
+        id,
+        rest.status === "Publicado" ? "Concluída" : "Cancelada"
+      );
+    } catch { /* não interrompe */ }
+  }
   emitDataChanged();
 }
 

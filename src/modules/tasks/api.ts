@@ -36,6 +36,8 @@ export type TaskFilters = {
   contactId?: number;
   search?: string;
   date?: TasksDateFilter;
+  /** Filtra por tarefas vinculadas a um tipo de entidade (inbox unificada). */
+  linkType?: TaskLinkType;
 };
 
 function todayISO(): string {
@@ -79,6 +81,12 @@ export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
   if (filters.contactId) {
     params.push(filters.contactId);
     where.push(`contact_id = $${params.length}`);
+  }
+  if (filters.linkType) {
+    params.push(filters.linkType);
+    where.push(
+      `EXISTS (SELECT 1 FROM task_links tl WHERE tl.task_id = tasks.id AND tl.entity_type = $${params.length})`
+    );
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
@@ -338,4 +346,42 @@ export async function listTasksLinkedTo(
     [entityType, entityId]
   );
   return rows.map(rowToTask);
+}
+
+/**
+ * Espelha o estado de uma entidade nas tarefas vinculadas a ela.
+ * Só mexe em tarefas ainda abertas (não "ressuscita" concluídas/canceladas).
+ * Usado quando uma track é lançada, uma festa é realizada, etc.
+ */
+export async function syncLinkedTasksStatus(
+  entityType: string,
+  entityId: number,
+  status: TaskStatus
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE tasks SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id IN (
+         SELECT task_id FROM task_links WHERE entity_type = $2 AND entity_id = $3
+       )
+       AND status NOT IN ('Concluída', 'Cancelada')`,
+    [status, entityType, entityId]
+  );
+  emitDataChanged();
+}
+
+/** Conta tarefas abertas vinculadas a uma entidade (para badges de pendência). */
+export async function countOpenTasksLinkedTo(
+  entityType: string,
+  entityId: number
+): Promise<number> {
+  const db = getDb();
+  const rows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) AS n FROM tasks t
+       JOIN task_links tl ON tl.task_id = t.id
+      WHERE tl.entity_type = $1 AND tl.entity_id = $2
+        AND t.status NOT IN ('Concluída', 'Cancelada')`,
+    [entityType, entityId]
+  );
+  return rows[0]?.n ?? 0;
 }

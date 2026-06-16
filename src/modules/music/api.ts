@@ -328,18 +328,65 @@ async function writeStage(
     [stage, JSON.stringify(history), standby ? 1 : 0, id]
   );
   // Conclui a tarefa vinculada quando a track chega ao lançamento
-  if (stage === "Lançamento") {
+  if (stage === "Lançamento" || stage === "Pós-lançamento") {
     const rows = await db.select<{ task_id: number | null }[]>(
       "SELECT task_id FROM tracks WHERE id = $1", [id]
     );
     const taskId = rows[0]?.task_id;
-    if (taskId) {
-      try {
-        const { updateTask } = await import("@/modules/tasks/api");
-        await updateTask({ id: taskId, status: "Concluída" });
-      } catch { /* não interrompe */ }
-    }
+    try {
+      const { updateTask, syncLinkedTasksStatus } = await import("@/modules/tasks/api");
+      if (taskId) await updateTask({ id: taskId, status: "Concluída" });
+      // Espelha: todas as tarefas vinculadas à track são concluídas
+      await syncLinkedTasksStatus("track", id, "Concluída");
+    } catch { /* não interrompe */ }
   }
+}
+
+/** Títulos de tarefa geradas automaticamente ao entrar em cada etapa. */
+const STAGE_TASK_VERBS: Partial<Record<Stage, string>> = {
+  Composição: "Compor",
+  Produção: "Produzir",
+  Mix: "Mixar",
+  Master: "Masterizar",
+  "Pré-lançamento": "Preparar lançamento de",
+};
+
+/**
+ * Gera automaticamente a tarefa da etapa em que a track acabou de entrar.
+ * Não duplica se já houver uma tarefa aberta com o mesmo título vinculada.
+ */
+async function ensureStageTask(track: Track, stage: Stage): Promise<void> {
+  const verb = STAGE_TASK_VERBS[stage];
+  if (!verb) return;
+  const trackName = track.title_final ?? track.title_working;
+  const title = `${verb} ${trackName}`;
+  try {
+    const { listTasksLinkedTo, createTask, setTaskLinks } = await import(
+      "@/modules/tasks/api"
+    );
+    const existing = await listTasksLinkedTo("track", track.id);
+    const dup = existing.some(
+      (t) =>
+        t.title === title &&
+        t.status !== "Concluída" &&
+        t.status !== "Cancelada"
+    );
+    if (dup) return;
+    const taskId = await createTask({
+      title,
+      description: null,
+      category: "Produção Musical",
+      gig_id: null,
+      contact_id: null,
+      priority: "Média",
+      status: "A fazer",
+      due_date: null,
+      tags: ["música"],
+    });
+    await setTaskLinks(taskId, [
+      { entity_type: "track", entity_id: track.id, label: trackName },
+    ]);
+  } catch { /* não interrompe */ }
 }
 
 /** Avança pro próximo stage. Se houver decisão de gate, grava no histórico. */
@@ -358,6 +405,7 @@ export async function advanceStage(
   }
   history.push({ stage: next, entered_at: now });
   await writeStage(track.id, next, history, false);
+  await ensureStageTask(track, next);
 }
 
 /** Volta um stage (sem gate). */
@@ -405,6 +453,8 @@ export async function moveTrackToStage(track: Track, stage: Stage): Promise<void
       /* não interrompe */
     }
   }
+  // Gera a tarefa da etapa de destino (se houver template e não duplicar)
+  await ensureStageTask(track, stage);
 }
 
 /** Coloca/tira do Stand-by sem mexer no stage (drag pro coluna Stand-by). */

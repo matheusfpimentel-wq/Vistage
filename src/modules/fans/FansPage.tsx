@@ -68,6 +68,7 @@ import { formatDate } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
 
 type LevelFilter = FanLevel | "Todos";
@@ -540,7 +541,10 @@ function FanCard({
       </div>
       <div className="space-y-1.5 p-3">
         <div className="font-medium leading-tight">{f.name}</div>
-        <LevelBadge level={f.level} />
+        <div className="flex items-center gap-1">
+          <LevelBadge level={f.level} />
+          <PendingTasksBadge entityType="fan" entityId={f.id} />
+        </div>
         <div className="text-xs text-muted-foreground">{f.city ?? "—"}</div>
         {last && (
           <div className="text-[11px] text-muted-foreground">

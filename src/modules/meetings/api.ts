@@ -1,6 +1,11 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
-import { createTask, updateTask, deleteTask } from "@/modules/tasks/api";
+import {
+  createTask,
+  updateTask,
+  deleteTask,
+  syncLinkedTasksStatus,
+} from "@/modules/tasks/api";
 import type { TaskPriority } from "@/modules/tasks/types";
 import type {
   Meeting,
@@ -145,6 +150,14 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
       input.id,
     ]
   );
+  // Espelha o estado da reunião nas tarefas vinculadas (follow-ups etc.)
+  if (next.status === "Realizada" || next.status === "Cancelada") {
+    await syncLinkedTasksStatus(
+      "meeting",
+      input.id,
+      next.status === "Realizada" ? "Concluída" : "Cancelada"
+    );
+  }
   emitDataChanged();
 }
 

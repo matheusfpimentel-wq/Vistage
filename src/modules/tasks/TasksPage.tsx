@@ -33,10 +33,13 @@ import {
 } from "./api";
 import {
   TASK_CATEGORIES,
+  TASK_LINK_LABELS,
+  TASK_LINK_TYPES,
   TASK_PRIORITIES,
   TASK_STATUSES,
   type Task,
   type TaskCategory,
+  type TaskLinkType,
   type TaskPriority,
   type TaskStatus,
 } from "./types";
@@ -46,6 +49,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
 type PriorityFilter = TaskPriority | "Todas";
+type LinkFilter = TaskLinkType | "Todas";
 
 const DATE_FILTERS: { id: TasksDateFilter; label: string }[] = [
   { id: "all", label: "Todas" },
@@ -63,12 +67,14 @@ export function TasksPage() {
     priority: PriorityFilter;
     search: string;
     date: TasksDateFilter;
+    linkType: LinkFilter;
   }>({
     status: "Todas",
     category: "Todas",
     priority: "Todas",
     search: "",
     date: "all",
+    linkType: "Todas",
   });
 
   const [loading, setLoading] = useState(true);
@@ -82,6 +88,7 @@ export function TasksPage() {
       priority: filters.priority,
       search: filters.search,
       date: filters.date,
+      linkType: filters.linkType === "Todas" ? undefined : filters.linkType,
     }),
     [filters]
   );
@@ -201,6 +208,24 @@ export function TasksPage() {
               {TASK_PRIORITIES.map((p) => (
                 <SelectItem key={p} value={p}>
                   {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={filters.linkType}
+            onValueChange={(v) =>
+              setFilters((f) => ({ ...f, linkType: v as LinkFilter }))
+            }
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todas">Todos os vínculos</SelectItem>
+              {TASK_LINK_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TASK_LINK_LABELS[t]}
                 </SelectItem>
               ))}
             </SelectContent>

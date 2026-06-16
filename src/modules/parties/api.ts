@@ -181,6 +181,17 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
       ).catch(() => {});
     }
   }
+  // Espelha o estado da festa nas tarefas vinculadas
+  if ("status" in rest && (rest.status === "Realizada" || rest.status === "Cancelada")) {
+    try {
+      const { syncLinkedTasksStatus } = await import("@/modules/tasks/api");
+      await syncLinkedTasksStatus(
+        "party",
+        id,
+        rest.status === "Realizada" ? "Concluída" : "Cancelada"
+      );
+    } catch { /* não interrompe */ }
+  }
   // Auto-sync financeiro ao marcar como Realizada
   if ("status" in rest && rest.status === "Realizada") {
     try {

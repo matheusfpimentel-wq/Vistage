@@ -19,6 +19,7 @@ import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "cards" | "list" | "map";
@@ -457,6 +458,7 @@ function VenueCard({
         <div className="flex items-center gap-2 leading-tight">
           <span className="font-medium">{v.name}</span>
           {v.is_closed === 1 && <Badge variant="destructive" className="text-xs">Fechado</Badge>}
+          <PendingTasksBadge entityType="venue" entityId={v.id} className="ml-auto" />
         </div>
         <div className="text-xs text-muted-foreground">
           {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
