@@ -3,11 +3,19 @@ import { runMigrations } from "./migrations";
 
 export type QueryResult = { rowsAffected: number; lastInsertId: number };
 
+// Interface mínima do banco usada pelo app (migrations, módulos). Espelha o
+// `Database` do antigo tauri-plugin-sql; o proxy abaixo a implementa delegando
+// para comandos Tauri que rodam a réplica libsql no Rust.
+export type Db = {
+  select<T>(sql: string, params?: unknown[]): Promise<T>;
+  execute(sql: string, params?: unknown[]): Promise<QueryResult>;
+};
+
 // Proxy duck-typed com a MESMA interface do `Database` do tauri-plugin-sql.
 // As 756 chamadas getDb().select()/execute() seguem funcionando sem mudança.
 // A réplica embarcada do libsql roda no Rust (não funciona no JS do webview),
 // então cada chamada delega para um comando Tauri.
-const dbProxy = {
+const dbProxy: Db = {
   async select<T>(sql: string, params?: unknown[]): Promise<T> {
     return invoke<T>("db_select", { sql, params: params ?? [] });
   },
@@ -26,7 +34,7 @@ export async function initDatabase(
   tursoToken: string
 ): Promise<void> {
   await invoke("db_init", { replicaPath, tursoUrl, tursoToken });
-  await runMigrations(dbProxy as never);
+  await runMigrations(dbProxy);
 }
 
 export async function syncDatabase(): Promise<void> {

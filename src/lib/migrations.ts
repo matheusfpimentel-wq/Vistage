@@ -1,4 +1,4 @@
-import type Database from "@tauri-apps/plugin-sql";
+import type { Db } from "./db";
 
 // Migrations versionadas. Cada migration roda em ordem e nunca é re-executada.
 // Para adicionar uma nova, basta empilhar no array com o próximo `version`.
@@ -1588,7 +1588,7 @@ const MIGRATIONS: Migration[] = [
  * Checks if a column exists in a table using pragma_table_info.
  * Used to guard ALTER TABLE ADD COLUMN statements for idempotency.
  */
-async function columnExists(db: Database, table: string, column: string): Promise<boolean> {
+async function columnExists(db: Db, table: string, column: string): Promise<boolean> {
   const rows = await db.select<{ n: number }[]>(
     `SELECT COUNT(*) as n FROM pragma_table_info('${table}') WHERE name='${column}'`
   );
@@ -1605,7 +1605,7 @@ function parseAlter(stmt: string): { table: string; column: string } | null {
 }
 
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
-export async function runMigrations(db: Database): Promise<{ applied: number[] }> {
+export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version INTEGER PRIMARY KEY,
