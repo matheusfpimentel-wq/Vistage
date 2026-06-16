@@ -67,7 +67,7 @@ pub async fn db_init(
     // local puro e dispara o sync em background — o app não fica travado.
     let db = match tokio::time::timeout(
         std::time::Duration::from_secs(8),
-        libsql::Builder::new_remote_replica(&replica_path, &turso_url, &turso_token)
+        libsql::Builder::new_remote_replica(replica_path.clone(), turso_url, turso_token)
             .build(),
     )
     .await
@@ -75,7 +75,7 @@ pub async fn db_init(
         Ok(Ok(db)) => db,
         Ok(Err(_)) | Err(_) => {
             // Fallback: abre réplica local existente (ou cria vazia) sem rede.
-            libsql::Builder::new_local(&replica_path)
+            libsql::Builder::new_local(replica_path)
                 .build()
                 .await
                 .map_err(|e| e.to_string())?
