@@ -418,10 +418,10 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
               }
             >
               <SelectTrigger className="max-w-xs">
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="Nenhum" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">— Sem prioridade —</SelectItem>
+                <SelectItem value="none">Nenhuma</SelectItem>
                 {CONTACT_PRIORITIES.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}

@@ -284,10 +284,10 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {IDEA_CATEGORIES.map((c) => (
                     <SelectItem key={c} value={c}>
                       {c}
@@ -329,10 +329,10 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="Nenhum" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">—</SelectItem>
+                <SelectItem value="none">Nenhum</SelectItem>
                 {otherIdeas
                   .filter((i) => i.id !== idea?.id)
                   .map((i) => (

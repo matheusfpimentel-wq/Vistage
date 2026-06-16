@@ -37,12 +37,14 @@ type FontEntry = {
   file_path?: string | null;
 };
 
-/** Uma foto na galeria de identidade (arquivo local copiado para uploads/). */
+/** Um arquivo de mídia na galeria de identidade (foto ou vídeo local). */
 export type IdentityPhoto = {
   /** Caminho absoluto do arquivo em uploads/. */
   path: string;
   /** Legenda opcional. */
   caption?: string;
+  /** "photo" (padrão) ou "video". */
+  type?: "photo" | "video";
 };
 
 /** Link para uma pasta externa de fotos (Google Drive, Dropbox, etc). */

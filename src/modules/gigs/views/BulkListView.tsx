@@ -198,7 +198,7 @@ export function BulkListView({ gigs, onEdit, onRefresh }: Props) {
           <Select value={newContactId} onValueChange={setNewContactId}>
             <SelectTrigger className="h-8 w-44 text-xs"><SelectValue placeholder="Contratante…" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">— sem contratante —</SelectItem>
+              <SelectItem value="none">Nenhum</SelectItem>
               {contacts.map((c) => (
                 <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
               ))}

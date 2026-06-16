@@ -195,7 +195,7 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem categoria</SelectItem>
@@ -286,10 +286,10 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem recorrência —</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {TASK_RECURRENCES.map((r) => (
                     <SelectItem key={r} value={r}>
                       {TASK_RECURRENCE_LABEL[r]}
@@ -306,7 +306,7 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem vínculo</SelectItem>
@@ -326,7 +326,7 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem vínculo</SelectItem>

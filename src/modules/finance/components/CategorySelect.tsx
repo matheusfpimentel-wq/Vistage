@@ -97,7 +97,7 @@ export function CategorySelect({
         <SelectValue placeholder="Selecione" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="none">— Sem categoria —</SelectItem>
+        <SelectItem value="none">Nenhuma</SelectItem>
         {categories
           .filter((c) => c.kind === kind)
           .map((c) => (

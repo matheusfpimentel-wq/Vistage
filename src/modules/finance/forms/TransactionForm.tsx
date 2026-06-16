@@ -324,10 +324,10 @@ export function TransactionForm({
                 disabled={isLocked}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {PAYMENT_METHODS.map((m) => (
                     <SelectItem key={m} value={m}>
                       {m}
@@ -375,7 +375,7 @@ export function TransactionForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem vínculo</SelectItem>
@@ -396,7 +396,7 @@ export function TransactionForm({
                 disabled={isLocked}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem vínculo</SelectItem>
@@ -420,7 +420,7 @@ export function TransactionForm({
                 disabled={isLocked}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem vínculo</SelectItem>

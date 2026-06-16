@@ -402,10 +402,10 @@ export function TrackForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {allTracks
                     .filter((t) => t.id !== track?.id)
                     .map((t) => (

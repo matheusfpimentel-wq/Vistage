@@ -183,10 +183,10 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="Nenhum" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">—</SelectItem>
+                <SelectItem value="none">Nenhum</SelectItem>
                 {ACQUISITION_SOURCES.map((a) => (
                   <SelectItem key={a} value={a}>
                     {a}

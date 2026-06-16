@@ -13,6 +13,7 @@ import {
   Square,
   Trash2,
   Type,
+  Video,
   X,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -77,6 +78,7 @@ import {
 } from "./types";
 import {
   IMAGE_EXTS,
+  VIDEO_EXTS,
   deleteAttachment,
   pickFile,
   saveAttachment,
@@ -900,27 +902,38 @@ function PhotosTab({
   onPhotosChange: (photos: IdentityPhoto[]) => void;
   onFolderLinksChange: (links: FolderLink[]) => void;
 }) {
-  const [working, setWorking] = useState(false);
+  const [addingPhoto, setAddingPhoto] = useState(false);
+  const [addingVideo, setAddingVideo] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const allSelected = photos.length > 0 && selected.size === photos.length;
+  const onlyPhotos = photos.filter((p) => !p.type || p.type === "photo");
+  const onlyVideos = photos.filter((p) => p.type === "video");
+  const allSelected = onlyPhotos.length > 0 && selected.size === onlyPhotos.length;
 
-  function toggle(idx: number) {
+  // indices map: onlyPhotos[i] → original index in photos[]
+  const photoIndices = photos
+    .map((p, i) => ({ p, i }))
+    .filter(({ p }) => !p.type || p.type === "photo")
+    .map(({ i }) => i);
+
+  function togglePhoto(localIdx: number) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(localIdx)) next.delete(localIdx);
+      else next.add(localIdx);
       return next;
     });
   }
 
   function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(photos.map((_, i) => i)));
+    setSelected(
+      allSelected ? new Set() : new Set(onlyPhotos.map((_, i) => i))
+    );
   }
 
-  async function handleAdd() {
-    setWorking(true);
+  async function handleAddPhoto() {
+    setAddingPhoto(true);
     try {
       const src = await pickFile({
         title: "Selecionar foto",
@@ -929,36 +942,55 @@ function PhotosTab({
       });
       if (!src) return;
       const dest = await saveAttachment(src, "identity/photos");
-      onPhotosChange([...photos, { path: dest, caption: "" }]);
+      onPhotosChange([...photos, { path: dest, caption: "", type: "photo" }]);
       toast.success("Foto adicionada");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
-      setWorking(false);
+      setAddingPhoto(false);
     }
   }
 
-  async function handleRemove(idx: number) {
+  async function handleAddVideo() {
+    setAddingVideo(true);
+    try {
+      const src = await pickFile({
+        title: "Selecionar vídeo",
+        extensions: VIDEO_EXTS,
+        filterName: "Vídeos",
+      });
+      if (!src) return;
+      const dest = await saveAttachment(src, "identity/videos");
+      onPhotosChange([...photos, { path: dest, caption: "", type: "video" }]);
+      toast.success("Vídeo adicionado");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setAddingVideo(false);
+    }
+  }
+
+  async function handleRemove(originalIdx: number, label: string) {
     if (
       !(await confirmDialog({
         title: "Remover",
-        description: "Remover esta foto?",
+        description: `Remover este(a) ${label}?`,
         confirmLabel: "Remover",
         destructive: true,
       }))
     )
       return;
-    const photo = photos[idx];
-    await deleteAttachment(photo.path);
-    onPhotosChange(photos.filter((_, i) => i !== idx));
+    const item = photos[originalIdx];
+    await deleteAttachment(item.path);
+    onPhotosChange(photos.filter((_, i) => i !== originalIdx));
     setSelected(new Set());
   }
 
   async function handleDownloadSelected() {
     const targets =
       selected.size > 0
-        ? photos.filter((_, i) => selected.has(i))
-        : photos;
+        ? onlyPhotos.filter((_, i) => selected.has(i))
+        : onlyPhotos;
     if (targets.length === 0) return;
     setDownloading(true);
     try {
@@ -994,11 +1026,12 @@ function PhotosTab({
 
   return (
     <div className="space-y-6">
+      {/* ── Fotos ── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-primary" />
-            Galeria de fotos
+            Fotos ({onlyPhotos.length})
           </CardTitle>
           <CardDescription>
             Fotos de divulgação, prensa e perfil.
@@ -1006,15 +1039,15 @@ function PhotosTab({
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <Button onClick={handleAdd} disabled={working}>
-              {working ? (
+            <Button onClick={handleAddPhoto} disabled={addingPhoto}>
+              {addingPhoto ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}
               Adicionar foto
             </Button>
-            {photos.length > 0 && (
+            {onlyPhotos.length > 0 && (
               <>
                 <Button variant="outline" onClick={toggleAll}>
                   {allSelected ? (
@@ -1036,37 +1069,88 @@ function PhotosTab({
                   )}
                   {selected.size > 0
                     ? `Baixar selecionadas (${selected.size})`
-                    : "Selecionar e baixar todas"}
+                    : "Baixar todas"}
                 </Button>
               </>
             )}
           </div>
 
-          {photos.length === 0 ? (
+          {onlyPhotos.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
               Nenhuma foto ainda.
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {photos.map((photo, idx) => (
-                <PhotoCard
-                  key={photo.path}
-                  photo={photo}
-                  selected={selected.has(idx)}
-                  onToggle={() => toggle(idx)}
-                  onCaptionChange={(caption) => {
-                    const next = [...photos];
-                    next[idx] = { ...next[idx], caption };
-                    onPhotosChange(next);
-                  }}
-                  onRemove={() => void handleRemove(idx)}
-                />
-              ))}
+              {onlyPhotos.map((photo, localIdx) => {
+                const origIdx = photoIndices[localIdx];
+                return (
+                  <PhotoCard
+                    key={photo.path}
+                    photo={photo}
+                    selected={selected.has(localIdx)}
+                    onToggle={() => togglePhoto(localIdx)}
+                    onCaptionChange={(caption) => {
+                      const next = [...photos];
+                      next[origIdx] = { ...next[origIdx], caption };
+                      onPhotosChange(next);
+                    }}
+                    onRemove={() => void handleRemove(origIdx, "foto")}
+                  />
+                );
+              })}
             </div>
           )}
         </CardContent>
       </Card>
 
+      {/* ── Vídeos ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Video className="h-4 w-4 text-primary" />
+            Vídeos ({onlyVideos.length})
+          </CardTitle>
+          <CardDescription>
+            Reels, takes, showreels e making-ofs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button onClick={handleAddVideo} disabled={addingVideo}>
+            {addingVideo ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Adicionar vídeo
+          </Button>
+
+          {onlyVideos.length === 0 ? (
+            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+              Nenhum vídeo ainda. Suporte a MP4, MOV, WebM, AVI, MKV.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {onlyVideos.map((video) => {
+                const origIdx = photos.indexOf(video);
+                return (
+                  <VideoCard
+                    key={video.path}
+                    video={video}
+                    onCaptionChange={(caption) => {
+                      const next = [...photos];
+                      next[origIdx] = { ...next[origIdx], caption };
+                      onPhotosChange(next);
+                    }}
+                    onRemove={() => void handleRemove(origIdx, "vídeo")}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Pastas externas ── */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -1198,6 +1282,53 @@ function PhotoCard({
         <Input
           placeholder="Legenda (opcional)"
           value={photo.caption ?? ""}
+          onChange={(e) => onCaptionChange(e.target.value)}
+          className="h-7 text-xs"
+        />
+      </div>
+    </div>
+  );
+}
+
+function VideoCard({
+  video,
+  onCaptionChange,
+  onRemove,
+}: {
+  video: IdentityPhoto;
+  onCaptionChange: (caption: string) => void;
+  onRemove: () => void;
+}) {
+  const url = useImageUrl(video.path);
+  return (
+    <div className="group overflow-hidden rounded-lg border bg-card">
+      <div className="relative aspect-video w-full bg-muted">
+        {url ? (
+          <video
+            src={url}
+            controls
+            className="h-full w-full object-contain"
+            preload="metadata"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            Carregando…
+          </div>
+        )}
+        <Button
+          variant="secondary"
+          size="icon"
+          className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100"
+          onClick={onRemove}
+          aria-label="Remover"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="p-2">
+        <Input
+          placeholder="Legenda (opcional)"
+          value={video.caption ?? ""}
           onChange={(e) => onCaptionChange(e.target.value)}
           className="h-7 text-xs"
         />

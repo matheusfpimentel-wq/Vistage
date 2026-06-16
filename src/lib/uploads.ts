@@ -12,6 +12,7 @@ import { useConfigStore } from "./config";
 import { syncFileToDrive, restoreFileFromDrive } from "./mediaSync";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
+export const VIDEO_EXTS = ["mp4", "mov", "webm", "avi", "mkv", "m4v"];
 export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt", "ttf", "otf", "woff", "woff2"];
 
 type PickOptions = {
