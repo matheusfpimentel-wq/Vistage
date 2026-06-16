@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, GripVertical, RotateCcw } from "lucide-react";
+import { GripVertical, RotateCcw } from "lucide-react";
 import {
   DndContext,
   PointerSensor,
@@ -34,13 +34,9 @@ import {
 
 type NavRowProps = {
   item: NavItem;
-  isFirst: boolean;
-  isLast: boolean;
-  onMove: (to: string, dir: -1 | 1) => void;
-  group: NavGroup;
 };
 
-function NavRow({ item, isFirst, isLast, onMove }: NavRowProps) {
+function NavRow({ item }: NavRowProps) {
   const { to, label, icon: Icon } = item;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: to });
@@ -68,28 +64,6 @@ function NavRow({ item, isFirst, isLast, onMove }: NavRowProps) {
       </div>
       <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="flex-1 text-sm">{label}</span>
-      <div className="flex gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          disabled={isFirst}
-          onClick={() => onMove(to, -1)}
-          aria-label={`Mover ${label} para cima`}
-        >
-          <ArrowUp className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          disabled={isLast}
-          onClick={() => onMove(to, 1)}
-          aria-label={`Mover ${label} para baixo`}
-        >
-          <ArrowDown className="h-3.5 w-3.5" />
-        </Button>
-      </div>
     </li>
   );
 }
@@ -120,18 +94,6 @@ export function MenuOrderSettings() {
       g === group ? reordered : reorderable.filter((i) => i.group === g)
     );
     void persist(next);
-  }
-
-  /** Move um item uma posição (setas). */
-  function move(group: NavGroup, to: string, dir: -1 | 1) {
-    const groupItems = reorderable.filter((i) => i.group === group);
-    const idx = groupItems.findIndex((i) => i.to === to);
-    const target = idx + dir;
-    if (target < 0 || target >= groupItems.length) return;
-    const reordered = [...groupItems];
-    const [moved] = reordered.splice(idx, 1);
-    reordered.splice(target, 0, moved);
-    persistGroup(group, reordered);
   }
 
   /** Reposiciona via drag-and-drop (dentro do mesmo grupo). */
@@ -171,8 +133,8 @@ export function MenuOrderSettings() {
           <div>
             <CardTitle className="text-base">Ordem do menu lateral</CardTitle>
             <CardDescription>
-              Arraste pela alça ou use as setas para reordenar os módulos dentro
-              de cada grupo. Dashboard fica sempre no topo e Configurações no fim.
+              Arraste pela alça para reordenar os módulos dentro de cada grupo.
+              Dashboard fica sempre no topo e Configurações no fim.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={reset}>
@@ -195,15 +157,8 @@ export function MenuOrderSettings() {
                   strategy={verticalListSortingStrategy}
                 >
                   <ul className="space-y-1">
-                    {groupItems.map((item, i) => (
-                      <NavRow
-                        key={item.to}
-                        item={item}
-                        group={group}
-                        isFirst={i === 0}
-                        isLast={i === groupItems.length - 1}
-                        onMove={(to, dir) => move(group, to, dir)}
-                      />
+                    {groupItems.map((item) => (
+                      <NavRow key={item.to} item={item} />
                     ))}
                   </ul>
                 </SortableContext>

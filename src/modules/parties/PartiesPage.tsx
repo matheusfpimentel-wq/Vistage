@@ -92,8 +92,7 @@ export function PartiesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold tracking-tight">Produção de Festas</h2>
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-center justify-end gap-3">
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" /> Nova produção
         </Button>

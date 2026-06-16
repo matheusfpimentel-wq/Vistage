@@ -78,10 +78,6 @@ export function FocoPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Energia & Foco</h2>
-      </div>
-
       {activityStats.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           Nenhuma sessão encerrada ainda. Inicie uma sessão pelo botão "▶ Sessão" no topo.

@@ -352,9 +352,6 @@ export function MindMapPage() {
           <Network className="h-5 w-5 text-primary" />
           <div>
             <h1 className="text-lg font-semibold leading-tight">Mapa mental</h1>
-            <p className="text-xs text-muted-foreground">
-              Teia de conhecimento — como os módulos se conectam pelos seus vínculos
-            </p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={resetView}>

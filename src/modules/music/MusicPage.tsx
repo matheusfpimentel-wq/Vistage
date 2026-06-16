@@ -112,15 +112,7 @@ export function MusicPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            Produção Musical
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Tracks no processo Stage-Gate, da ideação ao pós-lançamento.
-          </p>
-        </div>
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-start justify-end gap-3">
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setProjectFormOpen(true)}>
             <FolderPlus className="h-4 w-4" /> Novo projeto

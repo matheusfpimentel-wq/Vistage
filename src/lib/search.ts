@@ -13,8 +13,7 @@ export type SearchHit = {
     | "idea"
     | "student"
     | "track"
-    | "party"
-    | "decision";
+    | "party";
   id: number;
   title: string;
   subtitle: string;
@@ -277,5 +276,4 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   student: "Aluno",
   track: "Track",
   party: "Festa",
-  decision: "Decisão",
 };

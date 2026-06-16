@@ -216,7 +216,7 @@ export function IdentityPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">Identidade</TabsTrigger>
-          <TabsTrigger value="photos">Fotos ({identity.photos.length})</TabsTrigger>
+          <TabsTrigger value="photos">Galeria ({identity.photos.length})</TabsTrigger>
           <TabsTrigger value="flyers">Flyers ({flyerGigs.length})</TabsTrigger>
           <TabsTrigger value="templates">
             Templates ({templates.length})

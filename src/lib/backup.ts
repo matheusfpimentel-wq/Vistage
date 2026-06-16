@@ -24,7 +24,6 @@ const TABLES = [
   "work_sessions",
   "highlights",
   "okrs",
-  "decisions",
   "ideas",
   "content",
   "suppliers",
