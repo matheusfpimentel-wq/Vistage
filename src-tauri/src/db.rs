@@ -235,7 +235,7 @@ pub async fn db_migrate_from_sqlite(
         while let Some(row) = src_rows.next().await.map_err(|e| e.to_string())? {
             let mut vals: Vec<libsql::Value> = Vec::with_capacity(cols.len());
             for i in 0..cols.len() {
-                vals.push(row.get_value(i).map_err(|e| e.to_string())?);
+                vals.push(row.get_value(i as i32).map_err(|e| e.to_string())?);
             }
             conn.execute(&insert_sql, vals)
                 .await
