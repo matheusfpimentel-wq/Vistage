@@ -9,7 +9,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useConfigStore } from "@/lib/config";
-import { loadDatabase } from "@/lib/db";
+import { initDatabase } from "@/lib/db";
+import { DEFAULT_TURSO_URL, DEFAULT_TURSO_TOKEN } from "@/lib/turso-defaults";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 type Mode = "idle" | "creating" | "loading";
@@ -30,7 +31,11 @@ export function Setup() {
       if (!folder || typeof folder !== "string") return;
       setMode("creating");
       const cfg = await setupNew(folder);
-      await loadDatabase(cfg.dbPath);
+      await initDatabase(
+        cfg.replicaPath ?? cfg.dbPath,
+        cfg.tursoUrl ?? DEFAULT_TURSO_URL,
+        cfg.tursoToken ?? DEFAULT_TURSO_TOKEN
+      );
     } catch (e) {
       setError(`Falha ao criar o banco: ${String(e)}`);
     } finally {
@@ -49,7 +54,11 @@ export function Setup() {
       if (!file || typeof file !== "string") return;
       setMode("loading");
       const cfg = await loadExisting(file);
-      await loadDatabase(cfg.dbPath);
+      await initDatabase(
+        cfg.replicaPath ?? cfg.dbPath,
+        cfg.tursoUrl ?? DEFAULT_TURSO_URL,
+        cfg.tursoToken ?? DEFAULT_TURSO_TOKEN
+      );
     } catch (e) {
       const msg = String(e);
       const isCloudFile =

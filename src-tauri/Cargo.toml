@@ -14,12 +14,12 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
-# Dependência direta do mesmo sqlx que o tauri-plugin-sql usa, só para alcançar
-# o static global sqlx::sqlite::CREATE_DB_WAL e desligar a criação de bancos em
-# modo WAL (ver lib.rs). Precisa resolver para a MESMA versão (0.8.x) do lock
-# para mexer no mesmo static.
-sqlx = { version = "0.8", default-features = false, features = ["sqlite"] }
+# Turso (libsql) com réplica embarcada: leituras sempre da réplica local
+# (funciona offline), escritas vão para a réplica E para o Turso; o libsql faz
+# o sync. `rusqlite` é usado só pela migração one-shot de um .db SQLite legado.
+libsql = { version = "0.9", default-features = false, features = ["core", "replication", "remote"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"

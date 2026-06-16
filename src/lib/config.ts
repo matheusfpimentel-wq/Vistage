@@ -16,10 +16,14 @@ import {
 const LS_KEY = "vistage.lastConfigPath";
 
 export type AppConfig = {
-  dbPath: string;            // caminho absoluto do .db
+  dbPath: string;            // caminho absoluto do .db legado (origem da migração)
   uploadsDir: string;        // pasta para anexos
   createdAt: string;         // ISO timestamp
   syncedFolder?: boolean;    // true quando o banco mora numa pasta sincronizada (Google Drive, etc.)
+  tursoUrl?: string;         // URL do banco Turso (sobrescreve o default)
+  tursoToken?: string;       // token de acesso ao Turso (sobrescreve o default)
+  replicaPath?: string;      // caminho absoluto da réplica embarcada local
+  migrated?: boolean;        // true depois que os dados do .db legado foram migrados para o Turso
 };
 
 type ConfigState = {
@@ -31,6 +35,7 @@ type ConfigState = {
   setupNew: (folder: string, syncedFolder?: boolean) => Promise<AppConfig>;
   loadExisting: (configFile: string) => Promise<AppConfig>;
   setSyncedFolder: (value: boolean) => Promise<void>;
+  patchConfig: (patch: Partial<AppConfig>) => Promise<void>;
   relocateData: (folder: string, syncedFolder: boolean) => Promise<AppConfig>;
   reset: () => void;
 };
@@ -67,6 +72,13 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       if (await exists(last)) {
         const cfg = JSON.parse(await readTextFile(last)) as AppConfig;
+        // A réplica embarcada do libsql mora ao lado do .db legado, num arquivo
+        // próprio: o .db legado continua intacto para servir de origem da
+        // migração one-shot (a réplica é gerenciada/sobrescrita pelo libsql).
+        if (cfg.dbPath && !cfg.replicaPath) {
+          cfg.replicaPath = cfg.dbPath.replace(/vistage\.db$/, "vistage-replica.db");
+          if (cfg.replicaPath === cfg.dbPath) cfg.replicaPath = `${cfg.dbPath}.replica`;
+        }
         // Não checa exists(cfg.dbPath) — em Google Drive/OneDrive (Cloud Files
         // no Windows, File Provider no macOS) o exists() pode retornar false
         // para arquivos placeholder ainda não baixados, mesmo que visíveis no
@@ -89,12 +101,16 @@ export const useConfigStore = create<ConfigState>((set) => ({
       await mkdir(uploadsDir, { recursive: true });
     }
     const dbPath = joinPath(folder, "vistage.db");
+    const replicaPath = joinPath(folder, "vistage-replica.db");
     const configPath = joinPath(folder, "vistage.config.json");
     const cfg: AppConfig = {
       dbPath,
+      replicaPath,
       uploadsDir,
       createdAt: new Date().toISOString(),
       syncedFolder,
+      // Banco novo: não há .db legado com dados, então nada a migrar.
+      migrated: true,
     };
     await writeTextFile(configPath, JSON.stringify(cfg, null, 2));
     localStorage.setItem(LS_KEY, configPath);
@@ -107,6 +123,15 @@ export const useConfigStore = create<ConfigState>((set) => ({
     const { config, configPath } = useConfigStore.getState();
     if (!config || !configPath) return;
     const next: AppConfig = { ...config, syncedFolder: value };
+    await writeTextFile(configPath, JSON.stringify(next, null, 2));
+    set({ config: next });
+  },
+
+  /** Aplica um patch parcial ao config e persiste no disco. */
+  async patchConfig(patch: Partial<AppConfig>) {
+    const { config, configPath } = useConfigStore.getState();
+    if (!config || !configPath) return;
+    const next: AppConfig = { ...config, ...patch };
     await writeTextFile(configPath, JSON.stringify(next, null, 2));
     set({ config: next });
   },
@@ -149,6 +174,10 @@ export const useConfigStore = create<ConfigState>((set) => ({
 
   async loadExisting(configFile: string) {
     const cfg = JSON.parse(await readTextFile(configFile)) as AppConfig;
+    if (cfg.dbPath && !cfg.replicaPath) {
+      cfg.replicaPath = cfg.dbPath.replace(/vistage\.db$/, "vistage-replica.db");
+      if (cfg.replicaPath === cfg.dbPath) cfg.replicaPath = `${cfg.dbPath}.replica`;
+    }
     // Não usa exists() para checar o .db — em pastas do Google Drive/OneDrive
     // (File Provider) o arquivo pode estar visível no Finder mas exists()
     // retorna false até a primeira leitura real materializar o download.

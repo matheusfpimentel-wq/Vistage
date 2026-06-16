@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
+import { MigratePage } from "@/pages/MigratePage";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { DriveSync } from "@/components/shared/DriveSync";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -13,7 +14,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
-import { classifyDbError, closeDatabase, loadDatabase } from "@/lib/db";
+import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
+import { DEFAULT_TURSO_URL, DEFAULT_TURSO_TOKEN } from "@/lib/turso-defaults";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
@@ -124,6 +126,7 @@ function MainApp() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbRetry, setDbRetry] = useState(0);
+  const [needsMigration, setNeedsMigration] = useState(false);
 
   // hidrata config + tema na primeira renderização
   useEffect(() => {
@@ -143,8 +146,15 @@ function MainApp() {
     let cancelled = false;
     (async () => {
       try {
-        await loadDatabase(config.dbPath);
+        const replicaPath = config.replicaPath ?? config.dbPath;
+        const tursoUrl = config.tursoUrl ?? DEFAULT_TURSO_URL;
+        const tursoToken = config.tursoToken ?? DEFAULT_TURSO_TOKEN;
+        await initDatabase(replicaPath, tursoUrl, tursoToken);
         if (!cancelled) {
+          // Banco legado presente e migração pendente
+          if (config.dbPath && !config.migrated) {
+            setNeedsMigration(true);
+          }
           setDbReady(true);
           setDbError(null);
           void autoGenerateRecurringUpToNow().catch(() => {});
@@ -209,7 +219,9 @@ function MainApp() {
     );
   }
 
-  if (!dbReady) return <FullscreenLoader label="Carregando banco e migrations…" />;
+  if (!dbReady) return <FullscreenLoader label="Conectando ao banco…" />;
+
+  if (needsMigration) return <MigratePage onDone={() => setNeedsMigration(false)} />;
 
   return (
     <TooltipProvider delayDuration={200}>

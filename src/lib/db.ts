@@ -1,93 +1,42 @@
-import Database from "@tauri-apps/plugin-sql";
 import { invoke } from "@tauri-apps/api/core";
 import { runMigrations } from "./migrations";
 
-let dbInstance: Database | null = null;
-let currentPath: string | null = null;
+export type QueryResult = { rowsAffected: number; lastInsertId: number };
 
-/** Carrega o banco SQLite a partir do caminho absoluto e roda as migrations. */
-export async function loadDatabase(absolutePath: string): Promise<Database> {
-  if (dbInstance && currentPath === absolutePath) return dbInstance;
-  if (dbInstance) {
-    await dbInstance.close();
-    dbInstance = null;
-  }
-  // ANTES de abrir, garantimos que o arquivo não esteja em modo WAL: o
-  // tauri-plugin-sql abriria o banco já em WAL e a criação/mmap do "-shm" falha
-  // em pastas de nuvem (Google Drive/OneDrive, incl. a pasta Documentos
-  // redirecionada do Windows) → SQLITE_CANTOPEN (code 14). O comando Rust abre
-  // com locking EXCLUSIVE (índice do WAL em heap, sem "-shm") e converte para
-  // journal DELETE. É best-effort: se falhar, deixamos o load tentar e produzir
-  // o erro classificado para o usuário.
-  try {
-    await invoke("prepare_database", { path: absolutePath });
-  } catch {
-    // segue para o load — ele dará o erro classificado se realmente não abrir
-  }
-  // tauri-plugin-sql aceita "sqlite:<caminho-absoluto>". NÃO usamos query params
-  // como "?mode=rwc": com SQLITE_OPEN_URI sempre ligado no sqlx, um path do
-  // Windows ("C:\...\Google Drive\...") com "?" vira ambíguo.
-  let db: Database;
-  try {
-    db = await Database.load(`sqlite:${absolutePath}`);
-  } catch (e) {
-    // tauri-plugin-sql guarda a conexão no pool pela connection string. Se a
-    // primeira tentativa abriu mas falhou depois, uma reabertura pode pegar a
-    // conexão ruim do pool e "Tentar novamente" nunca avança. Garantimos um
-    // estado limpo antes de propagar o erro.
-    dbInstance = null;
-    currentPath = null;
-    throw e;
-  }
-  // A criação de bancos novos já é forçada para journal rollback no Rust (ver
-  // lib.rs: CREATE_DB_WAL=false). Este PRAGMA cobre o caso de um arquivo .db
-  // PRÉ-EXISTENTE que já estava em WAL: em pastas de nuvem (Google Drive/
-  // OneDrive/Dropbox) o WAL falha porque os sidecars "-wal"/"-shm" não podem
-  // ser criados/mapeados. Migrar para DELETE remove essa dependência.
-  try {
-    try {
-      await db.execute("PRAGMA journal_mode=DELETE;");
-    } catch {
-      // se já estiver em DELETE ou o pragma falhar, segue — não é fatal
-    }
-    await db.execute("PRAGMA foreign_keys = ON;");
-    await runMigrations(db);
-  } catch (e) {
-    // fecha a conexão pela qual o erro veio para que "Tentar novamente"
-    // recomece do zero, sem reaproveitar uma conexão num estado inconsistente.
-    try {
-      await db.close();
-    } catch {
-      // ignora — já estamos tratando o erro original
-    }
-    dbInstance = null;
-    currentPath = null;
-    throw e;
-  }
-  dbInstance = db;
-  currentPath = absolutePath;
-  return db;
+// Proxy duck-typed com a MESMA interface do `Database` do tauri-plugin-sql.
+// As 756 chamadas getDb().select()/execute() seguem funcionando sem mudança.
+// A réplica embarcada do libsql roda no Rust (não funciona no JS do webview),
+// então cada chamada delega para um comando Tauri.
+const dbProxy = {
+  async select<T>(sql: string, params?: unknown[]): Promise<T> {
+    return invoke<T>("db_select", { sql, params: params ?? [] });
+  },
+  async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
+    return invoke<QueryResult>("db_execute", { sql, params: params ?? [] });
+  },
+};
+
+export function getDb() {
+  return dbProxy;
 }
 
-export function getDb(): Database {
-  if (!dbInstance) {
-    throw new Error(
-      "Banco de dados ainda não foi carregado. Execute loadDatabase() primeiro."
-    );
-  }
-  return dbInstance;
+export async function initDatabase(
+  replicaPath: string,
+  tursoUrl: string,
+  tursoToken: string
+): Promise<void> {
+  await invoke("db_init", { replicaPath, tursoUrl, tursoToken });
+  await runMigrations(dbProxy as never);
 }
+
+export async function syncDatabase(): Promise<void> {
+  await invoke("db_sync").catch(() => {});
+}
+
+export async function closeDatabase(): Promise<void> {}
 
 export function getDbPath(): string | null {
-  return currentPath;
-}
-
-export async function closeDatabase(): Promise<void> {
-  if (dbInstance) {
-    await dbInstance.close();
-    dbInstance = null;
-    currentPath = null;
-  }
+  return null;
 }
 
 export type DbErrorKind = "not_found" | "locked" | "corrupted" | "permission" | "unknown";
@@ -99,12 +48,25 @@ export type DbErrorInfo = {
 };
 
 /**
- * Classifica o erro bruto do SQLite/Tauri em algo acionável para o usuário.
- * Os dados ficam num HD externo, então distinguir "desconectado" de
- * "corrompido" muda completamente o que a pessoa deve fazer.
+ * Classifica o erro bruto do libsql/Turso/Tauri em algo acionável para o
+ * usuário. Distinguir "sem conexão" de "token inválido" muda o que a pessoa
+ * deve fazer.
  */
 export function classifyDbError(raw: string): DbErrorInfo {
   const e = raw.toLowerCase();
+  if (
+    e.includes("unauthorized") ||
+    e.includes("token") ||
+    e.includes("auth") ||
+    e.includes("403") ||
+    e.includes("401")
+  ) {
+    return {
+      kind: "permission",
+      title: "Falha de autenticação no Turso",
+      hint: "O token de acesso ao banco na nuvem é inválido ou expirou. Verifique as credenciais do Turso e tente novamente.",
+    };
+  }
   if (
     e.includes("unable to open") ||
     e.includes("no such file") ||
@@ -115,33 +77,33 @@ export function classifyDbError(raw: string): DbErrorInfo {
     return {
       kind: "not_found",
       title: "Banco não encontrado",
-      hint: "O arquivo do banco não foi localizado. Se ele está no Google Drive ou OneDrive, aguarde a sincronização terminar (ícone na barra de tarefas) e clique em 'Tentar de novo'. Se está num HD externo, verifique se está conectado.",
+      hint: "O arquivo da réplica local não pôde ser criado ou localizado. Verifique se a pasta escolhida existe e tem permissão de escrita.",
     };
   }
   if (e.includes("locked") || e.includes("busy")) {
     return {
       kind: "locked",
       title: "Banco em uso",
-      hint: "O banco está bloqueado por outro processo. Feche outras janelas do Vistage (ou outro programa usando o arquivo) e tente novamente.",
+      hint: "A réplica está bloqueada por outro processo. Feche outras janelas do Vistage e tente novamente.",
     };
   }
   if (e.includes("malformed") || e.includes("corrupt") || e.includes("not a database")) {
     return {
       kind: "corrupted",
-      title: "Banco corrompido",
-      hint: "O arquivo do banco parece danificado. Restaure o backup mais recente (local ou Google Drive) para recuperar seus dados.",
+      title: "Réplica corrompida",
+      hint: "O arquivo da réplica local parece danificado. Apague a réplica e deixe o app recriá-la a partir do Turso.",
     };
   }
   if (e.includes("permission") || e.includes("denied") || e.includes("readonly") || e.includes("os error 13")) {
     return {
       kind: "permission",
       title: "Sem permissão de acesso",
-      hint: "O sistema negou acesso ao arquivo do banco. Verifique as permissões da pasta ou se o HD está em modo somente-leitura.",
+      hint: "O sistema negou acesso à pasta da réplica. Verifique as permissões da pasta escolhida.",
     };
   }
   return {
     kind: "unknown",
     title: "Falha ao abrir o banco",
-    hint: "Ocorreu um erro inesperado ao abrir o banco. Verifique se o HD externo está conectado e tente novamente.",
+    hint: "Ocorreu um erro inesperado ao conectar ao banco. Verifique sua conexão com a internet e tente novamente.",
   };
 }
