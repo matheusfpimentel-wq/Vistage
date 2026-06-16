@@ -34,6 +34,7 @@ import {
   updateMeeting,
 } from "./api";
 import { MeetingForm } from "./forms/MeetingForm";
+import { LinkedTasksList } from "@/modules/tasks/components/LinkedTasksList";
 import {
   MEETING_STATUSES,
   meetingStatusVariant,
@@ -177,6 +178,11 @@ export function MeetingsPage() {
                   {m.outcomes}
                 </div>
               )}
+
+              <div className="mt-3 border-t pt-3">
+                <div className="mb-1 text-xs font-medium text-muted-foreground">Tarefas vinculadas</div>
+                <LinkedTasksList entityType="meeting" entityId={m.id} />
+              </div>
             </div>
           ))}
         </div>

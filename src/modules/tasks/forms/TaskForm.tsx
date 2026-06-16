@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { SubtaskList } from "../components/SubtaskList";
+import { LinkPicker, type PendingLink } from "../components/LinkPicker";
 import {
   TASK_CATEGORIES,
   TASK_PRIORITIES,
@@ -31,7 +32,7 @@ import {
   type TaskCreateInput,
   type TaskRecurrence,
 } from "../types";
-import { createTask, updateTask } from "../api";
+import { createTask, listTaskLinks, setTaskLinks, updateTask } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listGigs } from "@/modules/gigs/api";
@@ -90,6 +91,7 @@ export function TaskForm({
   const [tagInput, setTagInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
+  const [links, setLinks] = useState<PendingLink[]>([]);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
@@ -100,13 +102,25 @@ export function TaskForm({
     setTagInput("");
     setTitleError(null);
     setDirty(false);
+    setLinks([]);
   }, [task, defaults, open]);
 
   useEffect(() => {
     if (!open) return;
     void listContacts().then(setContacts);
     void listGigs().then(setGigs);
-  }, [open]);
+    if (task) {
+      void listTaskLinks(task.id).then((rows) =>
+        setLinks(
+          rows.map((r) => ({
+            entity_type: r.entity_type,
+            entity_id: r.entity_id,
+            label: r.label ?? "",
+          }))
+        )
+      );
+    }
+  }, [open, task]);
 
   function set<K extends keyof TaskCreateInput>(
     key: K,
@@ -143,6 +157,14 @@ export function TaskForm({
       const id = task
         ? (await updateTask({ id: task.id, ...state }), task.id)
         : await createTask(state);
+      await setTaskLinks(
+        id,
+        links.map((l) => ({
+          entity_type: l.entity_type,
+          entity_id: l.entity_id,
+          label: l.label || null,
+        }))
+      );
       toast.success(task ? "Tarefa atualizada" : "Tarefa criada");
       setDirty(false);
       onSaved(id);
@@ -373,6 +395,17 @@ export function TaskForm({
                 Adicionar
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Outros vínculos</Label>
+            <LinkPicker
+              links={links}
+              onChange={(l) => {
+                setLinks(l);
+                setDirty(true);
+              }}
+            />
           </div>
 
           {task && (
