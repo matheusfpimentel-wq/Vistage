@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { appDataDir } from "@tauri-apps/api/path";
+import { exists, mkdir } from "@tauri-apps/plugin-fs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { MigratePage } from "@/pages/MigratePage";
@@ -151,6 +152,11 @@ function MainApp() {
         // (AppData/Application Support), nunca na pasta do Google Drive ou
         // OneDrive — arquivos de WAL e mmap são incompatíveis com cloud-sync.
         const dataDir = await appDataDir();
+        // Numa instalação nova esse diretório pode ainda não existir — sem ele,
+        // a criação da réplica falha. Garantimos a pasta antes de abrir o banco.
+        if (!(await exists(dataDir))) {
+          await mkdir(dataDir, { recursive: true });
+        }
         const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
         const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
         const tursoUrl = config.tursoUrl ?? DEFAULT_TURSO_URL;
