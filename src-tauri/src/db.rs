@@ -62,19 +62,34 @@ pub async fn db_init(
     turso_url: String,
     turso_token: String,
 ) -> Result<(), String> {
-    let db = libsql::Builder::new_remote_replica(replica_path, turso_url, turso_token)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
+    // Tenta abrir como réplica embarcada (lê local, escreve no Turso).
+    // Se o Turso não responder em 8 s (rede lenta / offline), abre como banco
+    // local puro e dispara o sync em background — o app não fica travado.
+    let db = match tokio::time::timeout(
+        std::time::Duration::from_secs(8),
+        libsql::Builder::new_remote_replica(&replica_path, &turso_url, &turso_token)
+            .build(),
+    )
+    .await
+    {
+        Ok(Ok(db)) => db,
+        Ok(Err(_)) | Err(_) => {
+            // Fallback: abre réplica local existente (ou cria vazia) sem rede.
+            libsql::Builder::new_local(&replica_path)
+                .build()
+                .await
+                .map_err(|e| e.to_string())?
+        }
+    };
+
     let conn = db.connect().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = ON;", ())
         .await
         .map_err(|e| e.to_string())?;
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
-    // Sync inicial em background — não bloqueia a abertura do app.
-    // Se a réplica local já tem dados, o app carrega imediatamente; se for
-    // instalação nova, os dados chegam em segundos sem travar a tela de login.
+
+    // Sync em background — não bloqueia a abertura do app.
     let db_arc = Arc::clone(&state.db);
     tokio::spawn(async move {
         if let Some(db) = db_arc.lock().await.as_ref() {

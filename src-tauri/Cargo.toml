@@ -19,7 +19,7 @@ tauri = { version = "2", features = ["macos-private-api"] }
 # o sync. A migração one-shot do .db legado também usa libsql (local), evitando
 # a duplicidade de símbolos sqlite3 que rusqlite bundled causaria no Windows.
 libsql = { version = "0.9", default-features = false, features = ["core", "replication", "remote"] }
-tokio = { version = "1", features = ["rt-multi-thread", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
