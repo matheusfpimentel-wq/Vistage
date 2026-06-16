@@ -59,6 +59,9 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: npm run tauri:build
+        env:
+          VITE_TURSO_URL: ${{ secrets.VITE_TURSO_URL }}
+          VITE_TURSO_TOKEN: ${{ secrets.VITE_TURSO_TOKEN }}
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4

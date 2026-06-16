@@ -38,5 +38,4 @@ musicgest.config.json
 .claude/
 
 # Credenciais reais do Turso — NÃO versionar (use turso-defaults.example.ts)
-src/lib/turso-defaults.ts
-src/lib/turso-defaults.ts
+.env.local
