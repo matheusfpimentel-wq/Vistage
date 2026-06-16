@@ -34,9 +34,6 @@ import { useAlertNotifications } from "@/lib/notify";
 const DashboardPage = lazy(() =>
   import("@/modules/dashboard/DashboardPage").then((m) => ({ default: m.DashboardPage }))
 );
-const OperacaoDashboard = lazy(() =>
-  import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.OperacaoDashboard }))
-);
 const RelacionamentoDashboard = lazy(() =>
   import("@/modules/dashboard/GroupDashboards").then((m) => ({ default: m.RelacionamentoDashboard }))
 );
@@ -304,7 +301,6 @@ function RoutedApp() {
             <Route path="hoje" element={<TodayPage />} />
             <Route path="relatorio" element={<MonthlyReportPage />} />
             <Route path="mapa" element={<MindMapPage />} />
-            <Route path="operacao" element={<OperacaoDashboard />} />
             <Route path="relacionamento" element={<RelacionamentoDashboard />} />
             <Route path="criacao" element={<CriacaoDashboard />} />
             <Route path="gestao" element={<GestaoDashboard />} />

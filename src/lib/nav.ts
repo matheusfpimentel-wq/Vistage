@@ -1,6 +1,5 @@
 import {
   Award,
-  Briefcase,
   Building2,
   CalendarRange,
   CheckSquare,
@@ -25,14 +24,13 @@ import {
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
-export type NavGroup = "Operação" | "Relacionamento" | "Criação" | "Gestão";
+export type NavGroup = "Criação" | "Relacionamento" | "Produtividade";
 
 /** Ordem em que os grupos aparecem na sidebar. */
 export const NAV_GROUP_ORDER: NavGroup[] = [
-  "Operação",
-  "Relacionamento",
   "Criação",
-  "Gestão",
+  "Relacionamento",
+  "Produtividade",
 ];
 
 /** Metadados de cada grupo — usados no cabeçalho clicável da sidebar e na dash própria do grupo. */
@@ -40,10 +38,9 @@ export const NAV_GROUP_META: Record<
   NavGroup,
   { to: string; icon: React.ElementType; tagline: string }
 > = {
-  "Operação": { to: "/operacao", icon: Briefcase, tagline: "Execução do dia a dia" },
+  "Criação": { to: "/criacao", icon: Palette, tagline: "Produção, conteúdo e agenda" },
   "Relacionamento": { to: "/relacionamento", icon: Handshake, tagline: "Pessoas, parcerias e fãs" },
-  "Criação": { to: "/criacao", icon: Palette, tagline: "Pipeline criativo" },
-  "Gestão": { to: "/gestao", icon: Gauge, tagline: "Números e direção do projeto" },
+  "Produtividade": { to: "/gestao", icon: Gauge, tagline: "Gestão, foco e objetivos" },
 };
 
 export type NavItem = {
@@ -52,48 +49,54 @@ export type NavItem = {
   icon: React.ElementType;
   end?: boolean;
   fixed?: boolean;
-  /** Grupo de navegação; itens fixos (Dashboard/Alertas/Configurações) não têm. */
+  /** Grupo de navegação; itens fixos (Dashboard/Configurações) não têm. */
   group?: NavGroup;
 };
 
 export const DEFAULT_NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true, fixed: true },
 
-  { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Operação" },
-  { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Operação" },
-  { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
-  { to: "/musica", label: "Produção Musical", icon: Music, group: "Operação" },
-  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Gestão" },
-  { to: "/reunioes", label: "Reuniões", icon: MessagesSquare, group: "Gestão" },
+  { to: "/gigs", label: "GIGs", icon: CalendarRange, group: "Criação" },
+  { to: "/festas", label: "Produção de Festas", icon: PartyPopper, group: "Criação" },
+  { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Criação" },
+  { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
+  { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
 
   { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },
   { to: "/fornecedores", label: "Fornecedores", icon: Store, group: "Relacionamento" },
   { to: "/fas", label: "Clube de fãs", icon: Heart, group: "Relacionamento" },
 
-  { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
-  { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Criação" },
-  { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Criação" },
+  { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Produtividade" },
+  { to: "/reunioes", label: "Reuniões", icon: MessagesSquare, group: "Produtividade" },
+  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Produtividade" },
+  { to: "/objetivos", label: "OKRs", icon: Target, group: "Produtividade" },
+  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Produtividade" },
+  { to: "/carreira", label: "Carreira em Números", icon: Award, group: "Produtividade" },
+  { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Produtividade" },
+  { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Produtividade" },
 
-  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
-  { to: "/objetivos", label: "OKRs", icon: Target, group: "Gestão" },
-  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
-
-  { to: "/carreira", label: "Carreira em Números", icon: Award, group: "Gestão" },
   { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },
 ];
 
-const SETTINGS_KEY = "sidebar_order";
+// --- persisted settings keys ---
+const SETTINGS_ORDER = "sidebar_order";
+const SETTINGS_GROUP_LABELS = "sidebar_group_labels";
+const SETTINGS_ITEM_GROUPS = "sidebar_item_groups";
 
-/** Disparado quando a ordem do menu muda, pra sidebar e settings ficarem em sincronia. */
+/** Disparado quando a ordem/grupos/labels do menu mudam. */
 export const NAV_ORDER_CHANGED = "vistage:nav-order-changed";
+
+// ============================================================
+// Nav order
+// ============================================================
 
 async function loadNavOrder(): Promise<string[] | null> {
   try {
     const db = getDb();
     const rows = await db.select<{ value: string }[]>(
       "SELECT value FROM app_settings WHERE key = $1",
-      [SETTINGS_KEY]
+      [SETTINGS_ORDER]
     );
     if (!rows[0]) return null;
     const parsed = JSON.parse(rows[0].value);
@@ -108,7 +111,7 @@ export async function saveNavOrder(order: string[]): Promise<void> {
     const db = getDb();
     await db.execute(
       "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-      [SETTINGS_KEY, JSON.stringify(order)]
+      [SETTINGS_ORDER, JSON.stringify(order)]
     );
     window.dispatchEvent(new CustomEvent(NAV_ORDER_CHANGED));
   } catch {
@@ -116,7 +119,89 @@ export async function saveNavOrder(order: string[]): Promise<void> {
   }
 }
 
-/** Aplica a ordem salva, mantendo Dashboard fixo no topo e Configurações fixo no fim. */
+// ============================================================
+// Group labels (user-renameable dividers)
+// ============================================================
+
+export type GroupLabels = Partial<Record<NavGroup, string>>;
+
+export async function loadGroupLabels(): Promise<GroupLabels> {
+  try {
+    const db = getDb();
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [SETTINGS_GROUP_LABELS]
+    );
+    if (!rows[0]) return {};
+    return JSON.parse(rows[0].value) as GroupLabels;
+  } catch {
+    return {};
+  }
+}
+
+export async function saveGroupLabels(labels: GroupLabels): Promise<void> {
+  try {
+    const db = getDb();
+    await db.execute(
+      "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+      [SETTINGS_GROUP_LABELS, JSON.stringify(labels)]
+    );
+    window.dispatchEvent(new CustomEvent(NAV_ORDER_CHANGED));
+  } catch {
+    // non-critical
+  }
+}
+
+/** Retorna o label efetivo de um grupo (customizado ou padrão). */
+export function effectiveGroupLabel(group: NavGroup, labels: GroupLabels): string {
+  return labels[group] ?? group;
+}
+
+// ============================================================
+// Item group assignments (user can move items between groups)
+// ============================================================
+
+export type ItemGroups = Record<string, NavGroup>;
+
+async function loadItemGroups(): Promise<ItemGroups> {
+  try {
+    const db = getDb();
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [SETTINGS_ITEM_GROUPS]
+    );
+    if (!rows[0]) return {};
+    return JSON.parse(rows[0].value) as ItemGroups;
+  } catch {
+    return {};
+  }
+}
+
+export async function saveItemGroups(groups: ItemGroups): Promise<void> {
+  try {
+    const db = getDb();
+    await db.execute(
+      "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+      [SETTINGS_ITEM_GROUPS, JSON.stringify(groups)]
+    );
+    window.dispatchEvent(new CustomEvent(NAV_ORDER_CHANGED));
+  } catch {
+    // non-critical
+  }
+}
+
+// ============================================================
+// Applying saved state
+// ============================================================
+
+function applyItemGroups(items: NavItem[], itemGroups: ItemGroups): NavItem[] {
+  return items.map((item) =>
+    item.group && itemGroups[item.to]
+      ? { ...item, group: itemGroups[item.to] }
+      : item
+  );
+}
+
 function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
   const map = new Map(items.map((i) => [i.to, i]));
   const fixed_head = items.filter((i) => i.fixed && i.to === "/");
@@ -128,13 +213,15 @@ function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
   return [...fixed_head, ...reorderable, ...missing, ...fixed_tail];
 }
 
-/** Carrega a ordem efetiva já aplicada ao DEFAULT_NAV. */
+/** Carrega a ordem efetiva já aplicada ao DEFAULT_NAV (com grupos customizados). */
 export async function loadOrderedNav(): Promise<NavItem[]> {
-  const order = await loadNavOrder();
-  return order ? applyNavOrder(DEFAULT_NAV, order) : DEFAULT_NAV;
+  const [order, itemGroups] = await Promise.all([loadNavOrder(), loadItemGroups()]);
+  const withGroups = applyItemGroups(DEFAULT_NAV, itemGroups);
+  return order ? applyNavOrder(withGroups, order) : withGroups;
 }
 
 /** Módulos que pertencem a um grupo, na ordem salva (ou padrão). */
 export function modulesInGroup(nav: NavItem[], group: NavGroup): NavItem[] {
   return nav.filter((i) => i.group === group);
 }
+

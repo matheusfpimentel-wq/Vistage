@@ -7,7 +7,10 @@ import {
   NAV_GROUP_META,
   NAV_GROUP_ORDER,
   NAV_ORDER_CHANGED,
+  effectiveGroupLabel,
+  loadGroupLabels,
   loadOrderedNav,
+  type GroupLabels,
   type NavItem,
 } from "@/lib/nav";
 
@@ -20,6 +23,7 @@ export function Sidebar({
   onNavigate?: () => void;
 }) {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
+  const [groupLabels, setGroupLabels] = useState<GroupLabels>({});
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(localStorage.getItem("sidebar_collapsed_groups") ?? "{}");
@@ -29,9 +33,15 @@ export function Sidebar({
   });
 
   useEffect(() => {
-    void loadOrderedNav().then(setNav);
-    // Recarrega quando a ordem é alterada na tela de Configurações.
-    const onChange = () => void loadOrderedNav().then(setNav);
+    void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
+      setNav(ordered);
+      setGroupLabels(labels);
+    });
+    const onChange = () =>
+      void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
+        setNav(ordered);
+        setGroupLabels(labels);
+      });
     window.addEventListener(NAV_ORDER_CHANGED, onChange);
     return () => window.removeEventListener(NAV_ORDER_CHANGED, onChange);
   }, []);
@@ -128,16 +138,16 @@ export function Sidebar({
                         : "text-muted-foreground/50 hover:text-foreground"
                     )
                   }
-                  title={`Abrir dashboard de ${group}`}
+                  title={`Abrir dashboard de ${effectiveGroupLabel(group, groupLabels)}`}
                 >
-                  {group}
+                  {effectiveGroupLabel(group, groupLabels)}
                   <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
                 </NavLink>
                 <button
                   type="button"
                   onClick={() => toggleGroup(group)}
                   className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/50 transition hover:bg-accent hover:text-foreground"
-                  aria-label={isCollapsed ? `Expandir ${group}` : `Recolher ${group}`}
+                  aria-label={isCollapsed ? `Expandir ${effectiveGroupLabel(group, groupLabels)}` : `Recolher ${effectiveGroupLabel(group, groupLabels)}`}
                   aria-expanded={!isCollapsed}
                 >
                   <ChevronDown

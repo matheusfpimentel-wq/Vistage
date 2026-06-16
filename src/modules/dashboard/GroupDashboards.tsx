@@ -17,25 +17,22 @@ import {
   type NavGroup,
 } from "@/lib/nav";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
-// Operação
+// Criação
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { listParties } from "@/modules/parties/api";
 import { listClasses } from "@/modules/classes/api";
-import { listTasks } from "@/modules/tasks/api";
 // Relacionamento
 import { listContacts } from "@/modules/crm/api";
 import { ratingToPriority } from "@/modules/crm/types";
 import { listSuppliers } from "@/modules/suppliers/api";
 import { getFanStats } from "@/modules/fans/api";
 import { listVenues } from "@/modules/venues/api";
-// Criação
 import { listTracks, daysInStage } from "@/modules/music/api";
 import { trackDisplayName } from "@/modules/music/types";
 import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listContent } from "@/modules/content/api";
-import { listIdeas } from "@/modules/ideas/api";
 // Gestão
 import { loadFinanceInsights } from "@/modules/finance/api";
 import { listOkrs, currentQuarter, okrProgress } from "@/modules/objetivos/api";
@@ -241,153 +238,8 @@ function CenterLoader() {
 const KPI_GRID = "grid gap-3 sm:grid-cols-2 lg:grid-cols-4";
 
 // ============================================================
-// Operação
+// Criação (GIGs + Festas + Aulas + Música + Conteúdo)
 // ============================================================
-
-export function OperacaoDashboard() {
-  const load = useCallback(async () => {
-    const [gigs, parties, classes, tasks] = await Promise.all([
-      listGigs(),
-      listParties(),
-      listClasses(),
-      listTasks(),
-    ]);
-    return { gigs, parties, classes, tasks };
-  }, []);
-  const { data, loading, reload } = useAsync(load);
-  const today = todayISO();
-
-  return (
-    <GroupShell group="Operação" loading={loading} onReload={reload}>
-      {!data ? (
-        <CenterLoader />
-      ) : (
-        (() => {
-          const upcomingGigs = data.gigs
-            .filter(
-              (g) =>
-                g.date >= today &&
-                (g.status === "Proposta" || g.status === "Confirmada")
-            )
-            .sort((a, b) => a.date.localeCompare(b.date));
-          const upcomingParties = data.parties.filter(
-            (p) =>
-              p.date &&
-              p.date >= today &&
-              (p.status === "Planejando" || p.status === "Confirmada")
-          );
-          const upcomingClasses = data.classes.filter(
-            (c) => c.status === "Agendada" && c.date >= today
-          );
-          const activeTasks = data.tasks.filter(
-            (t) => t.status !== "Concluída" && t.status !== "Cancelada"
-          );
-          const overdue = activeTasks.filter(
-            (t) => t.due_date && t.due_date < today
-          );
-          const dueSoon = activeTasks
-            .filter((t) => t.due_date && t.due_date >= today)
-            .slice(0, 5);
-
-          return (
-            <>
-              <div className={KPI_GRID}>
-                <StatCard
-                  label="GIGs futuras"
-                  value={upcomingGigs.length}
-                  to="/gigs"
-                  hint={
-                    upcomingGigs[0]
-                      ? `Próxima: ${formatDate(upcomingGigs[0].date)}`
-                      : "Nada agendado"
-                  }
-                />
-                <StatCard
-                  label="Festas em andamento"
-                  value={upcomingParties.length}
-                  to="/festas"
-                />
-                <StatCard
-                  label="Aulas agendadas"
-                  value={upcomingClasses.length}
-                  to="/aulas"
-                />
-                <StatCard
-                  label="Tarefas atrasadas"
-                  value={overdue.length}
-                  to="/tarefas"
-                  tone={overdue.length > 0 ? "danger" : "default"}
-                  hint={`${activeTasks.length} ativas no total`}
-                />
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <HighlightCard
-                  title="Próximas GIGs"
-                  empty={upcomingGigs.length === 0}
-                >
-                  {upcomingGigs.slice(0, 5).map((g) => (
-                    <Link
-                      key={g.id}
-                      to={`/gigs?open=${g.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">
-                          {gigDisplayName(g)}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {g.venue_name} · {formatDate(g.date)}
-                        </div>
-                      </div>
-                      <StatusBadge status={g.status} />
-                    </Link>
-                  ))}
-                </HighlightCard>
-
-                <HighlightCard
-                  title="Tarefas em aberto"
-                  empty={overdue.length === 0 && dueSoon.length === 0}
-                >
-                  {[...overdue.slice(0, 5), ...dueSoon]
-                    .slice(0, 6)
-                    .map((t) => {
-                      const late = !!t.due_date && t.due_date < today;
-                      return (
-                        <Link
-                          key={t.id}
-                          to="/tarefas"
-                          className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
-                        >
-                          <span className="min-w-0 truncate text-sm">
-                            {t.title}
-                          </span>
-                          {t.due_date && (
-                            <span
-                              className={cn(
-                                "shrink-0 text-xs tabular-nums",
-                                late
-                                  ? "text-destructive"
-                                  : "text-muted-foreground"
-                              )}
-                            >
-                              {formatDate(t.due_date)}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                </HighlightCard>
-              </div>
-
-              <ModuleHub group="Operação" />
-            </>
-          );
-        })()
-      )}
-    </GroupShell>
-  );
-}
 
 // ============================================================
 // Relacionamento
@@ -479,14 +331,17 @@ export function RelacionamentoDashboard() {
 
 export function CriacaoDashboard() {
   const load = useCallback(async () => {
-    const [tracks, content, ideas] = await Promise.all([
+    const [gigs, parties, classes, tracks, content] = await Promise.all([
+      listGigs(),
+      listParties(),
+      listClasses(),
       listTracks(),
       listContent(),
-      listIdeas(),
     ]);
-    return { tracks, content, ideas };
+    return { gigs, parties, classes, tracks, content };
   }, []);
   const { data, loading, reload } = useAsync(load);
+  const today = todayISO();
 
   return (
     <GroupShell group="Criação" loading={loading} onReload={reload}>
@@ -494,76 +349,112 @@ export function CriacaoDashboard() {
         <CenterLoader />
       ) : (
         (() => {
+          const upcomingGigs = data.gigs
+            .filter(
+              (g) =>
+                g.date >= today &&
+                (g.status === "Proposta" || g.status === "Confirmada")
+            )
+            .sort((a, b) => a.date.localeCompare(b.date));
           const activeTracks = data.tracks.filter((t) => !t.standby);
           const pipeline = data.content.filter(
             (c) => c.status !== "Publicado" && c.status !== "Arquivado"
           );
-          const published = data.content.filter(
-            (c) => c.status === "Publicado"
+          const published = data.content.filter((c) => c.status === "Publicado");
+          const upcomingClasses = data.classes.filter(
+            (c) => c.status === "Agendada" && c.date >= today
           );
-          const hotIdeas = data.ideas.filter((i) => i.heat === 3);
 
           return (
             <>
               <div className={KPI_GRID}>
                 <StatCard
+                  label="GIGs futuras"
+                  value={upcomingGigs.length}
+                  to="/gigs"
+                  hint={
+                    upcomingGigs[0]
+                      ? `Próxima: ${formatDate(upcomingGigs[0].date)}`
+                      : "Nada agendado"
+                  }
+                />
+                <StatCard
                   label="Tracks ativas"
                   value={activeTracks.length}
                   to="/musica"
+                  hint={`${data.tracks.length - activeTracks.length} em standby`}
                 />
                 <StatCard
                   label="Conteúdo no pipeline"
                   value={pipeline.length}
                   to="/conteudo"
-                  hint={`${published.length} já publicados`}
+                  hint={`${published.length} publicados`}
                 />
                 <StatCard
-                  label="Ideias"
-                  value={data.ideas.length}
-                  to="/ideias"
-                  hint={`${hotIdeas.length} quentes`}
-                />
-                <StatCard
-                  label="Standby"
-                  value={data.tracks.length - activeTracks.length}
-                  to="/musica"
+                  label="Aulas agendadas"
+                  value={upcomingClasses.length}
+                  to="/aulas"
+                  hint={`${data.parties.filter((p) => p.date && p.date >= today && p.status !== "Cancelada").length} festa(s) em andamento`}
                 />
               </div>
 
-              <HighlightCard
-                title="Tracks ativas"
-                empty={activeTracks.length === 0}
-              >
-                {activeTracks.slice(0, 6).map((t) => {
-                  const d = daysInStage(t);
-                  return (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <HighlightCard
+                  title="Próximas GIGs"
+                  empty={upcomingGigs.length === 0}
+                >
+                  {upcomingGigs.slice(0, 5).map((g) => (
                     <Link
-                      key={t.id}
-                      to="/musica"
+                      key={g.id}
+                      to={`/gigs?open=${g.id}`}
                       className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
                     >
                       <div className="min-w-0">
                         <div className="truncate font-medium">
-                          {trackDisplayName(t)}
+                          {gigDisplayName(g)}
                         </div>
-                        {d !== null && (
-                          <div
-                            className={cn(
-                              "text-xs",
-                              d > 30
-                                ? "text-amber-500"
-                                : "text-muted-foreground"
-                            )}
-                          >
-                            {d}d no stage atual
-                          </div>
-                        )}
+                        <div className="truncate text-xs text-muted-foreground">
+                          {g.venue_name} · {formatDate(g.date)}
+                        </div>
                       </div>
-                      <StageBadge stage={t.current_stage} />
+                      <StatusBadge status={g.status} />
                     </Link>
-                  );
-                })}
-              </HighlightCard>
+                  ))}
+                </HighlightCard>
+
+                <HighlightCard
+                  title="Tracks ativas"
+                  empty={activeTracks.length === 0}
+                >
+                  {activeTracks.slice(0, 6).map((t) => {
+                    const d = daysInStage(t);
+                    return (
+                      <Link
+                        key={t.id}
+                        to="/musica"
+                        className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">
+                            {trackDisplayName(t)}
+                          </div>
+                          {d !== null && (
+                            <div
+                              className={cn(
+                                "text-xs",
+                                d > 30 ? "text-amber-500" : "text-muted-foreground"
+                              )}
+                            >
+                              {d}d no stage atual
+                            </div>
+                          )}
+                        </div>
+                        <StageBadge stage={t.current_stage} />
+                      </Link>
+                    );
+                  })}
+                </HighlightCard>
+              </div>
 
               <ModuleHub group="Criação" />
             </>
@@ -575,7 +466,7 @@ export function CriacaoDashboard() {
 }
 
 // ============================================================
-// Gestão
+// Produtividade (Gestão + Foco + Objetivos)
 // ============================================================
 
 export function GestaoDashboard() {
@@ -590,7 +481,7 @@ export function GestaoDashboard() {
   const { data, loading, reload } = useAsync(load);
 
   return (
-    <GroupShell group="Gestão" loading={loading} onReload={reload}>
+    <GroupShell group="Produtividade" loading={loading} onReload={reload}>
       {!data ? (
         <CenterLoader />
       ) : (
@@ -678,7 +569,7 @@ export function GestaoDashboard() {
                 })}
               </HighlightCard>
 
-              <ModuleHub group="Gestão" />
+              <ModuleHub group="Produtividade" />
             </>
           );
         })()
