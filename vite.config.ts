@@ -18,12 +18,11 @@ export default defineConfig(async () => ({
         manualChunks: {
           "react-vendor": ["react", "react-dom", "react-router-dom"],
           "date-vendor": ["date-fns"],
-          "map-vendor": ["leaflet", "react-leaflet"],
+          "map-vendor": ["leaflet"],
           "ui-vendor": [
             "@radix-ui/react-dialog",
             "@radix-ui/react-select",
             "@radix-ui/react-tabs",
-            "@radix-ui/react-dropdown-menu",
             "@radix-ui/react-tooltip",
           ],
           "charts-vendor": ["recharts"],
