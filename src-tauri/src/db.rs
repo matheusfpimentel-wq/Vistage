@@ -1,6 +1,7 @@
 // Turso (libsql) com réplica embarcada. Leituras vêm da réplica local (offline),
 // escritas vão para a réplica E para o Turso; o libsql sincroniza. A migração
-// one-shot de um .db SQLite legado usa `rusqlite` para ler a origem.
+// one-shot de um .db SQLite legado usa uma conexão libsql local para ler a origem
+// (sem rusqlite bundled, que duplicaria os símbolos sqlite3 no Windows).
 
 use std::sync::Arc;
 
@@ -146,6 +147,8 @@ pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
 
 /// Migração one-shot, não-destrutiva, de um arquivo .db SQLite legado para o
 /// Turso. Para cada tabela: limpa o destino (idempotente) e copia as linhas.
+/// Usa conexão libsql local para ler a origem — sem rusqlite, evitando duplicidade
+/// de símbolos sqlite3 no linker do Windows.
 #[tauri::command]
 pub async fn db_migrate_from_sqlite(
     state: State<'_, DbState>,
@@ -156,35 +159,47 @@ pub async fn db_migrate_from_sqlite(
     let conn_guard = state.conn.lock().await;
     let conn = conn_guard.as_ref().ok_or("banco não inicializado")?;
 
-    let src = rusqlite::Connection::open(&sqlite_path).map_err(|e| e.to_string())?;
+    // Abre o arquivo legado como banco local (sem sync remoto).
+    let src_db = libsql::Builder::new_local(&sqlite_path)
+        .build()
+        .await
+        .map_err(|e| e.to_string())?;
+    let src = src_db.connect().map_err(|e| e.to_string())?;
 
     // Lista tabelas de usuário, ignorando as internas e a tabela de migrations
     // (o schema do destino já foi criado pelas migrations no init).
     let tables: Vec<String> = {
-        let mut stmt = src
-            .prepare(
+        let mut rows = src
+            .query(
                 "SELECT name FROM sqlite_master WHERE type='table' \
                  AND name NOT LIKE 'sqlite_%' ORDER BY name",
+                (),
             )
+            .await
             .map_err(|e| e.to_string())?;
-        let names = stmt
-            .query_map([], |r| r.get::<_, String>(0))
-            .map_err(|e| e.to_string())?;
-        names.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+        let mut names = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+            let name: String = row.get(0).map_err(|e| e.to_string())?;
+            names.push(name);
+        }
+        names
     };
 
     let mut report: Vec<(String, u64)> = Vec::new();
 
     for table in &tables {
-        // Colunas da tabela de origem.
+        // Colunas da tabela de origem via PRAGMA table_info (coluna 1 = name).
         let cols: Vec<String> = {
-            let mut stmt = src
-                .prepare(&format!("PRAGMA table_info(\"{}\")", table))
+            let mut rows = src
+                .query(&format!("PRAGMA table_info(\"{}\")", table), ())
+                .await
                 .map_err(|e| e.to_string())?;
-            let c = stmt
-                .query_map([], |r| r.get::<_, String>(1))
-                .map_err(|e| e.to_string())?;
-            c.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+            let mut names = Vec::new();
+            while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+                let col_name: String = row.get(1).map_err(|e| e.to_string())?;
+                names.push(col_name);
+            }
+            names
         };
         if cols.is_empty() {
             continue;
@@ -209,26 +224,19 @@ pub async fn db_migrate_from_sqlite(
             table, col_list, placeholders
         );
 
-        // Lê todas as linhas da origem em memória (convertidas), depois insere.
-        let rows: Vec<Vec<libsql::Value>> = {
-            let mut stmt = src
-                .prepare(&format!("SELECT {} FROM \"{}\"", col_list, table))
-                .map_err(|e| e.to_string())?;
-            let mapped = stmt
-                .query_map([], |r| {
-                    let mut vals = Vec::with_capacity(cols.len());
-                    for i in 0..cols.len() {
-                        let v: rusqlite::types::Value = r.get(i)?;
-                        vals.push(rusqlite_to_libsql(v));
-                    }
-                    Ok(vals)
-                })
-                .map_err(|e| e.to_string())?;
-            mapped.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-        };
+        // Lê todas as linhas da origem e insere no destino.
+        let select_sql = format!("SELECT {} FROM \"{}\"", col_list, table);
+        let mut src_rows = src
+            .query(&select_sql, ())
+            .await
+            .map_err(|e| e.to_string())?;
 
         let mut count: u64 = 0;
-        for vals in rows {
+        while let Some(row) = src_rows.next().await.map_err(|e| e.to_string())? {
+            let mut vals: Vec<libsql::Value> = Vec::with_capacity(cols.len());
+            for i in 0..cols.len() {
+                vals.push(row.get_value(i).map_err(|e| e.to_string())?);
+            }
             conn.execute(&insert_sql, vals)
                 .await
                 .map_err(|e| e.to_string())?;
@@ -239,14 +247,4 @@ pub async fn db_migrate_from_sqlite(
 
     db.sync().await.map_err(|e| e.to_string())?;
     Ok(report)
-}
-
-fn rusqlite_to_libsql(v: rusqlite::types::Value) -> libsql::Value {
-    match v {
-        rusqlite::types::Value::Null => libsql::Value::Null,
-        rusqlite::types::Value::Integer(i) => libsql::Value::Integer(i),
-        rusqlite::types::Value::Real(f) => libsql::Value::Real(f),
-        rusqlite::types::Value::Text(s) => libsql::Value::Text(s),
-        rusqlite::types::Value::Blob(b) => libsql::Value::Blob(b),
-    }
 }
