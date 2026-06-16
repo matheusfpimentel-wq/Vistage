@@ -48,7 +48,7 @@ export const PREP_GROUPS: PrepGroup[] = [
   },
 ];
 
-export const PREP_ITEMS: PrepItem[] = PREP_GROUPS.flatMap((g) => g.items);
+const PREP_ITEMS: PrepItem[] = PREP_GROUPS.flatMap((g) => g.items);
 
 /** Parse seguro do JSON salvo em prep_state. */
 export function parsePrepState(raw: string | null): Record<string, 1> {

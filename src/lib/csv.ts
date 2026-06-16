@@ -65,7 +65,7 @@ function buildCsv(columns: string[], rows: Record<string, unknown>[]): string {
  * Parser CSV simples (suporta campos entre aspas com vírgulas e quebras
  * de linha, e aspas escapadas como ""). Retorna matriz de strings.
  */
-export function parseCsv(text: string): string[][] {
+function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cur = "";

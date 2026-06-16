@@ -65,7 +65,7 @@ type Props = {
 };
 
 /** Categoria que habilita festa recorrente. */
-export const FESTA_CATEGORY = "Festa";
+const FESTA_CATEGORY = "Festa";
 
 /** True quando a categoria indica um evento social/privado (não-festa). */
 function isSocialCategory(category: string | null | undefined): boolean {

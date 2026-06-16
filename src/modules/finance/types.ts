@@ -1,4 +1,4 @@
-export const TRANSACTION_KINDS = ["income", "expense"] as const;
+const TRANSACTION_KINDS = ["income", "expense"] as const;
 export type TransactionKind = (typeof TRANSACTION_KINDS)[number];
 
 export const TRANSACTION_STATUSES = ["Previsto", "Recebido", "Pago"] as const;
@@ -22,10 +22,10 @@ export const PAYMENT_METHODS = [
   "Boleto",
   "Outro",
 ] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const EXPENSE_TYPES = ["Variável", "Fixa"] as const;
-export type ExpenseType = (typeof EXPENSE_TYPES)[number];
+type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
 export const EQUIPMENT_STATES = [
   "Em uso",

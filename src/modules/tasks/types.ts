@@ -28,7 +28,7 @@ export const TASK_RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
 };
 
 /** Quadrantes da matriz de Eisenhower (urgência × importância). */
-export const EISENHOWER_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
+const EISENHOWER_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
 export type EisenhowerQuadrant = (typeof EISENHOWER_QUADRANTS)[number];
 
 export type Task = {

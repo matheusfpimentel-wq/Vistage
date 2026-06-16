@@ -14,7 +14,7 @@ export const STAGES = [
 
 export type Stage = (typeof STAGES)[number];
 
-export function stageIndex(stage: Stage): number {
+function stageIndex(stage: Stage): number {
   return STAGES.indexOf(stage);
 }
 
@@ -59,7 +59,7 @@ export const TRACK_KIND_LABEL: Record<TrackKind, string> = {
   bootleg: "Bootleg",
 };
 
-export const PROJECT_KINDS = [
+const PROJECT_KINDS = [
   "single",
   "ep",
   "album",
@@ -69,16 +69,6 @@ export const PROJECT_KINDS = [
   "bootleg",
 ] as const;
 export type ProjectKind = (typeof PROJECT_KINDS)[number];
-
-export const PROJECT_KIND_LABEL: Record<ProjectKind, string> = {
-  single: "Single",
-  ep: "EP",
-  album: "Álbum",
-  remix: "Remix",
-  beat: "Beat",
-  edit: "Edit",
-  bootleg: "Bootleg",
-};
 
 /** Quando uma track é criada solta, o projeto auto-gerado herda esse kind. */
 export function projectKindFromTrack(kind: TrackKind): ProjectKind {

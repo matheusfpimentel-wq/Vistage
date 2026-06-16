@@ -11,7 +11,7 @@ const DB_KEY = "alerts.snooze";
 
 type Snoozed = Record<string, number>;
 
-export async function loadSnoozed(): Promise<Snoozed> {
+async function loadSnoozed(): Promise<Snoozed> {
   try {
     const db = getDb();
     const rows = await db.select<{ value: string }[]>(
@@ -29,12 +29,6 @@ export async function loadSnoozed(): Promise<Snoozed> {
   } catch {
     return {};
   }
-}
-
-export async function isSnoozed(key: string, snoozed?: Snoozed): Promise<boolean> {
-  const s = snoozed ?? (await loadSnoozed());
-  const exp = s[key];
-  return !!exp && exp > Date.now();
 }
 
 /** Dispensa um alerta por N horas (padrão 24h) e avisa o resto do app. */

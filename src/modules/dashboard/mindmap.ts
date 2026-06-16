@@ -30,7 +30,7 @@ export type MindNode = {
   route: string;
 };
 
-export type MindEdge = {
+type MindEdge = {
   source: string;
   target: string;
   /** rótulo legível do tipo de vínculo */

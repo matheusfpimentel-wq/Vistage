@@ -14,7 +14,7 @@ import { DATA_CHANGED } from "@/lib/events";
 
 const NOTIFIED_KEY = "vistage:notified-alerts";
 
-export function notificationsSupported(): boolean {
+function notificationsSupported(): boolean {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
@@ -52,7 +52,7 @@ function saveNotified(keys: string[]): void {
  * Alertas dispensados (snooze) são ignorados. Mantém só as chaves ativas, então
  * um alerta que some e volta dispara de novo.
  */
-export async function syncAlertNotifications(): Promise<void> {
+async function syncAlertNotifications(): Promise<void> {
   if (notificationPermission() !== "granted") return;
   let critical;
   try {

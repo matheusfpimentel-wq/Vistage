@@ -67,15 +67,6 @@ export async function saveAttachment(
 }
 
 /**
- * @deprecated convertFileSrc não funciona com paths arbitrários fora do scope.
- * Use `useImageUrl(path)` ou `readAsDataUrl(path)` no lugar.
- * Mantido como string vazia pra não quebrar callers existentes que serão migrados.
- */
-export function assetUrl(_path: string | null | undefined): string | null {
-  return null;
-}
-
-/**
  * Hook React que carrega uma imagem como data URL.
  * Funciona pra qualquer caminho que o app tenha permissão fs:allow-read-file.
  */
@@ -105,7 +96,7 @@ export function useImageUrl(path: string | null | undefined): string | null {
 }
 
 /** Lê o arquivo e retorna um data URL — útil quando convertFileSrc não funciona em alguns paths. */
-export async function readAsDataUrl(
+async function readAsDataUrl(
   absolutePath: string | null | undefined
 ): Promise<string | null> {
   if (!absolutePath) return null;

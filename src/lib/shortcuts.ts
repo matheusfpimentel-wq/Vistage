@@ -109,14 +109,6 @@ export async function hydrateShortcuts(): Promise<void> {
   notify();
 }
 
-export function getShortcutKey(action: ShortcutAction): string {
-  return cache[action] ?? DEFAULTS[action];
-}
-
-export function getAllShortcuts(): Record<ShortcutAction, string> {
-  return { ...cache };
-}
-
 export function getDefaultShortcuts(): Record<ShortcutAction, string> {
   return { ...DEFAULTS };
 }

@@ -49,7 +49,7 @@ export type ClassPackage = {
 export type ClassPackageCreateInput = Omit<ClassPackage, "id" | "created_at">;
 export type ClassPackageUpdateInput = Partial<ClassPackageCreateInput> & { id: number };
 
-export const STUDENT_PACKAGE_STATUSES = ["Ativo", "Concluído", "Cancelado"] as const;
+const STUDENT_PACKAGE_STATUSES = ["Ativo", "Concluído", "Cancelado"] as const;
 export type StudentPackageStatus = (typeof STUDENT_PACKAGE_STATUSES)[number];
 
 export type StudentPackage = {

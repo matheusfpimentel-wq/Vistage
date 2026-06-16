@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { runMigrations } from "./migrations";
 
-export type QueryResult = { rowsAffected: number; lastInsertId: number };
+type QueryResult = { rowsAffected: number; lastInsertId: number };
 
 // Interface mínima do banco usada pelo app (migrations, módulos). Espelha o
 // `Database` do antigo tauri-plugin-sql; o proxy abaixo a implementa delegando
@@ -43,11 +43,7 @@ export async function syncDatabase(): Promise<void> {
 
 export async function closeDatabase(): Promise<void> {}
 
-export function getDbPath(): string | null {
-  return null;
-}
-
-export type DbErrorKind = "not_found" | "locked" | "corrupted" | "permission" | "unknown";
+type DbErrorKind = "not_found" | "locked" | "corrupted" | "permission" | "unknown";
 
 export type DbErrorInfo = {
   kind: DbErrorKind;

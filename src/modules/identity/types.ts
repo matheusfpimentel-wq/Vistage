@@ -22,13 +22,13 @@ export type SocialLink = {
   url: string;
 };
 
-export type PaletteColor = {
+type PaletteColor = {
   hex: string;
   /** Rótulo opcional (ex: "Roxo principal", "Acento", "Texto escuro"). */
   label?: string;
 };
 
-export type FontEntry = {
+type FontEntry = {
   /** Nome da fonte (ex: "Clash Display", "Inter"). */
   name: string;
   /** Uso opcional (ex: "Títulos", "Corpo", "Destaque"). */

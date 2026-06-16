@@ -25,7 +25,7 @@ function relativize(absPath: string, uploadsDir: string): string {
 }
 
 /** Returns the Drive file ID stored for a given relative path, or null. */
-export async function getDriveMediaId(relPath: string): Promise<string | null> {
+async function getDriveMediaId(relPath: string): Promise<string | null> {
   const db = getDb();
   const rows = await db.select<{ value: string }[]>(
     "SELECT value FROM app_settings WHERE key = $1",
@@ -35,7 +35,7 @@ export async function getDriveMediaId(relPath: string): Promise<string | null> {
 }
 
 /** Stores the Drive file ID for a given relative path. */
-export async function setDriveMediaId(relPath: string, driveId: string): Promise<void> {
+async function setDriveMediaId(relPath: string, driveId: string): Promise<void> {
   const db = getDb();
   await db.execute(
     "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",

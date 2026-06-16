@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useBlocker } from "react-router-dom";
 import { confirmDialog } from "@/components/ui/confirm";
 
 /**
@@ -41,57 +40,4 @@ export function useUnsavedConfirm(isDirty: boolean) {
       if (ok) andDo?.();
     });
   }, []);
-}
-
-/**
- * @deprecated NÃO USAR com BrowserRouter. `useBlocker` exige um data router
- * (createBrowserRouter + RouterProvider); com `<BrowserRouter>` ele lança erro
- * e quebra a página inteira (tela branca). Para auto-salvar ao sair de uma
- * página, persista no cleanup de um useEffect usando refs com o estado atual.
- *
- * Bloqueia a navegação do React Router enquanto há alterações não salvas.
- */
-export function useNavigationGuard(isDirty: boolean) {
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname
-  );
-
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    void confirmDialog({
-      title: "Descartar alterações?",
-      description: "Você tem alterações não salvas. Sair mesmo assim?",
-      confirmLabel: "Descartar",
-      cancelLabel: "Continuar editando",
-      destructive: true,
-    }).then((ok) => {
-      if (ok) blocker.proceed();
-      else blocker.reset();
-    });
-  }, [blocker]);
-}
-
-/**
- * Comparação rasa entre dois objetos por chave. Útil pra calcular
- * dirty state entre snapshot inicial e state atual.
- */
-export function shallowEqual<T extends Record<string, unknown>>(
-  a: T,
-  b: T
-): boolean {
-  const ak = Object.keys(a);
-  const bk = Object.keys(b);
-  if (ak.length !== bk.length) return false;
-  for (const k of ak) {
-    const av = a[k];
-    const bv = b[k];
-    if (Array.isArray(av) && Array.isArray(bv)) {
-      if (av.length !== bv.length) return false;
-      for (let i = 0; i < av.length; i++) if (av[i] !== bv[i]) return false;
-      continue;
-    }
-    if (av !== bv) return false;
-  }
-  return true;
 }

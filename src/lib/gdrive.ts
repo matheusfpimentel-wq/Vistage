@@ -25,7 +25,7 @@ export const DEFAULT_FOLDER_NAME = "Vistage Backups";
 // Tipos espelhando o Rust
 // ============================================================
 
-export type DriveTokens = {
+type DriveTokens = {
   access_token: string;
   refresh_token?: string | null;
   expires_in: number;
@@ -112,7 +112,7 @@ export async function loadAuth(): Promise<DriveAuth | null> {
   };
 }
 
-export async function saveFolderName(name: string): Promise<void> {
+async function saveFolderName(name: string): Promise<void> {
   await setSetting(K.FOLDER_NAME, name.trim() || DEFAULT_FOLDER_NAME);
 }
 

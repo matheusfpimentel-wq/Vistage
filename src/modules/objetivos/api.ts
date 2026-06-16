@@ -63,14 +63,6 @@ async function syncKrCompletions(okrs: Okr[]): Promise<void> {
   }
 }
 
-export async function getOkr(id: number): Promise<Okr | null> {
-  const db = getDb();
-  const rows = await db.select<OkrRow[]>(`SELECT * FROM okrs WHERE id=$1`, [id]);
-  if (!rows[0]) return null;
-  const [okr] = await pullMetrics([parseOkr(rows[0])]);
-  return okr;
-}
-
 export async function createOkr(input: { quarter: string; objective: string; key_results: KeyResult[] }): Promise<number> {
   const db = getDb();
   const res = await db.execute(
@@ -216,34 +208,6 @@ export type OkrLinkedTask = {
   status: string;
 };
 
-export async function listOkrTasks(okrId: number): Promise<OkrLinkedTask[]> {
-  const db = getDb();
-  return db.select<OkrLinkedTask[]>(
-    `SELECT t.id as task_id, t.title, t.status
-       FROM okr_kr_tasks o
-       JOIN tasks t ON t.id = o.task_id
-      WHERE o.okr_id = $1 AND o.kr_index IS NULL
-      ORDER BY t.created_at DESC`,
-    [okrId]
-  );
-}
-
-export async function linkTaskToOkr(okrId: number, taskId: number): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `INSERT OR IGNORE INTO okr_kr_tasks (okr_id, task_id) VALUES ($1, $2)`,
-    [okrId, taskId]
-  );
-}
-
-export async function unlinkTaskFromOkr(okrId: number, taskId: number): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `DELETE FROM okr_kr_tasks WHERE okr_id = $1 AND task_id = $2 AND kr_index IS NULL`,
-    [okrId, taskId]
-  );
-}
-
 export async function listKrTasks(okrId: number, krIndex: number): Promise<OkrLinkedTask[]> {
   const db = getDb();
   return db.select<OkrLinkedTask[]>(
@@ -272,50 +236,3 @@ export async function unlinkTaskFromKr(okrId: number, krIndex: number, taskId: n
   );
 }
 
-export async function syncOkrKrTasks(okr: Okr): Promise<void> {
-  const db = getDb();
-  const [, endDate] = quarterRange(okr.quarter);
-  const { createTask, updateTask } = await import("@/modules/tasks/api");
-
-  for (let i = 0; i < okr.key_results.length; i++) {
-    const kr = okr.key_results[i];
-    const title = `${kr.description} — ${okr.quarter}`;
-
-    const rows = await db.select<{ task_id: number }[]>(
-      "SELECT task_id FROM okr_kr_tasks WHERE okr_id = $1 AND kr_index = $2",
-      [okr.id, i]
-    );
-
-    const isDone = kr.target > 0 && kr.current >= kr.target;
-
-    if (rows[0]) {
-      await updateTask({ id: rows[0].task_id, title, due_date: endDate }).catch(() => {});
-      if (isDone) {
-        await db.execute(
-          `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
-          [rows[0].task_id]
-        ).catch(() => {});
-      }
-    } else {
-      try {
-        const taskId = await createTask({
-          title,
-          description: `Meta: ${kr.target} ${kr.unit}`,
-          category: "Pessoal",
-          gig_id: null,
-          contact_id: null,
-          priority: "Alta",
-          status: isDone ? "Concluída" : "A fazer",
-          due_date: endDate,
-          tags: ["okr"],
-        });
-        await db.execute(
-          "INSERT OR IGNORE INTO okr_kr_tasks (okr_id, kr_index, task_id) VALUES ($1, $2, $3)",
-          [okr.id, i, taskId]
-        );
-      } catch {
-        /* não interrompe */
-      }
-    }
-  }
-}

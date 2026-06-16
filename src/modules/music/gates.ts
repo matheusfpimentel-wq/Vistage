@@ -6,7 +6,7 @@ import type { Stage } from "./stages";
 // reduz o custo emocional da decisão e enfrenta o viés de sunk-cost
 // (Kahneman), em vez de "Cancelar".
 
-export type GateFieldType = "boolean" | "tri" | "scale" | "number" | "select" | "text";
+type GateFieldType = "boolean" | "tri" | "scale" | "number" | "select" | "text";
 
 export type GateField = {
   key: string;
@@ -95,10 +95,6 @@ export const GATES: Gate[] = [
 
 export function gateAfter(stage: Stage): Gate | null {
   return GATES.find((g) => g.afterStage === stage) ?? null;
-}
-
-export function gateById(id: string): Gate | null {
-  return GATES.find((g) => g.id === id) ?? null;
 }
 
 export type GateCriteria = Record<string, string | number | boolean | null>;

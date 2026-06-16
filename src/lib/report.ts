@@ -29,11 +29,11 @@ export type TransactionRow = {
   status: string | null;
 };
 
-export type GigRow = { date: string; name: string; city: string | null; cache: number | null; status: string };
-export type PartyRow = { date: string | null; name: string; status: string };
-export type ContentRow = { publish_date: string | null; title: string; status: string };
-export type TrackRow = { name: string; launched_at: string };
-export type TaskRow = { title: string; due_date: string | null; status: string };
+type GigRow = { date: string; name: string; city: string | null; cache: number | null; status: string };
+type PartyRow = { date: string | null; name: string; status: string };
+type ContentRow = { publish_date: string | null; title: string; status: string };
+type TrackRow = { name: string; launched_at: string };
+type TaskRow = { title: string; due_date: string | null; status: string };
 
 /** Resumo consolidado de um mês (YYYY-MM) para o relatório. */
 export async function loadMonthlyReport(month: string): Promise<MonthlyReport> {

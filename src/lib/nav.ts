@@ -86,7 +86,7 @@ const SETTINGS_KEY = "sidebar_order";
 /** Disparado quando a ordem do menu muda, pra sidebar e settings ficarem em sincronia. */
 export const NAV_ORDER_CHANGED = "vistage:nav-order-changed";
 
-export async function loadNavOrder(): Promise<string[] | null> {
+async function loadNavOrder(): Promise<string[] | null> {
   try {
     const db = getDb();
     const rows = await db.select<{ value: string }[]>(
@@ -115,7 +115,7 @@ export async function saveNavOrder(order: string[]): Promise<void> {
 }
 
 /** Aplica a ordem salva, mantendo Dashboard fixo no topo e Configurações fixo no fim. */
-export function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
+function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
   const map = new Map(items.map((i) => [i.to, i]));
   const fixed_head = items.filter((i) => i.fixed && i.to === "/");
   const fixed_tail = items.filter((i) => i.fixed && i.to !== "/");

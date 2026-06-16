@@ -200,7 +200,7 @@ async function restoreFiles(
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
  * Inclui os arquivos de anexo como base64 (v2+) — fotos, flyers, etc.
  */
-export async function buildBackup(): Promise<Backup> {
+async function buildBackup(): Promise<Backup> {
   const db = getDb();
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {

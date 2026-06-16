@@ -1,12 +1,12 @@
 export const VENUE_TYPES = ["Club", "Bar", "Espaço para eventos", "Teatro", "Festival", "Outro"] as const;
 export type VenueType = (typeof VENUE_TYPES)[number];
 
-export const VENUE_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
+const VENUE_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
 export type VenuePriority = (typeof VENUE_PRIORITIES)[number];
 
 // kept for DB compat — no longer exposed in UI
-export const VENUE_STAR_STATUSES = ["target", "played", "favorite"] as const;
-export type VenueStarStatus = (typeof VENUE_STAR_STATUSES)[number];
+const VENUE_STAR_STATUSES = ["target", "played", "favorite"] as const;
+type VenueStarStatus = (typeof VENUE_STAR_STATUSES)[number];
 
 export type Venue = {
   id: number;

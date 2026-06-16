@@ -63,7 +63,7 @@ async function resolveCalendarId(module: GcalModule): Promise<string> {
 // Tipos espelhando o Rust
 // ============================================================
 
-export type StartOauthResult = {
+type StartOauthResult = {
   auth_url: string;
   port: number;
   state: string;
@@ -71,12 +71,12 @@ export type StartOauthResult = {
   redirect_uri: string;
 };
 
-export type OauthCallback = {
+type OauthCallback = {
   code: string;
   state: string;
 };
 
-export type GcalTokens = {
+type GcalTokens = {
   access_token: string;
   refresh_token?: string | null;
   expires_in: number;
@@ -92,18 +92,7 @@ export type CalendarListItem = {
   time_zone?: string | null;
 };
 
-export type GcalEvent = {
-  id: string;
-  summary?: string | null;
-  description?: string | null;
-  location?: string | null;
-  start?: string | null;
-  end?: string | null;
-  status?: string | null;
-  updated?: string | null;
-};
-
-export type EventInput = {
+type EventInput = {
   summary: string;
   description?: string | null;
   location?: string | null;
@@ -566,26 +555,3 @@ export async function pushOkrToCalendar(okrData: {
   }
 }
 
-/**
- * Deleta um evento do GCal pelo id. Recebe o módulo para resolver o calendário
- * correto; se omitido, usa o calendário principal.
- */
-export async function deleteEventFromCalendar(
-  gcalEventId: string,
-  module?: GcalModule
-): Promise<void> {
-  try {
-    const calendarId = module
-      ? await resolveCalendarId(module)
-      : (await loadAuth())?.calendar_id;
-    if (!calendarId) return;
-    const accessToken = await getValidAccessToken();
-    await invoke<void>("gcal_delete_event", {
-      accessToken,
-      calendarId,
-      eventId: gcalEventId,
-    });
-  } catch {
-    // ignora — pode já ter sido deletado manualmente
-  }
-}

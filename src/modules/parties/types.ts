@@ -84,7 +84,7 @@ export type PartyTicket = {
   sale_start_date: string|null; sale_end_date: string|null; position: number; created_at: string;
 };
 
-export type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
+type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
 
 export type PartyTask = {
   id: number; party_id: number; stage_id: number|null; title: string;
@@ -127,22 +127,6 @@ export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_
 };
 export type PartyUpdateInput = Partial<PartyCreateInput> & { id: number };
 
-// Keep PartyCost for backward compat with existing PartyForm
-export const PARTY_COST_CATEGORIES = [
-  "Produção","Decoração","Som/Luz","Marketing","Venue","Cachê DJ","Outros",
-] as const;
-export type PartyCostCategory = (typeof PARTY_COST_CATEGORIES)[number];
-
-export type PartyCost = {
-  id: number;
-  party_id: number;
-  category: string | null;
-  description: string | null;
-  amount: number;
-  date: string | null;
-  created_at: string;
-};
-
 export type PartyVenueCandidate = {
   id: number;
   party_id: number;
@@ -167,13 +151,6 @@ export function budgetSummary(items: PartyBudgetItem[]) {
   return {
     projected: items.reduce((s,i) => s+i.projected_amount, 0),
     actual: items.reduce((s,i) => s+(i.actual_amount??0), 0),
-  };
-}
-
-export function ticketRevenueSummary(tickets: PartyTicket[]) {
-  return {
-    projected: tickets.reduce((s,t) => s+t.price*(t.quantity_total??0), 0),
-    actual: tickets.reduce((s,t) => s+t.price*t.quantity_sold, 0),
   };
 }
 

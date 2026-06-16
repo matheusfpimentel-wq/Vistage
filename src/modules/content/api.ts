@@ -79,15 +79,6 @@ export async function listContent(
   return rows;
 }
 
-export async function getContent(id: number): Promise<Content | null> {
-  const db = getDb();
-  const rows = await db.select<ContentRow[]>(
-    "SELECT * FROM content WHERE id = $1",
-    [id]
-  );
-  return rows[0] ? rowToContent(rows[0]) : null;
-}
-
 export async function createContent(input: ContentCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, networks: JSON.stringify(input.networks ?? []) };

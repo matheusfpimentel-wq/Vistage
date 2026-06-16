@@ -442,7 +442,7 @@ export async function recordGate4(
 }
 
 /** Quando a track entrou no stage atual (entered_at da última entrada). */
-export function stageEnteredAt(track: Track): string | null {
+function stageEnteredAt(track: Track): string | null {
   const last = track.stage_history[track.stage_history.length - 1];
   return last?.entered_at ?? null;
 }

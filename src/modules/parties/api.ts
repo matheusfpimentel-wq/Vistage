@@ -4,7 +4,6 @@ import type {
   Party,
   PartyDeserialized,
   PartyTeamMember,
-  PartyCost,
   PartyCreateInput,
   PartyUpdateInput,
   PartyStage,
@@ -74,7 +73,7 @@ export async function listParties(): Promise<PartyDeserialized[]> {
   return rows.map(rowToParty);
 }
 
-export async function getParty(id: number): Promise<PartyDeserialized | null> {
+async function getParty(id: number): Promise<PartyDeserialized | null> {
   const db = getDb();
   const rows = await db.select<Party[]>(
     "SELECT * FROM parties WHERE id = $1",
@@ -321,34 +320,6 @@ function refMatches(o: Record<string, unknown> | null, field: string, id: number
   return Number(o[field]) === id;
 }
 
-export async function listPartyCosts(partyId: number): Promise<PartyCost[]> {
-  const db = getDb();
-  return db.select<PartyCost[]>(
-    "SELECT * FROM party_costs WHERE party_id = $1 ORDER BY date DESC, created_at DESC",
-    [partyId]
-  );
-}
-
-export async function createPartyCost(
-  partyId: number,
-  category: string | null,
-  description: string | null,
-  amount: number,
-  date: string | null
-): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `INSERT INTO party_costs (party_id, category, description, amount, date)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [partyId, category, description, amount, date]
-  );
-}
-
-export async function deletePartyCost(id: number): Promise<void> {
-  const db = getDb();
-  await db.execute("DELETE FROM party_costs WHERE id = $1", [id]);
-}
-
 export async function autoGeneratePartyTasks(party: PartyDeserialized): Promise<void> {
   if (party.tasks_generated) return;
   const db = getDb();
@@ -539,7 +510,7 @@ export async function deletePartyBudgetItem(id: number): Promise<void> {
 }
 
 /** Categoria usada para itens de orçamento gerados a partir da equipe de produção. */
-export const TEAM_BUDGET_CATEGORY = "Produção/Equipe";
+const TEAM_BUDGET_CATEGORY = "Produção/Equipe";
 
 /**
  * Cria itens de orçamento para membros da equipe de produção que ainda não
@@ -678,28 +649,6 @@ export async function createPartyTask(
   return Number(res.lastInsertId);
 }
 
-export async function updatePartyTask(
-  id: number,
-  updates: Partial<Omit<PartyTask, "id" | "party_id" | "created_at" | "updated_at">>
-): Promise<void> {
-  const db = getDb();
-  const payload: Record<string, unknown> = { ...updates };
-  const cols = Object.keys(payload);
-  if (cols.length === 0) return;
-  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-  const values = cols.map((k) => payload[k]);
-  values.push(id);
-  await db.execute(
-    `UPDATE party_tasks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
-    values
-  );
-}
-
-export async function deletePartyTask(id: number): Promise<void> {
-  const db = getDb();
-  await db.execute("DELETE FROM party_tasks WHERE id = $1", [id]);
-}
-
 // ===== FINANCEIRO SYNC =====
 
 export async function syncPartyToFinanceiro(
@@ -748,35 +697,3 @@ export async function syncPartyToFinanceiro(
   );
 }
 
-/** Links a party task to the global tasks module, creating a global task if needed. */
-export async function linkPartyTaskToGlobal(
-  task: PartyTask,
-  partyTitle: string,
-  partyDate: string | null
-): Promise<number> {
-  const { createTask } = await import("@/modules/tasks/api");
-  const taskId = await createTask({
-    title: `${task.title} (${partyTitle})`,
-    description: null,
-    category: "Festas",
-    gig_id: null,
-    contact_id: null,
-    priority: "Média",
-    status: "A fazer",
-    due_date: partyDate,
-    tags: ["festa"],
-  });
-  const db = getDb();
-  await db.execute("UPDATE party_tasks SET global_task_id = $1 WHERE id = $2", [taskId, task.id]);
-  return taskId;
-}
-
-/** Completes both the party task and its linked global task. */
-export async function completePartyTask(task: PartyTask): Promise<void> {
-  const db = getDb();
-  await db.execute("UPDATE party_tasks SET status = 'concluida' WHERE id = $1", [task.id]);
-  if (task.global_task_id) {
-    const { updateTask } = await import("@/modules/tasks/api");
-    await updateTask({ id: task.global_task_id, status: "Concluída" });
-  }
-}

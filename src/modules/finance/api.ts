@@ -152,7 +152,7 @@ export async function listGigExpenses(
   );
 }
 
-export async function getTransaction(
+async function getTransaction(
   id: number
 ): Promise<FinanceTransactionWithCategory | null> {
   const db = getDb();
@@ -421,15 +421,6 @@ export async function deleteTransactionsForMusicCost(
   );
 }
 
-/** Remove todas as transações vinculadas a uma GIG (usado ao excluir a GIG). */
-export async function deleteTransactionsForGig(gigId: number): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    "DELETE FROM finance_transactions WHERE gig_id = $1",
-    [gigId]
-  );
-}
-
 /**
  * Sincroniza receita (ingressos) e despesa (custos do orçamento) de uma festa
  * com o Financeiro. Cria, atualiza ou remove os lançamentos conforme os valores.
@@ -508,15 +499,6 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
       [partyId]
     );
   }
-}
-
-/** Remove todas as transações vinculadas a uma festa (usado ao excluir a festa). */
-export async function deleteTransactionsForParty(partyId: number): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    "DELETE FROM finance_transactions WHERE party_id = $1",
-    [partyId]
-  );
 }
 
 // ============================================================

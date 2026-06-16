@@ -305,33 +305,3 @@ async function computeWeekStats(): Promise<WeekStats> {
   };
 }
 
-export type FocusTask = {
-  id: number;
-  title: string;
-  due_date: string | null;
-  priority: string;
-  status: string;
-};
-
-export async function loadFocusTasks(): Promise<FocusTask[]> {
-  const today = todayISO();
-  const db = getDb();
-  const in7 = new Date(today);
-  in7.setDate(in7.getDate() + 7);
-  const in7iso = in7.toISOString().slice(0, 10);
-
-  return db.select<FocusTask[]>(
-    `SELECT id, title, due_date, priority, status
-     FROM tasks
-     WHERE status NOT IN ('Concluída','Cancelada')
-       AND (
-         priority IN ('Alta','Urgente')
-         OR (due_date IS NOT NULL AND due_date <= $1)
-       )
-     ORDER BY
-       CASE priority WHEN 'Urgente' THEN 0 WHEN 'Alta' THEN 1 WHEN 'Média' THEN 2 ELSE 3 END,
-       due_date ASC NULLS LAST
-     LIMIT 10`,
-    [in7iso]
-  );
-}

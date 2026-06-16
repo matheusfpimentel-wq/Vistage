@@ -63,12 +63,6 @@ export async function listIdeas(filters: IdeaFilters = {}): Promise<Idea[]> {
   return rows.map(rowToIdea);
 }
 
-export async function getIdea(id: number): Promise<Idea | null> {
-  const db = getDb();
-  const rows = await db.select<IdeaRow[]>("SELECT * FROM ideas WHERE id = $1", [id]);
-  return rows[0] ? rowToIdea(rows[0]) : null;
-}
-
 export async function createIdea(input: IdeaCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };

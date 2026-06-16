@@ -496,13 +496,6 @@ export async function loadInsights(): Promise<GigInsights> {
   };
 }
 
-export async function countPendingDebriefs(): Promise<number> {
-  const db = getDb();
-  const rows = await db.select<{ n: number }[]>(
-    "SELECT COUNT(*) as n FROM gigs WHERE debrief_pending = 1"
-  );
-  return rows[0]?.n ?? 0;
-}
 
 // ============================================================
 // Set list — gig_tracks (N:N)

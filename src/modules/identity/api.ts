@@ -134,23 +134,6 @@ export async function createTemplate(
   return Number(res.lastInsertId);
 }
 
-export async function updateTemplate(
-  id: number,
-  input: Partial<ArtistTemplateCreateInput>
-): Promise<void> {
-  const db = getDb();
-  const cols = Object.keys(input);
-  if (cols.length === 0) return;
-  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-  const values = cols.map((k) => (input as Record<string, unknown>)[k]);
-  values.push(id);
-  await db.execute(
-    `UPDATE artist_templates SET ${sets} WHERE id = $${values.length}`,
-    values
-  );
-  emitDataChanged();
-}
-
 export async function deleteTemplate(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM artist_templates WHERE id = $1", [id]);

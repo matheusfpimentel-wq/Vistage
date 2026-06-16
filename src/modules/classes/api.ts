@@ -296,15 +296,6 @@ export async function listClasses(
   return db.select<ClassWithStudent[]>(sql, params);
 }
 
-export async function getClass(id: number): Promise<ClassSession | null> {
-  const db = getDb();
-  const rows = await db.select<ClassSession[]>(
-    "SELECT * FROM classes WHERE id = $1",
-    [id]
-  );
-  return rows[0] ?? null;
-}
-
 export async function createClass(input: ClassSessionCreateInput): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input);

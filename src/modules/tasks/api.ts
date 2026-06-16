@@ -132,12 +132,6 @@ export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
   return rows.map(rowToTask);
 }
 
-export async function getTask(id: number): Promise<Task | null> {
-  const db = getDb();
-  const rows = await db.select<TaskRow[]>("SELECT * FROM tasks WHERE id = $1", [id]);
-  return rows[0] ? rowToTask(rows[0]) : null;
-}
-
 export async function createTask(input: TaskCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };
@@ -221,19 +215,6 @@ export async function deleteSubtask(id: number): Promise<void> {
 // ============================================================
 // Aggregates / Dashboard
 // ============================================================
-
-export async function countUpcoming7Days(): Promise<number> {
-  const db = getDb();
-  const today = todayISO();
-  const week = sevenDaysFromNowISO();
-  const rows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM tasks
-      WHERE due_date BETWEEN $1 AND $2
-        AND status NOT IN ('Concluída', 'Cancelada')`,
-    [today, week]
-  );
-  return rows[0]?.n ?? 0;
-}
 
 export async function listUpcoming(limit = 5): Promise<Task[]> {
   const db = getDb();
