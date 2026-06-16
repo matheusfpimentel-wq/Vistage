@@ -59,6 +59,7 @@ const TABLES = [
   "gig_tracks",              // gig_id → gigs, track_id → tracks
   "gig_fans",                // gig_id → gigs, fan_id → fans
   "tasks",                   // gig_id → gigs, contact_id → contacts
+  "meetings",                // task_id → tasks
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks
   "okr_kr_tasks",            // okr_id → okrs, task_id → tasks

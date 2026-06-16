@@ -1581,6 +1581,28 @@ const MIGRATIONS: Migration[] = [
     description: "work_sessions.pause_ms — desconta tempo pausado da duração da sessão",
     sql: `ALTER TABLE work_sessions ADD COLUMN pause_ms INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 104,
+    description: "meetings — reuniões que viram tarefas (lembrete + follow-ups)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS meetings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT,                 -- ISO date (YYYY-MM-DD) da reunião
+        time TEXT,                 -- HH:MM opcional
+        location TEXT,             -- local físico ou link da reunião online
+        participants TEXT,         -- JSON array de nomes
+        agenda TEXT,               -- pauta
+        notes TEXT,                -- ata / anotações
+        outcomes TEXT,             -- decisões / encaminhamentos
+        status TEXT NOT NULL DEFAULT 'Agendada',  -- Agendada | Realizada | Cancelada
+        task_id INTEGER,           -- tarefa-lembrete criada ao agendar
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+      );
+    `,
+  },
 ];
 
 

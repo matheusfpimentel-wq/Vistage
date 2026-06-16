@@ -8,6 +8,7 @@ export const CSV_ENTITIES = [
   { key: "venues", label: "Venues", table: "venues" },
   { key: "fans", label: "Fãs", table: "fans" },
   { key: "tasks", label: "Tarefas", table: "tasks" },
+  { key: "meetings", label: "Reuniões", table: "meetings" },
   { key: "content", label: "Conteúdos", table: "content" },
   { key: "ideas", label: "Ideias", table: "ideas" },
   { key: "students", label: "Alunos", table: "students" },

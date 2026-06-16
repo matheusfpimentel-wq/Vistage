@@ -11,6 +11,7 @@ import {
   Heart,
   LayoutDashboard,
   Lightbulb,
+  MessagesSquare,
   Music,
   Palette,
   PartyPopper,
@@ -63,6 +64,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Operação" },
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Operação" },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Gestão" },
+  { to: "/reunioes", label: "Reuniões", icon: MessagesSquare, group: "Gestão" },
 
   { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },

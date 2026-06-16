@@ -101,6 +101,9 @@ const IdentityPage = lazy(() =>
 const TasksPage = lazy(() =>
   import("@/modules/tasks/TasksPage").then((m) => ({ default: m.TasksPage }))
 );
+const MeetingsPage = lazy(() =>
+  import("@/modules/meetings/MeetingsPage").then((m) => ({ default: m.MeetingsPage }))
+);
 const FinancePage = lazy(() =>
   import("@/modules/finance/FinancePage").then((m) => ({ default: m.FinancePage }))
 );
@@ -323,6 +326,7 @@ function RoutedApp() {
 
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
+            <Route path="reunioes" element={<MeetingsPage />} />
             <Route path="financeiro" element={<FinancePage />} />
             <Route path="configuracoes" element={<SettingsPage />} />
             <Route path="carreira" element={<CareerWrappedPage />} />

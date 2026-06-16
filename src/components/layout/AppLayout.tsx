@@ -37,6 +37,7 @@ const TITLES: Record<string, string> = {
 
   "/identidade": "Identidade Artística",
   "/tarefas": "Tarefas",
+  "/reunioes": "Reuniões",
   "/financeiro": "Financeiro",
   "/configuracoes": "Configurações",
 };
