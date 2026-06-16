@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
+import { appDataDir } from "@tauri-apps/api/path";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { MigratePage } from "@/pages/MigratePage";
@@ -146,7 +147,12 @@ function MainApp() {
     let cancelled = false;
     (async () => {
       try {
-        const replicaPath = config.replicaPath ?? config.dbPath;
+        // A réplica embarcada do libsql DEVE ficar no diretório local do app
+        // (AppData/Application Support), nunca na pasta do Google Drive ou
+        // OneDrive — arquivos de WAL e mmap são incompatíveis com cloud-sync.
+        const dataDir = await appDataDir();
+        const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
+        const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
         const tursoUrl = config.tursoUrl ?? DEFAULT_TURSO_URL;
         const tursoToken = config.tursoToken ?? DEFAULT_TURSO_TOKEN;
         await initDatabase(replicaPath, tursoUrl, tursoToken);

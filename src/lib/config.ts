@@ -75,10 +75,6 @@ export const useConfigStore = create<ConfigState>((set) => ({
         // A réplica embarcada do libsql mora ao lado do .db legado, num arquivo
         // próprio: o .db legado continua intacto para servir de origem da
         // migração one-shot (a réplica é gerenciada/sobrescrita pelo libsql).
-        if (cfg.dbPath && !cfg.replicaPath) {
-          cfg.replicaPath = cfg.dbPath.replace(/vistage\.db$/, "vistage-replica.db");
-          if (cfg.replicaPath === cfg.dbPath) cfg.replicaPath = `${cfg.dbPath}.replica`;
-        }
         // Não checa exists(cfg.dbPath) — em Google Drive/OneDrive (Cloud Files
         // no Windows, File Provider no macOS) o exists() pode retornar false
         // para arquivos placeholder ainda não baixados, mesmo que visíveis no
@@ -101,11 +97,9 @@ export const useConfigStore = create<ConfigState>((set) => ({
       await mkdir(uploadsDir, { recursive: true });
     }
     const dbPath = joinPath(folder, "vistage.db");
-    const replicaPath = joinPath(folder, "vistage-replica.db");
     const configPath = joinPath(folder, "vistage.config.json");
     const cfg: AppConfig = {
       dbPath,
-      replicaPath,
       uploadsDir,
       createdAt: new Date().toISOString(),
       syncedFolder,
@@ -174,10 +168,6 @@ export const useConfigStore = create<ConfigState>((set) => ({
 
   async loadExisting(configFile: string) {
     const cfg = JSON.parse(await readTextFile(configFile)) as AppConfig;
-    if (cfg.dbPath && !cfg.replicaPath) {
-      cfg.replicaPath = cfg.dbPath.replace(/vistage\.db$/, "vistage-replica.db");
-      if (cfg.replicaPath === cfg.dbPath) cfg.replicaPath = `${cfg.dbPath}.replica`;
-    }
     // Não usa exists() para checar o .db — em pastas do Google Drive/OneDrive
     // (File Provider) o arquivo pode estar visível no Finder mas exists()
     // retorna false até a primeira leitura real materializar o download.
