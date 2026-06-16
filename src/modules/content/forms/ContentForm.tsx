@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -84,6 +83,9 @@ const EMPTY: ContentCreateInput = {
   track_id: null,
   promotes_type: null,
   promotes_id: null,
+  date_roteiro: null,
+  date_gravacao: null,
+  date_edicao: null,
 };
 
 function contentToState(c: Content): ContentCreateInput {
@@ -109,8 +111,74 @@ function contentToState(c: Content): ContentCreateInput {
     track_id: c.track_id,
     promotes_type: c.promotes_type,
     promotes_id: c.promotes_id,
+    date_roteiro: c.date_roteiro,
+    date_gravacao: c.date_gravacao,
+    date_edicao: c.date_edicao,
   };
 }
+
+// ============================================================
+// PDF export de cenas
+// ============================================================
+
+function exportScenesPdf(title: string, scenes: ContentSceneInput[]) {
+  const escapeHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const rows = scenes
+    .map(
+      (s, i) => `
+      <div class="scene">
+        <div class="scene-num">Cena ${i + 1}</div>
+        ${s.title ? `<div class="scene-title">${escapeHtml(s.title)}</div>` : ""}
+        ${s.description ? `<div class="field-label">O que acontece</div><p>${escapeHtml(s.description)}</p>` : ""}
+        ${
+          s.equipment.length > 0
+            ? `<div class="field-label">Equipamento</div><div class="tags">${s.equipment.map((e) => `<span class="tag">${escapeHtml(e)}</span>`).join("")}</div>`
+            : ""
+        }
+        ${
+          s.materials.length > 0
+            ? `<div class="field-label">Materiais</div><div class="tags">${s.materials.map((m) => `<span class="tag">${escapeHtml(m)}</span>`).join("")}</div>`
+            : ""
+        }
+        ${s.scenery ? `<div class="field-label">Cenário</div><p>${escapeHtml(s.scenery)}</p>` : ""}
+      </div>`
+    )
+    .join("");
+
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Cenas — ${escapeHtml(title)}</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:800px;margin:0 auto;padding:24px;color:#111}
+  h1{font-size:1.3em;margin-bottom:16px;border-bottom:2px solid #7C3AED;padding-bottom:8px}
+  .scene{border:1px solid #ddd;border-radius:6px;padding:14px;margin-bottom:12px;break-inside:avoid}
+  .scene-num{display:inline-block;background:#7c3aed22;color:#7C3AED;font-size:.75em;font-weight:600;padding:2px 8px;border-radius:4px;margin-bottom:8px}
+  .scene-title{font-weight:600;margin-bottom:6px}
+  .field-label{font-size:.75em;color:#666;margin:8px 0 2px;text-transform:uppercase;letter-spacing:.03em}
+  p{margin:0 0 4px;font-size:.9em;white-space:pre-wrap}
+  .tags{display:flex;flex-wrap:wrap;gap:4px}
+  .tag{background:#f0f0f0;padding:2px 8px;border-radius:3px;font-size:.8em}
+  @media print{body{padding:0}}
+</style></head>
+<body>
+  <h1>Cenas — ${escapeHtml(title)}</h1>
+  ${rows || '<p style="color:#888">Nenhuma cena cadastrada.</p>'}
+</body></html>`;
+
+  const win = window.open("", "_blank", "width=820,height=640");
+  if (!win) {
+    toast.error("O navegador bloqueou a janela pop-up. Permita pop-ups para exportar.");
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.print();
+}
+
+// ============================================================
+// Component
+// ============================================================
 
 export function ContentForm({
   open,
@@ -121,14 +189,11 @@ export function ContentForm({
 }: Props) {
   const [state, setState] = useState<ContentCreateInput>(EMPTY);
   const [scenes, setScenes] = useState<ContentSceneInput[]>([]);
-  // Só permite persistir cenas depois que a carga inicial terminou com sucesso.
-  // Evita que uma leitura falha/pendente apague cenas já salvas no save.
   const [scenesLoaded, setScenesLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
-  // Redes disponíveis vêm das redes sociais cadastradas em Identidade.
   const [networkOptions, setNetworkOptions] = useState<string[]>([
     ...CONTENT_NETWORKS,
   ]);
@@ -142,9 +207,7 @@ export function ContentForm({
       setTracks(ts.map((t) => ({ id: t.id, name: trackDisplayName(t) })))
     );
     void listGigs().then((gs) =>
-      setGigs(
-        gs.map((g) => ({ id: g.id, name: g.event_name ?? g.venue_name }))
-      )
+      setGigs(gs.map((g) => ({ id: g.id, name: g.event_name ?? g.venue_name })))
     );
     void listParties().then((ps) =>
       setParties(ps.map((p) => ({ id: p.id, name: p.title })))
@@ -184,7 +247,6 @@ export function ContentForm({
           setScenesLoaded(true);
         },
         () => {
-          // leitura falhou: NÃO marca como carregado, para não sobrescrever
           setScenes([]);
         }
       );
@@ -230,7 +292,7 @@ export function ContentForm({
         ? (await updateContent({ id: content.id, ...state }), content.id)
         : await createContent(state);
 
-      // Cria tarefa sempre que não existe ainda
+      // Cria tarefa de acompanhamento se ainda não existe
       if (!prevTaskId && !content?.task_id) {
         try {
           const taskId = await createTask({
@@ -241,7 +303,7 @@ export function ContentForm({
             contact_id: null,
             priority: "Média",
             status: "A fazer",
-            due_date: state.due_date,
+            due_date: null,
             tags: ["conteudo"],
           });
           await updateContent({ id, task_id: taskId });
@@ -262,8 +324,6 @@ export function ContentForm({
         }
       }
 
-      // Só regrava cenas se a carga inicial concluiu — senão um load
-      // pendente/falho apagaria cenas já salvas.
       if (scenesLoaded) {
         await replaceScenes(id, scenes);
       }
@@ -284,9 +344,6 @@ export function ContentForm({
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>{content ? "Editar conteúdo" : "Novo conteúdo"}</DialogTitle>
-          <DialogDescription>
-            Ao definir um prazo, é criada uma tarefa automaticamente.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -312,9 +369,11 @@ export function ContentForm({
               <TabsTrigger value="basico">Básico</TabsTrigger>
               <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
               <TabsTrigger value="cenas">Cenas</TabsTrigger>
+              <TabsTrigger value="prazos">Prazos</TabsTrigger>
               <TabsTrigger value="metricas">Métricas</TabsTrigger>
             </TabsList>
 
+            {/* ── Básico ── */}
             <TabsContent value="basico" className="space-y-4">
               <div className="space-y-1.5">
                 <Label>Redes (multi-select)</Label>
@@ -354,10 +413,10 @@ export function ContentForm({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="—" />
+                      <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">—</SelectItem>
+                      <SelectItem value="none">Nenhum</SelectItem>
                       {CONTENT_FORMATS.map((f) => (
                         <SelectItem key={f} value={f}>
                           {f}
@@ -392,21 +451,7 @@ export function ContentForm({
                 </Field>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label="Prazo (cria tarefa)">
-                  <Input
-                    type="date"
-                    value={state.due_date ?? ""}
-                    onChange={(e) => set("due_date", e.target.value || null)}
-                  />
-                </Field>
-                <Field label="Data prevista de publicação">
-                  <Input
-                    type="date"
-                    value={state.publish_date ?? ""}
-                    onChange={(e) => set("publish_date", e.target.value || null)}
-                  />
-                </Field>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Publicado em">
                   <Input
                     type="date"
@@ -414,15 +459,14 @@ export function ContentForm({
                     onChange={(e) => set("published_at", e.target.value || null)}
                   />
                 </Field>
+                <Field label="Link do post publicado">
+                  <Input
+                    placeholder="https://"
+                    value={state.post_url ?? ""}
+                    onChange={(e) => set("post_url", e.target.value || null)}
+                  />
+                </Field>
               </div>
-
-              <Field label="Link do post publicado">
-                <Input
-                  placeholder="https://"
-                  value={state.post_url ?? ""}
-                  onChange={(e) => set("post_url", e.target.value || null)}
-                />
-              </Field>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Field label="Divulga a track">
@@ -433,10 +477,10 @@ export function ContentForm({
                     }
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="—" />
+                      <SelectValue placeholder="Nenhuma" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">—</SelectItem>
+                      <SelectItem value="none">Nenhuma</SelectItem>
                       {tracks.map((t) => (
                         <SelectItem key={t.id} value={String(t.id)}>
                           {t.name}
@@ -468,7 +512,7 @@ export function ContentForm({
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="—" />
+                        <SelectValue placeholder="Nenhum" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Nenhum</SelectItem>
@@ -488,10 +532,10 @@ export function ContentForm({
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="—" />
+                          <SelectValue placeholder="Nenhum" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">—</SelectItem>
+                          <SelectItem value="none">Nenhum</SelectItem>
                           {(state.promotes_type === "GIG" ? gigs : parties).map(
                             (o) => (
                               <SelectItem key={o.id} value={String(o.id)}>
@@ -507,6 +551,7 @@ export function ContentForm({
               </div>
             </TabsContent>
 
+            {/* ── Roteiro ── */}
             <TabsContent value="roteiro" className="space-y-3">
               <Field label="Roteiro">
                 <Textarea
@@ -535,13 +580,65 @@ export function ContentForm({
               )}
             </TabsContent>
 
+            {/* ── Cenas ── */}
             <TabsContent value="cenas" className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Divida o roteiro em cenas com equipamento, materiais e cenário.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Divida o roteiro em cenas com equipamento, materiais e cenário.
+                </p>
+                {scenes.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportScenesPdf(state.title || "Conteúdo", scenes)}
+                  >
+                    <FileDown className="h-3.5 w-3.5" />
+                    Exportar PDF
+                  </Button>
+                )}
+              </div>
               <SceneEditor scenes={scenes} onChange={handleScenesChange} />
             </TabsContent>
 
+            {/* ── Prazos ── */}
+            <TabsContent value="prazos" className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Cada prazo cria automaticamente uma tarefa na categoria Conteúdo.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field label="Roteiro">
+                  <Input
+                    type="date"
+                    value={state.date_roteiro ?? ""}
+                    onChange={(e) => set("date_roteiro", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="Gravação">
+                  <Input
+                    type="date"
+                    value={state.date_gravacao ?? ""}
+                    onChange={(e) => set("date_gravacao", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="Edição">
+                  <Input
+                    type="date"
+                    value={state.date_edicao ?? ""}
+                    onChange={(e) => set("date_edicao", e.target.value || null)}
+                  />
+                </Field>
+                <Field label="Publicação">
+                  <Input
+                    type="date"
+                    value={state.publish_date ?? ""}
+                    onChange={(e) => set("publish_date", e.target.value || null)}
+                  />
+                </Field>
+              </div>
+            </TabsContent>
+
+            {/* ── Métricas ── */}
             <TabsContent value="metricas" className="space-y-3">
               {content ? (
                 <ContentSnapshots contentId={content.id} title={content.title} />

@@ -1603,6 +1603,18 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 105,
+    description: "content — datas de milestone (roteiro, gravação, edição) com tarefas vinculadas",
+    sql: `
+      ALTER TABLE content ADD COLUMN date_roteiro TEXT;
+      ALTER TABLE content ADD COLUMN task_roteiro_id INTEGER;
+      ALTER TABLE content ADD COLUMN date_gravacao TEXT;
+      ALTER TABLE content ADD COLUMN task_gravacao_id INTEGER;
+      ALTER TABLE content ADD COLUMN date_edicao TEXT;
+      ALTER TABLE content ADD COLUMN task_edicao_id INTEGER;
+    `,
+  },
 ];
 
 

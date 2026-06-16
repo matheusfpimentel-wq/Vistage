@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
   GripVertical,
   Plus,
   Trash2,
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import type { ContentSceneInput } from "../types";
 
 type Props = {
@@ -44,23 +45,12 @@ type SceneRowProps = {
   id: string;
   scene: ContentSceneInput;
   index: number;
-  isFirst: boolean;
-  isLast: boolean;
   onUpdate: (index: number, patch: Partial<ContentSceneInput>) => void;
-  onMove: (index: number, dir: -1 | 1) => void;
   onRemove: (index: number) => void;
 };
 
-function SceneRow({
-  id,
-  scene,
-  index,
-  isFirst,
-  isLast,
-  onUpdate,
-  onMove,
-  onRemove,
-}: SceneRowProps) {
+function SceneRow({ id, scene, index, onUpdate, onRemove }: SceneRowProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const {
     attributes,
     listeners,
@@ -77,104 +67,97 @@ function SceneRow({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="space-y-3 rounded-lg border p-3"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div
-            className="flex cursor-grab touch-none items-center text-muted-foreground/60 active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
-            aria-label="Arrastar cena"
-          >
-            <GripVertical className="h-4 w-4 shrink-0" />
-          </div>
-          <span className="inline-flex items-center rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
-            Cena {index + 1}
+    <div ref={setNodeRef} style={style} className="rounded-lg border">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <div
+          className="flex cursor-grab touch-none items-center text-muted-foreground/60 active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
+          aria-label="Arrastar cena"
+        >
+          <GripVertical className="h-4 w-4 shrink-0" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex flex-1 items-center gap-2 text-left"
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          )}
+          <span className="inline-flex items-center gap-1.5">
+            <span className="rounded-md bg-primary/15 px-2 py-0.5 text-xs font-medium text-primary">
+              Cena {index + 1}
+            </span>
+            {scene.title && (
+              <span className={cn("text-sm text-muted-foreground", collapsed && "text-foreground font-medium")}>
+                {scene.title}
+              </span>
+            )}
           </span>
+        </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive shrink-0"
+          aria-label="Excluir cena"
+          onClick={() => onRemove(index)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {!collapsed && (
+        <div className="space-y-3 border-t px-3 pb-3 pt-3">
+          <div className="space-y-1.5">
+            <Label>Título da cena</Label>
+            <Input
+              value={scene.title ?? ""}
+              onChange={(e) => onUpdate(index, { title: e.target.value || null })}
+              placeholder="Título da cena"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>O que acontece</Label>
+            <Textarea
+              rows={3}
+              value={scene.description ?? ""}
+              onChange={(e) =>
+                onUpdate(index, { description: e.target.value || null })
+              }
+              placeholder="O que acontece"
+            />
+          </div>
+
+          <TagInput
+            label="Equipamento"
+            placeholder="Adicionar equipamento…"
+            values={scene.equipment}
+            onChange={(equipment) => onUpdate(index, { equipment })}
+          />
+
+          <TagInput
+            label="Materiais"
+            placeholder="Adicionar material…"
+            values={scene.materials}
+            onChange={(materials) => onUpdate(index, { materials })}
+          />
+
+          <div className="space-y-1.5">
+            <Label>Cenário</Label>
+            <Input
+              value={scene.scenery ?? ""}
+              onChange={(e) => onUpdate(index, { scenery: e.target.value || null })}
+              placeholder="Cenário"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label="Mover para cima"
-            disabled={isFirst}
-            onClick={() => onMove(index, -1)}
-          >
-            <ChevronUp className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label="Mover para baixo"
-            disabled={isLast}
-            onClick={() => onMove(index, 1)}
-          >
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive"
-            aria-label="Excluir cena"
-            onClick={() => onRemove(index)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Título da cena</Label>
-        <Input
-          value={scene.title ?? ""}
-          onChange={(e) => onUpdate(index, { title: e.target.value || null })}
-          placeholder="Título da cena"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>O que acontece</Label>
-        <Textarea
-          rows={3}
-          value={scene.description ?? ""}
-          onChange={(e) =>
-            onUpdate(index, { description: e.target.value || null })
-          }
-          placeholder="O que acontece"
-        />
-      </div>
-
-      <TagInput
-        label="Equipamento"
-        placeholder="Adicionar equipamento…"
-        values={scene.equipment}
-        onChange={(equipment) => onUpdate(index, { equipment })}
-      />
-
-      <TagInput
-        label="Materiais"
-        placeholder="Adicionar material…"
-        values={scene.materials}
-        onChange={(materials) => onUpdate(index, { materials })}
-      />
-
-      <div className="space-y-1.5">
-        <Label>Cenário</Label>
-        <Input
-          value={scene.scenery ?? ""}
-          onChange={(e) => onUpdate(index, { scenery: e.target.value || null })}
-          placeholder="Cenário"
-        />
-      </div>
+      )}
     </div>
   );
 }
@@ -188,16 +171,6 @@ export function SceneEditor({ scenes, onChange }: Props) {
 
   function remove(index: number) {
     onChange(scenes.filter((_, i) => i !== index));
-  }
-
-  function move(index: number, dir: -1 | 1) {
-    const target = index + dir;
-    if (target < 0 || target >= scenes.length) return;
-    const next = [...scenes];
-    const tmp = next[index];
-    next[index] = next[target];
-    next[target] = tmp;
-    onChange(next);
   }
 
   function add() {
@@ -216,7 +189,7 @@ export function SceneEditor({ scenes, onChange }: Props) {
   const ids = scenes.map((_, i) => String(i));
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {scenes.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Nenhuma cena. Divida o roteiro em cenas com equipamento, materiais e
@@ -232,10 +205,7 @@ export function SceneEditor({ scenes, onChange }: Props) {
               id={String(i)}
               scene={scene}
               index={i}
-              isFirst={i === 0}
-              isLast={i === scenes.length - 1}
               onUpdate={update}
-              onMove={move}
               onRemove={remove}
             />
           ))}

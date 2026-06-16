@@ -60,18 +60,33 @@ export type Content = {
   track_id: number | null;
   promotes_type: string | null;
   promotes_id: number | null;
+  date_roteiro: string | null;
+  date_gravacao: string | null;
+  date_edicao: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export type ContentCreateInput = Omit<
   Content,
-  "id" | "created_at" | "updated_at" | "engagement_notes" | "track_id" | "promotes_type" | "promotes_id"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "engagement_notes"
+  | "track_id"
+  | "promotes_type"
+  | "promotes_id"
+  | "date_roteiro"
+  | "date_gravacao"
+  | "date_edicao"
 > & {
   engagement_notes?: string | null;
   track_id?: number | null;
   promotes_type?: string | null;
   promotes_id?: number | null;
+  date_roteiro?: string | null;
+  date_gravacao?: string | null;
+  date_edicao?: string | null;
 };
 export type ContentUpdateInput = Partial<ContentCreateInput> & { id: number };
 

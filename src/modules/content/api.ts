@@ -109,6 +109,33 @@ export async function createContent(input: ContentCreateInput): Promise<number> 
       await db.execute("UPDATE content SET publish_task_id = $1 WHERE id = $2", [taskId, id]);
     } catch { /* não interrompe */ }
   }
+  // Tarefas de milestone (roteiro, gravação, edição)
+  const milestones = [
+    { field: "date_roteiro", taskField: "task_roteiro_id", label: "Roteiro" },
+    { field: "date_gravacao", taskField: "task_gravacao_id", label: "Gravação" },
+    { field: "date_edicao", taskField: "task_edicao_id", label: "Edição" },
+  ] as const;
+  for (const m of milestones) {
+    const date = (input as Record<string, unknown>)[m.field] as string | null | undefined;
+    if (date) {
+      try {
+        const { createTask } = await import("@/modules/tasks/api");
+        const taskId = await createTask({
+          title: `${m.label}: ${input.title}`,
+          description: null,
+          category: "Conteúdo",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: date,
+          tags: ["conteúdo"],
+        });
+        await db.execute(`UPDATE content SET ${m.taskField} = $1 WHERE id = $2`, [taskId, id]);
+      } catch { /* não interrompe */ }
+    }
+  }
+
   emitDataChanged();
   return id;
 }
@@ -159,6 +186,43 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
         await updateTask(patch);
       } catch { /* não interrompe */ }
     }
+  }
+  // Sincroniza tarefas de milestone quando as datas mudam
+  const milestoneUpdates = [
+    { field: "date_roteiro", taskField: "task_roteiro_id", label: "Roteiro" },
+    { field: "date_gravacao", taskField: "task_gravacao_id", label: "Gravação" },
+    { field: "date_edicao", taskField: "task_edicao_id", label: "Edição" },
+  ] as const;
+  for (const m of milestoneUpdates) {
+    if (!(m.field in rest)) continue;
+    const newDate = (rest as Record<string, unknown>)[m.field] as string | null;
+    const mRows = await db.select<{ [k: string]: number | null }[]>(
+      `SELECT ${m.taskField} FROM content WHERE id = $1`, [id]
+    );
+    const existingTaskId = mRows[0]?.[m.taskField] ?? null;
+    try {
+      const { createTask, updateTask } = await import("@/modules/tasks/api");
+      if (existingTaskId) {
+        await updateTask({ id: existingTaskId, due_date: newDate });
+      } else if (newDate) {
+        const currentRows = await db.select<{ title: string }[]>(
+          "SELECT title FROM content WHERE id = $1", [id]
+        );
+        const contentTitle = currentRows[0]?.title ?? "";
+        const taskId = await createTask({
+          title: `${m.label}: ${contentTitle}`,
+          description: null,
+          category: "Conteúdo",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: newDate,
+          tags: ["conteúdo"],
+        });
+        await db.execute(`UPDATE content SET ${m.taskField} = $1 WHERE id = $2`, [taskId, id]);
+      }
+    } catch { /* não interrompe */ }
   }
   emitDataChanged();
 }
