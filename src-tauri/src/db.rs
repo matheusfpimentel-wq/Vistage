@@ -66,15 +66,21 @@ pub async fn db_init(
         .build()
         .await
         .map_err(|e| e.to_string())?;
-    // Pull inicial — best-effort offline: se a rede falhar, seguimos com a
-    // réplica local existente.
-    let _ = db.sync().await;
     let conn = db.connect().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = ON;", ())
         .await
         .map_err(|e| e.to_string())?;
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
+    // Sync inicial em background — não bloqueia a abertura do app.
+    // Se a réplica local já tem dados, o app carrega imediatamente; se for
+    // instalação nova, os dados chegam em segundos sem travar a tela de login.
+    let db_arc = Arc::clone(&state.db);
+    tokio::spawn(async move {
+        if let Some(db) = db_arc.lock().await.as_ref() {
+            let _ = db.sync().await;
+        }
+    });
     Ok(())
 }
 
