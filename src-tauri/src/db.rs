@@ -6,6 +6,7 @@
 use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::State;
 use tokio::sync::Mutex;
 
@@ -13,6 +14,17 @@ use tokio::sync::Mutex;
 pub struct DbState {
     db: Arc<Mutex<Option<libsql::Database>>>,
     conn: Arc<Mutex<Option<libsql::Connection>>>,
+}
+
+/// Sync best-effort com teto de tempo, para rodar antes de fechar o app sem
+/// travar o fechamento quando offline. Empurra as escritas locais pendentes
+/// para o Turso. Silencioso: se falhar (sem rede), o app fecha mesmo assim e a
+/// réplica local mantém o estado para o próximo boot/sync.
+pub async fn sync_blocking(state: &DbState, timeout_secs: u64) {
+    let guard = state.db.lock().await;
+    if let Some(db) = guard.as_ref() {
+        let _ = tokio::time::timeout(Duration::from_secs(timeout_secs), db.sync()).await;
+    }
 }
 
 fn json_to_libsql(v: &serde_json::Value) -> libsql::Value {
