@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirm } from "@/components/ui/confirm";
 import {
   Dialog,
   DialogContent,
@@ -311,12 +312,18 @@ export function DebriefForm({
   // marcar como pendente. Interceptamos o close.
   function handleOpenChange(next: boolean) {
     if (!next && required && !complete) {
-      const ok = window.confirm(
-        "Você ainda não preencheu todos os campos obrigatórios. " +
-          "Deseja salvar como 'pendente' e terminar depois?"
-      );
-      if (ok) void saveAsPending();
-      // se cancelar, mantém o modal aberto
+      void (async () => {
+        const ok = await confirm({
+          title: "Debrief incompleto",
+          description:
+            "Você ainda não preencheu todos os campos obrigatórios. Salvar como 'pendente' e terminar depois?",
+          confirmLabel: "Salvar como pendente",
+          cancelLabel: "Continuar preenchendo",
+          destructive: false,
+        });
+        if (ok) void saveAsPending();
+      })();
+      // enquanto o usuário decide, mantém o modal aberto
       return;
     }
     onOpenChange(next);

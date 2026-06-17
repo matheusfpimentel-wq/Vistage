@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef } from "react";
+import { confirm } from "@/components/ui/confirm";
 
 /**
- * Detecta se um diálogo tem alterações não salvas e pergunta antes de fechar.
+ * Detecta se um diálogo tem alterações não salvas e pergunta antes de fechar,
+ * usando o diálogo de confirmação no tema (não o window.confirm nativo).
  *
  * Uso:
- *   const handle = useUnsavedConfirm(isDirty);
- *   <Dialog open={open} onOpenChange={(v) => handle(v, () => onOpenChange(v))} />
+ *   const confirmClose = useUnsavedConfirm(isDirty);
+ *   <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))} />
  *
- * O handler retorna `true` se pode fechar (após confirmação ou se não tinha
- * alterações). Se precisar chamar antes do setOpen, use `confirmClose()`.
+ * Enquanto o usuário decide, o diálogo permanece aberto; `andDo` só roda se
+ * ele confirmar a saída (ou se não havia alterações).
  */
 export function useUnsavedConfirm(isDirty: boolean) {
   const dirtyRef = useRef(isDirty);
@@ -16,31 +18,23 @@ export function useUnsavedConfirm(isDirty: boolean) {
     dirtyRef.current = isDirty;
   }, [isDirty]);
 
-  return useCallback(
-    (
-      next: boolean,
-      andDo?: () => void
-    ): boolean => {
-      // abrindo ou mantendo aberto → sempre permite
-      if (next) {
-        andDo?.();
-        return true;
-      }
-      if (!dirtyRef.current) {
-        andDo?.();
-        return true;
-      }
-      const ok = window.confirm(
-        "Você tem alterações não salvas. Sair mesmo assim?"
-      );
-      if (ok) {
-        andDo?.();
-        return true;
-      }
-      return false;
-    },
-    []
-  );
+  return useCallback((next: boolean, andDo?: () => void): void => {
+    // abrindo, mantendo aberto, ou sem alterações → fecha direto
+    if (next || !dirtyRef.current) {
+      andDo?.();
+      return;
+    }
+    void (async () => {
+      const ok = await confirm({
+        title: "Alterações não salvas",
+        description: "Você tem alterações não salvas. Sair mesmo assim?",
+        confirmLabel: "Sair sem salvar",
+        cancelLabel: "Continuar editando",
+        destructive: false,
+      });
+      if (ok) andDo?.();
+    })();
+  }, []);
 }
 
 /**

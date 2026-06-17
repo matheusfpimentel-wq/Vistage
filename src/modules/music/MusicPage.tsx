@@ -17,6 +17,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { STAGES, TRACK_KINDS, TRACK_KIND_LABEL, type Stage, type TrackKind } from "./stages";
 import { daysInStage, deleteTrack, getTrack, listProjects, listTracks } from "./api";
@@ -65,7 +66,7 @@ export function MusicPage() {
   }
 
   async function handleDelete(t: TrackWithProject) {
-    if (!window.confirm(`Excluir a track "${t.title_working}"?`)) return;
+    if (!(await confirm({ description: `Excluir a track "${t.title_working}"?` }))) return;
     await deleteTrack(t.id);
     toast.success("Track excluída");
     await refresh();

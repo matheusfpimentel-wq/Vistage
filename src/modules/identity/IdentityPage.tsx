@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { confirm } from "@/components/ui/confirm";
 import {
   Select,
   SelectContent,
@@ -598,7 +599,7 @@ function TemplateCard({
             size="icon"
             variant="ghost"
             onClick={async () => {
-              if (window.confirm(`Excluir "${t.name}"?`)) {
+              if (await confirm({ description: `Excluir o template "${t.name}"?` })) {
                 await deleteTemplate(t.id);
                 onDeleted();
               }

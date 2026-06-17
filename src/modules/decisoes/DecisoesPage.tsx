@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import {
@@ -61,7 +62,7 @@ export function DecisoesPage() {
   }
 
   async function handleDelete(d: Decision) {
-    if (!window.confirm(`Excluir decisão "${d.decision_made}"?`)) return;
+    if (!(await confirm({ description: `Excluir a decisão "${d.decision_made}"?` }))) return;
     await deleteDecision(d.id);
     toast.success("Decisão excluída");
     void refresh();

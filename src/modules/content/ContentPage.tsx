@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { ContentForm } from "./forms/ContentForm";
 import { ContentList } from "./views/ContentList";
 import { ContentKanban } from "./views/ContentKanban";
@@ -85,7 +86,7 @@ export function ContentPage() {
   }
 
   async function handleDelete(c: Content) {
-    if (!window.confirm(`Excluir "${c.title}"?`)) return;
+    if (!(await confirm({ description: `Excluir o conteúdo "${c.title}"?` }))) return;
     await deleteContent(c.id);
     toast.success("Conteúdo excluído");
     await refresh();

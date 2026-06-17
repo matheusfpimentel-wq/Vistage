@@ -11,6 +11,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirm } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
@@ -98,7 +99,14 @@ export function GoogleDriveSettings() {
   }
 
   async function handleDisconnect() {
-    if (!window.confirm("Desconectar do Google Drive? Os tokens locais serão apagados.")) return;
+    if (
+      !(await confirm({
+        title: "Desconectar do Google Drive",
+        description: "Os tokens locais serão apagados.",
+        confirmLabel: "Desconectar",
+      }))
+    )
+      return;
     await disconnect();
     toast.success("Desconectado");
     await refresh();
@@ -139,7 +147,7 @@ export function GoogleDriveSettings() {
   }
 
   async function handleDelete(file: DriveFile) {
-    if (!window.confirm(`Deletar backup "${file.name}" do Drive?`)) return;
+    if (!(await confirm({ description: `Deletar o backup "${file.name}" do Drive?` }))) return;
     try {
       await deleteBackupFile(file.id);
       toast.success("Backup deletado");

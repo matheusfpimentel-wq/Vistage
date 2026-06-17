@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import {
   addFanInteraction,
   deleteFanInteraction,
@@ -52,7 +53,7 @@ export function FanInteractionList({ fanId, onChange }: Props) {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Excluir essa interação?")) return;
+    if (!(await confirm({ description: "Excluir essa interação?" }))) return;
     await deleteFanInteraction(id);
     await refresh();
     onChange?.();

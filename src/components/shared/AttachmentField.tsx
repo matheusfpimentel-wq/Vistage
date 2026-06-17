@@ -3,6 +3,7 @@ import { ExternalLink, ImageIcon, Paperclip, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import {
   DOC_EXTS,
   IMAGE_EXTS,
@@ -63,7 +64,7 @@ export function AttachmentField({
 
   async function handleRemove() {
     if (!value) return;
-    if (!window.confirm("Remover este arquivo?")) return;
+    if (!(await confirm({ description: "Remover este arquivo?", confirmLabel: "Remover" }))) return;
     await deleteAttachment(value);
     onChange(null);
   }

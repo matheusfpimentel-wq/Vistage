@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import {
   getDefaultShortcuts,
   resetShortcuts,
@@ -39,7 +40,15 @@ export function ShortcutSettings() {
   const defaults = getDefaultShortcuts();
 
   async function handleReset() {
-    if (!window.confirm("Restaurar atalhos padrão?")) return;
+    if (
+      !(await confirm({
+        title: "Restaurar atalhos padrão",
+        description: "Seus atalhos personalizados serão substituídos pelos padrões.",
+        confirmLabel: "Restaurar",
+        destructive: false,
+      }))
+    )
+      return;
     await resetShortcuts();
     toast.success("Atalhos restaurados");
   }

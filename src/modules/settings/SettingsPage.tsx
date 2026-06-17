@@ -3,6 +3,7 @@ import { Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { closeDatabase } from "@/lib/db";
 import {
@@ -28,9 +29,13 @@ export function SettingsPage() {
   }, []);
 
   async function handleReset() {
-    const ok = window.confirm(
-      "Isso vai desconectar o app do banco atual. Você precisará apontar o caminho do banco novamente. Continuar?"
-    );
+    const ok = await confirm({
+      title: "Desconectar do banco",
+      description:
+        "Você precisará apontar o caminho do banco novamente para voltar a usar o app.",
+      confirmLabel: "Desconectar",
+      destructive: false,
+    });
     if (!ok) return;
     await closeDatabase();
     reset();
@@ -50,9 +55,13 @@ export function SettingsPage() {
 
   async function handleSeed() {
     if (
-      !window.confirm(
-        "Carregar dados de exemplo? 5 contatos, 4 GIGs em estados diferentes, 6 tarefas e algumas transações vão ser adicionados ao banco."
-      )
+      !(await confirm({
+        title: "Carregar dados de exemplo",
+        description:
+          "5 contatos, 4 GIGs em estados diferentes, 6 tarefas e algumas transações serão adicionados ao banco.",
+        confirmLabel: "Carregar",
+        destructive: false,
+      }))
     )
       return;
     setSeeding(true);
@@ -73,12 +82,11 @@ export function SettingsPage() {
     try {
       const backup = await pickBackupFile();
       if (!backup) return;
-      const ok = window.confirm(
-        `ATENÇÃO: importar este backup vai SUBSTITUIR TODOS os dados do banco atual.\n\n` +
-          `Backup gerado em: ${new Date(backup.exportedAt).toLocaleString("pt-BR")}\n` +
-          `Versão: ${backup.version}\n\n` +
-          `Recomendamos exportar o estado atual antes. Continuar?`
-      );
+      const ok = await confirm({
+        title: "Substituir todos os dados?",
+        description: `Importar este backup (gerado em ${new Date(backup.exportedAt).toLocaleString("pt-BR")}) vai SUBSTITUIR todos os dados atuais. Recomendamos exportar o estado atual antes.`,
+        confirmLabel: "Substituir tudo",
+      });
       if (!ok) return;
       setImporting(true);
       const { restoredRows, restoredTables } = await restoreBackup(backup);

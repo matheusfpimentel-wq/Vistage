@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import {
@@ -56,7 +57,7 @@ export function FlowSessionPanel({ trackId }: { trackId: number }) {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Excluir essa sessão?")) return;
+    if (!(await confirm({ description: "Excluir essa sessão de flow?" }))) return;
     await deleteFlowSession(id);
     await refresh();
   }

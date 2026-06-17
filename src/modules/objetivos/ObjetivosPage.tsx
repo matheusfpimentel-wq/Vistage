@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { listOkrs, deleteOkr, okrProgress, type Okr, type KeyResult } from "./api";
 import { OkrForm } from "./forms/OkrForm";
@@ -61,7 +62,7 @@ export function ObjetivosPage() {
                     okr={okr}
                     onEdit={() => { setEditing(okr); setFormOpen(true); }}
                     onDelete={async () => {
-                      if (!window.confirm("Excluir este OKR? Esta ação não pode ser desfeita.")) return;
+                      if (!(await confirm({ description: "Excluir este OKR? Esta ação não pode ser desfeita." }))) return;
                       await deleteOkr(okr.id);
                       toast.success("OKR excluído");
                       void refresh();

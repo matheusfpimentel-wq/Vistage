@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { confirm } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
@@ -126,7 +127,7 @@ export function ClassesPage() {
   });
 
   async function handleDeleteClass(c: ClassWithStudent) {
-    if (!window.confirm("Excluir esta aula?")) return;
+    if (!(await confirm({ description: "Excluir esta aula?" }))) return;
     const pkgId = c.student_package_id;
     await deleteClass(c.id);
     if (pkgId) await recalcPackageUsage(pkgId);
@@ -136,7 +137,9 @@ export function ClassesPage() {
 
   async function handleDeleteStudent(s: Student) {
     if (
-      !window.confirm(`Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`)
+      !(await confirm({
+        description: `Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`,
+      }))
     )
       return;
     await deleteStudent(s.id);
@@ -145,7 +148,7 @@ export function ClassesPage() {
   }
 
   async function handleDeletePackage(p: ClassPackage) {
-    if (!window.confirm(`Excluir o template "${p.name}"?`)) return;
+    if (!(await confirm({ description: `Excluir o template de pacote "${p.name}"?` }))) return;
     await deletePackage(p.id);
     toast.success("Pacote excluído");
     await refresh();

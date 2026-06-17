@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { TransactionForm } from "./forms/TransactionForm";
 import { CategoryManager } from "./forms/CategoryManager";
 import { TransactionList } from "./views/TransactionList";
@@ -126,7 +127,7 @@ export function FinancePage() {
   }
 
   async function handleDelete(t: FinanceTransactionWithCategory) {
-    if (!window.confirm(`Excluir esta transação?`)) return;
+    if (!(await confirm({ description: "Excluir esta transação?" }))) return;
     await deleteTransaction(t.id);
     await refresh();
     toast.success("Transação excluída");

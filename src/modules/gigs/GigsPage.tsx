@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
 import { deleteGigFromCalendar } from "@/lib/gcal";
@@ -122,9 +123,9 @@ export function GigsPage() {
   }
 
   async function handleDelete(gig: Gig) {
-    const ok = window.confirm(
-      `Excluir a GIG de "${gig.venue_name}" em ${gig.date}? Essa ação não pode ser desfeita.`
-    );
+    const ok = await confirm({
+      description: `Excluir a GIG de "${gig.venue_name}" em ${gig.date}? Essa ação não pode ser desfeita.`,
+    });
     if (!ok) return;
     try {
       // tenta deletar o evento espelhado no Google Calendar antes — não bloqueia se falhar

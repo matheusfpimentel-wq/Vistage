@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Repeat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirm } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,9 +80,9 @@ export function RecurringView({ onChanged }: Props) {
 
   async function handleDelete(r: FinanceRecurring) {
     if (
-      !window.confirm(
-        `Excluir o modelo recorrente "${r.description ?? "(sem descrição)"}"? Lançamentos já criados serão mantidos.`
-      )
+      !(await confirm({
+        description: `Excluir o modelo recorrente "${r.description ?? "(sem descrição)"}"? Lançamentos já criados serão mantidos.`,
+      }))
     )
       return;
     await deleteRecurring(r.id);

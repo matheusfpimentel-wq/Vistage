@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirm } from "@/components/ui/confirm";
 import { IdeaForm } from "./forms/IdeaForm";
 import { QuickCapture } from "./forms/QuickCapture";
 import { IdeaList } from "./views/IdeaList";
@@ -89,7 +90,7 @@ export function IdeasPage() {
   }
 
   async function handleDelete(i: Idea) {
-    if (!window.confirm(`Excluir "${i.title}"?`)) return;
+    if (!(await confirm({ description: `Excluir a ideia "${i.title}"?` }))) return;
     await deleteIdea(i.id);
     toast.success("Ideia excluída");
     await refresh();
