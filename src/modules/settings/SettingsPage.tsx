@@ -8,7 +8,7 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
-import { closeDatabase, initDatabase, resetReplica } from "@/lib/db";
+import { closeDatabase, initDatabase } from "@/lib/db";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import {
   exportBackupToFile,
@@ -126,26 +126,27 @@ export function SettingsPage() {
 
   async function handleResetReplica() {
     const ok = await confirmDialog({
-      title: "Baixar tudo da nuvem",
+      title: "Importar tudo do Turso",
       description:
-        "Apaga o arquivo de réplica local e baixa todos os dados do Turso do zero. " +
+        "Copia todos os dados do Turso para o banco local via conexão HTTP direta. " +
         "Use isso quando os dados estão na nuvem mas não aparecem no app. " +
         "O app vai recarregar ao terminar.",
-      confirmLabel: "Baixar tudo",
+      confirmLabel: "Importar tudo",
     });
     if (!ok) return;
     setResettingReplica(true);
     try {
-      const dataDir = await appDataDir();
-      const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
-      const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
       const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
       const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
-      await resetReplica(replicaPath, tursoUrl, tursoToken);
-      toast.success("Dados baixados da nuvem. Recarregando…");
+      const result = await invoke<[string, number][]>("db_pull_from_turso", {
+        tursoUrl,
+        tursoToken,
+      });
+      const total = result.reduce((s, [, n]) => s + n, 0);
+      toast.success(`${total} registros importados do Turso. Recarregando…`);
       setTimeout(() => window.location.reload(), 800);
     } catch (e) {
-      toast.error(`Erro ao baixar: ${String(e)}`);
+      toast.error(`Erro ao importar: ${String(e)}`);
     } finally {
       setResettingReplica(false);
     }

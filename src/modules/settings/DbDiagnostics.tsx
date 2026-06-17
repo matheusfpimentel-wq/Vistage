@@ -32,12 +32,19 @@ export function DbDiagnostics() {
   async function syncNow() {
     setSyncing(true);
     try {
-      // invoke direto (não syncDatabase, que engole erros) para surfacar falha de push
-      await invoke("db_sync");
-      toast.success("Sync concluído. Rodando diagnóstico de novo…");
+      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
+      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
+      // Usa HTTP direto (new_remote) — o protocolo de sync embarcado pode não
+      // estar disponível no ambiente. HTTP já provou funcionar no diagnóstico.
+      const result = await invoke<[string, number][]>("db_pull_from_turso", {
+        tursoUrl,
+        tursoToken,
+      });
+      const total = result.reduce((s: number, [, n]: [string, number]) => s + n, 0);
+      toast.success(`${total} registros importados. Rodando diagnóstico…`);
       await run();
     } catch (e) {
-      toast.error(`Falha no sync: ${String(e)}`);
+      toast.error(`Falha ao importar: ${String(e)}`);
     } finally {
       setSyncing(false);
     }

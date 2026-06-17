@@ -54,6 +54,7 @@ pub fn run() {
             db::db_reset_replica,
             db::db_diagnostics,
             db::db_migrate_from_sqlite,
+            db::db_pull_from_turso,
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,
             gcal::gcal_exchange_code,

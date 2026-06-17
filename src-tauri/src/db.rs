@@ -522,3 +522,113 @@ pub async fn db_migrate_from_sqlite(
 
     Ok(report)
 }
+
+/// Importa todos os dados do Turso para a réplica local usando conexão HTTP
+/// direta (new_remote) — que provou funcionar — sem depender do protocolo
+/// de sync do embedded replica, que pode estar bloqueado ou lento.
+/// Equivale ao "baixar tudo da nuvem" mas pelo caminho que funciona.
+#[tauri::command]
+pub async fn db_pull_from_turso(
+    state: State<'_, DbState>,
+    turso_url: String,
+    turso_token: String,
+) -> Result<Vec<(String, u64)>, String> {
+    // 1. Abre conexão remota (HTTP — já provado funcionar no diagnóstico)
+    let remote_db = tokio::time::timeout(
+        Duration::from_secs(20),
+        libsql::Builder::new_remote(turso_url.clone(), turso_token.clone()).build(),
+    )
+    .await
+    .map_err(|_| "timeout ao conectar no Turso (20s)".to_string())?
+    .map_err(|e| e.to_string())?;
+    let remote = remote_db.connect().map_err(|e| e.to_string())?;
+
+    // 2. Lista tabelas no Turso
+    let tables: Vec<String> = {
+        let mut rows = tokio::time::timeout(
+            Duration::from_secs(15),
+            remote.query(
+                "SELECT name FROM sqlite_master WHERE type='table' \
+                 AND name NOT LIKE 'sqlite_%' ORDER BY name",
+                (),
+            ),
+        )
+        .await
+        .map_err(|_| "timeout ao listar tabelas".to_string())?
+        .map_err(|e| e.to_string())?;
+        let mut names = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+            let name: String = row.get(0).map_err(|e| e.to_string())?;
+            names.push(name);
+        }
+        names
+    };
+
+    // 3. Tira conn do mutex para o loop de escrita não bloquear leitores
+    let conn = state.conn.lock().await.take().ok_or("banco não inicializado")?;
+    conn.execute("PRAGMA foreign_keys = OFF;", ())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let mut report: Vec<(String, u64)> = Vec::new();
+
+    for table in &tables {
+        // Colunas da tabela no Turso
+        let cols: Vec<String> = {
+            let mut rows = tokio::time::timeout(
+                Duration::from_secs(10),
+                remote.query(&format!("PRAGMA table_info(\"{}\")", table), ()),
+            )
+            .await
+            .map_err(|_| format!("timeout ao ler schema de {}", table))?
+            .map_err(|e| e.to_string())?;
+            let mut names = Vec::new();
+            while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+                let col_name: String = row.get(1).map_err(|e| e.to_string())?;
+                names.push(col_name);
+            }
+            names
+        };
+        if cols.is_empty() {
+            continue;
+        }
+
+        // Limpa tabela local e reinsere do Turso
+        conn.execute(&format!("DELETE FROM \"{}\"", table), ())
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let col_list = cols.iter().map(|c| format!("\"{}\"", c)).collect::<Vec<_>>().join(", ");
+        let placeholders = (1..=cols.len()).map(|i| format!("?{}", i)).collect::<Vec<_>>().join(", ");
+        let insert_sql = format!("INSERT OR IGNORE INTO \"{}\" ({}) VALUES ({})", table, col_list, placeholders);
+        let select_sql = format!("SELECT {} FROM \"{}\"", col_list, table);
+
+        let mut src_rows = tokio::time::timeout(
+            Duration::from_secs(30),
+            remote.query(&select_sql, ()),
+        )
+        .await
+        .map_err(|_| format!("timeout ao ler dados de {}", table))?
+        .map_err(|e| e.to_string())?;
+
+        let mut count: u64 = 0;
+        while let Some(row) = src_rows.next().await.map_err(|e| e.to_string())? {
+            let mut vals: Vec<libsql::Value> = Vec::with_capacity(cols.len());
+            for i in 0..cols.len() {
+                vals.push(row.get_value(i as i32).map_err(|e| e.to_string())?);
+            }
+            conn.execute(&insert_sql, vals).await.map_err(|e| e.to_string())?;
+            count += 1;
+        }
+        report.push((table.clone(), count));
+    }
+
+    conn.execute("PRAGMA foreign_keys = ON;", ())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Restaura conn
+    *state.conn.lock().await = Some(conn);
+
+    Ok(report)
+}
