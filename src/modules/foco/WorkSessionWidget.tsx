@@ -85,11 +85,11 @@ async function loadEntityOptions(type: string): Promise<EntityOption[]> {
   }
 }
 
-function elapsed(startedAt: string): string {
-  const diff = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
-  const h = Math.floor(diff / 3600);
-  const m = Math.floor((diff % 3600) / 60);
-  const s = diff % 60;
+function formatSecs(total: number): string {
+  const clamped = Math.max(0, total);
+  const h = Math.floor(clamped / 3600);
+  const m = Math.floor((clamped % 3600) / 60);
+  const s = clamped % 60;
   if (h > 0) return `${h}h${m.toString().padStart(2, "0")}m`;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
@@ -113,6 +113,19 @@ export function WorkSessionWidget() {
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pauseMsRef = useRef(0);
+  const pausedSinceRef = useRef<number | null>(null);
+  const sessionRef = useRef<WorkSession | null>(null);
+  const [paused, setPaused] = useState(false);
+
+  // Recalcula o cronômetro descontando o tempo pausado. Se estiver pausado
+  // agora, congela no instante da pausa em vez de continuar correndo.
+  const recomputeTimer = useCallback(() => {
+    const s = sessionRef.current;
+    if (!s) { setTimer(""); return; }
+    const startMs = new Date(s.started_at).getTime();
+    const end = pausedSinceRef.current ?? Date.now();
+    setTimer(formatSecs(Math.floor((end - startMs - pauseMsRef.current) / 1000)));
+  }, []);
 
   const booted = useRef(false);
   const refresh = useCallback(async (openOverlay = false) => {
@@ -138,27 +151,33 @@ export function WorkSessionWidget() {
     void (async () => {
       try {
         const { listen } = await import("@tauri-apps/api/event");
-        unlisten = await listen<{ pauseMs: number }>("work-session-pause", (e) => {
+        unlisten = await listen<{ paused?: boolean; pauseMs: number }>("work-session-pause", (e) => {
           pauseMsRef.current = e.payload?.pauseMs ?? 0;
+          const isPaused = e.payload?.paused ?? false;
+          pausedSinceRef.current = isPaused ? Date.now() : null;
+          setPaused(isPaused);
+          recomputeTimer();
         });
       } catch { /* ignore */ }
     })();
     return () => { if (unlisten) unlisten(); };
-  }, []);
+  }, [recomputeTimer]);
 
   useEffect(() => {
+    sessionRef.current = session;
     if (session) {
-      const tick = () => setTimer(elapsed(session.started_at));
-      tick();
-      intervalRef.current = setInterval(tick, 1000);
+      recomputeTimer();
+      intervalRef.current = setInterval(recomputeTimer, 1000);
     } else {
       setTimer("");
+      pausedSinceRef.current = null;
+      setPaused(false);
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [session]);
+  }, [session, recomputeTimer]);
 
   useEffect(() => {
     const ctxType = ACTIVITY_CONTEXT[activityType] ?? null;
@@ -181,6 +200,8 @@ export function WorkSessionWidget() {
     setSaving(true);
     try {
       pauseMsRef.current = 0;
+      pausedSinceRef.current = null;
+      setPaused(false);
       const ctxType = startContextType;
       const ctxId = startContextId === "none" ? null : Number(startContextId);
       const id = await startSession(activityType, ctxId ? ctxType : null, ctxId);
@@ -261,8 +282,8 @@ export function WorkSessionWidget() {
         {session ? (
           <>
             <span className="hidden sm:inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary tabular-nums">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              {session.activity_type.split(" ")[0]} · {timer}
+              <span className={cn("h-1.5 w-1.5 rounded-full bg-primary", !paused && "animate-pulse")} />
+              {session.activity_type.split(" ")[0]} · {timer}{paused && " (pausado)"}
             </span>
             <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Reabrir mini-janela" onClick={() => void openSessionOverlay(session)} title="Reabrir mini-janela">
               <Monitor className="h-3.5 w-3.5" />

@@ -42,6 +42,8 @@ export function SessionOverlay() {
     if (paused) {
       if (intervalRef.current) clearInterval(intervalRef.current);
       pauseStartRef.current = Date.now();
+      // avisa a janela principal: congela o timer dela também (a sessão em si pausou)
+      void emit("work-session-pause", { paused: true, pauseMs: pauseOffsetRef.current });
       return;
     }
     // Resumed: accumulate pause offset
@@ -49,8 +51,8 @@ export function SessionOverlay() {
       const extra = Date.now() - pauseStartRef.current;
       pauseOffsetRef.current += extra;
       pauseStartRef.current = null;
-      void emit("work-session-pause", { pauseMs: pauseOffsetRef.current });
     }
+    void emit("work-session-pause", { paused: false, pauseMs: pauseOffsetRef.current });
     const tick = () => setTimer(elapsed(params.start, pauseOffsetRef.current));
     tick();
     intervalRef.current = setInterval(tick, 1000);
@@ -102,8 +104,8 @@ export function SessionOverlay() {
         data-tauri-drag-region
         className="flex flex-1 cursor-grab items-center gap-3 px-3.5 py-2.5 active:cursor-grabbing min-w-0"
       >
-        <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
-        <div className="min-w-0 flex-1">
+        <span className="pointer-events-none h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
+        <div className="pointer-events-none min-w-0 flex-1">
           <div className="truncate text-[11px] font-medium text-muted-foreground">
             {params.activity}
           </div>
