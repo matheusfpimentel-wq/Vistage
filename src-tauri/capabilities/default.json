@@ -27,6 +27,12 @@
       "allow": [
         { "path": "**" },
         { "path": "**/*" }
+      ],
+      "deny": [
+        { "path": "$HOME/.ssh/**" },
+        { "path": "$HOME/.aws/**" },
+        { "path": "$HOME/.gnupg/**" },
+        { "path": "$HOME/.config/gcloud/**" }
       ]
     },
     "sql:default",

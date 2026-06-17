@@ -265,7 +265,7 @@ pub fn gcal_exchange_code(
         ru = url_encode(&redirect_uri),
         cv = url_encode(&verifier),
     );
-    let resp = ureq::post("https://oauth2.googleapis.com/token")
+    let resp = crate::http::agent().post("https://oauth2.googleapis.com/token")
         .set("Content-Type", "application/x-www-form-urlencoded")
         .send_string(&body)
         .map_err(|e| format!("Falha no token exchange: {e}"))?;
@@ -287,7 +287,7 @@ pub fn gcal_refresh_token(
         cs = url_encode(&client_secret),
         rt = url_encode(&refresh_token),
     );
-    let resp = ureq::post("https://oauth2.googleapis.com/token")
+    let resp = crate::http::agent().post("https://oauth2.googleapis.com/token")
         .set("Content-Type", "application/x-www-form-urlencoded")
         .send_string(&body)
         .map_err(|e| format!("Falha no refresh: {e}"))?;
@@ -306,7 +306,7 @@ pub fn gcal_refresh_token(
 
 #[tauri::command]
 pub fn gcal_list_calendars(access_token: String) -> Result<Vec<CalendarListItem>, String> {
-    let resp = ureq::get("https://www.googleapis.com/calendar/v3/users/me/calendarList")
+    let resp = crate::http::agent().get("https://www.googleapis.com/calendar/v3/users/me/calendarList")
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao listar calendários: {e}"))?;
@@ -389,7 +389,7 @@ pub fn gcal_create_event(
         "https://www.googleapis.com/calendar/v3/calendars/{}/events",
         url_encode(&calendar_id)
     );
-    let resp = ureq::post(&url)
+    let resp = crate::http::agent().post(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(body)
         .map_err(|e| format!("Falha ao criar evento: {e}"))?;
@@ -415,7 +415,7 @@ pub fn gcal_update_event(
         url_encode(&calendar_id),
         url_encode(&event_id),
     );
-    ureq::request("PATCH", &url)
+    crate::http::agent().request("PATCH", &url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(body)
         .map_err(|e| format!("Falha ao atualizar evento: {e}"))?;
@@ -434,7 +434,7 @@ pub fn gcal_delete_event(
         url_encode(&event_id),
     );
     // a Calendar API responde 204 No Content em delete. ureq::delete não existe — usar request("DELETE", ...).
-    ureq::request("DELETE", &url)
+    crate::http::agent().request("DELETE", &url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao deletar evento: {e}"))?;
@@ -456,7 +456,7 @@ pub fn gcal_list_events(
         url.push_str(&url_encode(&ts));
     }
 
-    let resp = ureq::get(&url)
+    let resp = crate::http::agent().get(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao listar eventos: {e}"))?;

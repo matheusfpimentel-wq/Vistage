@@ -4,6 +4,7 @@
 
 mod gcal;
 mod gdrive;
+mod http;
 
 use gcal::GcalState;
 use gdrive::GdriveState;

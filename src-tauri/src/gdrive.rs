@@ -232,7 +232,7 @@ pub fn gdrive_exchange_code(
         ru = url_encode(&redirect_uri),
         cv = url_encode(&verifier),
     );
-    let resp = ureq::post("https://oauth2.googleapis.com/token")
+    let resp = crate::http::agent().post("https://oauth2.googleapis.com/token")
         .set("Content-Type", "application/x-www-form-urlencoded")
         .send_string(&body)
         .map_err(|e| format!("Falha no token exchange: {e}"))?;
@@ -254,7 +254,7 @@ pub fn gdrive_refresh_token(
         cs = url_encode(&client_secret),
         rt = url_encode(&refresh_token),
     );
-    let resp = ureq::post("https://oauth2.googleapis.com/token")
+    let resp = crate::http::agent().post("https://oauth2.googleapis.com/token")
         .set("Content-Type", "application/x-www-form-urlencoded")
         .send_string(&body)
         .map_err(|e| format!("Falha no refresh: {e}"))?;
@@ -283,7 +283,7 @@ pub fn gdrive_ensure_folder(access_token: String) -> Result<String, String> {
         DRIVE_FILES_URL,
         url_encode(&q)
     );
-    let resp = ureq::get(&url)
+    let resp = crate::http::agent().get(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao buscar pasta: {e}"))?;
@@ -301,7 +301,7 @@ pub fn gdrive_ensure_folder(access_token: String) -> Result<String, String> {
 
     // Pasta não encontrada — cria
     let meta = serde_json::json!({ "name": FOLDER_NAME, "mimeType": FOLDER_MIME });
-    let resp = ureq::post(DRIVE_FILES_URL)
+    let resp = crate::http::agent().post(DRIVE_FILES_URL)
         .set("Authorization", &format!("Bearer {access_token}"))
         .send_json(meta)
         .map_err(|e| format!("Falha ao criar pasta: {e}"))?;
@@ -321,9 +321,14 @@ pub fn gdrive_upload_backup(
     content: String,
 ) -> Result<DriveFile, String> {
     let boundary = format!("boundary_{}", random_base64(12));
-    let meta = format!(
-        r#"{{"name":"{file_name}","parents":["{folder_id}"],"mimeType":"application/json"}}"#
-    );
+    // Monta o metadata com serde_json para escapar aspas/barras corretamente
+    // (evita injeção de JSON via file_name/folder_id na requisição ao Drive).
+    let meta = serde_json::json!({
+        "name": file_name.clone(),
+        "parents": [folder_id.clone()],
+        "mimeType": "application/json"
+    })
+    .to_string();
 
     let mut body: Vec<u8> = Vec::new();
     body.extend_from_slice(
@@ -340,7 +345,7 @@ pub fn gdrive_upload_backup(
         "{}&fields=id,name,size,createdTime,modifiedTime",
         DRIVE_UPLOAD_URL
     );
-    let resp = ureq::post(&url)
+    let resp = crate::http::agent().post(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .set(
             "Content-Type",
@@ -388,7 +393,7 @@ pub fn gdrive_list_backups(
         DRIVE_FILES_URL,
         url_encode(&q)
     );
-    let resp = ureq::get(&url)
+    let resp = crate::http::agent().get(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao listar backups: {e}"))?;
@@ -435,7 +440,7 @@ pub fn gdrive_download_backup(
     file_id: String,
 ) -> Result<String, String> {
     let url = format!("{}/{}?alt=media", DRIVE_FILES_URL, url_encode(&file_id));
-    let resp = ureq::get(&url)
+    let resp = crate::http::agent().get(&url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao baixar backup: {e}"))?;
@@ -450,7 +455,7 @@ pub fn gdrive_delete_backup(
     file_id: String,
 ) -> Result<(), String> {
     let url = format!("{}/{}", DRIVE_FILES_URL, url_encode(&file_id));
-    ureq::request("DELETE", &url)
+    crate::http::agent().request("DELETE", &url)
         .set("Authorization", &format!("Bearer {access_token}"))
         .call()
         .map_err(|e| format!("Falha ao deletar: {e}"))?;

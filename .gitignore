@@ -26,7 +26,8 @@ dist-ssr
 # Tauri
 src-tauri/target
 src-tauri/gen
-src-tauri/Cargo.lock
+# Cargo.lock é versionado de propósito: builds reproduzíveis + auditoria de CVE
+# (este crate é uma aplicação/binário, não uma lib).
 
 # Builds & artefatos locais
 build

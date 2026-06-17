@@ -66,11 +66,28 @@ export type Backup = {
  * Não inclui anexos físicos (uploads/) — eles ficam na pasta apontada
  * pelo musicgest.config.json e devem ser copiados separadamente.
  */
+/**
+ * Chaves de app_settings que guardam segredos (tokens OAuth e client_secret do
+ * Google). Nunca entram no backup — senão vazariam em texto puro no JSON,
+ * inclusive no arquivo que sobe para o Google Drive.
+ */
+function isSensitiveSettingKey(key: unknown): boolean {
+  return typeof key === "string" && /client_secret|access_token|refresh_token/.test(key);
+}
+
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
-    tables[t] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+    if (t === "gcal_auth") {
+      tables[t] = []; // tokens do Google nunca entram no backup
+      continue;
+    }
+    let rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+    if (t === "app_settings") {
+      rows = rows.filter((r) => !isSensitiveSettingKey(r.key));
+    }
+    tables[t] = rows;
   }
   return {
     version: BACKUP_VERSION,
