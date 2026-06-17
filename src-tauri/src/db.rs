@@ -632,3 +632,115 @@ pub async fn db_pull_from_turso(
 
     Ok(report)
 }
+
+/// Envia todos os dados da réplica local para o Turso via HTTP direto.
+/// Complemento do db_pull_from_turso: enquanto o pull baixa o Turso para cá,
+/// o push envia daqui para o Turso. Usado pelo DriveSync em substituição ao
+/// db.sync() que não funciona neste ambiente.
+#[tauri::command]
+pub async fn db_push_to_turso(
+    state: State<'_, DbState>,
+    turso_url: String,
+    turso_token: String,
+) -> Result<Vec<(String, u64)>, String> {
+    // 1. Conecta ao Turso via HTTP
+    let remote_db = tokio::time::timeout(
+        Duration::from_secs(20),
+        libsql::Builder::new_remote(turso_url, turso_token).build(),
+    )
+    .await
+    .map_err(|_| "timeout ao conectar no Turso (20s)".to_string())?
+    .map_err(|e| e.to_string())?;
+    let remote = remote_db.connect().map_err(|e| e.to_string())?;
+
+    // 2. Lista tabelas locais
+    let tables: Vec<String> = {
+        let guard = state.conn.lock().await;
+        let conn = guard.as_ref().ok_or("banco não inicializado")?;
+        let mut rows = conn
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' \
+                 AND name NOT LIKE 'sqlite_%' ORDER BY name",
+                (),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut names = Vec::new();
+        while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+            let name: String = row.get(0).map_err(|e| e.to_string())?;
+            names.push(name);
+        }
+        names
+    };
+
+    remote.execute("PRAGMA foreign_keys = OFF;", ()).await.map_err(|e| e.to_string())?;
+
+    let mut report: Vec<(String, u64)> = Vec::new();
+
+    for table in &tables {
+        // Colunas da tabela local
+        let cols: Vec<String> = {
+            let guard = state.conn.lock().await;
+            let conn = guard.as_ref().ok_or("banco não inicializado")?;
+            let mut rows = conn
+                .query(&format!("PRAGMA table_info(\"{}\")", table), ())
+                .await
+                .map_err(|e| e.to_string())?;
+            let mut names = Vec::new();
+            while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+                let col_name: String = row.get(1).map_err(|e| e.to_string())?;
+                names.push(col_name);
+            }
+            names
+        };
+        if cols.is_empty() {
+            continue;
+        }
+
+        let col_list = cols.iter().map(|c| format!("\"{}\"", c)).collect::<Vec<_>>().join(", ");
+        let placeholders = (1..=cols.len()).map(|i| format!("?{}", i)).collect::<Vec<_>>().join(", ");
+        // INSERT OR REPLACE para sobrescrever no Turso com o que há localmente
+        let insert_sql = format!("INSERT OR REPLACE INTO \"{}\" ({}) VALUES ({})", table, col_list, placeholders);
+        let select_sql = format!("SELECT {} FROM \"{}\"", col_list, table);
+
+        // Lê linhas locais
+        let local_rows: Vec<Vec<libsql::Value>> = {
+            let guard = state.conn.lock().await;
+            let conn = guard.as_ref().ok_or("banco não inicializado")?;
+            let mut rows = conn.query(&select_sql, ()).await.map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+                let mut vals = Vec::with_capacity(cols.len());
+                for i in 0..cols.len() {
+                    vals.push(row.get_value(i as i32).map_err(|e| e.to_string())?);
+                }
+                out.push(vals);
+            }
+            out
+        }; // conn lock liberado
+
+        let count = local_rows.len() as u64;
+        if count == 0 {
+            report.push((table.clone(), 0));
+            continue;
+        }
+
+        // Envia para o Turso em batches de 200 (evita requests gigantes)
+        for chunk in local_rows.chunks(200) {
+            for vals in chunk {
+                tokio::time::timeout(
+                    Duration::from_secs(15),
+                    remote.execute(&insert_sql, vals.clone()),
+                )
+                .await
+                .map_err(|_| format!("timeout ao gravar em {}", table))?
+                .map_err(|e| e.to_string())?;
+            }
+        }
+        report.push((table.clone(), count));
+    }
+
+    remote.execute("PRAGMA foreign_keys = ON;", ()).await.map_err(|e| e.to_string())?;
+
+    Ok(report)
+}

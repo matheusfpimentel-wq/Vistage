@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { DATA_CHANGED } from "@/lib/events";
-import { syncDatabase } from "@/lib/db";
+import { pushToTurso } from "@/lib/db";
+import { useConfigStore } from "@/lib/config";
+import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import { toast } from "@/components/ui/toaster";
 
 const THROTTLE_MS = 30 * 1000; // no máx. um sync por mudança a cada 30s
@@ -24,6 +26,7 @@ const WARN_AFTER_FAILURES = 3; // avisa o usuário após 3 falhas seguidas
  * falhas repetidas viram um aviso visível (antes eram silenciosas).
  */
 export function DriveSync() {
+  const { config } = useConfigStore();
   const ranBoot = useRef(false);
   const lastSync = useRef<number>(0);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -35,7 +38,9 @@ export function DriveSync() {
     if (syncRunning.current) return; // já tem um sync em andamento
     syncRunning.current = true;
     try {
-      await syncDatabase();
+      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
+      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
+      await pushToTurso(tursoUrl, tursoToken);
       lastSync.current = Date.now();
       failures.current = 0;
       if (warned.current) {

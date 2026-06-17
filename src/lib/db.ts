@@ -50,6 +50,12 @@ export async function syncDatabase(): Promise<void> {
   await invoke("db_sync").catch(() => {});
 }
 
+// Envia dados locais para o Turso via HTTP direto (não usa db.sync()).
+// Lança erro se falhar — o chamador decide se exibe aviso.
+export async function pushToTurso(tursoUrl: string, tursoToken: string): Promise<void> {
+  await invoke("db_push_to_turso", { tursoUrl, tursoToken });
+}
+
 export async function resetReplica(
   replicaPath: string,
   tursoUrl: string,
