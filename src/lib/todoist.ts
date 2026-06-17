@@ -165,6 +165,27 @@ function vistagePriorityToTodoist(p: TaskPriority): number {
 }
 
 // ────────────────────────────────────────────────
+// Comparação de timestamps
+// ────────────────────────────────────────────────
+
+/**
+ * Normaliza um timestamp para epoch ms antes de comparar. Sem isso a sync
+ * comparava strings de formatos diferentes:
+ *  - Todoist/lastSync: ISO-UTC com 'T' e 'Z' ("2026-06-17T20:49:24.000000Z")
+ *  - updated_at local: CURRENT_TIMESTAMP do SQLite ("2026-06-17 20:49:24"),
+ *    com espaço e SEM zona — e em UTC.
+ * Como ' ' (0x20) < 'T' (0x54), `local > lastSync` dava SEMPRE falso e as
+ * edições locais nunca eram empurradas pro Todoist. O espaço também faria o
+ * JS ler a data como horário local; por isso normalizamos pra ISO-UTC.
+ */
+function toEpochMs(ts: string | null | undefined): number {
+  if (!ts) return 0;
+  const iso = ts.includes("T") ? ts : `${ts.replace(" ", "T")}Z`;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+// ────────────────────────────────────────────────
 // Sincronização bidirecional
 // ────────────────────────────────────────────────
 
@@ -206,6 +227,10 @@ export async function syncTodoist(): Promise<SyncResult> {
   const localByTodoistId = new Map(
     localTasks.filter((t) => t.todoist_id).map((t) => [t.todoist_id!, t])
   );
+
+  // Lido UMA vez: representa a sync anterior e não muda até o fim (só gravamos
+  // KEY_LAST_SYNC no final). Todas as comparações usam o mesmo valor.
+  const lastSync = await getSetting(KEY_LAST_SYNC);
 
   // ── 1. Puxa tarefas do Todoist que não existem localmente ──────────────────
   for (const tt of todoistTasks) {
@@ -263,9 +288,8 @@ export async function syncTodoist(): Promise<SyncResult> {
     if (!tt) continue;
 
     // Sincroniza campos se o Todoist mudou depois da última sync
-    const lastSync = await getSetting(KEY_LAST_SYNC);
     const todoistUpdated = tt.updated_at ?? tt.created_at;
-    if (lastSync && todoistUpdated > lastSync) {
+    if (lastSync && toEpochMs(todoistUpdated) > toEpochMs(lastSync)) {
       await db.execute(
         `UPDATE tasks SET title=$1, description=$2, priority=$3, due_date=$4,
            updated_at=CURRENT_TIMESTAMP WHERE id=$5`,
@@ -300,14 +324,13 @@ export async function syncTodoist(): Promise<SyncResult> {
   }
 
   // ── 4. Atualiza campos de tarefas locais já vinculadas que mudaram ─────────
-  const lastSync = await getSetting(KEY_LAST_SYNC);
   for (const lt of localTasks) {
     if (!lt.todoist_id) continue;
     if (lt.status === "Concluída") continue;
     const tt = todoistById.get(lt.todoist_id);
     if (!tt || tt.is_completed) continue;
 
-    if (!lastSync || lt.updated_at > lastSync) {
+    if (!lastSync || toEpochMs(lt.updated_at) > toEpochMs(lastSync)) {
       await updateTodoistTask(token, lt.todoist_id, {
         content: lt.title,
         description: lt.description ?? "",
