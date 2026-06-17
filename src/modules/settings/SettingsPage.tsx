@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Download, Loader2, Sparkles, Upload } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Download, Loader2, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -22,11 +23,13 @@ import { MenuOrderSettings } from "./MenuOrderSettings";
 import { TodoistSettings } from "./TodoistSettings";
 
 export function SettingsPage() {
-  const { config, configPath, reset } = useConfigStore();
+  const { config, configPath, reset, patchConfig } = useConfigStore();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
+  const [remigrating, setRemigrating] = useState(false);
+  const [remigrateResult, setRemigrateResult] = useState<[string, number][] | null>(null);
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -98,6 +101,37 @@ export function SettingsPage() {
     }
   }
 
+  async function handleRemigrate() {
+    if (!config?.dbPath) {
+      toast.error("Nenhum arquivo .db legado configurado.");
+      return;
+    }
+    const ok = await confirmDialog({
+      title: "Reimportar dados do banco local",
+      description:
+        `Vai copiar todos os dados do arquivo local (${config.dbPath}) para o Turso novamente. ` +
+        "Dados já existentes no Turso não são apagados antes — registros duplicados são ignorados (INSERT OR IGNORE). " +
+        "Isso é seguro e não-destrutivo.",
+      confirmLabel: "Reimportar",
+    });
+    if (!ok) return;
+    setRemigrating(true);
+    setRemigrateResult(null);
+    try {
+      const result = await invoke<[string, number][]>("db_migrate_from_sqlite", {
+        sqlitePath: config.dbPath,
+      });
+      await patchConfig({ migrated: true });
+      setRemigrateResult(result);
+      toast.success("Dados reimportados com sucesso! Recarregando…");
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      toast.error(`Erro ao reimportar: ${String(e)}`);
+    } finally {
+      setRemigrating(false);
+    }
+  }
+
   return (
     <Tabs defaultValue="integracoes" className="space-y-4">
       <TabsList className="w-full justify-start">
@@ -142,6 +176,51 @@ export function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {config?.dbPath && (
+          <Card className="border-amber-500/30">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <RotateCcw className="h-4 w-4 text-amber-500" />
+                Reimportar dados do banco local
+              </CardTitle>
+              <CardDescription>
+                Se seus dados sumiram após a migração para o Turso (ex.: clicou
+                "Pular" na tela de migração, ou os dados nunca chegaram à nuvem),
+                use isso para copiar o arquivo <code>.db</code> local de volta para
+                o Turso. Não apaga nada — registros já existentes são preservados.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground break-all">
+                Arquivo: <code>{config.dbPath}</code>
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleRemigrate}
+                disabled={remigrating}
+                className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+              >
+                {remigrating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                {remigrating ? "Reimportando…" : "Reimportar agora"}
+              </Button>
+              {remigrateResult && (
+                <div className="text-xs font-mono space-y-0.5 text-muted-foreground max-h-32 overflow-y-auto">
+                  {remigrateResult.map(([table, count]) => (
+                    <div key={table} className="flex justify-between gap-4">
+                      <span>{table}</span>
+                      <span className="text-foreground">{count} linhas</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {canSeed && (
           <Card className="border-primary/30">

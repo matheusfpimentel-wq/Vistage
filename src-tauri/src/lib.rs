@@ -11,6 +11,7 @@ mod gdrive;
 use db::DbState;
 use gcal::GcalState;
 use gdrive::GdriveState;
+use std::time::Duration;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -22,11 +23,10 @@ pub fn run() {
         .manage(DbState::default())
         .manage(GcalState::default())
         .manage(GdriveState::default())
-        // Ao fechar a janela principal, empurra as escritas pendentes para o
-        // Turso ANTES de destruir a janela. Sem isso, mudanças feitas nos
-        // últimos segundos (dentro da janela de throttle do sync) ficariam só
-        // na réplica local e nunca chegariam às outras máquinas. Usa timeout
-        // para não travar o fechamento quando estiver offline.
+        // Ao fechar a janela principal, tenta empurrar escritas pendentes para o
+        // Turso antes de destruir a janela. O timeout externo (4s) cobre TUDO —
+        // inclusive a espera pelo mutex — garantindo que a janela feche mesmo
+        // offline ou com o mutex travado por outra operação em curso.
         .on_window_event(|window, event| {
             if window.label() != "main" {
                 return;
@@ -37,7 +37,11 @@ pub fn run() {
                 let app = window.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
                     let state = app.state::<DbState>();
-                    db::sync_blocking(&state, 6).await;
+                    // Timeout externo cobre aquisição do mutex + sync
+                    let _ = tokio::time::timeout(
+                        Duration::from_secs(4),
+                        db::sync_blocking(&state, 4),
+                    ).await;
                     let _ = win.destroy();
                 });
             }
