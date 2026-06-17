@@ -25,7 +25,6 @@ import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { SyncedFolderSettings } from "./SyncedFolderSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
-import { MenuOrderSettings } from "./MenuOrderSettings";
 import { TodoistSettings } from "./TodoistSettings";
 import { DbDiagnostics } from "./DbDiagnostics";
 
@@ -255,8 +254,6 @@ export function SettingsPage() {
 
       {/* ─── Personalização ──────────────────────────────────── */}
       <TabsContent value="personalizacao" className="space-y-6">
-        <MenuOrderSettings />
-
         <ShortcutSettings />
 
         <Card>

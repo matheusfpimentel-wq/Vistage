@@ -1,6 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronRight, GripVertical, PanelLeftClose } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_NAV,
@@ -10,9 +25,36 @@ import {
   effectiveGroupLabel,
   loadGroupLabels,
   loadOrderedNav,
+  saveItemGroups,
+  saveNavOrder,
   type GroupLabels,
+  type ItemGroups,
   type NavItem,
 } from "@/lib/nav";
+
+// Item arrastável — usado só no modo de reordenação. A linha inteira é a alça.
+function SortableNavItem({ item }: { item: NavItem }) {
+  const { to, label, icon: Icon } = item;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: to });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "flex touch-none items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm",
+        "cursor-grab active:cursor-grabbing",
+        isDragging && "opacity-40"
+      )}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+      <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="flex-1 truncate">{label}</span>
+    </div>
+  );
+}
 
 export function Sidebar({
   onCollapse,
@@ -24,6 +66,8 @@ export function Sidebar({
 }) {
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
   const [groupLabels, setGroupLabels] = useState<GroupLabels>({});
+  const [editing, setEditing] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
       return JSON.parse(localStorage.getItem("sidebar_collapsed_groups") ?? "{}");
@@ -32,19 +76,23 @@ export function Sidebar({
     }
   });
 
-  useEffect(() => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
+  );
+
+  const reload = useCallback(() => {
     void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
       setNav(ordered);
       setGroupLabels(labels);
     });
-    const onChange = () =>
-      void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
-        setNav(ordered);
-        setGroupLabels(labels);
-      });
+  }, []);
+
+  useEffect(() => {
+    reload();
+    const onChange = () => reload();
     window.addEventListener(NAV_ORDER_CHANGED, onChange);
     return () => window.removeEventListener(NAV_ORDER_CHANGED, onChange);
-  }, []);
+  }, [reload]);
 
   const toggleGroup = useCallback((group: string) => {
     setCollapsed((prev) => {
@@ -53,6 +101,58 @@ export function Sidebar({
       return next;
     });
   }, []);
+
+  // Overrides de grupo atuais, derivados do nav carregado (vs DEFAULT_NAV) — para
+  // não perder reatribuições anteriores ao persistir um novo arraste.
+  const currentItemGroups = useMemo<ItemGroups>(() => {
+    const def = new Map(DEFAULT_NAV.map((i) => [i.to, i.group]));
+    const overrides: ItemGroups = {};
+    for (const i of nav) {
+      if (i.group && def.get(i.to) !== i.group) overrides[i.to] = i.group;
+    }
+    return overrides;
+  }, [nav]);
+
+  const reorderable = nav.filter((i) => !i.fixed);
+  const activeItem = activeId ? reorderable.find((i) => i.to === activeId) ?? null : null;
+
+  async function persist(nextReorderable: NavItem[], nextItemGroups: ItemGroups) {
+    const head = nav.filter((i) => i.fixed && i.to === "/");
+    const tail = nav.filter((i) => i.fixed && i.to !== "/");
+    setNav([...head, ...nextReorderable, ...tail]);
+    await Promise.all([
+      saveNavOrder(nextReorderable.map((i) => i.to)),
+      saveItemGroups(nextItemGroups),
+    ]);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const aId = String(active.id);
+    const oId = String(over.id);
+    const aItem = reorderable.find((i) => i.to === aId);
+    const oItem = reorderable.find((i) => i.to === oId);
+    if (!aItem || !oItem || !aItem.group || !oItem.group) return;
+
+    const next = [...reorderable];
+    const fromIdx = next.findIndex((i) => i.to === aId);
+    const newItemGroups = { ...currentItemGroups };
+
+    if (aItem.group !== oItem.group) {
+      // Move entre grupos: ajusta o grupo do item (e o override persistido).
+      next[fromIdx] = { ...next[fromIdx], group: oItem.group };
+      const defaultGroup = DEFAULT_NAV.find((i) => i.to === aId)?.group;
+      if (oItem.group !== defaultGroup) newItemGroups[aId] = oItem.group;
+      else delete newItemGroups[aId];
+    }
+
+    const [moved] = next.splice(fromIdx, 1);
+    const toIdx = next.findIndex((i) => i.to === oId);
+    next.splice(toIdx, 0, moved);
+    void persist(next, newItemGroups);
+  }
 
   const renderLink = ({ to, label, icon: Icon, end }: NavItem) => (
     <NavLink
@@ -88,62 +188,114 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3">
-        {/* Itens fixos no topo (Dashboard, Alertas) — fora dos grupos. */}
-        <div className="space-y-0.5">
-          {nav.filter((i) => i.fixed && i.to !== "/configuracoes").map(renderLink)}
-        </div>
-
-        {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo;
-            o chevron recolhe/expande a seção (estado lembrado). */}
-        {NAV_GROUP_ORDER.map((group) => {
-          const items = nav.filter((i) => i.group === group);
-          if (items.length === 0) return null;
-          const meta = NAV_GROUP_META[group];
-          const isCollapsed = collapsed[group];
-          return (
-            <div key={group} className="mt-4 space-y-0.5">
-              <div className="flex items-center">
-                <NavLink
-                  to={meta.to}
-                  end
-                  onClick={onNavigate}
-                  className={({ isActive }) =>
-                    cn(
-                      "group/header flex flex-1 items-center gap-1 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
-                      isActive
-                        ? "text-primary"
-                        : "text-muted-foreground/50 hover:text-foreground"
-                    )
-                  }
-                  title={`Abrir dashboard de ${effectiveGroupLabel(group, groupLabels)}`}
-                >
-                  {effectiveGroupLabel(group, groupLabels)}
-                  <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
-                </NavLink>
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group)}
-                  className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/50 transition hover:bg-accent hover:text-foreground"
-                  aria-label={isCollapsed ? `Expandir ${effectiveGroupLabel(group, groupLabels)}` : `Recolher ${effectiveGroupLabel(group, groupLabels)}`}
-                  aria-expanded={!isCollapsed}
-                >
-                  <ChevronDown
-                    className={cn(
-                      "h-3.5 w-3.5 transition-transform",
-                      isCollapsed && "-rotate-90"
-                    )}
-                  />
-                </button>
-              </div>
-              {!isCollapsed && items.map(renderLink)}
+        {editing ? (
+          // Modo de reordenação: arraste os itens (inclusive entre grupos).
+          <DndContext
+            sensors={sensors}
+            onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+            onDragEnd={handleDragEnd}
+          >
+            {NAV_GROUP_ORDER.map((group) => {
+              const items = reorderable.filter((i) => i.group === group);
+              if (items.length === 0) return null;
+              return (
+                <div key={group} className="mt-4 space-y-1">
+                  <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                    {effectiveGroupLabel(group, groupLabels)}
+                  </div>
+                  <SortableContext items={items.map((i) => i.to)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1">
+                      {items.map((item) => (
+                        <SortableNavItem key={item.to} item={item} />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </div>
+              );
+            })}
+            <DragOverlay>
+              {activeItem ? (
+                <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm shadow-lg ring-1 ring-primary/40">
+                  <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                  <activeItem.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1 truncate">{activeItem.label}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          <>
+            {/* Itens fixos no topo (Dashboard) — fora dos grupos. */}
+            <div className="space-y-0.5">
+              {nav.filter((i) => i.fixed && i.to !== "/configuracoes").map(renderLink)}
             </div>
-          );
-        })}
 
+            {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo;
+                o chevron recolhe/expande a seção (estado lembrado). */}
+            {NAV_GROUP_ORDER.map((group) => {
+              const items = nav.filter((i) => i.group === group);
+              if (items.length === 0) return null;
+              const meta = NAV_GROUP_META[group];
+              const isCollapsed = collapsed[group];
+              return (
+                <div key={group} className="mt-4 space-y-0.5">
+                  <div className="flex items-center">
+                    <NavLink
+                      to={meta.to}
+                      end
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        cn(
+                          "group/header flex flex-1 items-center gap-1 rounded-md px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors",
+                          isActive
+                            ? "text-primary"
+                            : "text-muted-foreground/50 hover:text-foreground"
+                        )
+                      }
+                      title={`Abrir dashboard de ${effectiveGroupLabel(group, groupLabels)}`}
+                    >
+                      {effectiveGroupLabel(group, groupLabels)}
+                      <ChevronRight className="h-3 w-3 opacity-0 transition-opacity group-hover/header:opacity-100" />
+                    </NavLink>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/50 transition hover:bg-accent hover:text-foreground"
+                      aria-label={isCollapsed ? `Expandir ${effectiveGroupLabel(group, groupLabels)}` : `Recolher ${effectiveGroupLabel(group, groupLabels)}`}
+                      aria-expanded={!isCollapsed}
+                    >
+                      <ChevronDown
+                        className={cn(
+                          "h-3.5 w-3.5 transition-transform",
+                          isCollapsed && "-rotate-90"
+                        )}
+                      />
+                    </button>
+                  </div>
+                  {!isCollapsed && items.map(renderLink)}
+                </div>
+              );
+            })}
+          </>
+        )}
       </nav>
 
-      {onCollapse && (
-        <div className="border-t p-2 flex justify-end">
+      <div className="border-t p-2 flex items-center justify-between gap-1">
+        <button
+          type="button"
+          onClick={() => setEditing((e) => !e)}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition",
+            editing
+              ? "bg-primary/15 text-primary"
+              : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+          title={editing ? "Concluir reordenação" : "Reordenar o menu (arrastar)"}
+        >
+          {editing ? <Check className="h-3.5 w-3.5" /> : <ArrowUpDown className="h-3.5 w-3.5" />}
+          {editing ? "Concluir" : "Reordenar"}
+        </button>
+        {onCollapse && (
           <button
             type="button"
             onClick={onCollapse}
@@ -153,8 +305,8 @@ export function Sidebar({
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }

@@ -22,13 +22,14 @@ import {
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
-export type NavGroup = "Criação" | "Relacionamento" | "Produtividade";
+export type NavGroup = "Criação" | "Relacionamento" | "Produtividade" | "Gestão";
 
 /** Ordem em que os grupos aparecem na sidebar. */
 export const NAV_GROUP_ORDER: NavGroup[] = [
   "Criação",
   "Relacionamento",
   "Produtividade",
+  "Gestão",
 ];
 
 /** Metadados de cada grupo — usados no cabeçalho clicável da sidebar e na dash própria do grupo. */
@@ -38,7 +39,9 @@ export const NAV_GROUP_META: Record<
 > = {
   "Criação": { to: "/criacao", icon: Palette, tagline: "Produção, conteúdo e agenda" },
   "Relacionamento": { to: "/relacionamento", icon: Handshake, tagline: "Pessoas, parcerias e fãs" },
-  "Produtividade": { to: "/gestao", icon: Gauge, tagline: "Gestão, foco e objetivos" },
+  "Produtividade": { to: "/gestao", icon: Gauge, tagline: "Foco, tarefas e objetivos" },
+  // Grupo sem hub próprio: o cabeçalho leva direto ao Financeiro.
+  "Gestão": { to: "/financeiro", icon: Wallet, tagline: "Finanças e identidade" },
 };
 
 export type NavItem = {
@@ -67,11 +70,12 @@ export const DEFAULT_NAV: NavItem[] = [
 
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Produtividade" },
   { to: "/reunioes", label: "Reuniões", icon: MessagesSquare, group: "Produtividade" },
-  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Produtividade" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Produtividade" },
-  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Produtividade" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Produtividade" },
   { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Produtividade" },
+
+  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
+  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
 
 ];
 
