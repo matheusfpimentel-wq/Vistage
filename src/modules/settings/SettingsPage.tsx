@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
-import { Download, Loader2, RefreshCw, RotateCcw, Sparkles, Upload } from "lucide-react";
+import { Download, Loader2, Plug, RefreshCw, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
-import { closeDatabase, resetReplica } from "@/lib/db";
+import { closeDatabase, initDatabase, resetReplica } from "@/lib/db";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import {
   exportBackupToFile,
@@ -34,6 +34,7 @@ export function SettingsPage() {
   const [remigrating, setRemigrating] = useState(false);
   const [remigrateResult, setRemigrateResult] = useState<[string, number][] | null>(null);
   const [resettingReplica, setResettingReplica] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -102,6 +103,24 @@ export function SettingsPage() {
       toast.error(`Erro ao importar: ${String(e)}`);
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function handleReconnect() {
+    setReconnecting(true);
+    try {
+      const dataDir = await appDataDir();
+      const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
+      const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
+      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
+      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
+      await initDatabase(replicaPath, tursoUrl, tursoToken);
+      toast.success("Banco reconectado. Recarregando…");
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(`Erro ao reconectar: ${String(e)}`);
+    } finally {
+      setReconnecting(false);
     }
   }
 
@@ -174,6 +193,34 @@ export function SettingsPage() {
 
       {/* ─── Integrações ─────────────────────────────────────── */}
       <TabsContent value="integracoes" className="space-y-6">
+        <Card className="border-amber-500/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Plug className="h-4 w-4 text-amber-500" />
+              Reconectar banco
+            </CardTitle>
+            <CardDescription>
+              Se o app mostra "banco não inicializado" mas o arquivo de réplica
+              já existe, use isso para reabrir a conexão sem apagar nenhum dado.
+              Mais rápido e seguro do que "Baixar tudo da nuvem".
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              onClick={handleReconnect}
+              disabled={reconnecting}
+            >
+              {reconnecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plug className="h-4 w-4" />
+              )}
+              {reconnecting ? "Reconectando…" : "Reconectar banco"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-destructive/30">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
