@@ -61,7 +61,7 @@ export function ObjetivosPage() {
                     okr={okr}
                     onEdit={() => { setEditing(okr); setFormOpen(true); }}
                     onDelete={async () => {
-                      if (!window.confirm) { await deleteOkr(okr.id); void refresh(); return; }
+                      if (!window.confirm("Excluir este OKR? Esta ação não pode ser desfeita.")) return;
                       await deleteOkr(okr.id);
                       toast.success("OKR excluído");
                       void refresh();

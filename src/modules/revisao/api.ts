@@ -29,8 +29,23 @@ function weekRange(): { start: string; end: string } {
 }
 
 type CountRow = { c: number };
-type TrackRow = { standby: number; stage_entered_at: string | null };
-type RatingRow = { rating_sound: number | null; rating_crowd: number | null; rating_overall: number | null };
+type TrackRow = { standby: number; stage_history: string | null };
+type RatingRow = {
+  rating_charisma: number | null;
+  rating_technique: number | null;
+  rating_repertoire: number | null;
+};
+
+/** Data em que a track entrou no stage atual, derivada do stage_history JSON. */
+function stageEnteredFromHistory(historyJson: string | null): string | null {
+  if (!historyJson) return null;
+  try {
+    const arr = JSON.parse(historyJson) as { entered_at?: string }[];
+    return arr[arr.length - 1]?.entered_at ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function loadWeekStats(): Promise<WeekStats> {
   const { start, end } = weekRange();
@@ -78,7 +93,7 @@ export async function loadWeekStats(): Promise<WeekStats> {
       [today]
     ),
     db.select<TrackRow[]>(
-      `SELECT standby, stage_entered_at FROM tracks`,
+      `SELECT standby, stage_history FROM tracks`,
       []
     ),
     db.select<CountRow[]>(
@@ -86,22 +101,22 @@ export async function loadWeekStats(): Promise<WeekStats> {
       []
     ),
     db.select<RatingRow[]>(
-      `SELECT rating_sound, rating_crowd, rating_overall FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
+      `SELECT rating_charisma, rating_technique, rating_repertoire FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
       [start, end]
     ),
   ]);
 
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
   const tracksStalled = tracksRows.filter((t: TrackRow) => {
-    if (t.standby || !t.stage_entered_at) return false;
-    const entered = new Date(t.stage_entered_at);
-    const now = new Date();
-    return (now.getTime() - entered.getTime()) / 86400000 > 30;
+    if (t.standby) return false;
+    const entered = stageEnteredFromHistory(t.stage_history);
+    if (!entered) return false;
+    return (Date.now() - new Date(entered).getTime()) / 86400000 > 30;
   }).length;
 
   const ratings = gigRatingRows
     .map((g: RatingRow) => {
-      const vals = [g.rating_sound, g.rating_crowd, g.rating_overall].filter(
+      const vals = [g.rating_charisma, g.rating_technique, g.rating_repertoire].filter(
         (v): v is number => v !== null
       );
       return vals.length > 0 ? vals.reduce((a: number, b: number) => a + b, 0) / vals.length : null;

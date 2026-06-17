@@ -70,6 +70,18 @@ export async function deleteOkr(id: number): Promise<void> {
   await db.execute(`DELETE FROM okrs WHERE id=$1`, [id]);
 }
 
+/** Data (YYYY-MM-DD) em que a track entrou no stage atual, derivada do stage_history JSON. */
+function stageEnteredFromHistory(historyJson: string | null): string | null {
+  if (!historyJson) return null;
+  try {
+    const arr = JSON.parse(historyJson) as { entered_at?: string }[];
+    const entered = arr[arr.length - 1]?.entered_at;
+    return entered ? entered.slice(0, 10) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Calcula current automaticamente pra KRs com metric_source != manual
 async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
   const db = getDb();
@@ -92,11 +104,13 @@ async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
     counts.gigs_completed = rows[0]?.c ?? 0;
   }
   if (needs.has("tracks_released")) {
-    const rows = await db.select<{ c: number }[]>(
-      `SELECT COUNT(*) as c FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento') AND stage_entered_at >= $1`,
-      [qStart]
+    const rows = await db.select<{ stage_history: string | null }[]>(
+      `SELECT stage_history FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento')`
     );
-    counts.tracks_released = rows[0]?.c ?? 0;
+    counts.tracks_released = rows.filter((r) => {
+      const entered = stageEnteredFromHistory(r.stage_history);
+      return entered !== null && entered >= qStart;
+    }).length;
   }
   if (needs.has("parties_executed")) {
     const rows = await db.select<{ c: number }[]>(
@@ -114,10 +128,10 @@ async function pullMetrics(okrs: Okr[]): Promise<Okr[]> {
   }
   if (needs.has("finance_revenue")) {
     const rows = await db.select<{ total: number }[]>(
-      `SELECT COALESCE(SUM(amount_cents),0) as total FROM finance_transactions WHERE type='income' AND date >= $1 AND date <= $2`,
+      `SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE kind='income' AND date >= $1 AND date <= $2`,
       [qStart, qEnd]
     );
-    counts.finance_revenue = Math.round((rows[0]?.total ?? 0) / 100);
+    counts.finance_revenue = Math.round(rows[0]?.total ?? 0);
   }
 
   void today; // suppress unused warning

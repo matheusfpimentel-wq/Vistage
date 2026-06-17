@@ -164,7 +164,7 @@ export async function seedExampleData(): Promise<{
     ).lastInsertId
   );
 
-  // A Caminho — daqui 2 dias
+  // Confirmada — daqui 2 dias
   await db.execute(
     `INSERT INTO gigs (
       date, start_time, end_time, venue_name, venue_city, promoter_contact_id,
@@ -179,7 +179,7 @@ export async function seedExampleData(): Promise<{
       lautaroId,
       1500,
       "Set abrindo a noite. Estilo afro-house.",
-      "A Caminho",
+      "Confirmada",
       "50% pago",
       isoDaysOffset(5),
     ]
