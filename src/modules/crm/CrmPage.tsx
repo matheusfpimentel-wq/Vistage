@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SkeletonCards } from "@/components/shared/Skeleton";
 import { TypeBadges } from "./components/TypeBadges";
 import { ContactForm } from "./forms/ContactForm";
 import { ContactDetail } from "./forms/ContactDetail";
@@ -207,7 +208,7 @@ export function CrmPage() {
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+        <SkeletonCards />
       ) : sorted.length === 0 ? (
         <EmptyState icon={Users} title="Nenhum contato encontrado" description="Adicione um novo contato ou ajuste os filtros." />
       ) : view === "cards" ? (

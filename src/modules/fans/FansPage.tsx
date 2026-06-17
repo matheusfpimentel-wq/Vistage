@@ -18,6 +18,7 @@ import {
   User,
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SkeletonCards } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
@@ -296,7 +297,7 @@ export function FansPage() {
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+        <SkeletonCards />
       ) : fans.length === 0 ? (
         <EmptyState
           icon={Heart}

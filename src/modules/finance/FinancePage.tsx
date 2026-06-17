@@ -16,6 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { SkeletonList } from "@/components/shared/Skeleton";
 import { TransactionForm } from "./forms/TransactionForm";
 import { CategoryManager } from "./forms/CategoryManager";
 import { TransactionList } from "./views/TransactionList";
@@ -350,7 +351,7 @@ export function FinancePage() {
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+            <SkeletonList />
           ) : (
             <TransactionList
               transactions={transactions}

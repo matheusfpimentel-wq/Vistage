@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { SkeletonList } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
@@ -306,7 +307,7 @@ export function ClassesPage() {
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+            <SkeletonList />
           ) : classes.length === 0 ? (
             <EmptyState
               icon={GraduationCap}
@@ -406,7 +407,7 @@ export function ClassesPage() {
             </Button>
           </div>
           {loading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+            <SkeletonList />
           ) : students.length === 0 ? (
             <EmptyState
               icon={GraduationCap}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -165,28 +165,38 @@ function SceneRow({ id, scene, index, onUpdate, onRemove }: SceneRowProps) {
 export function SceneEditor({ scenes, onChange }: Props) {
   const sensors = useSensors(useSensor(PointerSensor));
 
+  // Ids estáveis por cena (apenas no cliente, não persistidos). Usar o índice
+  // como key/id do dnd fazia o estado local (cena colapsada, rascunho de tag)
+  // "embaralhar" entre as linhas ao reordenar por arraste.
+  const idsRef = useRef<string[]>([]);
+  if (idsRef.current.length !== scenes.length) {
+    idsRef.current = scenes.map((_, i) => idsRef.current[i] ?? crypto.randomUUID());
+  }
+  const ids = idsRef.current;
+
   function update(index: number, patch: Partial<ContentSceneInput>) {
     onChange(scenes.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
   function remove(index: number) {
+    idsRef.current = ids.filter((_, i) => i !== index);
     onChange(scenes.filter((_, i) => i !== index));
   }
 
   function add() {
+    idsRef.current = [...ids, crypto.randomUUID()];
     onChange([...scenes, { ...EMPTY_SCENE }]);
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const from = Number(active.id);
-    const to = Number(over.id);
-    if (Number.isNaN(from) || Number.isNaN(to)) return;
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    idsRef.current = arrayMove(ids, from, to);
     onChange(arrayMove(scenes, from, to));
   }
-
-  const ids = scenes.map((_, i) => String(i));
 
   return (
     <div className="space-y-2">
@@ -201,8 +211,8 @@ export function SceneEditor({ scenes, onChange }: Props) {
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {scenes.map((scene, i) => (
             <SceneRow
-              key={i}
-              id={String(i)}
+              key={ids[i]}
+              id={ids[i]}
               scene={scene}
               index={i}
               onUpdate={update}
