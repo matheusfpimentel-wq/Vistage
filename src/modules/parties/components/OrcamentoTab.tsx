@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/format";
 import {
   BUDGET_CATEGORIES,
   budgetSummary,
@@ -28,9 +29,6 @@ import {
 } from "../api";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
-
-const fmt = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function OrcamentoTab({
   party,
@@ -156,11 +154,11 @@ export function OrcamentoTab({
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Projetado</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{fmt(summary.projected)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.projected)}</div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Real</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{fmt(summary.actual)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.actual)}</div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Diferença</div>
@@ -170,7 +168,7 @@ export function OrcamentoTab({
               summary.actual > summary.projected ? "text-red-400" : "text-emerald-400"
             )}
           >
-            {fmt(summary.actual - summary.projected)}
+            {formatCurrency(summary.actual - summary.projected)}
           </div>
         </div>
       </div>
@@ -230,9 +228,9 @@ export function OrcamentoTab({
                     <td className="px-3 py-2 text-xs text-muted-foreground">{item.category}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{item.subcategory ?? "—"}</td>
                     <td className="px-3 py-2">{item.description ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(item.projected_amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(item.projected_amount)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {item.actual_amount != null ? fmt(item.actual_amount) : "—"}
+                      {item.actual_amount != null ? formatCurrency(item.actual_amount) : "—"}
                     </td>
                     <td className="px-3 py-2">
                       <Select

@@ -1,13 +1,10 @@
 import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 type Props = {
   parties: PartyDeserialized[];

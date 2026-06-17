@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toLocalISODate } from "@/lib/format";
+import { toLocalISODate, formatCurrency } from "@/lib/format";
 import { Loader2, PartyPopper, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,9 +27,6 @@ import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
 
 type StatusFilter = PartyStatus | "Todas";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PartiesPage() {
   const [parties, setParties] = useState<PartyDeserialized[]>([]);

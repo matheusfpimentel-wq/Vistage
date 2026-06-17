@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -111,9 +112,6 @@ const LINEUP_TYPES = ["DJ parceiro", "Músico"];
 
 // Candidato local (festa nova, ainda sem id): só venue_id + nome para exibir.
 type LocalCandidate = { venue_id: number; venue_name: string };
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);

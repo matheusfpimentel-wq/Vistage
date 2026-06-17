@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import {
   TICKET_TYPES,
   ticketTypeLabel,
@@ -23,9 +23,6 @@ import {
   deletePartyTicket,
   updatePartyTicket,
 } from "../api";
-
-const fmt = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function IngressosTab({
   partyId,
@@ -118,7 +115,7 @@ export function IngressosTab({
                 <span className="font-medium text-sm">{t.name}</span>
                 <Badge className="text-xs shrink-0">{ticketTypeLabel(t.ticket_type)}</Badge>
               </div>
-              <div className="text-lg font-semibold tabular-nums">{fmt(t.price)}</div>
+              <div className="text-lg font-semibold tabular-nums">{formatCurrency(t.price)}</div>
               <div className="text-xs text-muted-foreground">
                 {editingId === t.id ? (
                   <div className="flex items-center gap-1.5">
