@@ -25,6 +25,10 @@ const TABLES = [
   "artist_templates",
   "parties",
   "party_costs",
+  "party_stages",
+  "party_budget_items",
+  "party_tickets",
+  "party_tasks",
   "music_projects",
   "tracks",
   "track_collaborators",
@@ -32,6 +36,10 @@ const TABLES = [
   "track_media_targets",
   "music_project_costs",
   "track_performance_snapshots",
+  "gig_tracks",
+  "gig_setlists",
+  "suppliers",
+  "supplier_services",
   "finance_categories",
   "finance_transactions",
   "finance_recurring",
@@ -86,6 +94,30 @@ export async function exportBackupToFile(): Promise<string | null> {
   return path;
 }
 
+/**
+ * Valida o envelope de um backup (app, versão, tabelas) antes de qualquer
+ * operação destrutiva. Lança erro descritivo se inválido. Usado tanto na
+ * importação por arquivo quanto na restauração vinda do Google Drive.
+ */
+export function validateBackup(parsed: unknown): Backup {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Arquivo de backup inválido ou vazio.");
+  }
+  const p = parsed as Partial<Backup>;
+  if (p.app !== "musicgest") {
+    throw new Error("Arquivo não é um backup do MusicGest.");
+  }
+  if (typeof p.version !== "number" || p.version > BACKUP_VERSION) {
+    throw new Error(
+      `Versão do backup (${p.version}) é mais nova que a suportada por este app.`
+    );
+  }
+  if (!p.tables || typeof p.tables !== "object") {
+    throw new Error("Backup sem tabelas — arquivo corrompido ou incompleto.");
+  }
+  return p as Backup;
+}
+
 /** Abre o diálogo, lê o JSON e valida o formato. */
 export async function pickBackupFile(): Promise<Backup | null> {
   const file = await openDialog({
@@ -95,19 +127,7 @@ export async function pickBackupFile(): Promise<Backup | null> {
   });
   if (!file || typeof file !== "string") return null;
   const raw = await readTextFile(file);
-  const parsed = JSON.parse(raw) as Partial<Backup>;
-  if (parsed.app !== "musicgest") {
-    throw new Error("Arquivo não é um backup do MusicGest.");
-  }
-  if (typeof parsed.version !== "number" || parsed.version > BACKUP_VERSION) {
-    throw new Error(
-      `Versão do backup (${parsed.version}) é mais nova que a suportada por este app.`
-    );
-  }
-  if (!parsed.tables || typeof parsed.tables !== "object") {
-    throw new Error("Backup sem tabelas.");
-  }
-  return parsed as Backup;
+  return validateBackup(JSON.parse(raw));
 }
 
 /**
@@ -119,21 +139,38 @@ export async function restoreBackup(backup: Backup): Promise<{
   restoredTables: number;
   restoredRows: number;
 }> {
+  validateBackup(backup);
   const db = getDb();
   let restoredRows = 0;
 
+  // Colunas reais de cada tabela, para validar o que vem do backup contra o
+  // schema atual: descarta colunas desconhecidas (corrupção / drift de schema)
+  // e impede injeção de identificador no INSERT.
+  const realCols = new Map<TableName, Set<string>>();
+  for (const t of TABLES) {
+    const info = await db.select<{ name: string }[]>(
+      `SELECT name FROM pragma_table_info('${t}')`
+    );
+    realCols.set(t, new Set(info.map((c) => c.name)));
+  }
+
   await db.execute("BEGIN");
   try {
-    // limpa na ordem inversa para não ferir foreign keys
+    // Adia a checagem de FK até o COMMIT: assim a ordem de DELETE/INSERT não
+    // precisa ser perfeita e a restauração nunca falha no meio por FK.
+    await db.execute("PRAGMA defer_foreign_keys = ON");
+
+    // limpa na ordem inversa (filhos antes de pais)
     for (const t of [...TABLES].reverse()) {
       await db.execute(`DELETE FROM ${t}`);
     }
 
     // reinsere na ordem original (pais antes de filhos)
     for (const t of TABLES) {
+      const allowed = realCols.get(t)!;
       const rows = backup.tables[t] ?? [];
       for (const row of rows) {
-        const cols = Object.keys(row);
+        const cols = Object.keys(row).filter((c) => allowed.has(c));
         if (cols.length === 0) continue;
         const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
         const values = cols.map((c) => row[c]);

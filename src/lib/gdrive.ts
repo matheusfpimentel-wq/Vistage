@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { getDb } from "./db";
-import { buildBackup, restoreBackup, type Backup } from "./backup";
+import { buildBackup, restoreBackup, validateBackup } from "./backup";
 
 // ============================================================
 // Chaves de app_settings
@@ -247,7 +247,7 @@ export async function downloadAndRestoreBackup(fileId: string): Promise<{ restor
     accessToken,
     fileId,
   });
-  const backup: Backup = JSON.parse(raw);
+  const backup = validateBackup(JSON.parse(raw));
   return restoreBackup(backup);
 }
 
