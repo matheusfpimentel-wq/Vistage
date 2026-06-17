@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toLocalISODate } from "@/lib/format";
 import { Loader2, PartyPopper, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,7 @@ export function PartiesPage() {
     await refresh();
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

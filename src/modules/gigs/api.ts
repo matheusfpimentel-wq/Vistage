@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
 
@@ -251,7 +252,7 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
             : g.recurring_event_name.trim()
           : g.event_name?.trim() || g.venue_name?.trim() || "GIG";
         const label = `Cachê: ${baseName}`;
-        const txDate = g.payment_due_date ?? g.date ?? new Date().toISOString().slice(0, 10);
+        const txDate = g.payment_due_date ?? g.date ?? toLocalISODate();
         const { syncGigPaymentTransaction } = await import("@/modules/finance/api");
         await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date, g.date ?? null);
 

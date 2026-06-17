@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type {
   Party,
@@ -19,7 +20,7 @@ function nowISO(): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }
 
 function parseJsonArray<T>(raw: string | null): T[] {
@@ -103,7 +104,7 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     await syncPartyTransactions(id);
   } catch { /* não interrompe */ }
   // Tarefa do dia do evento, se a festa é no futuro
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
   if (typeof input.date === "string" && input.date > today) {
     try {
       const { createTask } = await import("@/modules/tasks/api");

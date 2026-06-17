@@ -31,7 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -262,7 +262,7 @@ type SwotExtra = {
 /** Indicadores automáticos derivados dos dados do app. */
 function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
   const { tasks, gigs, okrs } = data;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
 
   const concluded = gigs.filter((g) => g.status === "Concluída").length;
   const proposals = gigs.filter((g) => g.status === "Proposta").length;

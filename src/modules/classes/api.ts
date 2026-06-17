@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type {
   ClassPackage,
@@ -307,7 +308,7 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
   );
   const id = Number(res.lastInsertId);
   // Cria tarefa se a aula é no futuro
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
   if (input.date && input.date > today) {
     try {
       const studentRows = await db.select<{ name: string }[]>(
@@ -359,7 +360,7 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
       "SELECT task_id, date, student_id, subject FROM classes WHERE id = $1", [id]
     );
     const taskId = rows[0]?.task_id;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate();
     if (taskId) {
       try {
         const { updateTask } = await import("@/modules/tasks/api");
@@ -474,7 +475,7 @@ export type ClassStats = {
 
 export async function getClassStats(): Promise<ClassStats> {
   const db = getDb();
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const monthStart = `${month}-01`;
   const monthEnd = `${month}-31`;
 

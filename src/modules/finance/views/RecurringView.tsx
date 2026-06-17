@@ -34,7 +34,7 @@ import {
   type FinanceRecurring,
   type TransactionKind,
 } from "../types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toLocalYearMonth } from "@/lib/format";
 
 type Props = {
   onChanged: () => void;
@@ -56,7 +56,7 @@ export function RecurringView({ onChanged }: Props) {
   async function handleGenerate() {
     setGenerating(true);
     try {
-      const yearMonth = new Date().toISOString().slice(0, 7);
+      const yearMonth = toLocalYearMonth();
       const created = await generateRecurringForMonth(yearMonth);
       if (created === 0) {
         toast.info("Nada novo — todos os lançamentos do mês já existem.");

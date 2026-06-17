@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Dices, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatDate } from "@/lib/format";
+import { formatDate, toLocalISODate } from "@/lib/format";
 import { listOkrs, okrProgress } from "@/modules/objetivos/api";
 import { listTasks } from "@/modules/tasks/api";
 import { listGigs } from "@/modules/gigs/api";
@@ -21,7 +21,7 @@ export function InsightDie() {
   const [rolling, setRolling] = useState(false);
 
   const buildPool = useCallback(async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate();
     const out: string[] = [];
 
     try {

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type {
   Content,
@@ -91,7 +92,7 @@ export async function createContent(input: ContentCreateInput): Promise<number> 
   );
   const id = Number(res.lastInsertId);
   // Tarefa de publicação a partir de publish_date (futuro)
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
   if (typeof input.publish_date === "string" && input.publish_date > today) {
     try {
       const { createTask } = await import("@/modules/tasks/api");
@@ -274,7 +275,7 @@ export async function getContentStats(): Promise<ContentStats> {
   const rows = await db.select<{ status: ContentStatus; n: number }[]>(
     "SELECT status, COUNT(*) as n FROM content GROUP BY status"
   );
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const publishedRows = await db.select<{ n: number }[]>(
     `SELECT COUNT(*) as n FROM content
       WHERE status = 'Publicado'

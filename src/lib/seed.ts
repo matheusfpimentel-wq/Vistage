@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { toLocalISODate } from "./format";
 
 /**
  * Popula o banco com dados de exemplo: 4 GIGs em estados diferentes,
@@ -9,7 +10,7 @@ import { getDb } from "./db";
 function isoDaysOffset(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 export async function isDatabaseEmpty(): Promise<boolean> {
