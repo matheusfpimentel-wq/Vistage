@@ -170,6 +170,57 @@ pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
     Ok(())
 }
 
+/// Apaga o arquivo de réplica local e reabre do Turso do zero.
+/// Resolve casos onde a réplica local está corrompida ou dessincronizada
+/// e o libsql não consegue puxar os dados mais recentes da nuvem.
+/// Retorna o número de frames recebidos do Turso (confirma que baixou dados).
+#[tauri::command]
+pub async fn db_reset_replica(
+    state: State<'_, DbState>,
+    replica_path: String,
+    turso_url: String,
+    turso_token: String,
+) -> Result<(), String> {
+    // 1. Fecha a conexão e o banco atual, liberando o lock do arquivo
+    {
+        let mut conn_guard = state.conn.lock().await;
+        let mut db_guard = state.db.lock().await;
+        *conn_guard = None;
+        *db_guard = None;
+    }
+
+    // 2. Apaga o arquivo de réplica (e o WAL/SHM se existirem)
+    for suffix in &["", "-wal", "-shm"] {
+        let path = format!("{}{}", replica_path, suffix);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    // 3. Reabre — sem réplica local, o libsql baixa tudo do Turso
+    let db = libsql::Builder::new_synced_database(
+        replica_path,
+        turso_url,
+        turso_token,
+    )
+    .build()
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let conn = db.connect().map_err(|e| e.to_string())?;
+    conn.execute("PRAGMA foreign_keys = ON;", ())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // 4. Sync com timeout generoso — agora sem réplica local, vai baixar tudo
+    tokio::time::timeout(Duration::from_secs(60), db.sync())
+        .await
+        .map_err(|_| "Timeout ao baixar dados do Turso (>60s)".to_string())?
+        .map_err(|e| e.to_string())?;
+
+    *state.db.lock().await = Some(db);
+    *state.conn.lock().await = Some(conn);
+    Ok(())
+}
+
 /// Migração one-shot do .db SQLite legado para o Turso.
 /// Lê o arquivo legado com new_local; escreve no Turso via conn (já configurada).
 #[tauri::command]

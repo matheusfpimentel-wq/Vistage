@@ -45,6 +45,14 @@ export async function syncDatabase(): Promise<void> {
   await invoke("db_sync").catch(() => {});
 }
 
+export async function resetReplica(
+  replicaPath: string,
+  tursoUrl: string,
+  tursoToken: string,
+): Promise<void> {
+  await invoke("db_reset_replica", { replicaPath, tursoUrl: tursoUrl, tursoToken });
+}
+
 export async function closeDatabase(): Promise<void> {}
 
 type DbErrorKind = "not_found" | "locked" | "corrupted" | "permission" | "unknown";

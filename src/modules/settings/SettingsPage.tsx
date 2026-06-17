@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Download, Loader2, RotateCcw, Sparkles, Upload } from "lucide-react";
+import { appDataDir } from "@tauri-apps/api/path";
+import { Download, Loader2, RefreshCw, RotateCcw, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
-import { closeDatabase } from "@/lib/db";
+import { closeDatabase, resetReplica } from "@/lib/db";
+import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import {
   exportBackupToFile,
   pickBackupFile,
@@ -30,6 +32,7 @@ export function SettingsPage() {
   const [canSeed, setCanSeed] = useState(false);
   const [remigrating, setRemigrating] = useState(false);
   const [remigrateResult, setRemigrateResult] = useState<[string, number][] | null>(null);
+  const [resettingReplica, setResettingReplica] = useState(false);
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -101,6 +104,33 @@ export function SettingsPage() {
     }
   }
 
+  async function handleResetReplica() {
+    const ok = await confirmDialog({
+      title: "Baixar tudo da nuvem",
+      description:
+        "Apaga o arquivo de réplica local e baixa todos os dados do Turso do zero. " +
+        "Use isso quando os dados estão na nuvem mas não aparecem no app. " +
+        "O app vai recarregar ao terminar.",
+      confirmLabel: "Baixar tudo",
+    });
+    if (!ok) return;
+    setResettingReplica(true);
+    try {
+      const dataDir = await appDataDir();
+      const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
+      const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
+      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
+      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
+      await resetReplica(replicaPath, tursoUrl, tursoToken);
+      toast.success("Dados baixados da nuvem. Recarregando…");
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      toast.error(`Erro ao baixar: ${String(e)}`);
+    } finally {
+      setResettingReplica(false);
+    }
+  }
+
   async function handleRemigrate() {
     if (!config?.dbPath) {
       toast.error("Nenhum arquivo .db legado configurado.");
@@ -143,6 +173,34 @@ export function SettingsPage() {
 
       {/* ─── Integrações ─────────────────────────────────────── */}
       <TabsContent value="integracoes" className="space-y-6">
+        <Card className="border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-destructive" />
+              Nuvem (Turso) — baixar tudo do zero
+            </CardTitle>
+            <CardDescription>
+              Se os dados estão no Turso mas não aparecem no app, apague a
+              réplica local e force o download completo da nuvem. O app
+              recarrega ao terminar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="destructive"
+              onClick={handleResetReplica}
+              disabled={resettingReplica}
+            >
+              {resettingReplica ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {resettingReplica ? "Baixando…" : "Baixar tudo da nuvem"}
+            </Button>
+          </CardContent>
+        </Card>
+
         <TodoistSettings />
         <GoogleCalendarSettings />
         <GoogleDriveSettings />
