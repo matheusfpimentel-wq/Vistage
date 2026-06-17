@@ -23,6 +23,7 @@ import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { MenuOrderSettings } from "./MenuOrderSettings";
 import { TodoistSettings } from "./TodoistSettings";
+import { DbDiagnostics } from "./DbDiagnostics";
 
 export function SettingsPage() {
   const { config, configPath, reset, patchConfig } = useConfigStore();
@@ -200,6 +201,8 @@ export function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        <DbDiagnostics />
 
         <TodoistSettings />
         <GoogleCalendarSettings />

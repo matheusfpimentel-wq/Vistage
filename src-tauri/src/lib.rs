@@ -52,6 +52,7 @@ pub fn run() {
             db::db_execute,
             db::db_sync,
             db::db_reset_replica,
+            db::db_diagnostics,
             db::db_migrate_from_sqlite,
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,

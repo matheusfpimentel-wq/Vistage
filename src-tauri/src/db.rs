@@ -6,7 +6,7 @@
 use base64::Engine;
 use serde::Serialize;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::State;
 use tokio::sync::Mutex;
 
@@ -219,6 +219,136 @@ pub async fn db_reset_replica(
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
     Ok(())
+}
+
+/// Diagnóstico completo: testa sync, conta linhas das tabelas principais,
+/// inspeciona o arquivo de réplica local e retorna tudo como JSON legível.
+#[tauri::command]
+pub async fn db_diagnostics(
+    state: State<'_, DbState>,
+    replica_path: String,
+    turso_url: String,
+    turso_token: String,
+) -> Result<serde_json::Value, String> {
+    let mut out = serde_json::Map::new();
+
+    // ── 1. Arquivo de réplica local ───────────────────────────────────────────
+    let replica_meta = {
+        let mut m = serde_json::Map::new();
+        match std::fs::metadata(&replica_path) {
+            Ok(meta) => {
+                m.insert("exists".into(), true.into());
+                m.insert("size_bytes".into(), meta.len().into());
+                m.insert(
+                    "size_kb".into(),
+                    serde_json::Value::String(format!("{:.1} KB", meta.len() as f64 / 1024.0)),
+                );
+            }
+            Err(_) => {
+                m.insert("exists".into(), false.into());
+                m.insert("size_bytes".into(), 0.into());
+            }
+        }
+        serde_json::Value::Object(m)
+    };
+    out.insert("replica_file".into(), replica_meta);
+
+    // ── 2. Turso URL (mascara token) ─────────────────────────────────────────
+    out.insert("turso_url".into(), turso_url.clone().into());
+    out.insert(
+        "turso_token_len".into(),
+        turso_token.len().into(),
+    );
+
+    // ── 3. Testa sync e mede latência ────────────────────────────────────────
+    let sync_result = {
+        let guard = state.db.lock().await;
+        if let Some(db) = guard.as_ref() {
+            let t0 = Instant::now();
+            match tokio::time::timeout(Duration::from_secs(30), db.sync()).await {
+                Ok(Ok(_)) => {
+                    let ms = t0.elapsed().as_millis();
+                    serde_json::json!({ "ok": true, "ms": ms })
+                }
+                Ok(Err(e)) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+                Err(_) => serde_json::json!({ "ok": false, "error": "timeout >30s" }),
+            }
+        } else {
+            serde_json::json!({ "ok": false, "error": "banco não inicializado" })
+        }
+    };
+    out.insert("sync".into(), sync_result);
+
+    // ── 4. Conta linhas nas tabelas principais (réplica local pós-sync) ──────
+    let tables = [
+        "gigs", "students", "classes", "content", "tracks",
+        "contacts", "tasks", "finance_transactions", "parties", "_migrations",
+    ];
+    let mut counts = serde_json::Map::new();
+    {
+        let guard = state.conn.lock().await;
+        if let Some(conn) = guard.as_ref() {
+            for table in &tables {
+                let sql = format!("SELECT COUNT(*) as n FROM {}", table);
+                match conn.query(&sql, ()).await {
+                    Ok(mut rows) => {
+                        let n: i64 = if let Ok(Some(row)) = rows.next().await {
+                            row.get(0).unwrap_or(0)
+                        } else {
+                            0
+                        };
+                        counts.insert(table.to_string(), n.into());
+                    }
+                    Err(e) => {
+                        counts.insert(
+                            table.to_string(),
+                            serde_json::Value::String(format!("ERROR: {}", e)),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    out.insert("row_counts".into(), serde_json::Value::Object(counts));
+
+    // ── 5. Testa conexão direta ao Turso (novo_remote — bypassa réplica) ─────
+    let remote_test = {
+        match libsql::Builder::new_remote(turso_url.clone(), turso_token.clone())
+            .build()
+            .await
+        {
+            Ok(remote_db) => match remote_db.connect() {
+                Ok(remote_conn) => {
+                    let mut remote_counts = serde_json::Map::new();
+                    for table in &["gigs", "students", "classes", "content", "_migrations"] {
+                        let sql = format!("SELECT COUNT(*) as n FROM {}", table);
+                        match remote_conn.query(&sql, ()).await {
+                            Ok(mut rows) => {
+                                let n: i64 = if let Ok(Some(row)) = rows.next().await {
+                                    row.get(0).unwrap_or(0)
+                                } else {
+                                    0
+                                };
+                                remote_counts.insert(table.to_string(), n.into());
+                            }
+                            Err(e) => {
+                                remote_counts.insert(
+                                    table.to_string(),
+                                    serde_json::Value::String(format!("ERROR: {}", e)),
+                                );
+                            }
+                        }
+                    }
+                    serde_json::json!({ "ok": true, "row_counts": remote_counts })
+                }
+                Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+            },
+            Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+        }
+    };
+    out.insert("turso_direct".into(), remote_test);
+
+    Ok(serde_json::Value::Object(out))
 }
 
 /// Migração one-shot do .db SQLite legado para o Turso.
