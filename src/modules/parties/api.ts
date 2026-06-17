@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import type {
   Party,
   PartyDeserialized,
@@ -17,7 +18,7 @@ function nowISO(): string {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }
 
 function parseJsonArray<T>(raw: string | null): T[] {

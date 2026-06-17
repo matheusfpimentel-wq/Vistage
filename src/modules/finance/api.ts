@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
 import type {
   Equipment,
   EquipmentCreateInput,
@@ -412,27 +413,27 @@ export type FinanceInsights = {
 };
 
 function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  return toLocalYearMonth();
 }
 
 function currentYear(): string {
-  return new Date().toISOString().slice(0, 4);
+  return String(new Date().getFullYear());
 }
 
 function isoNDaysFromNow(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 function isoToday(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }
 
 function monthsAgo(n: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
-  return d.toISOString().slice(0, 7);
+  return toLocalYearMonth(d);
 }
 
 export async function loadFinanceInsights(): Promise<FinanceInsights> {

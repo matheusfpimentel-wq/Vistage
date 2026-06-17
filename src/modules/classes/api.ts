@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalYearMonth } from "@/lib/format";
 import type {
   ClassPackage,
   ClassPackageCreateInput,
@@ -310,7 +311,7 @@ export type ClassStats = {
 
 export async function getClassStats(): Promise<ClassStats> {
   const db = getDb();
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const monthStart = `${month}-01`;
   const monthEnd = `${month}-31`;
 

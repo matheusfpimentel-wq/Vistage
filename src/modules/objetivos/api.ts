@@ -27,10 +27,14 @@ export type Okr = {
 type OkrRow = Omit<Okr, "key_results"> & { key_results: string };
 
 function parseOkr(row: OkrRow): Okr {
-  return {
-    ...row,
-    key_results: JSON.parse(row.key_results || "[]") as KeyResult[],
-  };
+  let key_results: KeyResult[] = [];
+  try {
+    key_results = JSON.parse(row.key_results || "[]") as KeyResult[];
+  } catch {
+    // key_results corrompido não deve derrubar a página inteira de OKRs
+    key_results = [];
+  }
+  return { ...row, key_results };
 }
 
 export async function listOkrs(): Promise<Okr[]> {

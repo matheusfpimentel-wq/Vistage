@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalYearMonth } from "@/lib/format";
 import type {
   Content,
   ContentCreateInput,
@@ -129,7 +130,7 @@ export async function getContentStats(): Promise<ContentStats> {
   const rows = await db.select<{ status: ContentStatus; n: number }[]>(
     "SELECT status, COUNT(*) as n FROM content GROUP BY status"
   );
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const publishedRows = await db.select<{ n: number }[]>(
     `SELECT COUNT(*) as n FROM content
       WHERE status = 'Publicado'

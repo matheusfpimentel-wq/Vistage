@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import type {
   Subtask,
   Task,
@@ -36,13 +37,13 @@ export type TaskFilters = {
 };
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }
 
 function sevenDaysFromNowISO(): string {
   const d = new Date();
   d.setDate(d.getDate() + 7);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {

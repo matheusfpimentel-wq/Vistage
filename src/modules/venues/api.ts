@@ -130,7 +130,18 @@ export async function geocodeVenue(
     );
     const data = await resp.json() as { lat: string; lon: string }[];
     if (!data[0]) return null;
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    // descarta resposta malformada (NaN) ou fora de faixa antes de gravar
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      Math.abs(lat) > 90 ||
+      Math.abs(lng) > 180
+    ) {
+      return null;
+    }
+    return { lat, lng };
   } catch {
     return null;
   }

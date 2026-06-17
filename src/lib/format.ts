@@ -24,7 +24,23 @@ export function formatRating(n: number | null | undefined): string {
   return n.toFixed(1).replace(".", ",");
 }
 
-/** Hoje em YYYY-MM-DD (timezone local). */
+/** YYYY-MM-DD no fuso LOCAL (não UTC). Sem argumento, retorna hoje. */
+export function toLocalISODate(d: Date = new Date()): string {
+  return format(d, "yyyy-MM-dd");
+}
+
+/** YYYY-MM no fuso LOCAL. */
+export function toLocalYearMonth(d: Date = new Date()): string {
+  return format(d, "yyyy-MM");
+}
+
+/**
+ * Hoje em YYYY-MM-DD no fuso LOCAL.
+ *
+ * Importante: NÃO usar `toISOString()` que é sempre UTC — no Brasil (UTC-3),
+ * entre 21h e meia-noite o "hoje" em UTC já é o dia seguinte, o que fazia os
+ * filtros de "hoje"/"esta semana" e os due_dates pularem um dia à noite.
+ */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }

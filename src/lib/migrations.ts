@@ -942,13 +942,23 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
       .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    for (const stmt of statements) {
-      await db.execute(stmt);
+    // Cada migration roda dentro de uma transação: se falhar no meio, o
+    // ROLLBACK desfaz tudo e a versão NÃO é gravada — assim a próxima
+    // execução re-roda do zero, sem "duplicate column" travando o app.
+    await db.execute("BEGIN");
+    try {
+      for (const stmt of statements) {
+        await db.execute(stmt);
+      }
+      await db.execute(
+        "INSERT INTO _migrations (version, description) VALUES ($1, $2)",
+        [m.version, m.description]
+      );
+      await db.execute("COMMIT");
+    } catch (e) {
+      await db.execute("ROLLBACK");
+      throw e;
     }
-    await db.execute(
-      "INSERT INTO _migrations (version, description) VALUES ($1, $2)",
-      [m.version, m.description]
-    );
     applied.push(m.version);
   }
 
