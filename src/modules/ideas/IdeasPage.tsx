@@ -106,7 +106,15 @@ export function IdeasPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-wrap items-end justify-between gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setQuickOpen(true)}>
+            <Zap className="h-4 w-4" /> Captura rápida
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova ideia
+          </Button>
+        </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -174,14 +182,6 @@ export function IdeasPage() {
               <SelectItem value="1">Fria</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setQuickOpen(true)}>
-            <Zap className="h-4 w-4" /> Captura rápida
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova ideia
-          </Button>
         </div>
       </div>
 

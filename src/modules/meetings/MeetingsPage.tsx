@@ -97,7 +97,12 @@ export function MeetingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-center justify-between gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
+        <div className="flex justify-end">
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova reunião
+          </Button>
+        </div>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as MeetingStatus | "Todas")}>
           <SelectTrigger className="w-44">
             <SelectValue />
@@ -109,9 +114,6 @@ export function MeetingsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova reunião
-        </Button>
       </div>
 
       {visible.length === 0 ? (

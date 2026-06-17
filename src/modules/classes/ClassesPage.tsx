@@ -243,7 +243,17 @@ export function ClassesPage() {
 
         {/* ====================== AULAS ====================== */}
         <TabsContent value="classes" className="space-y-4">
-          <div className="sticky top-0 z-10 bg-background pb-3 flex flex-wrap items-end justify-between gap-3">
+          <div className="sticky top-0 z-10 bg-background pb-3 flex flex-col gap-3">
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  setEditingClass(null);
+                  setClassFormOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" /> Nova aula
+              </Button>
+            </div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -296,14 +306,6 @@ export function ClassesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              onClick={() => {
-                setEditingClass(null);
-                setClassFormOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" /> Nova aula
-            </Button>
           </div>
 
           {loading ? (
@@ -486,10 +488,7 @@ export function ClassesPage() {
 
         {/* ====================== PACOTES (templates) ====================== */}
         <TabsContent value="packages" className="space-y-4">
-          <div className="flex justify-between">
-            <p className="text-sm text-muted-foreground">
-              Templates de pacote. Vincule a um aluno na tela de detalhe dele.
-            </p>
+          <div className="flex justify-end">
             <Button
               onClick={() => {
                 setEditingPkg(null);
@@ -499,6 +498,9 @@ export function ClassesPage() {
               <Plus className="h-4 w-4" /> Novo pacote
             </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Templates de pacote. Vincule a um aluno na tela de detalhe dele.
+          </p>
 
           {packages.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
