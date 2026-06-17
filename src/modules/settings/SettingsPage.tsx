@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
 import { closeDatabase, pushToTurso } from "@/lib/db";
-import { useDocumentStore } from "@/lib/document";
+import { useDocumentStore, displayDocName } from "@/lib/document";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
@@ -212,7 +212,7 @@ export function SettingsPage() {
               manual de marca, etc.) — como um documento do Office. Independe da
               nuvem: pode abrir, salvar e mandar para outra pessoa.
               {doc.currentName && (
-                <> Atual: <code>{doc.currentName}</code>.</>
+                <> Atual: <code>{displayDocName(doc.currentName)}</code>.</>
               )}
             </CardDescription>
           </CardHeader>

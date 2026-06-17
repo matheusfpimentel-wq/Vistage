@@ -290,9 +290,6 @@ export function MonthlyReportPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold leading-tight">Relatório mensal</h1>
-          <p className="text-sm text-muted-foreground">
-            Um retrato do mês: dinheiro, entregas e progresso.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={month} onValueChange={setMonth}>

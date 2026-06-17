@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, FolderOpen, Loader2, Save, SaveAll } from "lucide-react";
-import { useDocumentStore } from "@/lib/document";
+import { useDocumentStore, displayDocName } from "@/lib/document";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +45,7 @@ export function FileMenu() {
           "text-muted-foreground hover:bg-accent hover:text-foreground",
           menuOpen && "bg-accent text-foreground"
         )}
-        title={currentName ? `Documento: ${currentName}` : "Nenhum documento aberto"}
+        title={currentName ? `Documento: ${displayDocName(currentName)}` : "Nenhum documento aberto"}
       >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -53,7 +53,7 @@ export function FileMenu() {
           <FileText className="h-3.5 w-3.5" />
         )}
         <span className="hidden sm:inline max-w-[160px] truncate">
-          {currentName ?? "Arquivo"}
+          {displayDocName(currentName) ?? "Arquivo"}
         </span>
       </button>
 

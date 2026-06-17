@@ -79,7 +79,6 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatDate(g.date)}
-                    {g.start_time && ` · ${g.start_time}`}
                     {g.venue_city && ` · ${g.venue_city}`}
                   </div>
                 </div>
@@ -146,11 +145,6 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
               >
                 <td className="px-3 py-2 whitespace-nowrap tabular-nums">
                   {formatDate(g.date)}
-                  {g.start_time && (
-                    <span className="ml-1 text-xs text-muted-foreground">
-                      · {g.start_time}
-                    </span>
-                  )}
                 </td>
                 <td className="px-3 py-2">
                   <div className="font-medium flex items-center gap-1.5">

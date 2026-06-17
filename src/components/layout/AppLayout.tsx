@@ -109,13 +109,6 @@ export function AppLayout() {
                 <PanelLeftOpen className="h-4 w-4" />
               </button>
             )}
-            {/* Vistage name/logo */}
-            <span
-              className="hidden sm:inline text-base font-semibold tracking-tight bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent select-none"
-              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-            >
-              Vistage
-            </span>
             {/* FileMenu */}
             <div className="hidden md:block">
               <FileMenu />

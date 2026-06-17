@@ -5,7 +5,6 @@ import { formatCurrency } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -489,9 +488,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>{party ? "Editar festa" : "Nova festa"}</DialogTitle>
-          <DialogDescription>
-            Gerencie produção, workflow, orçamento e ingressos do evento.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="info">

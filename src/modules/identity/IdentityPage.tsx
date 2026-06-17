@@ -233,7 +233,6 @@ export function IdentityPage() {
                 <Sparkles className="h-4 w-4 text-primary" />
                 Quem você é
               </CardTitle>
-              <CardDescription>Seu kit de marca.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
@@ -250,7 +249,6 @@ export function IdentityPage() {
                 <Label>Briefing rápido</Label>
                 <Textarea
                   rows={2}
-                  placeholder="Em 1-2 frases, quem você é como DJ/produtor."
                   value={identity.bio_short ?? ""}
                   onChange={(e) => set("bio_short", e.target.value || null)}
                 />
@@ -260,7 +258,6 @@ export function IdentityPage() {
                 <Label>Briefing completo / bio longa</Label>
                 <Textarea
                   rows={6}
-                  placeholder="Trajetória, sonoridade, residências, parcerias…"
                   value={identity.bio_long ?? ""}
                   onChange={(e) => set("bio_long", e.target.value || null)}
                 />
@@ -1033,9 +1030,6 @@ function PhotosTab({
             <ImageIcon className="h-4 w-4 text-primary" />
             Fotos ({onlyPhotos.length})
           </CardTitle>
-          <CardDescription>
-            Fotos de divulgação, prensa e perfil.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -1110,9 +1104,6 @@ function PhotosTab({
             <Video className="h-4 w-4 text-primary" />
             Vídeos ({onlyVideos.length})
           </CardTitle>
-          <CardDescription>
-            Reels, takes, showreels e making-ofs.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button onClick={handleAddVideo} disabled={addingVideo}>

@@ -336,9 +336,6 @@ export function TrackForm({
               <StageBadge stage={loaded.current_stage} standby={loaded.standby} />
             )}
           </DialogTitle>
-          <DialogDescription>
-            Cada track é o objeto de trabalho cotidiano, com modelo Stage-Gate.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="id">

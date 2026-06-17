@@ -25,6 +25,11 @@ function fileName(path: string | null): string | null {
   return parts[parts.length - 1] || null;
 }
 
+/** Nome do documento para exibição — sem a extensão .vistage. */
+export function displayDocName(name: string | null): string | null {
+  return name ? name.replace(/\.vistage$/i, "") : null;
+}
+
 // Resolução imperativa de diálogo de 3 opções (Mesclar / Sobrescrever / Cancelar).
 // O componente OpenDocumentDialog registra o resolver ao montar.
 export type OpenMode = "merge" | "overwrite" | "cancel";

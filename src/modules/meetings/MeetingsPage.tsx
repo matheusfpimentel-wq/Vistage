@@ -174,7 +174,7 @@ export function MeetingsPage() {
 
               {m.outcomes && (
                 <div className="mt-3 rounded-md bg-muted/40 p-3 text-sm">
-                  <div className="mb-1 text-xs font-medium text-muted-foreground">Decisões / encaminhamentos</div>
+                  <div className="mb-1 text-xs font-medium text-muted-foreground">Decisões</div>
                   {m.outcomes}
                 </div>
               )}

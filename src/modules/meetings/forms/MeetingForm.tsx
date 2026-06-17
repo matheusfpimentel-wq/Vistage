@@ -234,7 +234,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="meet-notes">Ata / anotações</Label>
+            <Label htmlFor="meet-notes">Ata</Label>
             <textarea
               id="meet-notes"
               className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
@@ -246,7 +246,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="meet-outcomes">Decisões / encaminhamentos</Label>
+            <Label htmlFor="meet-outcomes">Decisões</Label>
             <textarea
               id="meet-outcomes"
               className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"

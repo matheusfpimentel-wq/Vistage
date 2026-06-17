@@ -94,12 +94,7 @@ export function RecurringView({ onChanged }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Modelos que se repetem todo mês (assinaturas, aluguel de estúdio,
-          mensalidades). Use o botão abaixo para gerar os lançamentos do mês
-          corrente — só serão criados aqueles que ainda não existem.
-        </p>
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleGenerate} disabled={generating}>
             {generating ? (

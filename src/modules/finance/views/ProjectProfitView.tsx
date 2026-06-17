@@ -59,10 +59,7 @@ export function ProjectProfitView() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          Lucro consolidado por GIG, festa e aluno.
-        </p>
+      <div className="flex items-center justify-end gap-2">
         <span className="text-sm font-semibold tabular-nums text-emerald-500">
           {formatCurrency(totalProfit)}
         </span>
