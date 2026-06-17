@@ -22,7 +22,6 @@ Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador 
 | **Revisão Semanal** | `/revisao` | KPIs da semana, checklist interativo persistido (6 itens), lista de foco, alertas, mini-OKRs, highlights |
 | **Energia & Foco** | `/foco` | Sessões de trabalho com cronômetro, heatmap energia×dia/hora, distribuição por atividade, highlights cumulativos |
 | **OKRs** | `/objetivos` | Objetivos trimestrais com key results — 5 fontes de auto-pull (GIGs, tracks, festas, conteúdos, receita) |
-| **Decision Log** | `/decisoes` | Registro de decisões com contexto/opções/raciocínio, revisão posterior com outcome + avaliação |
 | **Identidade Artística** | `/identidade` | Nome, bio, paleta livre de cores, redes sociais, logo/presskit, flyers das GIGs |
 | **Tarefas** | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros, recorrência semanal/mensal |
 | **Financeiro** | `/financeiro` | Dashboard Recharts, transações, recorrentes, patrimônio derivado de equipamentos |
@@ -234,7 +233,6 @@ src/
     ├── revisao/               # RevisaoPage — weekly review
     ├── foco/                  # FocoPage + WorkSessionWidget
     ├── objetivos/             # ObjetivosPage — OKRs
-    ├── decisoes/              # DecisoesPage — Decision Log
     ├── identity/
     ├── tasks/
     ├── finance/               # FinancePage — único chunk com Recharts

@@ -65,10 +65,9 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | Ideias | `/ideias` | Quick Capture (Ctrl+I) com modo Brain Dump, 3 visualizações (mural/kanban/lista), conversão pra Tarefa (60d) ou Conteúdo |
 | Identidade Artística | `/identidade` | Nome, biografia, **paleta livre de cores**, redes sociais (14 opções), logo/isótipo/presskit, abas Flyers (auto das GIGs) e Templates |
 | Tarefas | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros chip (Hoje/Semana/Atrasadas). **(Batch N)** Recorrência Semanal/Mensal — ao concluir, duplica tarefa com due_date deslocada |
-| Revisão Semanal | `/revisao` | **(Batch N→O)** KPIs da semana, checklist interativo persistido (6 itens com links), lista de foco, alertas (incl. decisions pendentes), mini-OKRs, highlights, 5 perguntas de reflexão |
+| Revisão Semanal | `/revisao` | **(Batch N→O)** KPIs da semana, checklist interativo persistido (6 itens com links), lista de foco, alertas, mini-OKRs, highlights, 5 perguntas de reflexão |
 | Energia & Foco | `/foco` | **(Batch O)** WorkSessionWidget no header (iniciar/encerrar sessão, cronômetro). Heatmap energia×dia/hora. Distribuição por tipo de atividade. Highlights cumulativos (momentos marcantes) |
 | OKRs | `/objetivos` | **(Batch O)** Objetivos trimestrais com key results. Auto-pull de métricas: GIGs concluídas, tracks lançadas, festas realizadas, conteúdos publicados, receita. Barra de progresso por KR e OKR |
-| Decision Log | `/decisoes` | **(Batch O)** Registro de decisões com contexto, opções consideradas, raciocínio, domínio. Revisão posterior: outcome + avaliação (Acertou/Errou/Inconclusivo) + aprendizado. Buscável via Ctrl+K |
 | Financeiro | `/financeiro` | 4 abas (Dashboard com Recharts/Transações/Recorrentes/Patrimônio), categorias customizáveis, auto-receita ao marcar GIG paga, patrimônio derivado de "Equipamentos" |
 | Configurações | `/configuracoes` | Path do banco, Google Calendar, **CSV por entidade + JSON completo**, atalhos customizáveis, dados de exemplo, ícone de Apple seguro |
 
