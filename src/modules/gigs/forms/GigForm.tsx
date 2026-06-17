@@ -51,6 +51,7 @@ import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
+import { DebriefForm } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
 import { RecurringFestField } from "./RecurringFestField";
@@ -219,9 +220,11 @@ export function GigForm({
   gig,
   prefillPromoter,
   onSaved,
-  onDebrief,
 }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
+  // Debrief é relevante quando a GIG (salva) já está concluída / pendente.
+  const showDebrief =
+    !!gig && (gig.status === "Concluída" || gig.debrief_pending === 1 || !!gig.debrief_completed_at);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -376,6 +379,20 @@ export function GigForm({
       delete (payload as unknown as { prep?: unknown }).prep;
       delete (payload as unknown as { extra_flyers?: unknown }).extra_flyers;
       delete (payload as unknown as { slots?: unknown }).slots;
+      // O debrief é gerenciado pela aba/diálogo de Debrief (estado próprio +
+      // autosave). O GigForm carrega esses campos no estado mas NÃO deve
+      // regravá-los, senão "Salvar" apagaria um debrief recém-finalizado.
+      const DEBRIEF_FIELDS = [
+        "debrief_strengths", "debrief_weaknesses", "debrief_learnings",
+        "debrief_opportunities_used", "debrief_future_opportunities",
+        "debrief_promoter_feedback", "debrief_technical_notes", "debrief_media_content",
+        "rating_charisma", "rating_charisma_note", "rating_technique", "rating_technique_note",
+        "rating_repertoire", "rating_repertoire_note", "rating_contractor", "is_special",
+        "debrief_pending", "debrief_completed_at", "fans_present",
+      ];
+      for (const f of DEBRIEF_FIELDS) {
+        delete (payload as unknown as Record<string, unknown>)[f];
+      }
 
       let savedId: number;
       if (gig) {
@@ -531,19 +548,7 @@ export function GigForm({
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <div className="flex items-center justify-between gap-2">
-            <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
-            {gig && (gig.status === "Concluída" || gig.debrief_pending === 1 || gig.debrief_completed_at) && onDebrief && (
-              <Button
-                type="button"
-                size="sm"
-                variant={gig.debrief_pending === 1 ? "default" : "outline"}
-                onClick={() => { onOpenChange(false); onDebrief(); }}
-              >
-                {gig.debrief_completed_at ? "Ver Debrief" : "Preencher Debrief"}
-              </Button>
-            )}
-          </div>
+          <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
           <DialogDescription>
             Debrief abre automaticamente ao mudar pra Concluída.
           </DialogDescription>
@@ -553,7 +558,7 @@ export function GigForm({
           <TabsList className="flex w-full justify-start overflow-x-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
-            <TabsTrigger value="prep">Preparação</TabsTrigger>
+            <TabsTrigger value="prep">{showDebrief ? "Debrief" : "Preparação"}</TabsTrigger>
             <TabsTrigger value="setlist">Setlist</TabsTrigger>
           </TabsList>
 
@@ -953,7 +958,13 @@ export function GigForm({
           </TabsContent>
 
           <TabsContent value="prep" className="space-y-4">
-          {state.status === "Proposta" ? (
+          {showDebrief && gig ? (
+            <DebriefForm
+              embedded
+              gig={gig}
+              onCompleted={() => onSaved({ id: gig.id, statusChanged: false, isNew: false })}
+            />
+          ) : state.status === "Proposta" ? (
             <ProposalHint />
           ) : (
           <Section

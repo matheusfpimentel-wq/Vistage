@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -42,12 +40,14 @@ import { formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   gig: Gig;
-  /** Se true, dispara em modo "obrigatório" (quando o status acabou de virar Concluída). */
-  required: boolean;
   onCompleted: () => void;
+  /** Modo embutido (aba do GigForm): renderiza o conteúdo sem o diálogo. */
+  embedded?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Se true, dispara em modo "obrigatório" (quando o status acabou de virar Concluída). */
+  required?: boolean;
 };
 
 type DebriefState = Pick<
@@ -102,13 +102,16 @@ function isComplete(state: DebriefState): boolean {
 }
 
 export function DebriefForm({
-  open,
-  onOpenChange,
   gig,
-  required,
   onCompleted,
+  embedded = false,
+  open: openProp,
+  onOpenChange,
+  required = false,
 }: Props) {
   const navigate = useNavigate();
+  // No modo embutido está sempre "aberto" (a aba do GigForm controla a montagem).
+  const open = embedded ? true : openProp ?? false;
   const [state, setState] = useState<DebriefState>(() => gigToDebrief(gig));
   const [saving, setSaving] = useState(false);
   const [registeringFans, setRegisteringFans] = useState(false);
@@ -279,7 +282,7 @@ export function DebriefForm({
       await flushDebriefTasks();
       toast.warning("Debrief salvo como pendente — finalize quando puder.");
       onCompleted();
-      onOpenChange(false);
+      onOpenChange?.(false);
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
     } finally {
@@ -308,7 +311,7 @@ export function DebriefForm({
       const insightCount = await flushDebriefInsights(gig, state);
       toast.success(`Debrief finalizado! ${insightCount} insight${insightCount !== 1 ? "s" : ""} criado${insightCount !== 1 ? "s" : ""} em Ideias.`);
       onCompleted();
-      onOpenChange(false);
+      onOpenChange?.(false);
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
     } finally {
@@ -377,45 +380,21 @@ export function DebriefForm({
       // se cancelar, mantém o modal aberto
       return;
     }
-    onOpenChange(next);
+    onOpenChange?.(next);
   }
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="max-w-4xl"
-        hideClose={required && !complete}
-        onPointerDownOutside={(e) => {
-          if (required && !complete) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (required && !complete) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Debrief — {gig.venue_name}
-            {complete ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            ) : (
-              required && (
-                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-normal text-amber-500">
-                  obrigatório
-                </span>
-              )
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            Rascunho salvo automaticamente.
-            {lastSavedAt && (
-              <span className="ml-2 text-xs">
-                · salvo às {lastSavedAt.toLocaleTimeString("pt-BR")}
-              </span>
-            )}
-          </DialogDescription>
-        </DialogHeader>
+  const body = (
+    <>
+      <p className="text-sm text-muted-foreground">
+        Rascunho salvo automaticamente.
+        {lastSavedAt && (
+          <span className="ml-2 text-xs">
+            · salvo às {lastSavedAt.toLocaleTimeString("pt-BR")}
+          </span>
+        )}
+      </p>
 
-        <Tabs defaultValue="learn" className="w-full">
+      <Tabs defaultValue="learn" className="w-full">
           <TabsList>
             <TabsTrigger value="learn">Insights</TabsTrigger>
             <TabsTrigger value="ratings">
@@ -602,16 +581,16 @@ export function DebriefForm({
           </div>
         )}
 
-        <DialogFooter className="gap-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
           {required && !complete && (
             <Button variant="outline" onClick={saveAsPending} disabled={saving}>
               Salvar como pendente
             </Button>
           )}
-          {!required && (
+          {!required && !embedded && (
             <Button
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => onOpenChange?.(false)}
               disabled={saving}
             >
               Fechar
@@ -621,7 +600,41 @@ export function DebriefForm({
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {gig.debrief_completed_at ? "Atualizar debrief" : "Finalizar debrief"}
           </Button>
-        </DialogFooter>
+        </div>
+      </>
+    );
+
+  if (embedded) {
+    return <div className="space-y-4 pt-2">{body}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-4xl"
+        hideClose={required && !complete}
+        onPointerDownOutside={(e) => {
+          if (required && !complete) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (required && !complete) e.preventDefault();
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Debrief — {gig.venue_name}
+            {complete ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              required && (
+                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-normal text-amber-500">
+                  obrigatório
+                </span>
+              )
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
