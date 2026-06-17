@@ -171,22 +171,21 @@ pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
 }
 
 /// Apaga o arquivo de réplica local e reabre do Turso do zero.
-/// Resolve casos onde a réplica local está corrompida ou dessincronizada
-/// e o libsql não consegue puxar os dados mais recentes da nuvem.
-/// Retorna o número de frames recebidos do Turso (confirma que baixou dados).
+/// Resolve casos onde a réplica local está corrompida ou dessincronizada.
+/// CRÍTICO: sempre restaura uma conexão funcional no state, mesmo se o sync
+/// falhar/expirar — assim o app nunca fica bricado (sem conexão). Se o sync não
+/// completar, retorna Err com mensagem, mas a réplica (vazia) já está conectada.
 #[tauri::command]
 pub async fn db_reset_replica(
     state: State<'_, DbState>,
     replica_path: String,
     turso_url: String,
     turso_token: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     // 1. Fecha a conexão e o banco atual, liberando o lock do arquivo
     {
-        let mut conn_guard = state.conn.lock().await;
-        let mut db_guard = state.db.lock().await;
-        *conn_guard = None;
-        *db_guard = None;
+        *state.conn.lock().await = None;
+        *state.db.lock().await = None;
     }
 
     // 2. Apaga o arquivo de réplica (e o WAL/SHM se existirem)
@@ -195,34 +194,33 @@ pub async fn db_reset_replica(
         let _ = std::fs::remove_file(&path);
     }
 
-    // 3. Reabre — sem réplica local, o libsql baixa tudo do Turso
-    let db = libsql::Builder::new_synced_database(
-        replica_path,
-        turso_url,
-        turso_token,
-    )
-    .build()
-    .await
-    .map_err(|e| e.to_string())?;
-
+    // 3. Reabre — build() é local/instantâneo, não faz rede
+    let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
+        .build()
+        .await
+        .map_err(|e| e.to_string())?;
     let conn = db.connect().map_err(|e| e.to_string())?;
-    conn.execute("PRAGMA foreign_keys = ON;", ())
-        .await
-        .map_err(|e| e.to_string())?;
+    let _ = conn.execute("PRAGMA foreign_keys = ON;", ()).await;
 
-    // 4. Sync com timeout generoso — agora sem réplica local, vai baixar tudo
-    tokio::time::timeout(Duration::from_secs(60), db.sync())
-        .await
-        .map_err(|_| "Timeout ao baixar dados do Turso (>60s)".to_string())?
-        .map_err(|e| e.to_string())?;
+    // 4. Sync com timeout CURTO. Independente do resultado, restauramos o state
+    //    em seguida — nada de deixar a conexão como None.
+    let sync_outcome = tokio::time::timeout(Duration::from_secs(25), db.sync()).await;
 
+    // 5. SEMPRE restaura a conexão funcional (mesmo réplica vazia)
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
-    Ok(())
+
+    match sync_outcome {
+        Ok(Ok(_)) => Ok(true),
+        Ok(Err(e)) => Err(format!("Falha ao baixar do Turso: {}", e)),
+        Err(_) => Err("Timeout ao baixar do Turso (>25s). Verifique a internet e tente de novo — o app continua funcional.".to_string()),
+    }
 }
 
-/// Diagnóstico completo: testa sync, conta linhas das tabelas principais,
-/// inspeciona o arquivo de réplica local e retorna tudo como JSON legível.
+/// Diagnóstico RÁPIDO e seguro: nunca trava (timeout curto em tudo) e NÃO faz
+/// sync (que é a operação que pode travar). Só lê: arquivo local, contagem na
+/// réplica local, e contagem DIRETO no Turso (bounded), para distinguir
+/// "Turso vazio" de "réplica não baixou".
 #[tauri::command]
 pub async fn db_diagnostics(
     state: State<'_, DbState>,
@@ -232,7 +230,7 @@ pub async fn db_diagnostics(
 ) -> Result<serde_json::Value, String> {
     let mut out = serde_json::Map::new();
 
-    // ── 1. Arquivo de réplica local ───────────────────────────────────────────
+    // ── 1. Arquivo de réplica local ──────────────────────────────────────────
     let replica_meta = {
         let mut m = serde_json::Map::new();
         match std::fs::metadata(&replica_path) {
@@ -253,33 +251,11 @@ pub async fn db_diagnostics(
     };
     out.insert("replica_file".into(), replica_meta);
 
-    // ── 2. Turso URL (mascara token) ─────────────────────────────────────────
     out.insert("turso_url".into(), turso_url.clone().into());
-    out.insert(
-        "turso_token_len".into(),
-        turso_token.len().into(),
-    );
+    out.insert("turso_token_len".into(), turso_token.len().into());
 
-    // ── 3. Testa sync e mede latência ────────────────────────────────────────
-    let sync_result = {
-        let guard = state.db.lock().await;
-        if let Some(db) = guard.as_ref() {
-            let t0 = Instant::now();
-            match tokio::time::timeout(Duration::from_secs(30), db.sync()).await {
-                Ok(Ok(_)) => {
-                    let ms = t0.elapsed().as_millis();
-                    serde_json::json!({ "ok": true, "ms": ms })
-                }
-                Ok(Err(e)) => serde_json::json!({ "ok": false, "error": e.to_string() }),
-                Err(_) => serde_json::json!({ "ok": false, "error": "timeout >30s" }),
-            }
-        } else {
-            serde_json::json!({ "ok": false, "error": "banco não inicializado" })
-        }
-    };
-    out.insert("sync".into(), sync_result);
-
-    // ── 4. Conta linhas nas tabelas principais (réplica local pós-sync) ──────
+    // ── 2. Contagem na réplica LOCAL (não faz rede, mas com timeout por via das
+    //       dúvidas — e sem segurar o lock além do necessário) ────────────────
     let tables = [
         "gigs", "students", "classes", "content", "tracks",
         "contacts", "tasks", "finance_transactions", "parties", "_migrations",
@@ -290,61 +266,60 @@ pub async fn db_diagnostics(
         if let Some(conn) = guard.as_ref() {
             for table in &tables {
                 let sql = format!("SELECT COUNT(*) as n FROM {}", table);
-                match conn.query(&sql, ()).await {
-                    Ok(mut rows) => {
-                        let n: i64 = if let Ok(Some(row)) = rows.next().await {
-                            row.get(0).unwrap_or(0)
-                        } else {
-                            0
+                let q = tokio::time::timeout(Duration::from_secs(5), conn.query(&sql, ())).await;
+                match q {
+                    Ok(Ok(mut rows)) => {
+                        let n: i64 = match tokio::time::timeout(Duration::from_secs(5), rows.next()).await {
+                            Ok(Ok(Some(row))) => row.get(0).unwrap_or(0),
+                            _ => 0,
                         };
                         counts.insert(table.to_string(), n.into());
                     }
-                    Err(e) => {
-                        counts.insert(
-                            table.to_string(),
-                            serde_json::Value::String(format!("ERROR: {}", e)),
-                        );
+                    Ok(Err(e)) => {
+                        counts.insert(table.to_string(), serde_json::Value::String(format!("ERROR: {}", e)));
+                    }
+                    Err(_) => {
+                        counts.insert(table.to_string(), serde_json::Value::String("timeout".into()));
                     }
                 }
             }
+        } else {
+            out.insert("local_conn".into(), serde_json::Value::String("sem conexão (banco não inicializado)".into()));
         }
     }
     out.insert("row_counts".into(), serde_json::Value::Object(counts));
 
-    // ── 5. Testa conexão direta ao Turso (novo_remote — bypassa réplica) ─────
-    let remote_test = {
-        match libsql::Builder::new_remote(turso_url.clone(), turso_token.clone())
+    // ── 3. Conexão DIRETA ao Turso — tudo dentro de UM timeout de 12s ────────
+    let t0 = Instant::now();
+    let remote_fut = async {
+        let remote_db = libsql::Builder::new_remote(turso_url.clone(), turso_token.clone())
             .build()
             .await
-        {
-            Ok(remote_db) => match remote_db.connect() {
-                Ok(remote_conn) => {
-                    let mut remote_counts = serde_json::Map::new();
-                    for table in &["gigs", "students", "classes", "content", "_migrations"] {
-                        let sql = format!("SELECT COUNT(*) as n FROM {}", table);
-                        match remote_conn.query(&sql, ()).await {
-                            Ok(mut rows) => {
-                                let n: i64 = if let Ok(Some(row)) = rows.next().await {
-                                    row.get(0).unwrap_or(0)
-                                } else {
-                                    0
-                                };
-                                remote_counts.insert(table.to_string(), n.into());
-                            }
-                            Err(e) => {
-                                remote_counts.insert(
-                                    table.to_string(),
-                                    serde_json::Value::String(format!("ERROR: {}", e)),
-                                );
-                            }
-                        }
-                    }
-                    serde_json::json!({ "ok": true, "row_counts": remote_counts })
+            .map_err(|e| e.to_string())?;
+        let remote_conn = remote_db.connect().map_err(|e| e.to_string())?;
+        let mut remote_counts = serde_json::Map::new();
+        for table in &["gigs", "students", "classes", "content", "_migrations"] {
+            let sql = format!("SELECT COUNT(*) as n FROM {}", table);
+            match remote_conn.query(&sql, ()).await {
+                Ok(mut rows) => {
+                    let n: i64 = match rows.next().await {
+                        Ok(Some(row)) => row.get(0).unwrap_or(0),
+                        _ => 0,
+                    };
+                    remote_counts.insert(table.to_string(), n.into());
                 }
-                Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
-            },
-            Err(e) => serde_json::json!({ "ok": false, "error": e.to_string() }),
+                Err(e) => {
+                    remote_counts.insert(table.to_string(), serde_json::Value::String(format!("ERROR: {}", e)));
+                }
+            }
         }
+        Ok::<serde_json::Map<String, serde_json::Value>, String>(remote_counts)
+    };
+
+    let remote_test = match tokio::time::timeout(Duration::from_secs(12), remote_fut).await {
+        Ok(Ok(rc)) => serde_json::json!({ "ok": true, "ms": t0.elapsed().as_millis(), "row_counts": rc }),
+        Ok(Err(e)) => serde_json::json!({ "ok": false, "error": e }),
+        Err(_) => serde_json::json!({ "ok": false, "error": "timeout >12s ao conectar no Turso (rede ou URL/token)" }),
     };
     out.insert("turso_direct".into(), remote_test);
 

@@ -11,10 +11,11 @@ type DiagResult = {
   replica_file: { exists: boolean; size_bytes: number; size_kb: string };
   turso_url: string;
   turso_token_len: number;
-  sync: { ok: boolean; ms?: number; error?: string };
+  local_conn?: string;
   row_counts: Record<string, number | string>;
   turso_direct: {
     ok: boolean;
+    ms?: number;
     error?: string;
     row_counts?: Record<string, number | string>;
   };
@@ -103,21 +104,11 @@ export function DbDiagnostics() {
               />
             </Section>
 
-            {/* Sync */}
-            <Section title="Resultado do sync (réplica → Turso)">
-              <Row
-                label="Sync"
-                value={
-                  result.sync.ok
-                    ? `✓ OK em ${result.sync.ms}ms`
-                    : `✗ FALHOU: ${result.sync.error}`
-                }
-                ok={result.sync.ok}
-              />
-            </Section>
-
             {/* Contagem local */}
-            <Section title="Linhas na réplica LOCAL (pós-sync)">
+            <Section title="Linhas na réplica LOCAL (o que o app vê)">
+              {result.local_conn && (
+                <Row label="conexão" value={result.local_conn} ok={false} />
+              )}
               {Object.entries(result.row_counts).map(([t, n]) => (
                 <Row
                   key={t}
@@ -130,7 +121,7 @@ export function DbDiagnostics() {
             </Section>
 
             {/* Contagem direta no Turso */}
-            <Section title="Linhas DIRETO no Turso (bypass réplica)">
+            <Section title={`Linhas DIRETO no Turso (bypass réplica)${result.turso_direct.ok && result.turso_direct.ms != null ? ` — ${result.turso_direct.ms}ms` : ""}`}>
               {result.turso_direct.ok ? (
                 Object.entries(result.turso_direct.row_counts ?? {}).map(([t, n]) => (
                   <Row
@@ -202,19 +193,17 @@ function Diagnosis({ result }: { result: DiagResult }) {
   const localGigs = result.row_counts["gigs"] as number | undefined;
 
   if (!result.turso_direct.ok) {
-    lines.push({ icon: "err", msg: `Não conseguiu conectar direto ao Turso: ${result.turso_direct.error}. Verifique URL e token.` });
+    lines.push({ icon: "err", msg: `Não conseguiu conectar direto ao Turso: ${result.turso_direct.error}. Verifique URL e token (provavelmente é problema de rede ou credencial — não de dados perdidos).` });
   } else if (directGigs === 0) {
-    lines.push({ icon: "err", msg: "O Turso está vazio — não tem GIGs. Os dados nunca chegaram à nuvem. Use 'Reimportar dados do banco local' se tiver o arquivo .db original." });
+    lines.push({ icon: "err", msg: "O Turso está VAZIO — não tem GIGs. Os dados nunca chegaram à nuvem. Use 'Reimportar dados do banco local' na máquina que tem o arquivo .db original." });
   } else if (typeof directGigs === "number" && directGigs > 0) {
-    lines.push({ icon: "ok", msg: `Turso tem ${directGigs} GIGs. Os dados estão na nuvem.` });
-  }
-
-  if (!result.sync.ok) {
-    lines.push({ icon: "err", msg: `Sync falhou: ${result.sync.error}. A réplica local não está recebendo dados novos.` });
-  } else if (typeof directGigs === "number" && directGigs > 0 && typeof localGigs === "number" && localGigs === 0) {
-    lines.push({ icon: "err", msg: "Turso tem dados mas réplica local está vazia mesmo depois do sync. Use 'Baixar tudo da nuvem' para recriar a réplica do zero." });
-  } else if (result.sync.ok && typeof localGigs === "number" && localGigs > 0) {
-    lines.push({ icon: "ok", msg: `Réplica local sincronizada — ${localGigs} GIGs presentes.` });
+    lines.push({ icon: "ok", msg: `O Turso TEM ${directGigs} GIGs. Os dados estão seguros na nuvem.` });
+    // Compara com o local
+    if (typeof localGigs === "number" && localGigs === 0) {
+      lines.push({ icon: "err", msg: "Mas a réplica local está VAZIA. O download não está acontecendo. Use 'Baixar tudo da nuvem' para recriar a réplica do zero." });
+    } else if (typeof localGigs === "number" && localGigs > 0) {
+      lines.push({ icon: "ok", msg: `A réplica local tem ${localGigs} GIGs — está sincronizada.` });
+    }
   }
 
   if (!result.replica_file.exists) {
