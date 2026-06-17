@@ -264,21 +264,25 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
   const payload: Record<string, unknown> = { ...rest };
+  // `date` NÃO é coluna de tracks — é sincronizado para a due_date da task
+  // vinculada (abaixo). Mantê-lo no UPDATE causava "no such column: date".
+  delete payload.date;
   if (Array.isArray(payload.mood_tags))
     payload.mood_tags = JSON.stringify(payload.mood_tags);
   if (Array.isArray(payload.references))
     payload.references = JSON.stringify(payload.references);
   const cols = Object.keys(payload);
-  if (cols.length === 0) return;
-  const sets = cols
-    .map((c, i) => `${COL_MAP[c] ?? c} = $${i + 1}`)
-    .join(", ");
-  const values = cols.map((k) => payload[k]);
-  values.push(id);
-  await db.execute(
-    `UPDATE tracks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
-    values
-  );
+  if (cols.length > 0) {
+    const sets = cols
+      .map((c, i) => `${COL_MAP[c] ?? c} = $${i + 1}`)
+      .join(", ");
+    const values = cols.map((k) => payload[k]);
+    values.push(id);
+    await db.execute(
+      `UPDATE tracks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+      values
+    );
+  }
   // Sync task due_date when track date changes
   if ("date" in rest) {
     const rows = await db.select<{ task_id: number | null }[]>(

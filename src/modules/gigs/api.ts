@@ -458,7 +458,7 @@ export async function loadInsights(): Promise<GigInsights> {
   const venueBuckets = new Map<string, { gigs: number; ratings: number[] }>();
 
   for (const g of all) {
-    byStatus[g.status] += 1;
+    byStatus[g.status] = (byStatus[g.status] ?? 0) + 1;
 
     if (typeof g.cache_amount === "number") {
       totalCache += g.cache_amount;

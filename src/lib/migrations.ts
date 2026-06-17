@@ -1638,6 +1638,11 @@ const MIGRATIONS: Migration[] = [
     description: "tasks.todoist_id — id da tarefa correspondente no Todoist para sincronização bidirecional",
     sql: `ALTER TABLE tasks ADD COLUMN todoist_id TEXT;`,
   },
+  {
+    version: 108,
+    description: "Remove de vez o status legado 'A Caminho' de gigs (converte para 'Confirmada'). Re-emite a limpeza para bancos onde o dado ressurgiu via sync.",
+    sql: `UPDATE gigs SET status = 'Confirmada' WHERE status = 'A Caminho';`,
+  },
 ];
 
 
