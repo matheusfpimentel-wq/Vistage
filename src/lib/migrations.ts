@@ -1633,6 +1633,11 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_task_links_entity ON task_links(entity_type, entity_id);
     `,
   },
+  {
+    version: 107,
+    description: "tasks.todoist_id — id da tarefa correspondente no Todoist para sincronização bidirecional",
+    sql: `ALTER TABLE tasks ADD COLUMN todoist_id TEXT;`,
+  },
 ];
 
 

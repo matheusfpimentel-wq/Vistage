@@ -601,7 +601,6 @@ export function GigForm({
                     {venues.map((v) => (
                       <SelectItem key={v.id} value={v.id.toString()}>
                         {v.name}
-                        {v.city ? ` · ${v.city}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -652,7 +651,6 @@ export function GigForm({
                     {contacts.map((c) => (
                       <SelectItem key={c.id} value={c.id.toString()}>
                         {c.name}
-                        {c.city ? ` · ${c.city}` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>

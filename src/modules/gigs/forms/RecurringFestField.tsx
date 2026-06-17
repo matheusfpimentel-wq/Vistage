@@ -17,8 +17,15 @@ type Props = {
 async function listFests(): Promise<string[]> {
   try {
     const db = getDb();
+    // Combina festas salvas explicitamente com nomes de festas recorrentes
+    // já usados em GIGs existentes — assim toda festa recorrente registrada
+    // aparece como opção, mesmo que nunca tenha passado pelo "Gerenciar".
     const rows = await db.select<{ name: string }[]>(
-      "SELECT name FROM recurring_fests ORDER BY name"
+      `SELECT name FROM recurring_fests
+       UNION
+       SELECT DISTINCT recurring_event_name AS name FROM gigs
+        WHERE recurring_event_name IS NOT NULL AND TRIM(recurring_event_name) <> ''
+       ORDER BY name`
     );
     return rows.map((r) => r.name);
   } catch {

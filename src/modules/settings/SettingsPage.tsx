@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Sparkles, Upload } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
@@ -18,6 +19,7 @@ import { SyncedFolderSettings } from "./SyncedFolderSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { MenuOrderSettings } from "./MenuOrderSettings";
+import { TodoistSettings } from "./TodoistSettings";
 
 export function SettingsPage() {
   const { config, configPath, reset } = useConfigStore();
@@ -88,7 +90,6 @@ export function SettingsPage() {
       toast.success(
         `Restaurado: ${restoredRows} registros em ${restoredTables} tabelas`
       );
-      // recarrega a aplicação para refletir o novo estado
       setTimeout(() => window.location.reload(), 800);
     } catch (e) {
       toast.error(`Erro ao importar: ${String(e)}`);
@@ -98,119 +99,137 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Localização dos dados</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <Row label="Banco de dados" value={config?.dbPath ?? "—"} />
-          <Row label="Pasta de anexos" value={config?.uploadsDir ?? "—"} />
-          <Row label="Arquivo de configuração" value={configPath ?? "—"} />
-          <Row
-            label="Criado em"
-            value={
-              config?.createdAt
-                ? new Date(config.createdAt).toLocaleString("pt-BR")
-                : "—"
-            }
-          />
-          <div className="pt-2">
-            <Button variant="outline" onClick={handleReset}>
-              Trocar / reapontar banco de dados
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <Tabs defaultValue="integracoes" className="space-y-4">
+      <TabsList className="w-full justify-start">
+        <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+        <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
+        <TabsTrigger value="atalhos">Atalhos</TabsTrigger>
+        <TabsTrigger value="backup">Backup</TabsTrigger>
+      </TabsList>
 
-      <MenuOrderSettings />
+      {/* ─── Integrações ─────────────────────────────────────── */}
+      <TabsContent value="integracoes" className="space-y-6">
+        <TodoistSettings />
+        <GoogleCalendarSettings />
+        <GoogleDriveSettings />
+        <SyncedFolderSettings />
+      </TabsContent>
 
-      <SyncedFolderSettings />
+      {/* ─── Personalização ──────────────────────────────────── */}
+      <TabsContent value="personalizacao" className="space-y-6">
+        <MenuOrderSettings />
 
-      <GoogleCalendarSettings />
-
-      <GoogleDriveSettings />
-
-      {canSeed && (
-        <Card className="border-primary/30">
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Carregar dados de exemplo
-            </CardTitle>
-            <CardDescription>
-              Seu banco está vazio. Quer popular com 4 GIGs (uma futura,
-              uma a caminho, uma concluída com debrief, uma com debrief
-              pendente), 5 contatos, 6 tarefas e algumas transações pra
-              você explorar como o sistema funciona?
-            </CardDescription>
+            <CardTitle className="text-base">Localização dos dados</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button onClick={handleSeed} disabled={seeding}>
-              {seeding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Popular com exemplos
-            </Button>
+          <CardContent className="space-y-3 text-sm">
+            <Row label="Banco de dados" value={config?.dbPath ?? "—"} />
+            <Row label="Pasta de anexos" value={config?.uploadsDir ?? "—"} />
+            <Row label="Arquivo de configuração" value={configPath ?? "—"} />
+            <Row
+              label="Criado em"
+              value={
+                config?.createdAt
+                  ? new Date(config.createdAt).toLocaleString("pt-BR")
+                  : "—"
+              }
+            />
+            <div className="pt-2">
+              <Button variant="outline" onClick={handleReset}>
+                Trocar / reapontar banco de dados
+              </Button>
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Backup completo</CardTitle>
-          <CardDescription>
-            Exporta um arquivo JSON com tudo do seu banco (GIGs, contatos,
-            tarefas, financeiro, configurações). Importar é destrutivo —
-            substitui o estado atual pelo backup.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleExport} disabled={exporting}>
-              {exporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              Exportar backup
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleImport}
-              disabled={importing}
-            >
-              {importing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              Importar backup
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Anexos (arquivos em <code>uploads/</code>) não entram neste JSON.
-            Para backup completo dos anexos, copie a pasta inteira do HD.
-          </p>
-        </CardContent>
-      </Card>
+        {canSeed && (
+          <Card className="border-primary/30">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Carregar dados de exemplo
+              </CardTitle>
+              <CardDescription>
+                Seu banco está vazio. Quer popular com 4 GIGs (uma futura,
+                uma a caminho, uma concluída com debrief, uma com debrief
+                pendente), 5 contatos, 6 tarefas e algumas transações pra
+                você explorar como o sistema funciona?
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleSeed} disabled={seeding}>
+                {seeding ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Popular com exemplos
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
 
-      <CsvImportExport />
+      {/* ─── Atalhos ──────────────────────────────────────────── */}
+      <TabsContent value="atalhos" className="space-y-6">
+        <ShortcutSettings />
 
-      <ShortcutSettings />
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Outras teclas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
+            <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Outras teclas</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
-          <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
-        </CardContent>
-      </Card>
-    </div>
+      {/* ─── Backup ───────────────────────────────────────────── */}
+      <TabsContent value="backup" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Backup completo</CardTitle>
+            <CardDescription>
+              Exporta um arquivo JSON com tudo do seu banco (GIGs, contatos,
+              tarefas, financeiro, configurações). Importar é destrutivo —
+              substitui o estado atual pelo backup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handleExport} disabled={exporting}>
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                Exportar backup
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleImport}
+                disabled={importing}
+              >
+                {importing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
+                Importar backup
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Anexos (arquivos em <code>uploads/</code>) não entram neste JSON.
+              Para backup completo dos anexos, copie a pasta inteira do HD.
+            </p>
+          </CardContent>
+        </Card>
+
+        <CsvImportExport />
+      </TabsContent>
+    </Tabs>
   );
 }
 
