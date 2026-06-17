@@ -24,11 +24,9 @@ import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
 import { PartyDetail } from "./PartyDetail";
+import { formatCurrency } from "@/lib/format";
 
 type StatusFilter = PartyStatus | "Todas";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PartiesPage() {
   const [parties, setParties] = useState<PartyDeserialized[]>([]);

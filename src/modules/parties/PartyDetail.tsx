@@ -23,7 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   BUDGET_CATEGORIES,
@@ -63,9 +63,6 @@ import {
   updatePartyTask,
   updatePartyTicket,
 } from "./api";
-
-const fmt = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 type Props = {
   open: boolean;
@@ -277,9 +274,7 @@ function WorkflowTab({
         await deletePartyStage(s.id);
       }
       for (let i = 0; i < DEFAULT_STAGE_NAMES.length; i++) {
-        await import("./api").then((m) =>
-          m.createPartyStage(partyId, DEFAULT_STAGE_NAMES[i], i)
-        );
+        await createPartyStage(partyId, DEFAULT_STAGE_NAMES[i], i);
       }
       setExpandedId(null);
       await onReload();
@@ -535,11 +530,11 @@ function OrcamentoTab({
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Projetado</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{fmt(summary.projected)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.projected)}</div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Real</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{fmt(summary.actual)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.actual)}</div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Diferença</div>
@@ -549,7 +544,7 @@ function OrcamentoTab({
               summary.actual > summary.projected ? "text-red-400" : "text-emerald-400"
             )}
           >
-            {fmt(summary.actual - summary.projected)}
+            {formatCurrency(summary.actual - summary.projected)}
           </div>
         </div>
       </div>
@@ -609,9 +604,9 @@ function OrcamentoTab({
                     <td className="px-3 py-2 text-xs text-muted-foreground">{item.category}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{item.subcategory ?? "—"}</td>
                     <td className="px-3 py-2">{item.description ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmt(item.projected_amount)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(item.projected_amount)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {item.actual_amount != null ? fmt(item.actual_amount) : "—"}
+                      {item.actual_amount != null ? formatCurrency(item.actual_amount) : "—"}
                     </td>
                     <td className="px-3 py-2">
                       <Select
@@ -793,7 +788,7 @@ function IngressosTab({
                 <span className="font-medium text-sm">{t.name}</span>
                 <Badge className="text-xs shrink-0">{ticketTypeLabel(t.ticket_type)}</Badge>
               </div>
-              <div className="text-lg font-semibold tabular-nums">{fmt(t.price)}</div>
+              <div className="text-lg font-semibold tabular-nums">{formatCurrency(t.price)}</div>
               <div className="text-xs text-muted-foreground">
                 {editingId === t.id ? (
                   <div className="flex items-center gap-1.5">

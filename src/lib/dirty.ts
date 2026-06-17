@@ -36,27 +36,3 @@ export function useUnsavedConfirm(isDirty: boolean) {
     })();
   }, []);
 }
-
-/**
- * Comparação rasa entre dois objetos por chave. Útil pra calcular
- * dirty state entre snapshot inicial e state atual.
- */
-export function shallowEqual<T extends Record<string, unknown>>(
-  a: T,
-  b: T
-): boolean {
-  const ak = Object.keys(a);
-  const bk = Object.keys(b);
-  if (ak.length !== bk.length) return false;
-  for (const k of ak) {
-    const av = a[k];
-    const bv = b[k];
-    if (Array.isArray(av) && Array.isArray(bv)) {
-      if (av.length !== bv.length) return false;
-      for (let i = 0; i < av.length; i++) if (av[i] !== bv[i]) return false;
-      continue;
-    }
-    if (av !== bv) return false;
-  }
-  return true;
-}

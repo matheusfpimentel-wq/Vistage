@@ -27,7 +27,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listContent } from "@/modules/content/api";
@@ -82,9 +82,6 @@ const EMPTY: FormState = {
 };
 
 const LINEUP_TYPES = ["DJ parceiro", "Músico"];
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
