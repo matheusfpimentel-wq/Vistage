@@ -32,9 +32,13 @@ export async function initDatabase(
   replicaPath: string,
   tursoUrl: string,
   tursoToken: string
-): Promise<void> {
-  await invoke("db_init", { replicaPath, tursoUrl, tursoToken });
+): Promise<{ synced: boolean }> {
+  // db_init aguarda o sync inicial com o Turso (com timeout) e retorna se
+  // conseguiu sincronizar. Só depois rodamos as migrations, já sobre o estado
+  // mais recente puxado da nuvem.
+  const synced = await invoke<boolean>("db_init", { replicaPath, tursoUrl, tursoToken });
   await runMigrations(dbProxy);
+  return { synced };
 }
 
 export async function syncDatabase(): Promise<void> {

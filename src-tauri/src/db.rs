@@ -65,14 +65,16 @@ fn params_from(json: &[serde_json::Value]) -> Vec<libsql::Value> {
 
 /// Abre o banco local com capacidade de sync ao Turso. build() não faz rede
 /// (não setamos sync_interval), então a abertura é instantânea e funciona
-/// offline. O sync inicial roda em background.
+/// offline. O sync inicial é aguardado (com timeout) antes de retornar, para o
+/// app não abrir sobre um snapshot local desatualizado. Retorna `true` se
+/// sincronizou com o Turso, `false` se seguiu em modo offline.
 #[tauri::command]
 pub async fn db_init(
     state: State<'_, DbState>,
     replica_path: String,
     turso_url: String,
     turso_token: String,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
         .build()
         .await
@@ -81,18 +83,23 @@ pub async fn db_init(
     conn.execute("PRAGMA foreign_keys = ON;", ())
         .await
         .map_err(|e| e.to_string())?;
+
+    // Sync inicial AGUARDADO (com timeout) ANTES de devolver o controle ao
+    // frontend. Sem isso, o app abria lendo a réplica local que ainda não tinha
+    // puxado o estado mais recente do Turso — e a UI renderizava vazia (ex.:
+    // "todas as GIGs e aulas sumiram" ao logar em outra máquina). Se o sync
+    // falhar/expirar (offline ou token), seguimos em modo offline com o que há
+    // localmente; `db_sync` periódico tenta de novo. Retorna se sincronizou,
+    // para o frontend poder avisar quando estiver mostrando dados possivelmente
+    // desatualizados.
+    let synced = matches!(
+        tokio::time::timeout(Duration::from_secs(20), db.sync()).await,
+        Ok(Ok(_))
+    );
+
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
-
-    // Sync inicial em background — não bloqueia a abertura. Erros (offline)
-    // são silenciosos; a próxima chamada a db_sync tenta de novo.
-    let db_arc = Arc::clone(&state.db);
-    tokio::spawn(async move {
-        if let Some(db) = db_arc.lock().await.as_ref() {
-            let _ = db.sync().await;
-        }
-    });
-    Ok(())
+    Ok(synced)
 }
 
 #[tauri::command]

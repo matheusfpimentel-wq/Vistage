@@ -161,7 +161,7 @@ function MainApp() {
         const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
         const tursoUrl = config.tursoUrl ?? DEFAULT_TURSO_URL;
         const tursoToken = config.tursoToken ?? DEFAULT_TURSO_TOKEN;
-        await initDatabase(replicaPath, tursoUrl, tursoToken);
+        const { synced } = await initDatabase(replicaPath, tursoUrl, tursoToken);
         if (!cancelled) {
           // Banco legado presente e migração pendente
           if (config.dbPath && !config.migrated) {
@@ -169,6 +169,17 @@ function MainApp() {
           }
           setDbReady(true);
           setDbError(null);
+          // Avisa quando abrimos SEM puxar o estado mais recente da nuvem: os
+          // dados na tela podem estar desatualizados (ex.: GIGs/aulas criadas em
+          // outra máquina ainda não baixadas). Não bloqueia o uso (offline-first).
+          if (!synced) {
+            void import("@/components/ui/toaster").then(({ toast }) =>
+              toast.error(
+                "Abrimos sem conseguir sincronizar com a nuvem. Os dados podem estar " +
+                  "desatualizados — confira sua internet. O app tentará sincronizar sozinho."
+              )
+            );
+          }
           void autoGenerateRecurringUpToNow().catch(() => {});
           void retroactiveSyncAllLinked().catch(() => {});
           void import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
