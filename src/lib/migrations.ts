@@ -1643,6 +1643,11 @@ const MIGRATIONS: Migration[] = [
     description: "Remove de vez o status legado 'A Caminho' de gigs (converte para 'Confirmada'). Re-emite a limpeza para bancos onde o dado ressurgiu via sync.",
     sql: `UPDATE gigs SET status = 'Confirmada' WHERE status = 'A Caminho';`,
   },
+  {
+    version: 109,
+    description: "gigs.time_slots — múltiplos intervalos de horário (set alternado). JSON array [{start,end}]; start_time/end_time seguem espelhando o 1º intervalo.",
+    sql: `ALTER TABLE gigs ADD COLUMN time_slots TEXT;`,
+  },
 ];
 
 

@@ -19,8 +19,11 @@ export type Gig = {
 
   // pré-evento
   date: string;
+  /** 1º intervalo (espelha time_slots[0]) — mantido para gcal/ordenação/compat. */
   start_time: string | null;
   end_time: string | null;
+  /** JSON array de intervalos de horário [{start,end}] — set alternado. */
+  time_slots: string | null;
   event_name: string | null;       // nome da festa/evento (campo principal)
   venue_name: string;              // mantido pra resiliência se o venue for excluído
   venue_city: string | null;
@@ -105,6 +108,44 @@ export type GigCreateInput = Omit<
 };
 
 export type GigUpdateInput = Partial<GigCreateInput> & { id: number };
+
+/** Um intervalo de horário de uma GIG (HH:MM). */
+export type GigTimeSlot = { start: string; end: string };
+
+/** Lê os intervalos de horário, com fallback para o start/end legado. */
+export function parseTimeSlots(
+  g: Pick<Gig, "time_slots" | "start_time" | "end_time">
+): GigTimeSlot[] {
+  if (g.time_slots) {
+    try {
+      const parsed = JSON.parse(g.time_slots) as unknown;
+      if (Array.isArray(parsed)) {
+        const slots = parsed
+          .filter((s): s is Record<string, unknown> => !!s && typeof s === "object")
+          .map((s) => ({
+            start: typeof s.start === "string" ? s.start : "",
+            end: typeof s.end === "string" ? s.end : "",
+          }))
+          .filter((s) => s.start || s.end);
+        if (slots.length > 0) return slots;
+      }
+    } catch {
+      /* cai no fallback */
+    }
+  }
+  if (g.start_time || g.end_time) {
+    return [{ start: g.start_time ?? "", end: g.end_time ?? "" }];
+  }
+  return [];
+}
+
+/** Formata os intervalos para exibição: "22:00–23:00 · 00:00–01:00". */
+export function formatTimeSlots(slots: GigTimeSlot[]): string {
+  return slots
+    .filter((s) => s.start || s.end)
+    .map((s) => (s.start && s.end ? `${s.start}–${s.end}` : s.start || s.end))
+    .join(" · ");
+}
 
 /** Cálculo da média das avaliações. is_special contribui 5 se marcado, 3 se não. */
 export function averageRating(g: Pick<

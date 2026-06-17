@@ -8,6 +8,7 @@ const GIG_COLUMNS = [
   "date",
   "start_time",
   "end_time",
+  "time_slots",
   "event_name",
   "venue_name",
   "venue_city",

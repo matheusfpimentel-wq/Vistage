@@ -38,6 +38,14 @@ const COLS: Col[] = [
 
 type Sel = { r0: number; c0: number; r1: number; c1: number } | null;
 
+// Editar Início/Fim na planilha zera os intervalos (time_slots), voltando a GIG
+// a um único horário — evita divergir do editor de horários do formulário.
+function gigUpdatePatch(key: keyof Gig, parsed: unknown): Record<string, unknown> {
+  const patch: Record<string, unknown> = { [key]: parsed };
+  if (key === "start_time" || key === "end_time") patch.time_slots = null;
+  return patch;
+}
+
 export function SpreadsheetView({ gigs, onRefresh }: Props) {
   const [editing, setEditing] = useState<{ r: number; c: number } | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -106,7 +114,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     }
     if (col.read(gig) === raw) return;
     try {
-      await updateGig({ id: gig.id, [col.key]: parsed } as Parameters<typeof updateGig>[0]);
+      await updateGig({ id: gig.id, ...gigUpdatePatch(col.key, parsed) } as Parameters<typeof updateGig>[0]);
       await onRefresh();
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
@@ -174,7 +182,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
         const parsed = col.parse(raw);
         if (col.key === "status" && parsed === null) continue;
         try {
-          await updateGig({ id: gig.id, [col.key]: parsed } as Parameters<typeof updateGig>[0]);
+          await updateGig({ id: gig.id, ...gigUpdatePatch(col.key, parsed) } as Parameters<typeof updateGig>[0]);
           saved++;
         } catch { /* ignora célula */ }
       }

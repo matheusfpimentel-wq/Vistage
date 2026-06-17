@@ -27,8 +27,10 @@ import { AttachmentField } from "@/components/shared/AttachmentField";
 import {
   GIG_STATUSES,
   PAYMENT_STATUSES,
+  parseTimeSlots,
   type Gig,
   type GigCreateInput,
+  type GigTimeSlot,
 } from "../types";
 import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
 import { syncGigPaymentTransaction, listEquipment, createEquipment, listGigExpenses, createTransaction, deleteTransaction } from "@/modules/finance/api";
@@ -75,6 +77,7 @@ function isSocialCategory(category: string | null | undefined): boolean {
 type FormState = Omit<GigCreateInput, "id"> & {
   prep: Record<string, 1>;
   extra_flyers: string[]; // flyers além do primeiro (banner_file_path)
+  slots: GigTimeSlot[];   // intervalos de horário (serializa em time_slots)
 };
 
 const EMPTY: FormState = {
@@ -96,6 +99,8 @@ const EMPTY: FormState = {
   banner_file_path: null,
   extra_flyer_paths: null,
   extra_flyers: [],
+  time_slots: null,
+  slots: [],
   opportunities: null,
   briefing: null,
   set_concept: null,
@@ -151,7 +156,61 @@ function gigToState(gig: Gig): FormState {
   } catch {
     extra_flyers = [];
   }
-  return { ...rest, prep: parsePrepState(gig.prep_state), extra_flyers };
+  return { ...rest, prep: parsePrepState(gig.prep_state), extra_flyers, slots: parseTimeSlots(gig) };
+}
+
+/** Editor de intervalos de horário (1 ou vários, p/ set alternado). */
+function SlotsEditor({
+  slots,
+  onChange,
+}: {
+  slots: GigTimeSlot[];
+  onChange: (slots: GigTimeSlot[]) => void;
+}) {
+  function update(i: number, patch: Partial<GigTimeSlot>) {
+    onChange(slots.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+  return (
+    <div className="space-y-2">
+      {slots.map((slot, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input
+            type="time"
+            value={slot.start}
+            onChange={(e) => update(i, { start: e.target.value })}
+            className="w-28"
+            aria-label={`Início do intervalo ${i + 1}`}
+          />
+          <span className="text-sm text-muted-foreground">às</span>
+          <Input
+            type="time"
+            value={slot.end}
+            onChange={(e) => update(i, { end: e.target.value })}
+            className="w-28"
+            aria-label={`Fim do intervalo ${i + 1}`}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={() => onChange(slots.filter((_, idx) => idx !== i))}
+            aria-label="Remover intervalo"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...slots, { start: "", end: "" }])}
+      >
+        <Plus className="h-3.5 w-3.5" /> Adicionar intervalo
+      </Button>
+    </div>
+  );
 }
 
 export function GigForm({
@@ -303,14 +362,20 @@ export function GigForm({
       const prevMainGoalTaskId = gig?.main_goal_task_id ?? null;
       const isNew = !gig;
 
+      const validSlots = state.slots.filter((s) => s.start || s.end);
       const payload: GigCreateInput = {
         ...state,
         prep_state: JSON.stringify(state.prep),
         extra_flyer_paths: state.extra_flyers.length > 0 ? JSON.stringify(state.extra_flyers) : null,
+        time_slots: validSlots.length > 0 ? JSON.stringify(validSlots) : null,
+        // start_time/end_time espelham o 1º intervalo (gcal/ordenação/spreadsheet)
+        start_time: validSlots[0]?.start || null,
+        end_time: validSlots[0]?.end || null,
       };
       // remove campos auxiliares que não existem no banco
       delete (payload as unknown as { prep?: unknown }).prep;
       delete (payload as unknown as { extra_flyers?: unknown }).extra_flyers;
+      delete (payload as unknown as { slots?: unknown }).slots;
 
       let savedId: number;
       if (gig) {
@@ -553,20 +618,14 @@ export function GigForm({
                   onChange={(e) => { set("date", e.target.value); clearError("date"); }}
                 />
               </Field>
-              <Field label="Início">
-                <Input
-                  type="time"
-                  value={state.start_time ?? ""}
-                  onChange={(e) => set("start_time", e.target.value || null)}
-                />
-              </Field>
-              <Field label="Fim">
-                <Input
-                  type="time"
-                  value={state.end_time ?? ""}
-                  onChange={(e) => set("end_time", e.target.value || null)}
-                />
-              </Field>
+              <div className="sm:col-span-2">
+                <Field
+                  label="Horários"
+                  hint="Vários intervalos = set alternado (ex.: 22:00–23:00 e 00:00–01:00)."
+                >
+                  <SlotsEditor slots={state.slots} onChange={(slots) => set("slots", slots)} />
+                </Field>
+              </div>
             </div>
 
             <Field
