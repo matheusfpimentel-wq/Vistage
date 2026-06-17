@@ -1,4 +1,4 @@
-import type { Db } from "./db";
+import type { BatchStatement, Db } from "./db";
 
 // Migrations versionadas. Cada migration roda em ordem e nunca é re-executada.
 // Para adicionar uma nova, basta empilhar no array com o próximo `version`.
@@ -1688,33 +1688,37 @@ export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
       .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
-    // Cada statement tem seu próprio try/catch: uma falha não pode abortar
-    // os statements seguintes da mesma migration, senão o banco fica com
-    // colunas/tabelas faltando para sempre (a versão é marcada como aplicada).
-    const errors: string[] = [];
+
+    // Pré-filtra ALTER ADD COLUMN cuja coluna já existe (idempotência) — esse
+    // check é leitura e fica fora da transação. O resto roda como UM lote
+    // atômico: ou a migration inteira aplica, ou nada aplica (ROLLBACK). Sem
+    // estado parcial — o defeito antigo era marcar a versão como aplicada mesmo
+    // com statements falhando no meio.
+    const batch: BatchStatement[] = [];
     for (const stmt of statements) {
-      try {
-        const alter = parseAlter(stmt);
-        if (alter) {
-          // Skip if column already exists (idempotency guard)
-          const exists = await columnExists(db, alter.table, alter.column);
-          if (exists) continue;
-        }
-        await db.execute(stmt);
-      } catch (err) {
-        errors.push(err instanceof Error ? err.message : String(err));
-      }
+      const alter = parseAlter(stmt);
+      if (alter && (await columnExists(db, alter.table, alter.column))) continue;
+      batch.push({ sql: stmt });
     }
-    if (errors.length > 0) {
+
+    try {
+      if (batch.length > 0) await db.executeBatch(batch);
+    } catch (err) {
+      // Migration revertida por inteiro. NÃO marca como aplicada (uma versão
+      // futura corrigida tenta de novo) e registra o erro pra diagnóstico. Não
+      // interrompe as próximas, pra manter o app inicializável.
+      const msg = err instanceof Error ? err.message : String(err);
       try {
         await db.execute(
           "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-          [`migration_error_v${m.version}`, errors.join(" | ")]
+          [`migration_error_v${m.version}`, msg]
         );
       } catch {
-        // best-effort: if app_settings doesn't exist yet, ignore
+        // best-effort: se app_settings ainda não existe, ignora
       }
+      continue;
     }
+
     await db.execute(
       "INSERT INTO _migrations (version, description) VALUES ($1, $2)",
       [m.version, m.description]

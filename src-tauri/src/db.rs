@@ -238,6 +238,46 @@ pub async fn db_execute(
     })
 }
 
+/// Um statement de um lote transacional: SQL + params opcionais.
+#[derive(serde::Deserialize)]
+pub struct BatchStatement {
+    sql: String,
+    #[serde(default)]
+    params: Vec<serde_json::Value>,
+}
+
+/// Executa vários statements numa ÚNICA transação (BEGIN/COMMIT). Se qualquer
+/// um falhar, faz ROLLBACK e devolve o erro — nada fica gravado pela metade.
+/// Usado em migrations e restore, onde estado parcial corromperia o banco.
+#[tauri::command]
+pub async fn db_execute_batch(
+    state: State<'_, DbState>,
+    statements: Vec<BatchStatement>,
+) -> Result<u64, String> {
+    let guard = state.conn.lock().await;
+    let conn = guard.as_ref().ok_or("banco não inicializado")?;
+
+    conn.execute("BEGIN", ()).await.map_err(|e| e.to_string())?;
+
+    let mut affected: u64 = 0;
+    for st in &statements {
+        match conn.execute(&st.sql, params_from(&st.params)).await {
+            Ok(n) => affected += n,
+            Err(e) => {
+                // desfaz tudo: o banco volta ao estado anterior ao lote
+                let _ = conn.execute("ROLLBACK", ()).await;
+                return Err(e.to_string());
+            }
+        }
+    }
+
+    if let Err(e) = conn.execute("COMMIT", ()).await {
+        let _ = conn.execute("ROLLBACK", ()).await;
+        return Err(e.to_string());
+    }
+    Ok(affected)
+}
+
 /// Empurra escritas locais para o Turso e puxa mudanças remotas.
 /// Clona o Arc<Database> e solta o mutex antes da chamada de rede — db_select
 /// e db_execute (que usam state.conn, mutex diferente) continuam funcionando

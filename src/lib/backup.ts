@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
@@ -384,62 +384,71 @@ export async function restoreBackup(backup: Backup): Promise<{
     tableColumns.set(t, new Set(info.map((r) => r.name)));
   }
 
+  // Monta TODOS os statements (limpeza + 2 passagens) num ÚNICO lote atômico.
+  // Antes era um execute por linha sem transação: um erro no meio deixava o
+  // banco meio-apagado/meio-restaurado. Agora é tudo-ou-nada — se algo falhar,
+  // o Rust faz ROLLBACK e os dados originais ficam intactos.
+  const stmts: BatchStatement[] = [];
+
+  // limpa na ordem inversa (filhos antes de pais) — só tabelas do backup
+  for (const t of [...TABLES].reverse()) {
+    if (!tablesInBackup.has(t)) continue;
+    stmts.push({ sql: `DELETE FROM ${t}` });
+  }
+
+  // 1ª passagem: insere na ordem topológica, omitindo as colunas FK
+  // anuláveis (DEFERRED_FK) — elas entram como NULL.
+  // Também filtra colunas que não existem no schema atual.
+  for (const t of TABLES) {
+    if (!tablesInBackup.has(t)) continue;
+    const rows = backup.tables[t] ?? [];
+    const deferred = DEFERRED_FK[t] ?? {};
+    const existingCols = tableColumns.get(t) ?? new Set<string>();
+    for (const row of rows) {
+      const insertCols = Object.keys(row).filter(
+        (c) => !(c in deferred) && existingCols.has(c)
+      );
+      if (insertCols.length === 0) continue;
+      const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
+      const values = insertCols.map((c) => row[c]);
+      stmts.push({
+        sql: `INSERT INTO ${t} (${insertCols.join(", ")}) VALUES (${placeholders})`,
+        params: values,
+      });
+      restoredRows += 1;
+    }
+  }
+
+  // 2ª passagem: restaura as colunas FK adiadas, somente quando o id
+  // referenciado existe na sua tabela (caso contrário, mantém NULL).
+  for (const t of TABLES) {
+    if (!tablesInBackup.has(t)) continue;
+    const deferred = DEFERRED_FK[t];
+    if (!deferred) continue;
+    const rows = backup.tables[t] ?? [];
+    const existingCols = tableColumns.get(t) ?? new Set<string>();
+    for (const row of rows) {
+      const id = row["id"];
+      if (id == null) continue;
+      for (const [col, refTable] of Object.entries(deferred)) {
+        if (!existingCols.has(col)) continue; // coluna não existe nesta versão
+        const val = row[col];
+        if (val == null) continue;
+        if (!idsByTable.get(refTable)?.has(val)) continue; // órfão → deixa NULL
+        stmts.push({
+          sql: `UPDATE ${t} SET ${col} = $1 WHERE id = $2`,
+          params: [val, id],
+        });
+      }
+    }
+  }
+
+  // PRAGMA foreign_keys fica FORA da transação (é no-op dentro de uma). Como a
+  // conexão libsql é única e persistente, o OFF vale para o lote inteiro; só
+  // os ids cujo parent existe são religados, então não há violação de FK.
+  await db.execute("PRAGMA foreign_keys = OFF");
   try {
-    // limpa na ordem inversa (filhos antes de pais) — só tabelas do backup
-    for (const t of [...TABLES].reverse()) {
-      if (!tablesInBackup.has(t)) continue;
-      await db.execute("PRAGMA foreign_keys = OFF");
-      await db.execute(`DELETE FROM ${t}`);
-    }
-
-    // 1ª passagem: insere na ordem topológica, omitindo as colunas FK
-    // anuláveis (DEFERRED_FK) — elas entram como NULL.
-    // Também filtra colunas que não existem no schema atual.
-    for (const t of TABLES) {
-      if (!tablesInBackup.has(t)) continue;
-      const rows = backup.tables[t] ?? [];
-      const deferred = DEFERRED_FK[t] ?? {};
-      const existingCols = tableColumns.get(t) ?? new Set<string>();
-      for (const row of rows) {
-        await db.execute("PRAGMA foreign_keys = OFF");
-        const insertCols = Object.keys(row).filter(
-          (c) => !(c in deferred) && existingCols.has(c)
-        );
-        if (insertCols.length === 0) continue;
-        const placeholders = insertCols.map((_, i) => `$${i + 1}`).join(", ");
-        const values = insertCols.map((c) => row[c]);
-        await db.execute(
-          `INSERT INTO ${t} (${insertCols.join(", ")}) VALUES (${placeholders})`,
-          values
-        );
-        restoredRows += 1;
-      }
-    }
-
-    // 2ª passagem: restaura as colunas FK adiadas, somente quando o id
-    // referenciado existe na sua tabela (caso contrário, mantém NULL).
-    for (const t of TABLES) {
-      if (!tablesInBackup.has(t)) continue;
-      const deferred = DEFERRED_FK[t];
-      if (!deferred) continue;
-      const rows = backup.tables[t] ?? [];
-      const existingCols = tableColumns.get(t) ?? new Set<string>();
-      for (const row of rows) {
-        const id = row["id"];
-        if (id == null) continue;
-        for (const [col, refTable] of Object.entries(deferred)) {
-          if (!existingCols.has(col)) continue; // coluna não existe nesta versão
-          const val = row[col];
-          if (val == null) continue;
-          if (!idsByTable.get(refTable)?.has(val)) continue; // órfão → deixa NULL
-          await db.execute("PRAGMA foreign_keys = OFF");
-          await db.execute(
-            `UPDATE ${t} SET ${col} = $1 WHERE id = $2`,
-            [val, id]
-          );
-        }
-      }
-    }
+    await db.executeBatch(stmts);
   } finally {
     await db.execute("PRAGMA foreign_keys = ON");
   }

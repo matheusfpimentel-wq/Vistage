@@ -50,6 +50,7 @@ pub fn run() {
             db::db_init,
             db::db_select,
             db::db_execute,
+            db::db_execute_batch,
             db::db_sync,
             db::db_reset_replica,
             db::db_diagnostics,

@@ -3,12 +3,21 @@ import { runMigrations } from "./migrations";
 
 type QueryResult = { rowsAffected: number; lastInsertId: number };
 
+/** Um statement de um lote transacional. */
+export type BatchStatement = { sql: string; params?: unknown[] };
+
 // Interface mínima do banco usada pelo app (migrations, módulos). Espelha o
 // `Database` do antigo tauri-plugin-sql; o proxy abaixo a implementa delegando
 // para comandos Tauri que rodam a réplica libsql no Rust.
 export type Db = {
   select<T>(sql: string, params?: unknown[]): Promise<T>;
   execute(sql: string, params?: unknown[]): Promise<QueryResult>;
+  /**
+   * Executa todos os statements numa única transação (BEGIN/COMMIT no Rust).
+   * Se qualquer um falhar, faz ROLLBACK e lança — tudo-ou-nada. Devolve o total
+   * de linhas afetadas.
+   */
+  executeBatch(statements: BatchStatement[]): Promise<number>;
 };
 
 // Proxy duck-typed com a MESMA interface do `Database` do tauri-plugin-sql.
@@ -21,6 +30,11 @@ const dbProxy: Db = {
   },
   async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
     return invoke<QueryResult>("db_execute", { sql, params: params ?? [] });
+  },
+  async executeBatch(statements: BatchStatement[]): Promise<number> {
+    return invoke<number>("db_execute_batch", {
+      statements: statements.map((s) => ({ sql: s.sql, params: s.params ?? [] })),
+    });
   },
 };
 
