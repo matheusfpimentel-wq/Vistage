@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Cloud, CloudOff, Loader2, RefreshCw } from "lucide-react";
-import { DATA_CHANGED } from "@/lib/events";
-import { syncDatabase } from "@/lib/db";
+import { pushToTurso } from "@/lib/db";
+import { useConfigStore } from "@/lib/config";
+import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
 
@@ -53,16 +54,19 @@ export function SyncIndicator() {
     return () => window.removeEventListener("vistage:sync-result", onResult);
   }, []);
 
+  // O DriveSync emite "sync-start" quando começa a enviar de fato (após o
+  // debounce de 1 min). Refletimos esse início — não o DATA_CHANGED, que vem
+  // imediatamente na edição, antes do envio.
   useEffect(() => {
-    const onChange = () => {
+    const onStart = () => {
       setState("syncing");
       if (syncTimer.current) window.clearTimeout(syncTimer.current);
-      // fallback: se nenhum resultado chegar em 35s, volta a idle
-      syncTimer.current = window.setTimeout(() => setState("idle"), 35_000);
+      // fallback: se nenhum resultado chegar em 60s, volta a idle
+      syncTimer.current = window.setTimeout(() => setState("idle"), 60_000);
     };
-    window.addEventListener(DATA_CHANGED, onChange);
+    window.addEventListener("vistage:sync-start", onStart);
     return () => {
-      window.removeEventListener(DATA_CHANGED, onChange);
+      window.removeEventListener("vistage:sync-start", onStart);
       if (syncTimer.current) window.clearTimeout(syncTimer.current);
     };
   }, []);
@@ -72,13 +76,17 @@ export function SyncIndicator() {
     setRetrying(true);
     setState("syncing");
     try {
-      await syncDatabase();
+      const { config } = useConfigStore.getState();
+      await pushToTurso(
+        config?.tursoUrl ?? DEFAULT_TURSO_URL,
+        config?.tursoToken ?? DEFAULT_TURSO_TOKEN
+      );
       setLastSyncAt(Date.now());
       setState("idle");
-      toast.success("Sincronizado com a nuvem");
+      toast.success("Salvo na nuvem");
     } catch (e) {
       setState("error");
-      toast.error(`Erro ao sincronizar: ${String(e)}`);
+      toast.error(`Erro ao salvar na nuvem: ${String(e)}`);
     } finally {
       setRetrying(false);
     }

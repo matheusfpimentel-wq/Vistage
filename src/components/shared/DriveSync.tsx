@@ -19,7 +19,10 @@ export function DriveSync() {
 
   const runSync = async () => {
     if (syncRunning.current) return;
+    // Respeita o toggle "Salvamento em nuvem automático" (default ligado).
+    if (config?.autoCloudSave === false) return;
     syncRunning.current = true;
+    window.dispatchEvent(new CustomEvent("vistage:sync-start"));
     try {
       const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
       const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;

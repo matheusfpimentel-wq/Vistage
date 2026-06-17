@@ -200,7 +200,7 @@ async function restoreFiles(
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
  * Inclui os arquivos de anexo como base64 (v2+) — fotos, flyers, etc.
  */
-async function buildBackup(): Promise<Backup> {
+export async function buildBackup(): Promise<Backup> {
   const db = getDb();
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
@@ -225,42 +225,61 @@ async function buildBackup(): Promise<Backup> {
   };
 }
 
-/** Abre o diálogo de salvar e grava o backup em disco. Retorna o caminho. */
+/** Valida e converte o texto bruto de um arquivo .vistage/backup em Backup. */
+export function parseBackupRaw(raw: string): Backup {
+  const parsed = JSON.parse(raw) as Partial<Backup>;
+  if (parsed.app !== "vistage" && parsed.app !== "musicgest") {
+    throw new Error("Arquivo não é um documento do Vistage.");
+  }
+  if (typeof parsed.version !== "number" || parsed.version > BACKUP_VERSION) {
+    throw new Error(
+      `Versão do arquivo (${parsed.version}) é mais nova que a suportada por este app.`
+    );
+  }
+  if (!parsed.tables || typeof parsed.tables !== "object") {
+    throw new Error("Arquivo sem dados.");
+  }
+  return parsed as Backup;
+}
+
+/** Grava o backup atual num caminho específico (usado por "Salvar"). */
+export async function saveBackupToPath(path: string): Promise<void> {
+  const backup = await buildBackup();
+  await writeTextFile(path, JSON.stringify(backup, null, 2));
+}
+
+/** Lê e valida um arquivo de documento a partir do caminho. */
+export async function readBackupFromPath(path: string): Promise<Backup> {
+  const raw = await readTextFile(path);
+  return parseBackupRaw(raw);
+}
+
+/** Abre o diálogo "Salvar como" e grava o documento. Retorna o caminho. */
 export async function exportBackupToFile(): Promise<string | null> {
   const backup = await buildBackup();
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const stamp = new Date().toISOString().slice(0, 10);
   const path = await saveDialog({
-    title: "Exportar backup do Vistage",
-    defaultPath: `vistage-backup-${stamp}.json`,
-    filters: [{ name: "JSON", extensions: ["json"] }],
+    title: "Salvar documento do Vistage",
+    defaultPath: `Vistage ${stamp}.vistage`,
+    filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
   });
   if (!path) return null;
   await writeTextFile(path, JSON.stringify(backup, null, 2));
   return path;
 }
 
-/** Abre o diálogo, lê o JSON e valida o formato. */
-export async function pickBackupFile(): Promise<Backup | null> {
+/** Abre o diálogo de seleção e retorna o documento + caminho. */
+export async function pickBackupFile(): Promise<{ backup: Backup; path: string } | null> {
   const file = await openDialog({
     multiple: false,
-    title: "Selecione o arquivo de backup",
-    filters: [{ name: "Backup Vistage", extensions: ["json"] }],
+    title: "Abrir documento do Vistage",
+    filters: [
+      { name: "Documento Vistage", extensions: ["vistage", "json"] },
+    ],
   });
   if (!file || typeof file !== "string") return null;
-  const raw = await readTextFile(file);
-  const parsed = JSON.parse(raw) as Partial<Backup>;
-  if (parsed.app !== "vistage" && parsed.app !== "musicgest") {
-    throw new Error("Arquivo não é um backup do Vistage.");
-  }
-  if (typeof parsed.version !== "number" || parsed.version > BACKUP_VERSION) {
-    throw new Error(
-      `Versão do backup (${parsed.version}) é mais nova que a suportada por este app.`
-    );
-  }
-  if (!parsed.tables || typeof parsed.tables !== "object") {
-    throw new Error("Backup sem tabelas.");
-  }
-  return parsed as Backup;
+  const backup = await readBackupFromPath(file);
+  return { backup, path: file };
 }
 
 /**

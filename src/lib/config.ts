@@ -23,6 +23,7 @@ export type AppConfig = {
   tursoUrl?: string;         // URL do banco Turso (sobrescreve o default)
   tursoToken?: string;       // token de acesso ao Turso (sobrescreve o default)
   migrated?: boolean;        // true depois que os dados do .db legado foram migrados para o Turso
+  autoCloudSave?: boolean;   // salva automaticamente na nuvem (Turso) após mudanças; default true
 };
 
 type ConfigState = {

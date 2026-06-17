@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { appDataDir } from "@tauri-apps/api/path";
-import { Download, Loader2, Plug, RefreshCw, RotateCcw, Sparkles, Upload } from "lucide-react";
+import {
+  CloudDownload,
+  CloudUpload,
+  FolderOpen,
+  Loader2,
+  RotateCcw,
+  Save,
+  SaveAll,
+  Sparkles,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
-import { closeDatabase, initDatabase } from "@/lib/db";
+import { closeDatabase, pushToTurso } from "@/lib/db";
+import { useDocumentStore } from "@/lib/document";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
-import {
-  exportBackupToFile,
-  pickBackupFile,
-  restoreBackup,
-} from "@/lib/backup";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
@@ -27,14 +31,15 @@ import { DbDiagnostics } from "./DbDiagnostics";
 
 export function SettingsPage() {
   const { config, configPath, reset, patchConfig } = useConfigStore();
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
   const [remigrating, setRemigrating] = useState(false);
   const [remigrateResult, setRemigrateResult] = useState<[string, number][] | null>(null);
-  const [resettingReplica, setResettingReplica] = useState(false);
-  const [reconnecting, setReconnecting] = useState(false);
+  const [pulling, setPulling] = useState(false);
+  const [pushing, setPushing] = useState(false);
+
+  const autoCloud = config?.autoCloudSave !== false; // default ligado
+  const doc = useDocumentStore();
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -47,18 +52,6 @@ export function SettingsPage() {
     if (!ok) return;
     await closeDatabase();
     reset();
-  }
-
-  async function handleExport() {
-    setExporting(true);
-    try {
-      const path = await exportBackupToFile();
-      if (path) toast.success(`Backup salvo em ${path}`);
-    } catch (e) {
-      toast.error(`Erro ao exportar: ${String(e)}`);
-    } finally {
-      setExporting(false);
-    }
   }
 
   async function handleSeed() {
@@ -82,59 +75,26 @@ export function SettingsPage() {
     }
   }
 
-  async function handleImport() {
-    try {
-      const backup = await pickBackupFile();
-      if (!backup) return;
-      const ok = await confirmDialog(
-        `ATENÇÃO: importar este backup vai SUBSTITUIR TODOS os dados do banco atual.\n\n` +
-          `Backup gerado em: ${new Date(backup.exportedAt).toLocaleString("pt-BR")}\n` +
-          `Versão: ${backup.version}\n\n` +
-          `Recomendamos exportar o estado atual antes. Continuar?`
-      );
-      if (!ok) return;
-      setImporting(true);
-      const { restoredRows, restoredTables } = await restoreBackup(backup);
-      toast.success(
-        `Restaurado: ${restoredRows} registros em ${restoredTables} tabelas`
-      );
-      setTimeout(() => window.location.reload(), 800);
-    } catch (e) {
-      toast.error(`Erro ao importar: ${String(e)}`);
-    } finally {
-      setImporting(false);
-    }
+  async function handleToggleAutoCloud() {
+    await patchConfig({ autoCloudSave: !autoCloud });
+    toast.success(
+      !autoCloud
+        ? "Salvamento em nuvem automático ligado."
+        : "Salvamento em nuvem automático desligado. Use 'Salvar manualmente' para enviar."
+    );
   }
 
-  async function handleReconnect() {
-    setReconnecting(true);
-    try {
-      const dataDir = await appDataDir();
-      const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
-      const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
-      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
-      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
-      await initDatabase(replicaPath, tursoUrl, tursoToken);
-      toast.success("Banco reconectado. Recarregando…");
-      setTimeout(() => window.location.reload(), 800);
-    } catch (e) {
-      toast.error(`Erro ao reconectar: ${String(e)}`);
-    } finally {
-      setReconnecting(false);
-    }
-  }
-
-  async function handleResetReplica() {
+  // Carregar base de dados: traz tudo do Turso para a máquina (HTTP direto).
+  async function handlePull() {
     const ok = await confirmDialog({
-      title: "Importar tudo do Turso",
+      title: "Carregar base de dados da nuvem",
       description:
-        "Copia todos os dados do Turso para o banco local via conexão HTTP direta. " +
-        "Use isso quando os dados estão na nuvem mas não aparecem no app. " +
-        "O app vai recarregar ao terminar.",
-      confirmLabel: "Importar tudo",
+        "Substitui os dados desta máquina pelos que estão salvos na nuvem (Turso). " +
+        "Use quando os dados estão na nuvem mas não aparecem aqui. O app recarrega ao terminar.",
+      confirmLabel: "Carregar",
     });
     if (!ok) return;
-    setResettingReplica(true);
+    setPulling(true);
     try {
       const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
       const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
@@ -143,12 +103,27 @@ export function SettingsPage() {
         tursoToken,
       });
       const total = result.reduce((s, [, n]) => s + n, 0);
-      toast.success(`${total} registros importados do Turso. Recarregando…`);
+      toast.success(`${total} registros carregados da nuvem. Recarregando…`);
       setTimeout(() => window.location.reload(), 800);
     } catch (e) {
-      toast.error(`Erro ao importar: ${String(e)}`);
+      toast.error(`Erro ao carregar: ${String(e)}`);
     } finally {
-      setResettingReplica(false);
+      setPulling(false);
+    }
+  }
+
+  // Salvar manualmente: envia tudo desta máquina para o Turso (HTTP direto).
+  async function handlePush() {
+    setPushing(true);
+    try {
+      const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
+      const tursoToken = config?.tursoToken ?? DEFAULT_TURSO_TOKEN;
+      await pushToTurso(tursoUrl, tursoToken);
+      toast.success("Dados salvos na nuvem.");
+    } catch (e) {
+      toast.error(`Erro ao salvar na nuvem: ${String(e)}`);
+    } finally {
+      setPushing(false);
     }
   }
 
@@ -184,74 +159,95 @@ export function SettingsPage() {
   }
 
   return (
-    <Tabs defaultValue="integracoes" className="space-y-4">
+    <Tabs defaultValue="salvamento" className="space-y-4">
       <TabsList className="w-full justify-start">
+        <TabsTrigger value="salvamento">Salvamento</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
         <TabsTrigger value="atalhos">Atalhos</TabsTrigger>
-        <TabsTrigger value="backup">Backup</TabsTrigger>
       </TabsList>
+
+      {/* ─── Salvamento ──────────────────────────────────────── */}
+      <TabsContent value="salvamento" className="space-y-6">
+        {/* Nuvem */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Salvamento em nuvem (Turso)</CardTitle>
+            <CardDescription>
+              Seus dados ficam salvos na nuvem e sincronizados entre seus
+              computadores. Com o automático ligado, cada mudança é enviada
+              sozinha após um minuto.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Toggle
+              checked={autoCloud}
+              onChange={handleToggleAutoCloud}
+              label="Salvamento em nuvem automático"
+              hint={autoCloud ? "Ligado — enviando mudanças sozinho" : "Desligado — salve manualmente"}
+            />
+            <div className="flex flex-wrap gap-2 pt-1">
+              <Button variant="outline" onClick={handlePull} disabled={pulling}>
+                {pulling ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudDownload className="h-4 w-4" />}
+                {pulling ? "Carregando…" : "Carregar base de dados"}
+              </Button>
+              <Button variant="outline" onClick={handlePush} disabled={pushing}>
+                {pushing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                {pushing ? "Salvando…" : "Salvar manualmente"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              <strong>Carregar</strong> traz tudo da nuvem para esta máquina
+              (substitui o local). <strong>Salvar manualmente</strong> envia o
+              que está aqui para a nuvem.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Documento local (.vistage) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Documento (.vistage)</CardTitle>
+            <CardDescription>
+              Um arquivo único com TODOS os dados, imagens e arquivos (roteiros,
+              manual de marca, etc.) — como um documento do Office. Independe da
+              nuvem: pode abrir, salvar e mandar para outra pessoa.
+              {doc.currentName && (
+                <> Atual: <code>{doc.currentName}</code>.</>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void doc.open()} disabled={doc.busy}>
+                <FolderOpen className="h-4 w-4" />
+                Abrir…
+              </Button>
+              <Button variant="outline" onClick={() => void doc.save()} disabled={doc.busy}>
+                <Save className="h-4 w-4" />
+                Salvar
+              </Button>
+              <Button variant="outline" onClick={() => void doc.saveAs()} disabled={doc.busy}>
+                <SaveAll className="h-4 w-4" />
+                Salvar como…
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Abrir um documento substitui todos os dados atuais. Atalho:{" "}
+              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">Ctrl S</kbd> salva.
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Diagnóstico */}
+        <DbDiagnostics />
+
+        {/* Importação/Exportação CSV */}
+        <CsvImportExport />
+      </TabsContent>
 
       {/* ─── Integrações ─────────────────────────────────────── */}
       <TabsContent value="integracoes" className="space-y-6">
-        <Card className="border-amber-500/30">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Plug className="h-4 w-4 text-amber-500" />
-              Reconectar banco
-            </CardTitle>
-            <CardDescription>
-              Se o app mostra "banco não inicializado" mas o arquivo de réplica
-              já existe, use isso para reabrir a conexão sem apagar nenhum dado.
-              Mais rápido e seguro do que "Baixar tudo da nuvem".
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="outline"
-              onClick={handleReconnect}
-              disabled={reconnecting}
-            >
-              {reconnecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plug className="h-4 w-4" />
-              )}
-              {reconnecting ? "Reconectando…" : "Reconectar banco"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive/30">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-destructive" />
-              Nuvem (Turso) — baixar tudo do zero
-            </CardTitle>
-            <CardDescription>
-              Se os dados estão no Turso mas não aparecem no app, apague a
-              réplica local e force o download completo da nuvem. O app
-              recarrega ao terminar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button
-              variant="destructive"
-              onClick={handleResetReplica}
-              disabled={resettingReplica}
-            >
-              {resettingReplica ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {resettingReplica ? "Baixando…" : "Baixar tudo da nuvem"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <DbDiagnostics />
-
         <TodoistSettings />
         <GoogleCalendarSettings />
         <GoogleDriveSettings />
@@ -294,10 +290,9 @@ export function SettingsPage() {
                 Reimportar dados do banco local
               </CardTitle>
               <CardDescription>
-                Se seus dados sumiram após a migração para o Turso (ex.: clicou
-                "Pular" na tela de migração, ou os dados nunca chegaram à nuvem),
-                use isso para copiar o arquivo <code>.db</code> local de volta para
-                o Turso. Não apaga nada — registros já existentes são preservados.
+                Se seus dados sumiram após a migração para o Turso, use isso para
+                copiar o arquivo <code>.db</code> local de volta para a nuvem. Não
+                apaga nada — registros já existentes são preservados.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -339,10 +334,9 @@ export function SettingsPage() {
                 Carregar dados de exemplo
               </CardTitle>
               <CardDescription>
-                Seu banco está vazio. Quer popular com 4 GIGs (uma futura,
-                uma a caminho, uma concluída com debrief, uma com debrief
-                pendente), 5 contatos, 6 tarefas e algumas transações pra
-                você explorar como o sistema funciona?
+                Seu banco está vazio. Quer popular com 4 GIGs, 5 contatos, 6
+                tarefas e algumas transações pra você explorar como o sistema
+                funciona?
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -368,56 +362,51 @@ export function SettingsPage() {
             <CardTitle className="text-base">Outras teclas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            <Shortcut keys={["Ctrl/Cmd", "S"]} label="Salvar documento (.vistage)" />
             <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
             <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
           </CardContent>
         </Card>
       </TabsContent>
-
-      {/* ─── Backup ───────────────────────────────────────────── */}
-      <TabsContent value="backup" className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Backup completo</CardTitle>
-            <CardDescription>
-              Exporta um arquivo JSON com tudo do seu banco (GIGs, contatos,
-              tarefas, financeiro, configurações). Importar é destrutivo —
-              substitui o estado atual pelo backup.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleExport} disabled={exporting}>
-                {exporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="h-4 w-4" />
-                )}
-                Exportar backup
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleImport}
-                disabled={importing}
-              >
-                {importing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="h-4 w-4" />
-                )}
-                Importar backup
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Anexos (arquivos em <code>uploads/</code>) não entram neste JSON.
-              Para backup completo dos anexos, copie a pasta inteira do HD.
-            </p>
-          </CardContent>
-        </Card>
-
-        <CsvImportExport />
-      </TabsContent>
     </Tabs>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={onChange}
+        className={
+          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors " +
+          (checked ? "bg-primary" : "bg-muted")
+        }
+      >
+        <span
+          className={
+            "inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform " +
+            (checked ? "translate-x-5" : "translate-x-0.5")
+          }
+        />
+      </button>
+    </div>
   );
 }
 

@@ -3,6 +3,8 @@ import { Outlet, useLocation } from "react-router-dom";
 import { PanelLeftOpen, Search, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { MobileTabBar } from "./MobileTabBar";
+import { FileMenu } from "./FileMenu";
+import { useDocumentStore } from "@/lib/document";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Toaster } from "@/components/ui/toaster";
@@ -50,6 +52,18 @@ export function AppLayout() {
   useEffect(() => {
     setMobileNavOpen(false);
   }, [location.pathname]);
+
+  // Ctrl/Cmd+S salva o documento .vistage atual (estilo Office).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void useDocumentStore.getState().save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const title =
     TITLES[location.pathname] ??
@@ -104,6 +118,9 @@ export function AppLayout() {
             )}
             <div>
               <h1 className="text-lg font-semibold">{title}</h1>
+            </div>
+            <div className="ml-2 hidden md:block">
+              <FileMenu />
             </div>
           </div>
           <div className="flex items-center gap-2">
