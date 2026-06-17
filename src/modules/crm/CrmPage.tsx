@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { LayoutGrid, List, Pencil, Plus, Search, Trash2, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,12 +25,14 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
+import { AsyncBoundary } from "@/components/shared/AsyncStates";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { confirm } from "@/components/ui/confirm";
 
 type TypeFilter = ContactType | "Todos";
 type ViewMode = "cards" | "list";
 
 export function CrmPage() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [filters, setFilters] = useState<{
     type: TypeFilter;
     city: string;
@@ -56,14 +58,11 @@ export function CrmPage() {
     [filters]
   );
 
-  const refresh = useCallback(async () => {
-    const data = await listContacts(queryFilters);
-    setContacts(data);
-  }, [queryFilters]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data, loading, error, reload } = useAsyncData(
+    () => listContacts(queryFilters),
+    [queryFilters]
+  );
+  const contacts = data ?? [];
 
   function openCreate() {
     setEditing(null);
@@ -83,14 +82,14 @@ export function CrmPage() {
   }
 
   async function handleDelete(c: Contact) {
-    const ok = window.confirm(
-      `Excluir "${c.name}"? GIGs vinculadas perderão a referência ao promoter.`
-    );
+    const ok = await confirm({
+      description: `Excluir "${c.name}"? GIGs vinculadas perderão a referência ao promoter.`,
+    });
     if (!ok) return;
     try {
       await deleteContact(c.id);
       toast.success("Contato excluído");
-      await refresh();
+      reload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -177,6 +176,7 @@ export function CrmPage() {
         </div>
       </div>
 
+      <AsyncBoundary loading={loading} error={error} onRetry={reload}>
       {contacts.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Users className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -284,12 +284,13 @@ export function CrmPage() {
           </table>
         </div>
       )}
+      </AsyncBoundary>
 
       <ContactForm
         open={formOpen}
         onOpenChange={setFormOpen}
         contact={editing}
-        onSaved={() => void refresh()}
+        onSaved={reload}
       />
 
       <ContactDetail

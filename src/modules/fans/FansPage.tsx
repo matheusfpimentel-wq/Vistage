@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Flame,
   Heart,
@@ -36,20 +36,20 @@ import {
   getFanStats,
   listFans,
   type FanFilters,
-  type FanStats,
 } from "./api";
 import { FAN_LEVELS, type Fan, type FanLevel } from "./types";
 import { formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
+import { AsyncBoundary } from "@/components/shared/AsyncStates";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { confirm } from "@/components/ui/confirm";
 
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
 
 export function FansPage() {
-  const [fans, setFans] = useState<Fan[]>([]);
-  const [stats, setStats] = useState<FanStats | null>(null);
   const [filters, setFilters] = useState<{
     level: LevelFilter;
     city: string;
@@ -72,15 +72,15 @@ export function FansPage() {
     [filters]
   );
 
-  const refresh = useCallback(async () => {
-    const [data, s] = await Promise.all([listFans(queryFilters), getFanStats()]);
-    setFans(data);
-    setStats(s);
-  }, [queryFilters]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data, loading, error, reload } = useAsyncData(
+    () =>
+      Promise.all([listFans(queryFilters), getFanStats()]).then(
+        ([fans, stats]) => ({ fans, stats })
+      ),
+    [queryFilters]
+  );
+  const fans = data?.fans ?? [];
+  const stats = data?.stats ?? null;
 
   function openCreate() {
     setEditing(null);
@@ -100,12 +100,14 @@ export function FansPage() {
   }
 
   async function handleDelete(f: Fan) {
-    const ok = window.confirm(`Excluir "${f.name}"? Interações vinculadas também serão removidas.`);
+    const ok = await confirm({
+      description: `Excluir "${f.name}"? Interações vinculadas também serão removidas.`,
+    });
     if (!ok) return;
     try {
       await deleteFan(f.id);
       toast.success("Fã excluído");
-      await refresh();
+      reload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -200,6 +202,7 @@ export function FansPage() {
         </div>
       </div>
 
+      <AsyncBoundary loading={loading} error={error} onRetry={reload}>
       {fans.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           <Heart className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -294,12 +297,13 @@ export function FansPage() {
           </table>
         </div>
       )}
+      </AsyncBoundary>
 
       <FanForm
         open={formOpen}
         onOpenChange={setFormOpen}
         fan={editing}
-        onSaved={() => void refresh()}
+        onSaved={reload}
       />
 
       <FanDetail

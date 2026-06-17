@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Instagram,
   LayoutGrid,
@@ -28,6 +28,9 @@ import { deleteSupplier, listSuppliers, type SupplierFilters } from "./api";
 import { SUPPLIER_CATEGORIES, type Supplier, type SupplierCategory } from "./types";
 import { SupplierForm } from "./forms/SupplierForm";
 import { SupplierDetail } from "./SupplierDetail";
+import { AsyncBoundary } from "@/components/shared/AsyncStates";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { confirm } from "@/components/ui/confirm";
 
 type ViewMode = "cards" | "list";
 
@@ -49,7 +52,6 @@ function StarRating({ rating }: { rating: number | null }) {
 }
 
 export function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<SupplierCategory | "Todos">("Todos");
   const [view, setView] = useState<ViewMode>("cards");
@@ -65,14 +67,11 @@ export function SuppliersPage() {
     [search, category]
   );
 
-  const refresh = useCallback(async () => {
-    const data = await listSuppliers(filters);
-    setSuppliers(data);
-  }, [filters]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data, loading, error, reload } = useAsyncData(
+    () => listSuppliers(filters),
+    [filters]
+  );
+  const suppliers = data ?? [];
 
   function openCreate() {
     setEditing(null);
@@ -92,12 +91,12 @@ export function SuppliersPage() {
   }
 
   async function handleDelete(s: Supplier) {
-    const ok = window.confirm(`Excluir "${s.name}"?`);
+    const ok = await confirm({ description: `Excluir o fornecedor "${s.name}"?` });
     if (!ok) return;
     try {
       await deleteSupplier(s.id);
       toast.success("Fornecedor excluído");
-      await refresh();
+      reload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -158,6 +157,7 @@ export function SuppliersPage() {
         </Button>
       </div>
 
+      <AsyncBoundary loading={loading} error={error} onRetry={reload}>
       {/* Empty state */}
       {suppliers.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
@@ -288,12 +288,13 @@ export function SuppliersPage() {
           </table>
         </div>
       )}
+      </AsyncBoundary>
 
       <SupplierForm
         open={formOpen}
         onOpenChange={setFormOpen}
         supplier={editing}
-        onSaved={() => void refresh()}
+        onSaved={reload}
       />
 
       <SupplierDetail

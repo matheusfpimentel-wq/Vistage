@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AsyncBoundary } from "@/components/shared/AsyncStates";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { confirm } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -52,7 +55,6 @@ const DATE_FILTERS: { id: TasksDateFilter; label: string }[] = [
 ];
 
 export function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
     category: CategoryFilter;
@@ -81,14 +83,11 @@ export function TasksPage() {
     [filters]
   );
 
-  const refresh = useCallback(async () => {
-    const data = await listTasks(queryFilters);
-    setTasks(data);
-  }, [queryFilters]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data, loading, error, reload } = useAsyncData(
+    () => listTasks(queryFilters),
+    [queryFilters]
+  );
+  const tasks = data ?? [];
 
   function openCreate() {
     setEditing(null);
@@ -111,14 +110,14 @@ export function TasksPage() {
         task.status === "Concluída" ? "A fazer" : "Concluída";
       await updateTask({ id: task.id, status: next });
     }
-    await refresh();
+    reload();
   }
 
   async function handleDelete(task: Task) {
-    if (!window.confirm(`Excluir "${task.title}"?`)) return;
+    if (!(await confirm({ description: `Excluir a tarefa "${task.title}"?` }))) return;
     await deleteTask(task.id);
     toast.success("Tarefa excluída");
-    await refresh();
+    reload();
   }
 
   return (
@@ -213,6 +212,7 @@ export function TasksPage() {
         ))}
       </div>
 
+      <AsyncBoundary loading={loading} error={error} onRetry={reload}>
       <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
@@ -232,12 +232,13 @@ export function TasksPage() {
           <TaskKanbanView tasks={tasks} onEdit={openEdit} />
         </TabsContent>
       </Tabs>
+      </AsyncBoundary>
 
       <TaskForm
         open={formOpen}
         onOpenChange={setFormOpen}
         task={editing}
-        onSaved={() => void refresh()}
+        onSaved={reload}
       />
     </div>
   );

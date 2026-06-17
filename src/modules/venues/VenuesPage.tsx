@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
 
 const VenueMap = lazy(() =>
@@ -15,11 +15,13 @@ import type { Venue } from "./types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
+import { AsyncBoundary } from "@/components/shared/AsyncStates";
+import { useAsyncData } from "@/lib/useAsyncData";
+import { confirm } from "@/components/ui/confirm";
 
 type ViewMode = "cards" | "list" | "map";
 
 export function VenuesPage() {
-  const [venues, setVenues] = useState<Venue[]>([]);
   const [filters, setFilters] = useState({ city: "", search: "" });
   const [view, setView] = useState<ViewMode>("cards");
 
@@ -34,14 +36,11 @@ export function VenuesPage() {
     [filters]
   );
 
-  const refresh = useCallback(async () => {
-    const data = await listVenues(queryFilters);
-    setVenues(data);
-  }, [queryFilters]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  const { data, loading, error, reload } = useAsyncData(
+    () => listVenues(queryFilters),
+    [queryFilters]
+  );
+  const venues = data ?? [];
 
   function openCreate() {
     setEditing(null);
@@ -61,14 +60,14 @@ export function VenuesPage() {
   }
 
   async function handleDelete(v: Venue) {
-    const ok = window.confirm(
-      `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`
-    );
+    const ok = await confirm({
+      description: `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`,
+    });
     if (!ok) return;
     try {
       await deleteVenue(v.id);
       toast.success("Venue excluído");
-      await refresh();
+      reload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -146,6 +145,7 @@ export function VenuesPage() {
         </div>
       </div>
 
+      <AsyncBoundary loading={loading} error={error} onRetry={reload}>
       {view === "map" ? (
         <Suspense
           fallback={
@@ -157,7 +157,7 @@ export function VenuesPage() {
           <VenueMap
             venues={venues}
             onOpenDetail={openDetail}
-            onRefresh={() => void refresh()}
+            onRefresh={reload}
           />
         </Suspense>
       ) : venues.length === 0 ? (
@@ -240,12 +240,13 @@ export function VenuesPage() {
           </table>
         </div>
       )}
+      </AsyncBoundary>
 
       <VenueForm
         open={formOpen}
         onOpenChange={setFormOpen}
         venue={editing}
-        onSaved={() => void refresh()}
+        onSaved={reload}
       />
 
       <VenueDetail
