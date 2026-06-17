@@ -69,6 +69,40 @@ fn params_from(json: &[serde_json::Value]) -> Vec<libsql::Value> {
     json.iter().map(json_to_libsql).collect()
 }
 
+/// Apaga a réplica e TODOS os arquivos auxiliares que o libsql cria.
+/// Além de -wal/-shm, o embedded replica mantém metadados de sync (-info,
+/// -client_wal_index, etc). Se sobrar metadado órfão, o build falha com
+/// "invalid local state: metadata file exists but db file does not".
+/// Varremos o diretório e removemos tudo que comece com o nome da réplica.
+fn clean_replica_files(replica_path: &str) {
+    let path = std::path::Path::new(replica_path);
+    if let (Some(dir), Some(file_name)) = (path.parent(), path.file_name()) {
+        let prefix = file_name.to_string_lossy().to_string();
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with(&prefix) {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
+    // Fallback explícito caso o scan do diretório falhe.
+    for suffix in &["", "-wal", "-shm", "-info", "-client_wal_index", "-client_wal_index-wal", "-client_wal_index-shm"] {
+        let _ = std::fs::remove_file(format!("{}{}", replica_path, suffix));
+    }
+}
+
+/// Indica se um erro de libsql é de estado local corrompido/inconsistente,
+/// recuperável apagando os arquivos da réplica e baixando do zero.
+fn is_corrupt_local_state(err: &str) -> bool {
+    let e = err.to_lowercase();
+    e.contains("invalid local state")
+        || e.contains("metadata file exists")
+        || e.contains("malformed")
+        || e.contains("not a database")
+        || e.contains("file is not a database")
+}
+
 /// Abre o banco local com capacidade de sync ao Turso. Retorna `true` se
 /// sincronizou com o Turso, `false` se seguiu em modo offline.
 /// Se o banco já estiver aberto (reconectar), fecha o anterior limpo antes.
@@ -86,26 +120,63 @@ pub async fn db_init(
         *state.db.lock().await = None;
     }
 
-    let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
+    // Tenta abrir. Se o build OU o sync inicial falharem por estado local
+    // corrompido (metadado órfão, arquivo malformado), AUTO-CURA: apaga os
+    // arquivos da réplica e baixa tudo do Turso do zero, sem o usuário precisar
+    // clicar em nada. É exatamente o "ao abrir o app já sincroniza".
+    match try_open_and_sync(&replica_path, &turso_url, &turso_token).await {
+        Ok((db, conn, synced)) => {
+            *state.db.lock().await = Some(db);
+            *state.conn.lock().await = Some(conn);
+            Ok(synced)
+        }
+        Err(e) if is_corrupt_local_state(&e) => {
+            // Estado local inválido — limpa e tenta de novo do zero.
+            clean_replica_files(&replica_path);
+            let (db, conn, synced) =
+                try_open_and_sync(&replica_path, &turso_url, &turso_token).await?;
+            *state.db.lock().await = Some(db);
+            *state.conn.lock().await = Some(conn);
+            Ok(synced)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// Abre a réplica, configura, e faz o sync inicial (com timeout). Retorna o
+/// Arc<Database>, a Connection e se o sync teve sucesso. Erros de build/connect
+/// são propagados para o chamador decidir (ex: db_init auto-cura estado
+/// corrompido). Falha de sync por rede NÃO é erro — segue em modo offline.
+async fn try_open_and_sync(
+    replica_path: &str,
+    turso_url: &str,
+    turso_token: &str,
+) -> Result<(Arc<libsql::Database>, libsql::Connection, bool), String> {
+    let db = libsql::Builder::new_synced_database(
+        replica_path.to_string(),
+        turso_url.to_string(),
+        turso_token.to_string(),
+    )
+    .build()
+    .await
+    .map_err(|e| e.to_string())?;
     let conn = db.connect().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = ON;", ())
         .await
         .map_err(|e| e.to_string())?;
 
-    // Sync inicial com timeout antes de devolver o controle ao frontend.
-    // Clona o Arc para sincronizar FORA do lock (padrão de todo db_sync).
     let db = Arc::new(db);
-    let synced = matches!(
-        tokio::time::timeout(Duration::from_secs(20), db.sync()).await,
-        Ok(Ok(_))
-    );
+    // Sync com timeout. Se falhar por estado corrompido, propaga o erro para o
+    // chamador (auto-cura). Se falhar por rede/timeout, segue offline (false).
+    let synced = match tokio::time::timeout(Duration::from_secs(20), db.sync()).await {
+        Ok(Ok(_)) => true,
+        Ok(Err(e)) if is_corrupt_local_state(&e.to_string()) => {
+            return Err(e.to_string());
+        }
+        _ => false,
+    };
 
-    *state.db.lock().await = Some(Arc::clone(&db));
-    *state.conn.lock().await = Some(conn);
-    Ok(synced)
+    Ok((db, conn, synced))
 }
 
 #[tauri::command]
@@ -199,10 +270,8 @@ pub async fn db_reset_replica(
         *state.db.lock().await = None;
     }
 
-    // 2. Apaga réplica + WAL/SHM
-    for suffix in &["", "-wal", "-shm"] {
-        let _ = std::fs::remove_file(format!("{}{}", replica_path, suffix));
-    }
+    // 2. Apaga a réplica e todos os arquivos auxiliares do libsql.
+    clean_replica_files(&replica_path);
 
     // 3. build() faz rede (busca frame inicial do Turso), precisa de timeout
     let build_result = tokio::time::timeout(
