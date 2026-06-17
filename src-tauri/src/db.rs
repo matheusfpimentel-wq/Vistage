@@ -10,22 +10,26 @@ use std::time::{Duration, Instant};
 use tauri::State;
 use tokio::sync::Mutex;
 
+// Database é guardado dentro de um Arc para que possamos clonar a referência
+// e soltar o mutex ANTES de chamar db.sync() — que pode demorar ou travar.
+// Sem o Arc, seria necessário take() que cria uma janela onde state.db = None
+// e qualquer db_select/db_execute falharia com "banco não inicializado".
 #[derive(Default)]
 pub struct DbState {
-    db: Arc<Mutex<Option<libsql::Database>>>,
+    db: Arc<Mutex<Option<Arc<libsql::Database>>>>,
     conn: Arc<Mutex<Option<libsql::Connection>>>,
 }
 
 /// Sync best-effort com teto de tempo, para rodar antes de fechar o app sem
 /// travar o fechamento quando offline.
 pub async fn sync_blocking(state: &DbState, timeout_secs: u64) {
-    // Tira o db do mutex (take), solta o lock, sincroniza, devolve.
-    // Sem isso o mutex fica preso durante db.sync() e bloqueia todos os outros
-    // comandos que precisam do mesmo lock (reset, diagnostics, execute).
-    let db = { state.db.lock().await.take() };
+    // Clona o Arc (barato), solta o mutex, sincroniza sem bloquear nada.
+    let db = {
+        let guard = state.db.lock().await;
+        guard.as_ref().map(Arc::clone)
+    };
     if let Some(db) = db {
         let _ = tokio::time::timeout(Duration::from_secs(timeout_secs), db.sync()).await;
-        *state.db.lock().await = Some(db);
     }
 }
 
@@ -65,11 +69,9 @@ fn params_from(json: &[serde_json::Value]) -> Vec<libsql::Value> {
     json.iter().map(json_to_libsql).collect()
 }
 
-/// Abre o banco local com capacidade de sync ao Turso. build() não faz rede
-/// (não setamos sync_interval), então a abertura é instantânea e funciona
-/// offline. O sync inicial é aguardado (com timeout) antes de retornar, para o
-/// app não abrir sobre um snapshot local desatualizado. Retorna `true` se
+/// Abre o banco local com capacidade de sync ao Turso. Retorna `true` se
 /// sincronizou com o Turso, `false` se seguiu em modo offline.
+/// Se o banco já estiver aberto (reconectar), fecha o anterior limpo antes.
 #[tauri::command]
 pub async fn db_init(
     state: State<'_, DbState>,
@@ -77,6 +79,13 @@ pub async fn db_init(
     turso_url: String,
     turso_token: String,
 ) -> Result<bool, String> {
+    // Se já existe uma conexão aberta (ex: botão "Reconectar"), fecha-a primeiro
+    // para não criar dois handles no mesmo arquivo.
+    {
+        *state.conn.lock().await = None;
+        *state.db.lock().await = None;
+    }
+
     let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
         .build()
         .await
@@ -86,20 +95,15 @@ pub async fn db_init(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Sync inicial AGUARDADO (com timeout) ANTES de devolver o controle ao
-    // frontend. Sem isso, o app abria lendo a réplica local que ainda não tinha
-    // puxado o estado mais recente do Turso — e a UI renderizava vazia (ex.:
-    // "todas as GIGs e aulas sumiram" ao logar em outra máquina). Se o sync
-    // falhar/expirar (offline ou token), seguimos em modo offline com o que há
-    // localmente; `db_sync` periódico tenta de novo. Retorna se sincronizou,
-    // para o frontend poder avisar quando estiver mostrando dados possivelmente
-    // desatualizados.
+    // Sync inicial com timeout antes de devolver o controle ao frontend.
+    // Clona o Arc para sincronizar FORA do lock (padrão de todo db_sync).
+    let db = Arc::new(db);
     let synced = matches!(
         tokio::time::timeout(Duration::from_secs(20), db.sync()).await,
         Ok(Ok(_))
     );
 
-    *state.db.lock().await = Some(db);
+    *state.db.lock().await = Some(Arc::clone(&db));
     *state.conn.lock().await = Some(conn);
     Ok(synced)
 }
@@ -164,29 +168,24 @@ pub async fn db_execute(
 }
 
 /// Empurra escritas locais para o Turso e puxa mudanças remotas.
-/// CRÍTICO: clona o Database e solta o mutex ANTES da chamada de rede — sem
-/// isso o lock fica preso enquanto db.sync() trava (sem rede), bloqueando
-/// TODOS os outros comandos (reset, diagnostics, execute) que precisam do
-/// mesmo mutex. Com o clone o mutex é liberado imediatamente e os outros
-/// comandos podem prosseguir mesmo que o sync esteja em andamento.
+/// Clona o Arc<Database> e solta o mutex antes da chamada de rede — db_select
+/// e db_execute (que usam state.conn, mutex diferente) continuam funcionando
+/// normalmente enquanto o sync roda em paralelo.
 #[tauri::command]
 pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
-    // take() retira o db do Option e solta o mutex imediatamente — sync() pode
-    // demorar ou travar sem segurar o lock, então outros comandos não bloqueiam.
-    let db = state.db.lock().await.take().ok_or("banco não inicializado")?;
-    let result = tokio::time::timeout(Duration::from_secs(20), db.sync()).await;
-    *state.db.lock().await = Some(db); // sempre devolve
-    result
+    let db = {
+        let guard = state.db.lock().await;
+        guard.as_ref().ok_or("banco não inicializado").map(Arc::clone)?
+    }; // mutex liberado aqui
+    tokio::time::timeout(Duration::from_secs(20), db.sync())
+        .await
         .map_err(|_| "sync expirou (20s)".to_string())?
         .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 /// Apaga o arquivo de réplica local e reabre do Turso do zero.
-/// Resolve casos onde a réplica local está corrompida ou dessincronizada.
-/// CRÍTICO: sempre restaura uma conexão funcional no state, mesmo se o sync
-/// falhar/expirar — assim o app nunca fica bricado (sem conexão). Se o sync não
-/// completar, retorna Err com mensagem, mas a réplica (vazia) já está conectada.
+/// Sempre restaura uma conexão funcional no state, mesmo se o sync falhar.
 #[tauri::command]
 pub async fn db_reset_replica(
     state: State<'_, DbState>,
@@ -194,55 +193,46 @@ pub async fn db_reset_replica(
     turso_url: String,
     turso_token: String,
 ) -> Result<bool, String> {
-    // 1. Fecha a conexão e o banco atual, liberando o lock do arquivo
+    // 1. Fecha conexão e banco atual
     {
         *state.conn.lock().await = None;
         *state.db.lock().await = None;
     }
 
-    // 2. Apaga o arquivo de réplica (e o WAL/SHM se existirem)
+    // 2. Apaga réplica + WAL/SHM
     for suffix in &["", "-wal", "-shm"] {
-        let path = format!("{}{}", replica_path, suffix);
-        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(format!("{}{}", replica_path, suffix));
     }
 
-    // 3. Reabre. build() faz uma chamada de rede para o Turso (busca o frame
-    //    inicial), então precisa de timeout. Se expirar, o app fica sem conexão
-    //    até um próximo db_init — por isso restauramos um db vazio mesmo assim.
+    // 3. build() faz rede (busca frame inicial do Turso), precisa de timeout
     let build_result = tokio::time::timeout(
-        Duration::from_secs(30),
+        Duration::from_secs(45),
         libsql::Builder::new_synced_database(replica_path, turso_url, turso_token).build(),
     )
     .await;
 
     let db = match build_result {
-        Ok(Ok(d)) => d,
+        Ok(Ok(d)) => Arc::new(d),
         Ok(Err(e)) => return Err(format!("Falha ao abrir banco: {}", e)),
-        Err(_) => return Err("Timeout ao abrir banco (>30s). Verifique a internet e tente novamente.".to_string()),
+        Err(_) => return Err("Timeout ao abrir banco (>45s). Verifique a internet.".to_string()),
     };
 
     let conn = db.connect().map_err(|e| e.to_string())?;
     let _ = conn.execute("PRAGMA foreign_keys = ON;", ()).await;
 
-    // 4. Sync com timeout. db ainda não está no state, então não precisa de
-    //    take() aqui — mas sync() é &self então db ainda é usável depois.
-    let sync_outcome = tokio::time::timeout(Duration::from_secs(30), db.sync()).await;
-
-    // 5. SEMPRE restaura a conexão funcional (mesmo réplica vazia/parcial)
-    *state.db.lock().await = Some(db);
+    // 4. Sync — clona Arc, restaura state ANTES de sincronizar para que outros
+    //    comandos não falhem durante o download (que pode levar vários segundos)
+    *state.db.lock().await = Some(Arc::clone(&db));
     *state.conn.lock().await = Some(conn);
 
-    match sync_outcome {
+    match tokio::time::timeout(Duration::from_secs(45), db.sync()).await {
         Ok(Ok(_)) => Ok(true),
         Ok(Err(e)) => Err(format!("Falha ao baixar do Turso: {}", e)),
-        Err(_) => Err("Timeout ao baixar do Turso (>30s). Verifique a internet e tente de novo — o app continua funcional com o que foi baixado até agora.".to_string()),
+        Err(_) => Err("Timeout ao baixar do Turso (>45s). O app está funcional com os dados já baixados — tente sincronizar novamente.".to_string()),
     }
 }
 
-/// Diagnóstico RÁPIDO e seguro: nunca trava (timeout curto em tudo) e NÃO faz
-/// sync (que é a operação que pode travar). Só lê: arquivo local, contagem na
-/// réplica local, e contagem DIRETO no Turso (bounded), para distinguir
-/// "Turso vazio" de "réplica não baixou".
+/// Diagnóstico rápido e seguro: nunca trava (timeouts em tudo), não faz sync.
 #[tauri::command]
 pub async fn db_diagnostics(
     state: State<'_, DbState>,
@@ -272,12 +262,10 @@ pub async fn db_diagnostics(
         serde_json::Value::Object(m)
     };
     out.insert("replica_file".into(), replica_meta);
-
     out.insert("turso_url".into(), turso_url.clone().into());
     out.insert("turso_token_len".into(), turso_token.len().into());
 
-    // ── 2. Contagem na réplica LOCAL (não faz rede, mas com timeout por via das
-    //       dúvidas — e sem segurar o lock além do necessário) ────────────────
+    // ── 2. Contagem na réplica LOCAL ─────────────────────────────────────────
     let tables = [
         "gigs", "students", "classes", "content", "tracks",
         "contacts", "tasks", "finance_transactions", "parties", "_migrations",
@@ -288,7 +276,7 @@ pub async fn db_diagnostics(
         if let Some(conn) = guard.as_ref() {
             for table in &tables {
                 let sql = format!("SELECT COUNT(*) as n FROM {}", table);
-                let q = tokio::time::timeout(Duration::from_secs(5), conn.query(&sql, ())).await;
+                let q = tokio::time::timeout(Duration::from_secs(8), conn.query(&sql, ())).await;
                 match q {
                     Ok(Ok(mut rows)) => {
                         let n: i64 = match tokio::time::timeout(Duration::from_secs(5), rows.next()).await {
@@ -311,7 +299,7 @@ pub async fn db_diagnostics(
     }
     out.insert("row_counts".into(), serde_json::Value::Object(counts));
 
-    // ── 3. Conexão DIRETA ao Turso — tudo dentro de UM timeout de 12s ────────
+    // ── 3. Conexão DIRETA ao Turso ───────────────────────────────────────────
     let t0 = Instant::now();
     let remote_fut = async {
         let remote_db = libsql::Builder::new_remote(turso_url.clone(), turso_token.clone())
@@ -338,10 +326,10 @@ pub async fn db_diagnostics(
         Ok::<serde_json::Map<String, serde_json::Value>, String>(remote_counts)
     };
 
-    let remote_test = match tokio::time::timeout(Duration::from_secs(12), remote_fut).await {
+    let remote_test = match tokio::time::timeout(Duration::from_secs(15), remote_fut).await {
         Ok(Ok(rc)) => serde_json::json!({ "ok": true, "ms": t0.elapsed().as_millis(), "row_counts": rc }),
         Ok(Err(e)) => serde_json::json!({ "ok": false, "error": e }),
-        Err(_) => serde_json::json!({ "ok": false, "error": "timeout >12s ao conectar no Turso (rede ou URL/token)" }),
+        Err(_) => serde_json::json!({ "ok": false, "error": "timeout >15s ao conectar no Turso" }),
     };
     out.insert("turso_direct".into(), remote_test);
 
@@ -349,20 +337,22 @@ pub async fn db_diagnostics(
 }
 
 /// Migração one-shot do .db SQLite legado para o Turso.
-/// Lê o arquivo legado com new_local; escreve no Turso via conn (já configurada).
+/// Libera os locks ANTES do loop de INSERT (operação longa) para não bloquear
+/// db_select/db_execute durante a migração.
 #[tauri::command]
 pub async fn db_migrate_from_sqlite(
     state: State<'_, DbState>,
     sqlite_path: String,
 ) -> Result<Vec<(String, u64)>, String> {
-    let db_guard = state.db.lock().await;
-    let db = db_guard.as_ref().ok_or("banco não inicializado")?;
-    let conn_guard = state.conn.lock().await;
-    let conn = conn_guard.as_ref().ok_or("banco não inicializado")?;
+    // Tira conn do mutex e solta o lock — o loop de INSERT pode levar segundos
+    // e não deve bloquear outros leitores. db_select/db_execute falharão durante
+    // a migração (conn = None), mas a migração é uma ação explícita do usuário.
+    let conn = state.conn.lock().await.take().ok_or("banco não inicializado")?;
+    let db = {
+        let guard = state.db.lock().await;
+        guard.as_ref().ok_or("banco não inicializado").map(Arc::clone)?
+    }; // lock do db liberado
 
-    // Desliga a checagem de FK durante a cópia: inserimos as tabelas em ordem
-    // alfabética, então uma linha-filha pode entrar antes da linha-pai. Sem isso
-    // o SQLite recusa com "FOREIGN KEY constraint failed".
     conn.execute("PRAGMA foreign_keys = OFF;", ())
         .await
         .map_err(|e| e.to_string())?;
@@ -451,7 +441,15 @@ pub async fn db_migrate_from_sqlite(
         .await
         .map_err(|e| e.to_string())?;
 
-    // Empurra tudo o que foi migrado para o Turso.
-    db.sync().await.map_err(|e| e.to_string())?;
+    // Restaura conn antes de sincronizar — sync é longo e conn deve estar
+    // disponível para o app durante o processo.
+    *state.conn.lock().await = Some(conn);
+
+    // Sync via Arc clonado, sem segurar nenhum lock.
+    tokio::time::timeout(Duration::from_secs(60), db.sync())
+        .await
+        .map_err(|_| "sync expirou (60s) após migração".to_string())?
+        .map_err(|e| e.to_string())?;
+
     Ok(report)
 }

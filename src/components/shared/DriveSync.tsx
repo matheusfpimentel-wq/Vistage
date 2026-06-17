@@ -29,8 +29,11 @@ export function DriveSync() {
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failures = useRef(0);
   const warned = useRef(false);
+  const syncRunning = useRef(false); // evita syncs simultâneos (cada invoke pode demorar 20s)
 
   const runSync = async () => {
+    if (syncRunning.current) return; // já tem um sync em andamento
+    syncRunning.current = true;
     try {
       await syncDatabase();
       lastSync.current = Date.now();
@@ -50,6 +53,8 @@ export function DriveSync() {
         );
       }
       window.dispatchEvent(new CustomEvent("vistage:sync-result", { detail: { ok: false } }));
+    } finally {
+      syncRunning.current = false;
     }
   };
 

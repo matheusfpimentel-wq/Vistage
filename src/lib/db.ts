@@ -28,17 +28,22 @@ export function getDb() {
   return dbProxy;
 }
 
+let _initInProgress = false;
+
 export async function initDatabase(
   replicaPath: string,
   tursoUrl: string,
   tursoToken: string
 ): Promise<{ synced: boolean }> {
-  // db_init aguarda o sync inicial com o Turso (com timeout) e retorna se
-  // conseguiu sincronizar. Só depois rodamos as migrations, já sobre o estado
-  // mais recente puxado da nuvem.
-  const synced = await invoke<boolean>("db_init", { replicaPath, tursoUrl, tursoToken });
-  await runMigrations(dbProxy);
-  return { synced };
+  if (_initInProgress) throw new Error("initDatabase já está em andamento — aguarde.");
+  _initInProgress = true;
+  try {
+    const synced = await invoke<boolean>("db_init", { replicaPath, tursoUrl, tursoToken });
+    await runMigrations(dbProxy);
+    return { synced };
+  } finally {
+    _initInProgress = false;
+  }
 }
 
 export async function syncDatabase(): Promise<void> {
