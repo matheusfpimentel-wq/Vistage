@@ -32,6 +32,7 @@ import { deleteSupplier, listSuppliers, type SupplierFilters } from "./api";
 import { SUPPLIER_CATEGORIES, type Supplier, type SupplierCategory } from "./types";
 import { SupplierForm } from "./forms/SupplierForm";
 import { SupplierDetail } from "./SupplierDetail";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 
 type ViewMode = "cards" | "list";
 
@@ -204,8 +205,9 @@ export function SuppliersPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {s.category && <Badge variant="secondary">{s.category}</Badge>}
+                  <PendingTasksBadge entityType="supplier" entityId={s.id} />
                 </div>
                 <h3 className="font-semibold leading-tight">{s.name}</h3>
                 <StarRating rating={s.rating} />
@@ -262,7 +264,12 @@ export function SuppliersPage() {
                   className="border-b last:border-0 hover:bg-muted/20 cursor-pointer"
                   onClick={() => openDetail(s)}
                 >
-                  <td className="px-4 py-3 font-medium">{s.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      {s.name}
+                      <PendingTasksBadge entityType="supplier" entityId={s.id} />
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {s.category ?? "—"}
                   </td>

@@ -41,6 +41,7 @@ import { StudentForm } from "./forms/StudentForm";
 import { PackageForm } from "./forms/PackageForm";
 import { ClassForm } from "./forms/ClassForm";
 import { StudentDetail } from "./forms/StudentDetail";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import {
   deleteClass,
   deletePackage,
@@ -433,7 +434,12 @@ export function ClassesPage() {
                         setDetailOpen(true);
                       }}
                     >
-                      <td className="px-3 py-2 font-medium">{s.name}</td>
+                      <td className="px-3 py-2 font-medium">
+                        <div className="flex items-center gap-2">
+                          {s.name}
+                          <PendingTasksBadge entityType="student" entityId={s.id} />
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {s.acquisition ?? "—"}
                       </td>

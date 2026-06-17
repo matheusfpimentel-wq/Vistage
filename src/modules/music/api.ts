@@ -408,6 +408,43 @@ export async function advanceStage(
   await ensureStageTask(track, next);
 }
 
+/**
+ * Caminho inverso do espelhamento: quando o usuário conclui a tarefa de etapa
+ * de uma track (ex.: "Mixar X"), avança a track sozinha para o próximo stage.
+ *
+ * Só dispara quando o título da tarefa concluída bate exatamente com o verbo
+ * do stage atual da track — assim tarefas avulsas vinculadas à mesma track não
+ * disparam avanço, e o loop com moveTrackToStage/writeStage (que concluem a
+ * tarefa-mãe com outro título) fica naturalmente quebrado.
+ */
+export async function advanceTrackForCompletedStageTask(
+  taskId: number
+): Promise<void> {
+  const { listTaskLinks } = await import("@/modules/tasks/api");
+  const links = await listTaskLinks(taskId);
+  const trackLink = links.find((l) => l.entity_type === "track");
+  if (!trackLink) return;
+
+  const track = await getTrack(trackLink.entity_id);
+  if (!track || track.standby) return;
+
+  const verb = STAGE_TASK_VERBS[track.current_stage];
+  if (!verb) return; // stage sem tarefa automática → nada a avançar
+
+  const trackName = track.title_final ?? track.title_working;
+  const expected = `${verb} ${trackName}`;
+
+  const db = getDb();
+  const rows = await db.select<{ title: string }[]>(
+    "SELECT title FROM tasks WHERE id = $1",
+    [taskId]
+  );
+  if (rows[0]?.title !== expected) return;
+  if (!nextStage(track.current_stage)) return;
+
+  await advanceStage(track);
+}
+
 /** Volta um stage (sem gate). */
 export async function regressStage(track: Track): Promise<void> {
   const prev = prevStage(track.current_stage);

@@ -171,6 +171,18 @@ export async function updateTask(input: TaskUpdateInput): Promise<void> {
     values
   );
   emitDataChanged();
+  // Caminho inverso: concluir a tarefa de etapa de uma track ("Mixar X") avança
+  // a track para o próximo stage automaticamente.
+  if (rest.status === "Concluída" && id != null) {
+    try {
+      const { advanceTrackForCompletedStageTask } = await import(
+        "@/modules/music/api"
+      );
+      await advanceTrackForCompletedStageTask(id);
+    } catch {
+      /* não interrompe a conclusão da tarefa */
+    }
+  }
 }
 
 export async function deleteTask(id: number): Promise<void> {

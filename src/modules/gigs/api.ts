@@ -183,6 +183,9 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         [prepTaskId]
       ).catch(() => {});
     }
+    // Espelhamento: conclui as demais tarefas de preparação vinculadas à GIG,
+    // exceto a de cobrança (payment_task_id), que sobrevive até o cachê entrar.
+    await syncGigLinkedTasksStatus(id, "Concluída", { keepPaymentTask: true }).catch(() => {});
     // Auto-create debrief task (idempotent)
     try {
       const gigRow = rows[0];
@@ -214,6 +217,10 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     } catch {
       // never crash the main update
     }
+  }
+  // Espelhamento: GIG cancelada → cancela todas as tarefas vinculadas ainda abertas.
+  if ("status" in rest && rest.status === "Cancelada") {
+    await syncGigLinkedTasksStatus(id, "Cancelada").catch(() => {});
   }
   // Mantém o Financeiro sincronizado quando payment_status ou cache_amount mudam.
   // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se
@@ -318,6 +325,36 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       await updateTask(taskUpdate);
     }
   }
+  emitDataChanged();
+}
+
+/**
+ * Espelha o estado da GIG nas tarefas vinculadas por gig_id.
+ * Só mexe em tarefas ainda abertas — não ressuscita concluídas/canceladas.
+ * Com `keepPaymentTask`, preserva a tarefa de cobrança (payment_task_id),
+ * que precisa continuar aberta até o cachê ser efetivamente recebido.
+ */
+async function syncGigLinkedTasksStatus(
+  gigId: number,
+  status: "Concluída" | "Cancelada",
+  opts?: { keepPaymentTask?: boolean }
+): Promise<void> {
+  const db = getDb();
+  let exceptId: number | null = null;
+  if (opts?.keepPaymentTask) {
+    const rows = await db.select<{ payment_task_id: number | null }[]>(
+      "SELECT payment_task_id FROM gigs WHERE id = $1",
+      [gigId]
+    );
+    exceptId = rows[0]?.payment_task_id ?? null;
+  }
+  await db.execute(
+    `UPDATE tasks SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE gig_id = $2
+         AND status NOT IN ('Concluída', 'Cancelada')
+         AND ($3 IS NULL OR id <> $3)`,
+    [status, gigId, exceptId]
+  );
   emitDataChanged();
 }
 
