@@ -678,6 +678,13 @@ pub async fn db_push_to_turso(
     let mut report: Vec<(String, u64)> = Vec::new();
 
     for table in &tables {
+        // Segredos nunca vão para a nuvem: a tabela gcal_auth (tokens do
+        // Calendar) e app_settings (que contém client_secret/refresh_token do
+        // Drive e o token do Todoist). Ficam só na réplica local de cada
+        // dispositivo — settings são, na prática, preferências por máquina.
+        if table == "gcal_auth" || table == "app_settings" {
+            continue;
+        }
         // Colunas da tabela local
         let local_cols: Vec<String> = {
             let guard = state.conn.lock().await;

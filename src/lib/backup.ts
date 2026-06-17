@@ -200,11 +200,34 @@ async function restoreFiles(
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
  * Inclui os arquivos de anexo como base64 (v2+) — fotos, flyers, etc.
  */
+/**
+ * Chaves de app_settings que guardam segredos (client_secret e tokens OAuth do
+ * Google/Drive, token do Todoist). NUNCA entram no backup/.vistage nem no push
+ * pro Turso — senão vazariam em texto puro no arquivo ou na nuvem.
+ */
+function isSecretSettingKey(key: unknown): boolean {
+  return (
+    typeof key === "string" &&
+    (key.includes("client_secret") ||
+      key.includes("access_token") ||
+      key.includes("refresh_token") ||
+      key === "todoist_token")
+  );
+}
+
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
-    tables[t] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+    if (t === "gcal_auth") {
+      tables[t] = []; // tokens do Google Calendar nunca entram no backup
+      continue;
+    }
+    let rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
+    if (t === "app_settings") {
+      rows = rows.filter((r) => !isSecretSettingKey(r.key));
+    }
+    tables[t] = rows;
   }
   const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
   let files: Record<string, string> = {};
