@@ -164,7 +164,6 @@ export function SettingsPage() {
         <TabsTrigger value="salvamento">Salvamento</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
-        <TabsTrigger value="atalhos">Atalhos</TabsTrigger>
       </TabsList>
 
       {/* ─── Salvamento ──────────────────────────────────────── */}
@@ -257,6 +256,19 @@ export function SettingsPage() {
       {/* ─── Personalização ──────────────────────────────────── */}
       <TabsContent value="personalizacao" className="space-y-6">
         <MenuOrderSettings />
+
+        <ShortcutSettings />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Outras teclas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Shortcut keys={["Ctrl/Cmd", "S"]} label="Salvar documento (.vistage)" />
+            <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
+            <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -353,21 +365,6 @@ export function SettingsPage() {
         )}
       </TabsContent>
 
-      {/* ─── Atalhos ──────────────────────────────────────────── */}
-      <TabsContent value="atalhos" className="space-y-6">
-        <ShortcutSettings />
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Outras teclas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Shortcut keys={["Ctrl/Cmd", "S"]} label="Salvar documento (.vistage)" />
-            <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
-            <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
-          </CardContent>
-        </Card>
-      </TabsContent>
     </Tabs>
   );
 }

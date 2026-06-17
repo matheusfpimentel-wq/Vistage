@@ -163,10 +163,6 @@ export function Sidebar({
           );
         })}
 
-        {/* Configurações fixo no fim. */}
-        <div className="mt-4 space-y-0.5 border-t pt-3">
-          {nav.filter((i) => i.to === "/configuracoes").map(renderLink)}
-        </div>
       </nav>
 
       {onCollapse && (

@@ -1,5 +1,4 @@
 import {
-  Award,
   Building2,
   CalendarRange,
   CheckSquare,
@@ -14,7 +13,6 @@ import {
   Music,
   Palette,
   PartyPopper,
-  Settings,
   Sparkles,
   Store,
   Target,
@@ -72,11 +70,9 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Produtividade" },
   { to: "/objetivos", label: "OKRs", icon: Target, group: "Produtividade" },
   { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Produtividade" },
-  { to: "/carreira", label: "Carreira em Números", icon: Award, group: "Produtividade" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Produtividade" },
   { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Produtividade" },
 
-  { to: "/configuracoes", label: "Configurações", icon: Settings, fixed: true },
 ];
 
 // --- persisted settings keys ---

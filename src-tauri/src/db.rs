@@ -679,7 +679,7 @@ pub async fn db_push_to_turso(
 
     for table in &tables {
         // Colunas da tabela local
-        let cols: Vec<String> = {
+        let local_cols: Vec<String> = {
             let guard = state.conn.lock().await;
             let conn = guard.as_ref().ok_or("banco não inicializado")?;
             let mut rows = conn
@@ -693,6 +693,44 @@ pub async fn db_push_to_turso(
             }
             names
         };
+        if local_cols.is_empty() {
+            continue;
+        }
+
+        // Colunas da tabela no Turso — podem divergir se migrações locais
+        // ainda não foram aplicadas no Turso. Usamos apenas a interseção para
+        // evitar "table X has no column named Y".
+        let remote_cols: Vec<String> = {
+            match tokio::time::timeout(
+                Duration::from_secs(10),
+                remote.query(&format!("PRAGMA table_info(\"{}\")", table), ()),
+            )
+            .await
+            {
+                Ok(Ok(mut rows)) => {
+                    let mut names = Vec::new();
+                    while let Some(row) = rows.next().await.map_err(|e| e.to_string())? {
+                        let col_name: String = row.get(1).map_err(|e| e.to_string())?;
+                        names.push(col_name);
+                    }
+                    names
+                }
+                // Se a tabela não existe no Turso ou timeout, pula esta tabela
+                _ => continue,
+            }
+        };
+        if remote_cols.is_empty() {
+            continue;
+        }
+
+        // Interseção: colunas presentes em ambos os lados
+        let remote_set: std::collections::HashSet<&str> =
+            remote_cols.iter().map(|s| s.as_str()).collect();
+        let cols: Vec<String> = local_cols
+            .iter()
+            .filter(|c| remote_set.contains(c.as_str()))
+            .cloned()
+            .collect();
         if cols.is_empty() {
             continue;
         }

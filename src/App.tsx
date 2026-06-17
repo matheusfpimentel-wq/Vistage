@@ -10,6 +10,7 @@ import { CommandPalette } from "@/components/shared/CommandPalette";
 import { DriveSync } from "@/components/shared/DriveSync";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
+import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -344,6 +345,7 @@ function RoutedApp() {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
       <DriveSync />
+      <OpenDocumentDialog />
     </>
   );
 }
