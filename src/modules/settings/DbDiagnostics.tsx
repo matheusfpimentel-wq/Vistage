@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { appDataDir } from "@tauri-apps/api/path";
-import { AlertCircle, CheckCircle2, Loader2, Search, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Search, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useConfigStore } from "@/lib/config";
+import { toast } from "@/components/ui/toaster";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 
 type DiagResult = {
@@ -24,8 +25,23 @@ type DiagResult = {
 export function DbDiagnostics() {
   const { config } = useConfigStore();
   const [running, setRunning] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<DiagResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      // invoke direto (não syncDatabase, que engole erros) para surfacar falha de push
+      await invoke("db_sync");
+      toast.success("Sync concluído. Rodando diagnóstico de novo…");
+      await run();
+    } catch (e) {
+      toast.error(`Falha no sync: ${String(e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function run() {
     setRunning(true);
@@ -63,14 +79,24 @@ export function DbDiagnostics() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Button onClick={run} disabled={running} variant="outline">
-          {running ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Search className="h-4 w-4" />
-          )}
-          {running ? "Investigando…" : "Rodar diagnóstico"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={run} disabled={running || syncing} variant="outline">
+            {running ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            {running ? "Investigando…" : "Rodar diagnóstico"}
+          </Button>
+          <Button onClick={syncNow} disabled={running || syncing} variant="outline">
+            {syncing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {syncing ? "Sincronizando…" : "Sincronizar agora"}
+          </Button>
+        </div>
 
         {error && (
           <p className="text-sm text-destructive font-mono">{error}</p>
@@ -202,7 +228,29 @@ function Diagnosis({ result }: { result: DiagResult }) {
     if (typeof localGigs === "number" && localGigs === 0) {
       lines.push({ icon: "err", msg: "Mas a réplica local está VAZIA. O download não está acontecendo. Use 'Baixar tudo da nuvem' para recriar a réplica do zero." });
     } else if (typeof localGigs === "number" && localGigs > 0) {
-      lines.push({ icon: "ok", msg: `A réplica local tem ${localGigs} GIGs — está sincronizada.` });
+      const localMig = result.row_counts["_migrations"] as number | undefined;
+      const tursoMig = result.turso_direct.row_counts?.["_migrations"] as number | undefined;
+      const localAhead = typeof localMig === "number" && typeof tursoMig === "number" && localMig > tursoMig;
+      const tursoHasMoreGigs = directGigs > localGigs;
+
+      if (localAhead && tursoHasMoreGigs) {
+        // Divergência bidirecional: cada lado tem escritas que o outro não tem.
+        lines.push({
+          icon: "err",
+          msg:
+            `DIVERGÊNCIA: a réplica local está À FRENTE no schema (_migrations ${localMig} vs ${tursoMig} na nuvem) ` +
+            `mas ATRÁS nos dados (${localGigs} vs ${directGigs} GIGs). Os dois bancos forkaram — ` +
+            `esta máquina tem escritas que nunca foram empurradas pro Turso, e o Turso tem GIGs que nunca foram puxadas. ` +
+            `NÃO use "Baixar tudo da nuvem" (perderia o que só existe aqui). Use "Sincronizar agora" primeiro para empurrar as escritas locais.`,
+        });
+      } else if (localGigs !== directGigs) {
+        lines.push({
+          icon: "warn",
+          msg: `A réplica local tem ${localGigs} GIGs e o Turso ${directGigs} — ainda não estão idênticos. Rode "Sincronizar agora" e confira de novo.`,
+        });
+      } else {
+        lines.push({ icon: "ok", msg: `A réplica local tem ${localGigs} GIGs — está sincronizada.` });
+      }
     }
   }
 
