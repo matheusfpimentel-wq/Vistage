@@ -58,13 +58,14 @@ import {
   listFanInteractionCounts,
   listFans,
   loadFanUpgradeRules,
+  recomputeAllFanLevels,
   removeFanGroupMember,
   saveFanUpgradeRules,
   topFansByPresence,
   type FanFilters,
   type FanStats,
 } from "./api";
-import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanUpgradeRules } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
@@ -287,7 +288,7 @@ export function FansPage() {
               Lista
             </button>
           </div>
-          <Button variant="outline" size="icon" aria-label="Configurar upgrade automático" onClick={() => setUpgradeRulesOpen(true)}>
+          <Button variant="outline" size="icon" aria-label="Configurar pontuação de fãs" onClick={() => setUpgradeRulesOpen(true)}>
             <Settings2 className="h-4 w-4" />
           </Button>
           <Button onClick={openCreate}>
@@ -736,67 +737,91 @@ function FanGroupsPanel({ fans }: { fans: Fan[] }) {
   );
 }
 
-type CriteriaState = {
-  minInteractions: string;
-  minPresences: string;
-  minFeedbacks: string;
-  minDaysSinceCreation: string;
+type ScoringState = {
+  weightPresenca: string;
+  weightFeedback: string;
+  weightInteracao: string;
+  weightGig: string;
+  halfLifeDays: string;
+  thQuaseFa: string;
+  thFa: string;
+  thSuperfa: string;
+  thEmbaixador: string;
 };
 
-const emptyCriteria = (): CriteriaState => ({
-  minInteractions: "",
-  minPresences: "",
-  minFeedbacks: "",
-  minDaysSinceCreation: "",
+const emptyScoring = (): ScoringState => ({
+  weightPresenca: "",
+  weightFeedback: "",
+  weightInteracao: "",
+  weightGig: "",
+  halfLifeDays: "",
+  thQuaseFa: "",
+  thFa: "",
+  thSuperfa: "",
+  thEmbaixador: "",
 });
 
-function parseCriteria(s: CriteriaState) {
-  const result: import("./types").FanLevelCriteria = {};
-  if (s.minInteractions.trim()) result.minInteractions = Number(s.minInteractions);
-  if (s.minPresences.trim()) result.minPresences = Number(s.minPresences);
-  if (s.minFeedbacks.trim()) result.minFeedbacks = Number(s.minFeedbacks);
-  if (s.minDaysSinceCreation.trim()) result.minDaysSinceCreation = Number(s.minDaysSinceCreation);
-  return Object.keys(result).length ? result : undefined;
-}
-
-function criteriaFromRules(c?: import("./types").FanLevelCriteria): CriteriaState {
+function scoringToState(s?: FanScoringConfig): ScoringState {
+  const v = (n?: number) => (n != null ? String(n) : "");
   return {
-    minInteractions: c?.minInteractions != null ? String(c.minInteractions) : "",
-    minPresences: c?.minPresences != null ? String(c.minPresences) : "",
-    minFeedbacks: c?.minFeedbacks != null ? String(c.minFeedbacks) : "",
-    minDaysSinceCreation: c?.minDaysSinceCreation != null ? String(c.minDaysSinceCreation) : "",
+    weightPresenca: v(s?.weightPresenca),
+    weightFeedback: v(s?.weightFeedback),
+    weightInteracao: v(s?.weightInteracao),
+    weightGig: v(s?.weightGig),
+    halfLifeDays: v(s?.halfLifeDays),
+    thQuaseFa: v(s?.thresholds?.quaseFa),
+    thFa: v(s?.thresholds?.fa),
+    thSuperfa: v(s?.thresholds?.superfa),
+    thEmbaixador: v(s?.thresholds?.embaixador),
   };
 }
 
-function CriteriaFields({
-  state,
+function stateToScoring(s: ScoringState): FanScoringConfig {
+  const num = (x: string): number | undefined => {
+    const t = x.trim();
+    if (!t) return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const scoring: FanScoringConfig = {};
+  const wp = num(s.weightPresenca); if (wp != null) scoring.weightPresenca = wp;
+  const wf = num(s.weightFeedback); if (wf != null) scoring.weightFeedback = wf;
+  const wi = num(s.weightInteracao); if (wi != null) scoring.weightInteracao = wi;
+  const wg = num(s.weightGig); if (wg != null) scoring.weightGig = wg;
+  const hl = num(s.halfLifeDays); if (hl != null) scoring.halfLifeDays = hl;
+  const thresholds: FanScoreThresholds = {};
+  const tq = num(s.thQuaseFa); if (tq != null) thresholds.quaseFa = tq;
+  const tf = num(s.thFa); if (tf != null) thresholds.fa = tf;
+  const ts = num(s.thSuperfa); if (ts != null) thresholds.superfa = ts;
+  const te = num(s.thEmbaixador); if (te != null) thresholds.embaixador = te;
+  if (Object.keys(thresholds).length) scoring.thresholds = thresholds;
+  return scoring;
+}
+
+function ScoreField({
+  label,
+  value,
+  placeholder,
   onChange,
+  hint,
 }: {
-  state: CriteriaState;
-  onChange: (s: CriteriaState) => void;
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  hint?: string;
 }) {
-  function set(key: keyof CriteriaState) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
-      onChange({ ...state, [key]: e.target.value });
-  }
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Interações totais para promoção</label>
-        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minInteractions} onChange={set("minInteractions")} />
-      </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Presenças para promoção</label>
-        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minPresences} onChange={set("minPresences")} />
-      </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Feedbacks para promoção</label>
-        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minFeedbacks} onChange={set("minFeedbacks")} />
-      </div>
-      <div className="space-y-1">
-        <label className="text-sm font-medium">Dias como cadastrado para promoção</label>
-        <Input type="number" min={1} placeholder="Deixe vazio para ignorar" value={state.minDaysSinceCreation} onChange={set("minDaysSinceCreation")} />
-      </div>
+    <div className="space-y-1">
+      <label className="text-sm font-medium">{label}</label>
+      <Input
+        type="number"
+        min={0}
+        placeholder={`padrão: ${placeholder}`}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -808,32 +833,43 @@ function FanUpgradeRulesDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [toFa, setToFa] = useState<CriteriaState>(emptyCriteria());
-  const [toSuperfa, setToSuperfa] = useState<CriteriaState>(emptyCriteria());
-  const [downgradeInactiveDays, setDowngradeInactiveDays] = useState("");
+  const [s, setS] = useState<ScoringState>(emptyScoring());
   const [saving, setSaving] = useState(false);
+  const [recalcing, setRecalcing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    void loadFanUpgradeRules().then((r: FanUpgradeRules) => {
-      setToFa(criteriaFromRules(r.toFa));
-      setToSuperfa(criteriaFromRules(r.toSuperfa));
-      setDowngradeInactiveDays(r.downgradeInactiveDays != null ? String(r.downgradeInactiveDays) : "");
-    });
+    void loadFanUpgradeRules().then((r: FanUpgradeRules) => setS(scoringToState(r.scoring)));
   }, [open]);
+
+  const set = (key: keyof ScoringState) => (v: string) =>
+    setS((prev) => ({ ...prev, [key]: v }));
+
+  async function persist(): Promise<void> {
+    const current = await loadFanUpgradeRules();
+    await saveFanUpgradeRules({ ...current, scoring: stateToScoring(s) });
+  }
 
   async function handleSave() {
     setSaving(true);
     try {
-      const rules: FanUpgradeRules = {
-        toFa: parseCriteria(toFa),
-        toSuperfa: parseCriteria(toSuperfa),
-        downgradeInactiveDays: downgradeInactiveDays.trim() ? Number(downgradeInactiveDays) : null,
-      };
-      await saveFanUpgradeRules(rules);
+      await persist();
       onOpenChange(false);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRecalc() {
+    setRecalcing(true);
+    try {
+      await persist(); // recalcula já com os pesos atuais da tela
+      const changed = await recomputeAllFanLevels();
+      toast.success(changed > 0 ? `${changed} nível(is) atualizado(s)` : "Nenhum nível mudou");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setRecalcing(false);
     }
   }
 
@@ -841,34 +877,54 @@ function FanUpgradeRulesDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Upgrade automático de fãs</DialogTitle>
+          <DialogTitle>Pontuação de engajamento dos fãs</DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-2">
+          <p className="text-xs text-muted-foreground">
+            O nível de cada fã é calculado por uma pontuação que decai com o
+            tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
+            vazios usam o padrão.
+          </p>
+
           <div className="space-y-3">
-            <div className="text-sm font-semibold">Critérios para Fã <span className="font-normal text-muted-foreground">(Possível fã → Fã)</span></div>
-            <CriteriaFields state={toFa} onChange={setToFa} />
-          </div>
-          <div className="space-y-3">
-            <div className="text-sm font-semibold">Critérios para Superfã <span className="font-normal text-muted-foreground">(Fã → Superfã)</span></div>
-            <CriteriaFields state={toSuperfa} onChange={setToSuperfa} />
-          </div>
-          <div className="space-y-3">
-            <div className="text-sm font-semibold">Rebaixamento automático</div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Rebaixar após X dias sem interação</label>
-              <Input
-                type="number"
-                min={1}
-                placeholder="Deixe vazio para desativar"
-                value={downgradeInactiveDays}
-                onChange={(e) => setDowngradeInactiveDays(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">Deixe vazio para ignorar este critério.</p>
+            <div className="text-sm font-semibold">Pesos por sinal</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ScoreField label="Presença (interação)" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
+              <ScoreField label="Feedback" value={s.weightFeedback} placeholder="2" onChange={set("weightFeedback")} />
+              <ScoreField label="Interação simples" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
+              <ScoreField label="Presença em show (GIG)" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
             </div>
           </div>
-          <Button className="w-full" onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando…" : "Salvar"}
-          </Button>
+
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Decaimento</div>
+            <ScoreField
+              label="Meia-vida (dias)"
+              value={s.halfLifeDays}
+              placeholder="180"
+              onChange={set("halfLifeDays")}
+              hint="Um sinal com essa idade vale metade dos pontos."
+            />
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-semibold">Limiares (pontos para cada nível)</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ScoreField label="Quase fã" value={s.thQuaseFa} placeholder="2" onChange={set("thQuaseFa")} />
+              <ScoreField label="Fã" value={s.thFa} placeholder="5" onChange={set("thFa")} />
+              <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
+              <ScoreField label="Embaixador" value={s.thEmbaixador} placeholder="25" onChange={set("thEmbaixador")} />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={handleRecalc} disabled={recalcing || saving}>
+              {recalcing ? "Recalculando…" : "Recalcular todos agora"}
+            </Button>
+            <Button className="flex-1" onClick={handleSave} disabled={saving || recalcing}>
+              {saving ? "Salvando…" : "Salvar"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
