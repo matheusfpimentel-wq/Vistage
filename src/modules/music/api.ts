@@ -310,6 +310,8 @@ export async function deleteTrack(id: number): Promise<void> {
   if (taskId) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
   }
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("track", id);
   emitDataChanged();
 }
 

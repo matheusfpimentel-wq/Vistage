@@ -79,6 +79,8 @@ export async function updateStudent(input: StudentUpdateInput): Promise<void> {
 export async function deleteStudent(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM students WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("student", id);
 }
 
 // ============================================================

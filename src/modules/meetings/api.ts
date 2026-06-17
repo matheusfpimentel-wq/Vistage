@@ -5,6 +5,7 @@ import {
   updateTask,
   deleteTask,
   syncLinkedTasksStatus,
+  unlinkTasksFromEntity,
 } from "@/modules/tasks/api";
 import type { TaskPriority } from "@/modules/tasks/types";
 import type {
@@ -168,6 +169,7 @@ export async function deleteMeeting(id: number): Promise<void> {
     await deleteTask(current.task_id);
   }
   await db.execute("DELETE FROM meetings WHERE id = $1", [id]);
+  await unlinkTasksFromEntity("meeting", id);
   emitDataChanged();
 }
 

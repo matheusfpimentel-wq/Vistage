@@ -106,6 +106,8 @@ export async function updateFan(input: FanUpdateInput): Promise<void> {
 export async function deleteFan(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fans WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("fan", id);
   emitDataChanged();
 }
 

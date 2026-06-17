@@ -264,7 +264,31 @@ export async function listUpcoming(limit = 5): Promise<Task[]> {
  * Retorna o id da nova task criada, ou null se não houve recorrência.
  */
 export async function completeAndRecur(task: Task): Promise<number | null> {
-  await updateTask({ id: task.id, status: "Concluída" });
+  const db = getDb();
+  // Reivindica a conclusão de forma atômica. Se um duplo-clique disparar duas
+  // chamadas antes do React re-renderizar, só a primeira pega rowsAffected=1 e
+  // cria a próxima ocorrência — a segunda vê 0 e sai sem duplicar a recorrência.
+  const claim = await db.execute(
+    `UPDATE tasks SET status = 'Concluída', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status <> 'Concluída'`,
+    [task.id]
+  );
+  if (Number(claim.rowsAffected) === 0) return null;
+  emitDataChanged();
+
+  // Mesmo efeito colateral de updateTask: concluir a tarefa de etapa de uma
+  // track avança a track para o próximo stage automaticamente.
+  if (task.id != null) {
+    try {
+      const { advanceTrackForCompletedStageTask } = await import(
+        "@/modules/music/api"
+      );
+      await advanceTrackForCompletedStageTask(task.id);
+    } catch {
+      /* não interrompe a conclusão da tarefa */
+    }
+  }
+
   if (!task.recurrence) return null;
 
   let newDue: string;
@@ -292,7 +316,6 @@ export async function completeAndRecur(task: Task): Promise<number | null> {
     newDue = `${y}-${mo}-${dy}`;
   }
 
-  const db = getDb();
   const now = new Date().toISOString();
   const res = await db.execute(
     `INSERT INTO tasks (title, description, category, gig_id, contact_id, priority, status, due_date, tags, recurrence, created_at, updated_at)
@@ -342,6 +365,24 @@ export async function setTaskLinks(
       [taskId, l.entity_type, l.entity_id, l.label]
     );
   }
+}
+
+/**
+ * Remove os vínculos polimórficos que apontam para uma entidade excluída.
+ * A FK de task_links cobre só o lado task_id (ON DELETE CASCADE); o lado
+ * polimórfico (entity_type/entity_id) não pode ter FK, então sem isto sobram
+ * vínculos-fantasma apontando para fãs/festas/tracks já apagados (a tarefa
+ * continua exibindo o link cacheado de algo que não existe mais).
+ */
+export async function unlinkTasksFromEntity(
+  entityType: TaskLinkType,
+  entityId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM task_links WHERE entity_type = $1 AND entity_id = $2",
+    [entityType, entityId]
+  );
 }
 
 /** Tarefas vinculadas a qualquer entidade (para o painel inverso). */

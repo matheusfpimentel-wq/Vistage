@@ -229,6 +229,8 @@ export async function deleteParty(id: number): Promise<void> {
   for (const tid of taskIds) {
     await db.execute("DELETE FROM tasks WHERE id = $1", [tid]);
   }
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("party", id);
   emitDataChanged();
 }
 

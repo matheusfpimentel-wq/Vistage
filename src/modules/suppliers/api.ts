@@ -95,6 +95,8 @@ export async function deleteSupplier(id: number): Promise<void> {
     [id]
   );
   await db.execute("DELETE FROM suppliers WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("supplier", id);
   try {
     const { removeSupplierFromParties } = await import("@/modules/parties/api");
     await removeSupplierFromParties(id);

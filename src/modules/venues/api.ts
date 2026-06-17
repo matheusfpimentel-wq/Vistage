@@ -90,6 +90,8 @@ export async function deleteVenue(id: number): Promise<void> {
   await db.execute("UPDATE gigs SET venue_id = NULL WHERE venue_id = $1", [id]);
   await db.execute("UPDATE parties SET venue_id = NULL WHERE venue_id = $1", [id]);
   await db.execute("DELETE FROM venues WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("venue", id);
 }
 
 export async function getVenueStats(venueId: number): Promise<VenueStats> {
