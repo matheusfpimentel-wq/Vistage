@@ -48,10 +48,42 @@ export type FanLevelCriteria = {
   maxDaysSinceLastInteraction?: number | null;
 };
 
+/**
+ * Limiares de pontuação (engagement score) por nível. O nível do fã é a maior
+ * faixa cujo limiar o score alcança.
+ */
+export type FanScoreThresholds = {
+  quaseFa?: number;
+  fa?: number;
+  superfa?: number;
+  embaixador?: number;
+};
+
+/**
+ * Config do motor de pontuação com decaimento. Cada sinal vale pontos que
+ * decaem com o tempo (meia-vida); o nível é derivado do score total. Campos
+ * ausentes caem nos defaults de SCORING_DEFAULTS (fans/api.ts).
+ */
+export type FanScoringConfig = {
+  weightPresenca?: number;
+  weightFeedback?: number;
+  weightInteracao?: number;
+  /** Peso de uma presença real em show (audiência marcada na GIG via gig_fans). */
+  weightGig?: number;
+  /** Meia-vida do decaimento, em dias: um sinal com essa idade vale metade. */
+  halfLifeDays?: number;
+  thresholds?: FanScoreThresholds;
+};
+
 export type FanUpgradeRules = {
+  /** @deprecated motor antigo de critérios — mantido só para não quebrar regras salvas. */
   toFa?: FanLevelCriteria;
+  /** @deprecated motor antigo de critérios. */
   toSuperfa?: FanLevelCriteria;
+  /** @deprecated motor antigo de rebaixamento. */
   downgradeInactiveDays?: number | null;
+  /** Motor atual: pontuação com decaimento. */
+  scoring?: FanScoringConfig;
 };
 
 export function levelVariant(level: FanLevel):

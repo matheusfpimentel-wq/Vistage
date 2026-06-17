@@ -10,7 +10,7 @@ import type {
   FanInteraction,
   FanInteractionType,
   FanLevel,
-  FanLevelCriteria,
+  FanScoreThresholds,
   FanUpdateInput,
   FanUpgradeRules,
 } from "./types";
@@ -121,12 +121,131 @@ export async function listFanInteractions(fanId: number): Promise<FanInteraction
   );
 }
 
-function nextLevel(current: string): string | null {
-  if (current === "Possível fã") return "Quase fã";
-  if (current === "Quase fã") return "Fã";
-  if (current === "Fã") return "Superfã";
-  if (current === "Superfã") return "Embaixador";
-  return null;
+// ============================================================
+// Motor de pontuação (engagement score com decaimento)
+// ============================================================
+
+const SCORING_DEFAULTS = {
+  weightPresenca: 3,
+  weightFeedback: 2,
+  weightInteracao: 1,
+  weightGig: 3,
+  halfLifeDays: 180,
+  thresholds: { quaseFa: 2, fa: 5, superfa: 12, embaixador: 25 },
+};
+
+/**
+ * Peso de um sinal já com o decaimento por idade aplicado (meia-vida): um sinal
+ * com `halfLifeDays` de idade vale metade. Sinais no futuro (ex.: GIG planejada
+ * com audiência pré-marcada) ainda não contam.
+ */
+function decayedWeight(dateStr: string | null, weight: number, halfLifeDays: number): number {
+  if (!dateStr || weight <= 0) return 0;
+  const iso = dateStr.includes("T") ? dateStr : `${dateStr.replace(" ", "T")}Z`;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 0;
+  const ageDays = (Date.now() - t) / 86400000;
+  if (ageDays < 0) return 0;
+  return weight * Math.pow(0.5, ageDays / halfLifeDays);
+}
+
+function scoreToLevel(score: number, th: Required<FanScoreThresholds>): FanLevel {
+  if (score >= th.embaixador) return "Embaixador";
+  if (score >= th.superfa) return "Superfã";
+  if (score >= th.fa) return "Fã";
+  if (score >= th.quaseFa) return "Quase fã";
+  return "Possível fã";
+}
+
+async function computeFanScoreAndLevel(
+  fanId: number,
+  preRules?: FanUpgradeRules
+): Promise<{ score: number; level: FanLevel }> {
+  const db = getDb();
+  const cfg = (preRules ?? (await loadFanUpgradeRules())).scoring ?? {};
+  const wPres = cfg.weightPresenca ?? SCORING_DEFAULTS.weightPresenca;
+  const wFb = cfg.weightFeedback ?? SCORING_DEFAULTS.weightFeedback;
+  const wInt = cfg.weightInteracao ?? SCORING_DEFAULTS.weightInteracao;
+  const wGig = cfg.weightGig ?? SCORING_DEFAULTS.weightGig;
+  const halfLife =
+    cfg.halfLifeDays && cfg.halfLifeDays > 0 ? cfg.halfLifeDays : SCORING_DEFAULTS.halfLifeDays;
+  const th: Required<FanScoreThresholds> = {
+    quaseFa: cfg.thresholds?.quaseFa ?? SCORING_DEFAULTS.thresholds.quaseFa,
+    fa: cfg.thresholds?.fa ?? SCORING_DEFAULTS.thresholds.fa,
+    superfa: cfg.thresholds?.superfa ?? SCORING_DEFAULTS.thresholds.superfa,
+    embaixador: cfg.thresholds?.embaixador ?? SCORING_DEFAULTS.thresholds.embaixador,
+  };
+
+  let score = 0;
+  const interactions = await db.select<{ date: string; type: string }[]>(
+    `SELECT date, type FROM fan_interactions WHERE fan_id = $1`,
+    [fanId]
+  );
+  for (const it of interactions) {
+    const w = it.type === "Presença" ? wPres : it.type === "Feedback" ? wFb : wInt;
+    score += decayedWeight(it.date, w, halfLife);
+  }
+  // presenças reais em shows: audiência marcada na GIG, datada pela data do show
+  const gigs = await db.select<{ date: string | null }[]>(
+    `SELECT g.date FROM gig_fans gf JOIN gigs g ON g.id = gf.gig_id WHERE gf.fan_id = $1`,
+    [fanId]
+  );
+  for (const g of gigs) {
+    score += decayedWeight(g.date, wGig, halfLife);
+  }
+
+  return { score, level: scoreToLevel(score, th) };
+}
+
+/** Score de engajamento atual de um fã (com decaimento). Para exibição. */
+export async function fanEngagementScore(fanId: number): Promise<number> {
+  return (await computeFanScoreAndLevel(fanId)).score;
+}
+
+/**
+ * Recalcula o nível do fã a partir do histórico (pontuação com decaimento).
+ * Idempotente e reconciliável: reflete corretamente quando interações são
+ * adicionadas OU removidas. Só grava se o nível mudou.
+ */
+export async function recomputeFanLevel(fanId: number): Promise<void> {
+  const db = getDb();
+  const { level } = await computeFanScoreAndLevel(fanId);
+  const cur = await db.select<{ level: string }[]>(
+    `SELECT level FROM fans WHERE id = $1`,
+    [fanId]
+  );
+  if (cur[0] && cur[0].level !== level) {
+    await db.execute(
+      `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [level, fanId]
+    );
+    emitDataChanged();
+  }
+}
+
+/**
+ * Recalcula o nível de TODOS os fãs de uma vez (botão "recalcular agora").
+ * Carrega as regras uma única vez. Retorna quantos níveis mudaram.
+ */
+export async function recomputeAllFanLevels(): Promise<number> {
+  const db = getDb();
+  const rules = await loadFanUpgradeRules();
+  const fans = await db.select<{ id: number; level: string }[]>(
+    `SELECT id, level FROM fans`
+  );
+  let changed = 0;
+  for (const f of fans) {
+    const { level } = await computeFanScoreAndLevel(f.id, rules);
+    if (f.level !== level) {
+      await db.execute(
+        `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        [level, f.id]
+      );
+      changed++;
+    }
+  }
+  if (changed > 0) emitDataChanged();
+  return changed;
 }
 
 export async function addFanInteraction(
@@ -149,29 +268,14 @@ export async function addFanInteraction(
     [date, fanId]
   );
 
-  // Special interaction: auto-upgrade one level
-  if (autoSpecial) {
-    const fanRows = await db.select<{ level: string }[]>(
-      `SELECT level FROM fans WHERE id = $1`,
-      [fanId]
-    );
-    const currentLevel = fanRows[0]?.level;
-    if (currentLevel) {
-      const upgraded = nextLevel(currentLevel);
-      if (upgraded) {
-        await db.execute(
-          `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-          [upgraded, fanId]
-        );
-      }
-    }
-  }
-
-  // Auto-upgrade rules from app_settings
+  // Recalcula o nível a partir do histórico completo (pontuação com
+  // decaimento). Substitui o antigo bump de 1 nível por interação especial +
+  // regras de limiar — que compunham (podiam pular 2 níveis de uma vez) e nunca
+  // reconciliavam quando algo era apagado.
   try {
-    await checkAndUpgradeFan(fanId);
+    await recomputeFanLevel(fanId);
   } catch {
-    // silently skip if rules not configured
+    // não interrompe o registro da interação
   }
 
   // Close any open follow-up tasks for this fan since they just interacted
@@ -242,107 +346,13 @@ export async function listFanInteractionCounts(): Promise<Map<number, number>> {
   return map;
 }
 
-async function meetsCriteria(
-  db: ReturnType<typeof getDb>,
-  fanId: number,
-  criteria: FanLevelCriteria,
-  fanCreatedAt: string,
-  _fanLastInteractionAt: string | null
-): Promise<boolean> {
-  if (criteria.minInteractions != null) {
-    const rows = await db.select<{ n: number }[]>(
-      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1`,
-      [fanId]
-    );
-    if ((rows[0]?.n ?? 0) < criteria.minInteractions) return false;
-  }
-  if (criteria.minPresences != null) {
-    const rows = await db.select<{ n: number }[]>(
-      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1 AND type = 'Presença'`,
-      [fanId]
-    );
-    if ((rows[0]?.n ?? 0) < criteria.minPresences) return false;
-  }
-  if (criteria.minFeedbacks != null) {
-    const rows = await db.select<{ n: number }[]>(
-      `SELECT COUNT(*) as n FROM fan_interactions WHERE fan_id = $1 AND type = 'Feedback'`,
-      [fanId]
-    );
-    if ((rows[0]?.n ?? 0) < criteria.minFeedbacks) return false;
-  }
-  if (criteria.minDaysSinceCreation != null) {
-    const daysSince = Math.floor(
-      (Date.now() - new Date(fanCreatedAt).getTime()) / 86400000
-    );
-    if (daysSince < criteria.minDaysSinceCreation) return false;
-  }
-  return true;
-}
-
+/**
+ * @deprecated Mantido só por compatibilidade com chamadores existentes (ex.:
+ * DebriefForm, que reavalia fãs após o debrief). Hoje só recalcula o nível pelo
+ * motor de pontuação — que já sobe E desce conforme o engajamento.
+ */
 export async function checkAndUpgradeFan(fanId: number): Promise<void> {
-  const db = getDb();
-  const rulesRows = await db.select<{ value: string }[]>(
-    `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
-  );
-  if (!rulesRows[0]?.value) return;
-  let rules: FanUpgradeRules;
-  try {
-    rules = JSON.parse(rulesRows[0].value) as FanUpgradeRules;
-  } catch {
-    return;
-  }
-
-  const fanRows = await db.select<{ level: string; created_at: string; last_interaction_at: string | null }[]>(
-    `SELECT level, created_at, last_interaction_at FROM fans WHERE id = $1`,
-    [fanId]
-  );
-  if (!fanRows[0]) return;
-  let { level, created_at, last_interaction_at } = fanRows[0];
-
-  // Check toFa criteria
-  if ((level === "Possível fã" || level === "Quase fã") && rules.toFa) {
-    const ok = await meetsCriteria(db, fanId, rules.toFa, created_at, last_interaction_at);
-    if (ok) {
-      await db.execute(
-        `UPDATE fans SET level = 'Fã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [fanId]
-      );
-      level = "Fã";
-    }
-  }
-
-  // Check toSuperfa criteria
-  if (level === "Fã" && rules.toSuperfa) {
-    const ok = await meetsCriteria(db, fanId, rules.toSuperfa, created_at, last_interaction_at);
-    if (ok) {
-      await db.execute(
-        `UPDATE fans SET level = 'Superfã', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [fanId]
-      );
-      level = "Superfã";
-    }
-  }
-
-  // Downgrade check
-  if (rules.downgradeInactiveDays != null && last_interaction_at) {
-    const daysSinceLast = Math.floor(
-      (Date.now() - new Date(last_interaction_at).getTime()) / 86400000
-    );
-    if (daysSinceLast > rules.downgradeInactiveDays) {
-      const downgraded =
-        level === "Embaixador" ? "Superfã"
-        : level === "Superfã" ? "Fã"
-        : level === "Fã" ? "Quase fã"
-        : level === "Quase fã" ? "Possível fã"
-        : null;
-      if (downgraded) {
-        await db.execute(
-          `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-          [downgraded, fanId]
-        );
-      }
-    }
-  }
+  await recomputeFanLevel(fanId);
 }
 
 export async function syncSuperfanFollowupTasks(): Promise<void> {
@@ -386,7 +396,17 @@ export async function syncSuperfanFollowupTasks(): Promise<void> {
 
 export async function deleteFanInteraction(id: number): Promise<void> {
   const db = getDb();
+  // pega o fã ANTES de apagar pra poder recalcular o nível depois
+  const rows = await db.select<{ fan_id: number }[]>(
+    "SELECT fan_id FROM fan_interactions WHERE id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM fan_interactions WHERE id = $1", [id]);
+  const fanId = rows[0]?.fan_id;
+  if (fanId != null) {
+    // reconcilia o nível: apagar engajamento pode (corretamente) rebaixar o fã
+    await recomputeFanLevel(fanId);
+  }
 }
 
 export type FanStats = {
