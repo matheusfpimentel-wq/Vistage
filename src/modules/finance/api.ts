@@ -534,9 +534,10 @@ export async function syncClassTransaction(classId: number): Promise<void> {
       subject: string | null;
       student_name: string | null;
       class_number: number;
+      student_package_id: number | null;
     }[]
   >(
-    `SELECT c.amount, c.status, c.date, c.subject, s.name AS student_name,
+    `SELECT c.amount, c.status, c.date, c.subject, c.student_package_id, s.name AS student_name,
   (SELECT COUNT(*) FROM classes c2
    WHERE c2.student_id = c.student_id
      AND (c2.date < c.date OR (c2.date = c.date AND c2.id <= c.id))) as class_number
@@ -550,7 +551,10 @@ WHERE c.id = $1`,
     [classId]
   );
 
-  const shouldHave = !!c && c.status === "Realizada" && (c.amount ?? 0) > 0;
+  // Aulas de pacote NÃO geram receita por aula — a receita vem da venda do
+  // pacote (syncStudentPackageTransaction). Senão a grana seria contada 2x.
+  const shouldHave =
+    !!c && c.status === "Realizada" && (c.amount ?? 0) > 0 && !c.student_package_id;
 
   if (!shouldHave) {
     if (existing.length > 0) {

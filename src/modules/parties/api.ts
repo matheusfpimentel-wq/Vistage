@@ -19,10 +19,6 @@ function nowISO(): string {
   return new Date().toISOString();
 }
 
-function todayISO(): string {
-  return toLocalISODate();
-}
-
 function parseJsonArray<T>(raw: string | null): T[] {
   if (!raw) return [];
   try {
@@ -665,44 +661,19 @@ export async function createPartyTask(
 
 export async function syncPartyToFinanceiro(
   party: PartyDeserialized,
-  tickets: PartyTicket[],
-  budgetItems: PartyBudgetItem[]
+  _tickets: PartyTicket[],
+  _budgetItems: PartyBudgetItem[]
 ): Promise<void> {
   if (party.financial_synced) return;
   const db = getDb();
-  const dateStr = party.date ?? todayISO();
-
-  const incCat = await db.select<{ id: number }[]>(
-    `SELECT id FROM finance_categories WHERE kind='income' AND name='Produção de Festas' LIMIT 1`
-  );
-  const expCat = await db.select<{ id: number }[]>(
-    `SELECT id FROM finance_categories WHERE kind='expense' AND name='Produção de Festas' LIMIT 1`
-  );
-  const incomeCatId = incCat[0]?.id ?? null;
-  const expenseCatId = expCat[0]?.id ?? null;
-
-  for (const ticket of tickets) {
-    if (ticket.quantity_sold <= 0) continue;
-    const amount = ticket.price * ticket.quantity_sold;
-    await db.execute(
-      `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Recebido')`,
-      ["income", amount, dateStr, `${party.title}: ingressos ${ticket.name}`, party.id, incomeCatId]
-    );
-  }
-
-  for (const item of budgetItems) {
-    if (!item.actual_amount || item.actual_amount <= 0) continue;
-    const subcat = item.subcategory ? ` / ${item.subcategory}` : "";
-    const desc = `${party.title}: ${item.category}${subcat}`;
-    const dateUsed = item.date_paid ?? party.date ?? todayISO();
-    await db.execute(
-      `INSERT INTO finance_transactions (kind, amount, date, description, party_id, category_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Pago')`,
-      ["expense", item.actual_amount, dateUsed, desc, party.id, expenseCatId]
-    );
-  }
-
+  // Delega para o sync agregado e idempotente do Financeiro: 1 receita
+  // (soma dos ingressos) + 1 despesa (soma do orçamento), deduplicadas por
+  // party_id+kind. A versão antiga inseria uma linha POR ingresso e POR item
+  // de orçamento — que DUPLICAVAM as linhas agregadas já criadas por
+  // syncPartyTransactions a cada edição. Os parâmetros tickets/budgetItems
+  // ficam só por compatibilidade de assinatura (a soma é lida do banco).
+  const { syncPartyTransactions } = await import("@/modules/finance/api");
+  await syncPartyTransactions(party.id);
   await db.execute(
     "UPDATE parties SET financial_synced = 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
     [party.id]

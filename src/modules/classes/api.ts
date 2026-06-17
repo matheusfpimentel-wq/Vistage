@@ -174,6 +174,7 @@ export async function getActiveStudentPackage(
       LEFT JOIN class_packages cp ON cp.id = sp.package_id
       WHERE sp.student_id = $1 AND sp.status = 'Ativo'
         AND (cp.total_hours IS NULL OR sp.used_minutes < cp.total_hours * 60)
+        AND (cp.total_hours IS NOT NULL OR sp.used_classes < sp.total_classes)
       ORDER BY sp.purchased_at ASC LIMIT 1`,
     [studentId]
   );
