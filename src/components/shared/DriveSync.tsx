@@ -5,26 +5,9 @@ import { useConfigStore } from "@/lib/config";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import { toast } from "@/components/ui/toaster";
 
-const THROTTLE_MS = 30 * 1000; // no máx. um sync por mudança a cada 30s
-const PERIODIC_MS = 2 * 60 * 1000; // fallback: sync a cada 2 min mesmo sem mudança
-const WARN_AFTER_FAILURES = 3; // avisa o usuário após 3 falhas seguidas
+const THROTTLE_MS = 60 * 1000; // aguarda 1 min após última mudança antes de enviar
+const WARN_AFTER_FAILURES = 3;
 
-/**
- * Sincronização com o Turso. O banco escreve localmente (offline) e este
- * componente empurra/puxa mudanças via syncDatabase():
- *  - uma vez ao abrir o app;
- *  - após cada mudança de dados (DATA_CHANGED), com throttle;
- *  - periodicamente (fallback), garantindo que nada fique preso na réplica
- *    local mesmo que um evento de mudança escape;
- *  - quando a janela é ocultada/minimizada (melhor esforço antes de o usuário
- *    sair).
- *
- * O fechamento da janela dispara um sync no lado Rust (on_window_event), que é
- * a rede de segurança principal contra perda de escritas recentes.
- *
- * O resultado é publicado no evento `vistage:sync-result` para o indicador, e
- * falhas repetidas viram um aviso visível (antes eram silenciosas).
- */
 export function DriveSync() {
   const { config } = useConfigStore();
   const ranBoot = useRef(false);
@@ -32,10 +15,10 @@ export function DriveSync() {
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failures = useRef(0);
   const warned = useRef(false);
-  const syncRunning = useRef(false); // evita syncs simultâneos (cada invoke pode demorar 20s)
+  const syncRunning = useRef(false);
 
   const runSync = async () => {
-    if (syncRunning.current) return; // já tem um sync em andamento
+    if (syncRunning.current) return;
     syncRunning.current = true;
     try {
       const tursoUrl = config?.tursoUrl ?? DEFAULT_TURSO_URL;
@@ -70,16 +53,15 @@ export function DriveSync() {
     void runSync();
   }, []);
 
-  // sync após mudanças (com throttle)
+  // sync 1 min após cada mudança de dados (debounce: reinicia o timer a cada
+  // nova mudança, então edições rápidas agrupam em um único envio)
   useEffect(() => {
     const onChange = () => {
-      if (pending.current) return; // já agendado
-      const elapsed = Date.now() - lastSync.current;
-      const delay = elapsed >= THROTTLE_MS ? 0 : THROTTLE_MS - elapsed;
+      if (pending.current) clearTimeout(pending.current);
       pending.current = setTimeout(() => {
         pending.current = null;
         void runSync();
-      }, delay);
+      }, THROTTLE_MS);
     };
     window.addEventListener(DATA_CHANGED, onChange);
     return () => {
@@ -88,17 +70,7 @@ export function DriveSync() {
     };
   }, []);
 
-  // fallback periódico: garante que nada fique preso na réplica local
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      // evita rodar logo após um sync recente
-      if (Date.now() - lastSync.current < PERIODIC_MS) return;
-      void runSync();
-    }, PERIODIC_MS);
-    return () => window.clearInterval(id);
-  }, []);
-
-  // ao ocultar/minimizar a janela, empurra o que houver (melhor esforço)
+  // ao minimizar/ocultar janela: envia imediatamente sem esperar o minuto
   useEffect(() => {
     const onHide = () => {
       if (document.visibilityState === "hidden") void runSync();
