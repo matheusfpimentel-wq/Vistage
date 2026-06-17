@@ -17,13 +17,15 @@ pub struct DbState {
 }
 
 /// Sync best-effort com teto de tempo, para rodar antes de fechar o app sem
-/// travar o fechamento quando offline. Empurra as escritas locais pendentes
-/// para o Turso. Silencioso: se falhar (sem rede), o app fecha mesmo assim e a
-/// réplica local mantém o estado para o próximo boot/sync.
+/// travar o fechamento quando offline.
 pub async fn sync_blocking(state: &DbState, timeout_secs: u64) {
-    let guard = state.db.lock().await;
-    if let Some(db) = guard.as_ref() {
+    // Tira o db do mutex (take), solta o lock, sincroniza, devolve.
+    // Sem isso o mutex fica preso durante db.sync() e bloqueia todos os outros
+    // comandos que precisam do mesmo lock (reset, diagnostics, execute).
+    let db = { state.db.lock().await.take() };
+    if let Some(db) = db {
         let _ = tokio::time::timeout(Duration::from_secs(timeout_secs), db.sync()).await;
+        *state.db.lock().await = Some(db);
     }
 }
 
@@ -162,11 +164,21 @@ pub async fn db_execute(
 }
 
 /// Empurra escritas locais para o Turso e puxa mudanças remotas.
+/// CRÍTICO: clona o Database e solta o mutex ANTES da chamada de rede — sem
+/// isso o lock fica preso enquanto db.sync() trava (sem rede), bloqueando
+/// TODOS os outros comandos (reset, diagnostics, execute) que precisam do
+/// mesmo mutex. Com o clone o mutex é liberado imediatamente e os outros
+/// comandos podem prosseguir mesmo que o sync esteja em andamento.
 #[tauri::command]
 pub async fn db_sync(state: State<'_, DbState>) -> Result<(), String> {
-    let guard = state.db.lock().await;
-    let db = guard.as_ref().ok_or("banco não inicializado")?;
-    db.sync().await.map_err(|e| e.to_string())?;
+    // take() retira o db do Option e solta o mutex imediatamente — sync() pode
+    // demorar ou travar sem segurar o lock, então outros comandos não bloqueiam.
+    let db = state.db.lock().await.take().ok_or("banco não inicializado")?;
+    let result = tokio::time::timeout(Duration::from_secs(20), db.sync()).await;
+    *state.db.lock().await = Some(db); // sempre devolve
+    result
+        .map_err(|_| "sync expirou (20s)".to_string())?
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -194,26 +206,36 @@ pub async fn db_reset_replica(
         let _ = std::fs::remove_file(&path);
     }
 
-    // 3. Reabre — build() é local/instantâneo, não faz rede
-    let db = libsql::Builder::new_synced_database(replica_path, turso_url, turso_token)
-        .build()
-        .await
-        .map_err(|e| e.to_string())?;
+    // 3. Reabre. build() faz uma chamada de rede para o Turso (busca o frame
+    //    inicial), então precisa de timeout. Se expirar, o app fica sem conexão
+    //    até um próximo db_init — por isso restauramos um db vazio mesmo assim.
+    let build_result = tokio::time::timeout(
+        Duration::from_secs(30),
+        libsql::Builder::new_synced_database(replica_path, turso_url, turso_token).build(),
+    )
+    .await;
+
+    let db = match build_result {
+        Ok(Ok(d)) => d,
+        Ok(Err(e)) => return Err(format!("Falha ao abrir banco: {}", e)),
+        Err(_) => return Err("Timeout ao abrir banco (>30s). Verifique a internet e tente novamente.".to_string()),
+    };
+
     let conn = db.connect().map_err(|e| e.to_string())?;
     let _ = conn.execute("PRAGMA foreign_keys = ON;", ()).await;
 
-    // 4. Sync com timeout CURTO. Independente do resultado, restauramos o state
-    //    em seguida — nada de deixar a conexão como None.
-    let sync_outcome = tokio::time::timeout(Duration::from_secs(25), db.sync()).await;
+    // 4. Sync com timeout. db ainda não está no state, então não precisa de
+    //    take() aqui — mas sync() é &self então db ainda é usável depois.
+    let sync_outcome = tokio::time::timeout(Duration::from_secs(30), db.sync()).await;
 
-    // 5. SEMPRE restaura a conexão funcional (mesmo réplica vazia)
+    // 5. SEMPRE restaura a conexão funcional (mesmo réplica vazia/parcial)
     *state.db.lock().await = Some(db);
     *state.conn.lock().await = Some(conn);
 
     match sync_outcome {
         Ok(Ok(_)) => Ok(true),
         Ok(Err(e)) => Err(format!("Falha ao baixar do Turso: {}", e)),
-        Err(_) => Err("Timeout ao baixar do Turso (>25s). Verifique a internet e tente de novo — o app continua funcional.".to_string()),
+        Err(_) => Err("Timeout ao baixar do Turso (>30s). Verifique a internet e tente de novo — o app continua funcional com o que foi baixado até agora.".to_string()),
     }
 }
 
