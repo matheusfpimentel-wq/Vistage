@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,9 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { formatDate } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { createMeeting, updateMeeting } from "../api";
+import { printAta } from "../ataPrint";
 import { MEETING_STATUSES, type Meeting, type MeetingStatus } from "../types";
 
 type Props = {
@@ -130,7 +138,13 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
           <DialogTitle>{isEdit ? "Editar reunião" : "Nova reunião"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <Tabs defaultValue="form">
+          <TabsList>
+            <TabsTrigger value="form">Reunião</TabsTrigger>
+            <TabsTrigger value="ata">Ata</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="form" className="space-y-4 pt-2">
           <div className="space-y-1">
             <Label htmlFor="meet-title">Título *</Label>
             <Input
@@ -256,7 +270,59 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               placeholder="O que ficou decidido e os próximos passos..."
             />
           </div>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="ata" className="space-y-4 pt-2">
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() =>
+                  printAta({ title, date, time, location, participants, notes, outcomes })
+                }
+              >
+                <Printer className="h-4 w-4" /> Imprimir ata
+              </Button>
+            </div>
+            <div className="rounded-md border p-4 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold leading-tight">
+                  {title.trim() || "Reunião sem título"}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {[date ? formatDate(date) : null, time || null, location.trim() || null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                {participants.length > 0 && (
+                  <p className="mt-1 text-sm">
+                    <span className="text-muted-foreground">Participantes: </span>
+                    {participants.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Texto completo
+                </div>
+                {notes.trim() ? (
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{notes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">—</p>
+                )}
+              </div>
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Encaminhamentos
+                </div>
+                {outcomes.trim() ? (
+                  <p className="mt-1 whitespace-pre-wrap text-sm">{outcomes}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">—</p>
+                )}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
