@@ -166,7 +166,11 @@ export function Sidebar({
 
   return (
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
-      <div className="flex h-16 items-center gap-2 border-b px-5">
+      <div className="flex h-16 items-center gap-2.5 border-b px-5">
+        <svg viewBox="0 0 100 100" className="h-8 w-8 shrink-0" fill="none" aria-hidden="true">
+          <circle cx="50" cy="50" r="44" stroke="currentColor" strokeWidth="2.5" strokeDasharray="5.5 4.5" className="text-muted-foreground/40" />
+          <path d="M33 33 L50 70 L67 33" stroke="currentColor" strokeWidth="7.5" strokeLinecap="round" strokeLinejoin="miter" className="text-primary" />
+        </svg>
         <div>
           <div className="text-lg font-semibold leading-tight tracking-tight bg-gradient-to-r from-primary to-[hsl(var(--primary-glow))] bg-clip-text text-transparent" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             Vistage
