@@ -21,7 +21,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { STAGES, TRACK_KINDS, TRACK_KIND_LABEL, type Stage, type TrackKind } from "./stages";
-import { daysInStage, deleteTrack, getTrack, listProjects, listTracks, moveTrackToStage, setTrackStandby } from "./api";
+import { deleteTrack, getTrack, listProjects, listTracks, moveTrackToStage, setTrackStandby } from "./api";
 import type { Track, TrackWithProject } from "./types";
 import { TrackForm } from "./forms/TrackForm";
 import { ProjectForm } from "./forms/ProjectForm";
@@ -29,7 +29,6 @@ import { KanbanView } from "./views/KanbanView";
 import { ListView } from "./views/ListView";
 import { RoadmapView } from "./views/RoadmapView";
 import { PortfolioView } from "./views/PortfolioView";
-import { KpiCard } from "@/components/shared/KpiCard";
 import { ProjectsView } from "./views/ProjectsView";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 
@@ -103,14 +102,6 @@ export function MusicPage() {
     });
   }, [tracks, search, stageFilter, kindFilter]);
 
-  const activeCount = tracks.filter((t) => !t.standby).length;
-  const standbyCount = tracks.filter((t) => t.standby).length;
-  const stalledCount = tracks.filter((t) => {
-    if (t.standby) return false;
-    const d = daysInStage(t);
-    return d !== null && d > 30;
-  }).length;
-
   return (
     <div className="space-y-4">
       <PageToolbar
@@ -125,16 +116,6 @@ export function MusicPage() {
           </>
         }
       />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <KpiCard label="Tracks ativas" value={activeCount} />
-        <KpiCard label="Em Stand-by" value={standbyCount} />
-        <KpiCard
-          label="Paradas +30d no stage"
-          value={stalledCount}
-          trend={stalledCount > 0 ? "down" : "neutral"}
-        />
-      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">

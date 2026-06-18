@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toLocalISODate, formatCurrency } from "@/lib/format";
 import { Loader2, PartyPopper, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,8 +18,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { KpiCard } from "@/components/shared/KpiCard";
-import { PARTY_STATUSES, type PartyDeserialized, type PartyStatus, estimatedRevenue } from "./types";
+import { PARTY_STATUSES, type PartyDeserialized, type PartyStatus } from "./types";
 import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
@@ -67,8 +65,6 @@ export function PartiesPage() {
     await refresh();
   }
 
-  const today = toLocalISODate();
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return parties.filter((p) => {
@@ -81,14 +77,6 @@ export function PartiesPage() {
     });
   }, [parties, search, statusFilter]);
 
-  const upcoming = parties.filter(
-    (p) =>
-      (p.status === "Planejando" || p.status === "Confirmada") &&
-      (p.date == null || p.date >= today)
-  );
-  const realized = parties.filter((p) => p.status === "Realizada");
-  const estimatedTotal = upcoming.reduce((sum, p) => sum + estimatedRevenue(p), 0);
-
   return (
     <div className="space-y-4">
       <PageToolbar
@@ -98,12 +86,6 @@ export function PartiesPage() {
           </Button>
         }
       />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <KpiCard label="Próximas" value={upcoming.length} />
-        <KpiCard label="Realizadas" value={realized.length} />
-        <KpiCard label="Receita estimada" value={formatCurrency(estimatedTotal)} />
-      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">

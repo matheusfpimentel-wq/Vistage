@@ -46,7 +46,6 @@ export function GigsPage() {
     { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
   );
   const [recurringNames, setRecurringNames] = useState<string[]>([]);
-  const [counts, setCounts] = useState({ total: 0, upcoming: 0 });
   const [view, setView] = useModuleView<"list" | "bulk" | "sheet" | "calendar" | "insights">("gigs", "list");
 
   const [formOpen, setFormOpen] = useState(false);
@@ -90,14 +89,6 @@ export function GigsPage() {
           "SELECT DISTINCT recurring_event_name FROM gigs WHERE recurring_event_name IS NOT NULL AND recurring_event_name != '' ORDER BY recurring_event_name"
         );
         setRecurringNames(rows.map((r) => r.recurring_event_name));
-        const today = new Date().toISOString().slice(0, 10);
-        const cnt = await db.select<{ total: number; upcoming: number }[]>(
-          `SELECT COUNT(*) AS total,
-                  COALESCE(SUM(CASE WHEN date >= $1 AND status != 'Cancelada' THEN 1 ELSE 0 END), 0) AS upcoming
-             FROM gigs`,
-          [today]
-        );
-        if (cnt[0]) setCounts({ total: cnt[0].total, upcoming: cnt[0].upcoming });
       } catch { /* silently ignore */ }
     })();
   }, [refreshKey]);
@@ -200,10 +191,6 @@ export function GigsPage() {
     <div className="space-y-4">
       <ModuleToolbar
         primaryAction={{ label: "Nova GIG", icon: Plus, onClick: openCreate }}
-        summaryCards={[
-          { label: "GIGs futuras", value: counts.upcoming },
-          { label: "GIGs totais", value: counts.total },
-        ]}
         search={{
           value: filters.search,
           onChange: (v) => setFilters((f) => ({ ...f, search: v })),
