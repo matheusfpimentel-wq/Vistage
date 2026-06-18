@@ -144,6 +144,29 @@ export function TasksPage() {
     await refresh();
   }
 
+  async function handleBulkComplete(list: Task[]) {
+    const pending = list.filter((t) => t.status !== "Concluída");
+    if (pending.length === 0) return;
+    await Promise.all(pending.map((t) => updateTask({ id: t.id, status: "Concluída" })));
+    toast.success(`${pending.length} tarefa(s) concluída(s)`);
+    await refresh();
+  }
+
+  async function handleBulkSetStatus(list: Task[], status: TaskStatus) {
+    if (list.length === 0) return;
+    await Promise.all(list.map((t) => updateTask({ id: t.id, status })));
+    toast.success(`${list.length} tarefa(s) → ${status}`);
+    await refresh();
+  }
+
+  async function handleBulkDelete(list: Task[]) {
+    if (list.length === 0) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir ${list.length} tarefa(s)? Esta ação não pode ser desfeita.`, confirmLabel: "Excluir", destructive: true }))) return;
+    await Promise.all(list.map((t) => deleteTask(t.id)));
+    toast.success(`${list.length} tarefa(s) excluída(s)`);
+    await refresh();
+  }
+
   return (
     <div className="space-y-4">
       <PageToolbar
@@ -276,6 +299,9 @@ export function TasksPage() {
             onEdit={openEdit}
             onToggleDone={handleToggleDone}
             onDelete={handleDelete}
+            onBulkComplete={handleBulkComplete}
+            onBulkSetStatus={handleBulkSetStatus}
+            onBulkDelete={handleBulkDelete}
           />
         </TabsContent>
 

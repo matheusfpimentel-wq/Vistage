@@ -1,10 +1,18 @@
-import { CalendarClock, CheckSquare, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, CheckSquare, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { TaskStatusBadge } from "../components/TaskStatusBadge";
-import { type Task } from "../types";
+import { TASK_STATUSES, type Task, type TaskStatus } from "../types";
 import { formatDate, todayISO } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +21,10 @@ type Props = {
   onEdit: (task: Task) => void;
   onToggleDone: (task: Task) => void;
   onDelete: (task: Task) => void;
+  /** Ações em lote — opcionais. Recebem as tarefas selecionadas. */
+  onBulkComplete?: (tasks: Task[]) => void;
+  onBulkSetStatus?: (tasks: Task[], status: TaskStatus) => void;
+  onBulkDelete?: (tasks: Task[]) => void;
 };
 
 function isOverdue(t: Task): boolean {
@@ -29,7 +41,29 @@ export function TaskListView({
   onEdit,
   onToggleDone,
   onDelete,
+  onBulkComplete,
+  onBulkSetStatus,
+  onBulkDelete,
 }: Props) {
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const bulkEnabled = !!(onBulkComplete || onBulkSetStatus || onBulkDelete);
+
+  // Só conta as selecionadas que ainda estão visíveis (filtros podem ter mudado).
+  const selectedTasks = tasks.filter((t) => selected.has(t.id));
+  const hasSelection = selectedTasks.length > 0;
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function clear() {
+    setSelected(new Set());
+  }
+
   if (tasks.length === 0) {
     return (
       <EmptyState
@@ -42,17 +76,93 @@ export function TaskListView({
 
   return (
     <div className="space-y-1.5">
+      {/* Barra de ações em lote */}
+      {bulkEnabled && hasSelection && (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-md border bg-background/95 px-3 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <span className="text-sm font-medium">
+            {selectedTasks.length} selecionada{selectedTasks.length > 1 ? "s" : ""}
+          </span>
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            {onBulkComplete && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  onBulkComplete(selectedTasks);
+                  clear();
+                }}
+              >
+                <CheckSquare className="h-3.5 w-3.5" /> Concluir
+              </Button>
+            )}
+            {onBulkSetStatus && (
+              <Select
+                value=""
+                onValueChange={(v) => {
+                  onBulkSetStatus(selectedTasks, v as TaskStatus);
+                  clear();
+                }}
+              >
+                <SelectTrigger className="h-8 w-36">
+                  <SelectValue placeholder="Mudar status…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {onBulkDelete && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  onBulkDelete(selectedTasks);
+                  clear();
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Excluir
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={clear}>
+              <X className="h-3.5 w-3.5" /> Limpar
+            </Button>
+          </div>
+        </div>
+      )}
+
       {tasks.map((t) => {
         const overdue = isOverdue(t);
         const done = t.status === "Concluída";
+        const isSel = selected.has(t.id);
         return (
           <div
             key={t.id}
             className={cn(
-              "flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
-              overdue && "border-destructive/40 bg-destructive/5"
+              "group flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
+              overdue && "border-destructive/40 bg-destructive/5",
+              isSel && "bg-primary/5 ring-1 ring-primary/40"
             )}
           >
+            {/* Caixa de SELEÇÃO — revelada no hover (ou sempre, com algo selecionado) */}
+            {bulkEnabled && (
+              <input
+                type="checkbox"
+                checked={isSel}
+                onChange={() => toggle(t.id)}
+                className={cn(
+                  "mt-0.5 h-4 w-4 cursor-pointer rounded border-input accent-primary transition-opacity",
+                  !isSel && !hasSelection && "opacity-0 group-hover:opacity-100 focus:opacity-100"
+                )}
+                aria-label="Selecionar tarefa"
+              />
+            )}
+
+            {/* Caixa de CONCLUÍDA */}
             <input
               type="checkbox"
               checked={done}
