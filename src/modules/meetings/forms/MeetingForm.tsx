@@ -27,6 +27,7 @@ import { toast } from "@/components/ui/toaster";
 import { formatDate } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { createMeeting, updateMeeting } from "../api";
+import { listContacts } from "@/modules/crm/api";
 import { printAta } from "../ataPrint";
 import { MEETING_STATUSES, type Meeting, type MeetingStatus } from "../types";
 
@@ -36,6 +37,14 @@ type Props = {
   meeting?: Meeting | null;
   onSaved: () => void;
 };
+
+/** Quebra o texto de encaminhamentos em itens (uma linha = um item). */
+function splitOutcomes(text: string | null): string[] {
+  return (text ?? "")
+    .split("\n")
+    .map((l) => l.replace(/^[-*•–—\s]+/, "").trim())
+    .filter((l) => l.length > 0);
+}
 
 export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
   const isEdit = !!meeting;
@@ -48,7 +57,9 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
   const [participantDraft, setParticipantDraft] = useState("");
   const [agenda, setAgenda] = useState("");
   const [notes, setNotes] = useState("");
-  const [outcomes, setOutcomes] = useState("");
+  const [outcomeItems, setOutcomeItems] = useState<string[]>([]);
+  const [outcomeDraft, setOutcomeDraft] = useState("");
+  const [contacts, setContacts] = useState<{ id: number; name: string }[]>([]);
   const [status, setStatus] = useState<MeetingStatus>("Agendada");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -63,7 +74,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
       setParticipants(meeting.participants);
       setAgenda(meeting.agenda ?? "");
       setNotes(meeting.notes ?? "");
-      setOutcomes(meeting.outcomes ?? "");
+      setOutcomeItems(splitOutcomes(meeting.outcomes));
       setStatus(meeting.status);
     } else if (open && !meeting) {
       setTitle("");
@@ -73,14 +84,21 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
       setParticipants([]);
       setAgenda("");
       setNotes("");
-      setOutcomes("");
+      setOutcomeItems([]);
       setStatus("Agendada");
     }
     if (open) {
       setParticipantDraft("");
+      setOutcomeDraft("");
       setDirty(false);
     }
   }, [open, meeting]);
+
+  useEffect(() => {
+    void listContacts().then((cs) =>
+      setContacts(cs.map((c) => ({ id: c.id, name: c.name })))
+    );
+  }, []);
 
   function addParticipant() {
     const name = participantDraft.trim();
@@ -94,6 +112,20 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
 
   function removeParticipant(name: string) {
     setParticipants((prev) => prev.filter((p) => p !== name));
+    setDirty(true);
+  }
+
+  function addOutcome() {
+    const t = outcomeDraft.trim();
+    if (t && !outcomeItems.includes(t)) {
+      setOutcomeItems((prev) => [...prev, t]);
+      setDirty(true);
+    }
+    setOutcomeDraft("");
+  }
+
+  function removeOutcome(idx: number) {
+    setOutcomeItems((prev) => prev.filter((_, i) => i !== idx));
     setDirty(true);
   }
 
@@ -112,7 +144,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
         participants,
         agenda: agenda.trim() || null,
         notes: notes.trim() || null,
-        outcomes: outcomes.trim() || null,
+        outcomes: outcomeItems.join("\n").trim() || null,
         status,
       };
       if (isEdit && meeting) {
@@ -216,6 +248,30 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               onBlur={addParticipant}
               placeholder="Digite um nome e pressione Enter"
             />
+            {contacts.length > 0 && (
+              <Select
+                value=""
+                onValueChange={(name) => {
+                  if (name && !participants.includes(name)) {
+                    setParticipants((prev) => [...prev, name]);
+                    setDirty(true);
+                  }
+                }}
+              >
+                <SelectTrigger className="mt-1.5">
+                  <SelectValue placeholder="+ Adicionar do CRM" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contacts
+                    .filter((c) => !participants.includes(c.name))
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.name}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
             {participants.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {participants.map((p) => (
@@ -280,21 +336,49 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
 
             <div className="space-y-1">
               <Label htmlFor="ata-outcomes">Encaminhamentos</Label>
-              <textarea
+              <Input
                 id="ata-outcomes"
-                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                rows={4}
-                value={outcomes}
-                onChange={(e) => { setOutcomes(e.target.value); setDirty(true); }}
-                placeholder="Decisões e próximos passos (um por linha)…"
+                value={outcomeDraft}
+                onChange={(e) => setOutcomeDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addOutcome();
+                  }
+                }}
+                onBlur={addOutcome}
+                placeholder="Digite um encaminhamento e pressione Enter"
               />
+              {outcomeItems.length > 0 && (
+                <ul className="space-y-1 pt-1">
+                  {outcomeItems.map((item, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1 text-sm"
+                    >
+                      <span className="flex-1">{item}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeOutcome(idx)}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="Remover encaminhamento"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Cada item pode virar uma tarefa — use "Gerar tarefas" na lista de reuniões.
+              </p>
             </div>
 
             <div className="flex justify-end">
               <Button
                 variant="outline"
                 onClick={() =>
-                  printAta({ title, date, time, location, participants, notes, outcomes })
+                  printAta({ title, date, time, location, participants, notes, outcomes: outcomeItems.join("\n") })
                 }
               >
                 <Printer className="h-4 w-4" /> Imprimir ata
