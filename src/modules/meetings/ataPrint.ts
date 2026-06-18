@@ -65,12 +65,26 @@ export function printAta(data: AtaData): void {
   ${section("Encaminhamentos", data.outcomes)}
 </body></html>`;
 
-  const win = window.open("", "_blank", "width=820,height=640");
-  if (!win) {
-    toast.error("O navegador bloqueou a janela pop-up. Permita pop-ups para imprimir.");
+  // Imprime via iframe oculto — não sofre o bloqueio de pop-up do window.open.
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow?.document;
+  if (!doc) {
+    iframe.remove();
+    toast.error("Não foi possível preparar a impressão.");
     return;
   }
-  win.document.write(html);
-  win.document.close();
-  win.print();
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // Pequeno atraso pro conteúdo renderizar antes do diálogo de impressão.
+  setTimeout(() => {
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
+    setTimeout(() => iframe.remove(), 1000);
+  }, 100);
 }
