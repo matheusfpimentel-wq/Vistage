@@ -369,6 +369,7 @@ export function CriacaoDashboard() {
 
           return (
             <>
+              <ActionPanel group="Criação" />
               <div className={KPI_GRID}>
                 <StatCard
                   label="GIGs futuras"
@@ -507,6 +508,7 @@ export function GestaoDashboard() {
 
           return (
             <>
+              <ActionPanel group="Produtividade" />
               <div className={KPI_GRID}>
                 <StatCard
                   label="Receita do mês"
