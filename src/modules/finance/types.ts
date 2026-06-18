@@ -64,6 +64,8 @@ export type FinanceTransaction = {
   receipt_file_path: string | null;
   tax_relevant: number; // 0/1
   recurring_id: number | null;
+  /** Referência externa idempotente (ex.: "royalty:distrokid:2024-01:isrc"). */
+  source_ref: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -74,8 +76,8 @@ export type FinanceTransactionWithCategory = FinanceTransaction & {
 
 export type FinanceTransactionCreateInput = Omit<
   FinanceTransaction,
-  "id" | "created_at" | "updated_at"
->;
+  "id" | "created_at" | "updated_at" | "source_ref"
+> & { source_ref?: string | null };
 export type FinanceTransactionUpdateInput =
   Partial<FinanceTransactionCreateInput> & { id: number };
 

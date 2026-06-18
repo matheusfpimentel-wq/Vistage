@@ -1663,6 +1663,14 @@ const MIGRATIONS: Migration[] = [
     description: "classes.title — título da aula, usado como referência principal (na view e no mapa mental) em vez da matéria.",
     sql: `ALTER TABLE classes ADD COLUMN title TEXT;`,
   },
+  {
+    version: 113,
+    description: "finance_transactions.source_ref — referência externa idempotente (ex.: import de royalties DistroKid/Beatport por faixa/mês).",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN source_ref TEXT;
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_source_ref ON finance_transactions(source_ref);
+    `,
+  },
 ];
 
 
