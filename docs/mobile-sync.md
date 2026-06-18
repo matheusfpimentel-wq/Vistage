@@ -81,7 +81,7 @@ direções:
 ## Fases
 
 - [x] **Fase 0 — contrato:** schema da nuvem + RLS + este doc.
-- [ ] **Fase 1 — provisionar:** aplicar o schema no projeto Supabase do usuário.
+- [x] **Fase 1 — provisionar:** schema aplicado no projeto Supabase (`opvctbxzlwpyrvutfazb`).
 - [ ] **Fase 2 — desktop sync:** módulo de push (4 tabelas) + pull/ingest da caixa,
       painel em Configurações (colar URL + anon key, login, status).
 - [ ] **Fase 3 — PWA:** telas Hoje / Foco / Capturar + auth + deploy (GitHub Pages).

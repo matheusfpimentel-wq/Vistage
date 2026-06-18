@@ -8,8 +8,9 @@
 --   • Pra nuvem sobe só um ESPELHO do que o usuário liberou.
 --   • Finanças DETALHADAS nunca sobem — no máximo um resumo (saldo / a receber).
 --
--- Modelo single-user: cada linha carrega user_id = auth.uid() e o RLS restringe
--- tudo ao dono. O desktop e o celular logam no MESMO usuário (e-mail magic link).
+-- Modelo: UMA CONTA POR DJ/ARQUIVO. Cada linha carrega user_id = auth.uid() e o
+-- RLS restringe tudo ao dono. Multi-dispositivo é nativo do Supabase Auth (vários
+-- aparelhos na mesma conta). Distribuível: cada DJ é uma conta independente.
 --
 -- Idempotência: as tabelas de leitura usam (user_id, source, source_id) pra
 -- UPSERT; a caixa de entrada usa client_ref pra não duplicar capturas.
@@ -125,8 +126,10 @@ create policy "own rows" on public.sync_state
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ── Trigger: incrementa o rev a cada push do desktop ou captura do celular ───
+-- SECURITY INVOKER (roda como o usuário; o RLS de sync_state cobre o insert) e
+-- sem EXECUTE pra API — a função só serve de trigger, não de RPC pública.
 create or replace function public.bump_sync_rev() returns trigger
-  language plpgsql security definer set search_path = public as $$
+  language plpgsql security invoker set search_path = public as $$
 declare
   uid uuid := coalesce(new.user_id, old.user_id);
 begin
@@ -136,6 +139,8 @@ begin
   return coalesce(new, old);
 end;
 $$;
+
+revoke execute on function public.bump_sync_rev() from public, anon, authenticated;
 
 drop trigger if exists trg_bump on public.agenda_mirror;
 drop trigger if exists trg_bump on public.finance_summary;
