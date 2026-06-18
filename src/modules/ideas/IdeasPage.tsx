@@ -25,6 +25,7 @@ import { IdeaBoard } from "./views/IdeaBoard";
 import { InsightDie } from "./InsightDie";
 import { deleteIdea, listIdeas, markIdeaAsConverted, updateIdea, type IdeaFilters } from "./api";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
+import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
   IDEA_CATEGORIES,
   IDEA_MATURATIONS,
@@ -54,6 +55,7 @@ export function IdeasPage() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [convertingIdea, setConvertingIdea] = useState<Idea | null>(null);
   const [trackFormOpen, setTrackFormOpen] = useState(false);
+  const [gigFormOpen, setGigFormOpen] = useState(false);
 
   const queryFilters: IdeaFilters = useMemo(
     () => ({
@@ -84,6 +86,12 @@ export function IdeasPage() {
   function openConvertToTrack(i: Idea) {
     setConvertingIdea(i);
     setTrackFormOpen(true);
+  }
+
+  function openConvertToForm(i: Idea, target: "gig" | "track") {
+    setConvertingIdea(i);
+    if (target === "gig") setGigFormOpen(true);
+    else setTrackFormOpen(true);
   }
 
   function openEdit(i: Idea) {
@@ -229,6 +237,7 @@ export function IdeasPage() {
         idea={editing}
         onSaved={() => void refresh()}
         onConverted={() => void refresh()}
+        onConvertToEntity={openConvertToForm}
         onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }}
       />
 
@@ -251,6 +260,23 @@ export function IdeasPage() {
           if (convertingIdea) {
             await markIdeaAsConverted(convertingIdea.id, "track", newId ?? 0);
             toast.success("Ideia convertida em track");
+          }
+          void refresh();
+          setConvertingIdea(null);
+        }}
+      />
+
+      <GigForm
+        open={gigFormOpen}
+        onOpenChange={(v) => {
+          setGigFormOpen(v);
+          if (!v) setConvertingIdea(null);
+        }}
+        gig={null}
+        onSaved={async (res) => {
+          if (convertingIdea) {
+            await markIdeaAsConverted(convertingIdea.id, "gig", res.id);
+            toast.success("Ideia convertida em GIG");
           }
           void refresh();
           setConvertingIdea(null);

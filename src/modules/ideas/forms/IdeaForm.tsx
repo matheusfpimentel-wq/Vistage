@@ -45,6 +45,8 @@ type Props = {
   onSaved: (id: number) => void;
   /** Callback chamado quando o usuário converte a ideia em outra entidade. */
   onConverted?: () => void;
+  /** Abre o formulário real de GIG/Track; a página marca a conversão ao salvar. */
+  onConvertToEntity?: (idea: Idea, target: "gig" | "track") => void;
   onDelete?: (id: number) => void;
 };
 
@@ -84,7 +86,7 @@ const CONVERSION_OPTIONS = [
   { label: "Aula", converted_to: "task" as const, description: "Aula" },
 ];
 
-export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDelete }: Props) {
+export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onConvertToEntity, onDelete }: Props) {
   const [state, setStateRaw] = useState<IdeaCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -225,12 +227,12 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
         });
         await markIdeaAsConverted(idea.id, "task", taskId);
         toast.success(`Convertida em Tarefa — ${option.label}`);
-      } else if (option.converted_to === "gig") {
-        await markIdeaAsConverted(idea.id, "gig", 0);
-        toast.success("Marcada como convertida em GIG");
-      } else if (option.converted_to === "track") {
-        await markIdeaAsConverted(idea.id, "track", 0);
-        toast.success("Marcada como convertida em Produção musical");
+      } else if (option.converted_to === "gig" || option.converted_to === "track") {
+        // Abre o formulário REAL da entidade — a IdeasPage marca a conversão
+        // (com o id verdadeiro) quando o usuário salvar.
+        onConvertToEntity?.(idea, option.converted_to);
+        onOpenChange(false);
+        return;
       }
       onConverted?.();
       onOpenChange(false);
