@@ -201,11 +201,19 @@ function MainApp() {
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
-          void autoGenerateRecurringUpToNow().catch(() => {});
-          void retroactiveSyncAllLinked().catch(() => {});
-          void import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
-            syncSuperfanFollowupTasks().catch(() => {})
-          );
+          // Escritas automáticas de boot (recorrências, vínculos, follow-ups).
+          // Elas emitem "data-changed", então só liberamos o controle de
+          // "alterações não salvas" DEPOIS que todas terminam — senão o app
+          // abriria sempre "sujo" e o botão de fechar pediria pra salvar à toa.
+          void Promise.allSettled([
+            autoGenerateRecurringUpToNow(),
+            retroactiveSyncAllLinked(),
+            import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
+              syncSuperfanFollowupTasks()
+            ),
+          ]).then(() => {
+            useDocumentStore.getState().settleBoot();
+          });
         }
       } catch (e) {
         if (!cancelled) {

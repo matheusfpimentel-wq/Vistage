@@ -25,9 +25,15 @@ export function UnsavedCloseGuard() {
   // a janela fechar (em vez de reabrir o diálogo num loop).
   const confirmed = useRef(false);
 
-  // Toda mudança de dados marca o documento como não salvo.
+  // Toda mudança de dados FEITA PELO USUÁRIO marca o documento como não salvo.
+  // Mudanças durante o boot (recorrências, sync de vínculos, follow-ups) não
+  // contam — por isso o portão `bootSettled`. Sem ele, o app abriria sempre
+  // "sujo" e o fechamento ficaria preso no diálogo de salvar.
   useEffect(() => {
-    const onChange = () => useDocumentStore.getState().markDirty();
+    const onChange = () => {
+      if (!useDocumentStore.getState().bootSettled) return;
+      useDocumentStore.getState().markDirty();
+    };
     window.addEventListener(DATA_CHANGED, onChange);
     return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, []);
@@ -52,7 +58,13 @@ export function UnsavedCloseGuard() {
   async function closeNow() {
     confirmed.current = true;
     setOpen(false);
-    await getCurrentWindow().close();
+    const win = getCurrentWindow();
+    try {
+      await win.close();
+    } catch {
+      // Se o close() for interceptado/falhar, força o encerramento.
+      await win.destroy().catch(() => {});
+    }
   }
 
   async function saveAndExit() {

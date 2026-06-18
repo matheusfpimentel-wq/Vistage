@@ -101,8 +101,17 @@ type DocumentState = {
   busy: boolean;
   /** true quando há mudanças não salvas no documento aberto (ou no não-salvo). */
   dirty: boolean;
+  /**
+   * Vira true quando as escritas automáticas de inicialização terminam. Antes
+   * disso, mudanças de dados NÃO contam como "sujo" — o boot gera recorrências,
+   * sincroniza vínculos e cria follow-ups, e nada disso é edição do usuário.
+   * Sem esse portão, o app abriria sempre "sujo" e travaria o botão de fechar.
+   */
+  bootSettled: boolean;
   markDirty: () => void;
   markClean: () => void;
+  /** Marca o fim do boot: o documento está limpo e mudanças passam a contar. */
+  settleBoot: () => void;
   /** Abre um .vistage (diálogo), pergunta Mesclar/Sobrescrever/Cancelar antes de agir. */
   open: () => Promise<void>;
   /** Salva no arquivo atual; se não houver, cai em "Salvar como". Retorna se salvou. */
@@ -116,8 +125,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   currentName: fileName(localStorage.getItem(LS_KEY)),
   busy: false,
   dirty: false,
+  bootSettled: false,
   markDirty: () => set({ dirty: true }),
   markClean: () => set({ dirty: false }),
+  settleBoot: () => set({ bootSettled: true, dirty: false }),
 
   open: async () => {
     if (get().busy) return;
