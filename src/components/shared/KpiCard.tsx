@@ -14,16 +14,19 @@ export function KpiCard({
   trend?: "up" | "down" | "neutral";
 }) {
   return (
-    <div className="rounded-md border p-3">
-      {icon && (
-        <div className="mb-1 text-muted-foreground">{icon}</div>
-      )}
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="rounded-lg border bg-card px-3 py-2">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icon}
+        {label}
+      </div>
       <div
         className={cn(
-          "mt-1 text-2xl font-semibold tabular-nums",
-          trend === "up" && "text-emerald-500",
-          trend === "down" && "text-red-400"
+          "mt-0.5 text-2xl font-semibold tabular-nums",
+          trend === "up"
+            ? "text-emerald-500"
+            : trend === "down"
+              ? "text-red-400"
+              : "text-primary"
         )}
       >
         {value}
