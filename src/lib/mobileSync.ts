@@ -296,22 +296,12 @@ export async function syncNow(): Promise<{ pulled: number }> {
 // de parada (para o useEffect limpar ao desmontar).
 export function startAutoSync(): () => void {
   let stopped = false;
-
-  const tick = async () => {
-    if (stopped) return;
-    try {
-      if (!(await currentUser())) return; // sem login → não faz nada
-      await syncNow();
-    } catch (e) {
-      console.warn("Auto-sync falhou:", e);
-    }
-  };
-
-  void tick();
-  const interval = window.setInterval(() => void tick(), 3 * 60_000);
-
   let channel: ReturnType<typeof supabase.channel> | null = null;
-  try {
+
+  // Só assina o Realtime DEPOIS de confirmar a sessão — sem login, o app nem
+  // abre conexão com a nuvem (local-first).
+  const ensureRealtime = () => {
+    if (channel || stopped) return;
     channel = supabase
       .channel("capture-inbox")
       .on(
@@ -322,9 +312,21 @@ export function startAutoSync(): () => void {
         }
       )
       .subscribe();
-  } catch {
-    // Realtime é opcional — o intervalo já cobre.
-  }
+  };
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      if (!(await currentUser())) return; // sem login → nem conecta na nuvem
+      ensureRealtime();
+      await syncNow();
+    } catch (e) {
+      console.warn("Auto-sync falhou:", e);
+    }
+  };
+
+  void tick();
+  const interval = window.setInterval(() => void tick(), 3 * 60_000);
 
   return () => {
     stopped = true;
