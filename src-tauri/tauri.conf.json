@@ -36,6 +36,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "fileAssociations": [
+      {
+        "ext": ["vistage"],
+        "name": "Vistage Document",
+        "description": "Documento do Vistage",
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/x-vistage"
+      }
+    ],
     "macOS": {
       "signingIdentity": "-",
       "minimumSystemVersion": "10.15"
