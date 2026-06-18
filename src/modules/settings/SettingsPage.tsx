@@ -13,6 +13,7 @@ import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { TodoistSettings } from "./TodoistSettings";
+import { MobileSyncSettings } from "./MobileSyncSettings";
 
 export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
@@ -88,6 +89,7 @@ export function SettingsPage() {
 
       {/* ─── Integrações ─────────────────────────────────────── */}
       <TabsContent value="integracoes" className="space-y-6">
+        <MobileSyncSettings />
         <TodoistSettings />
         <GoogleCalendarSettings />
       </TabsContent>
