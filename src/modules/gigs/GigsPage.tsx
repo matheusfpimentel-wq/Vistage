@@ -209,6 +209,7 @@ export function GigsPage() {
           onChange: (v) => setFilters((f) => ({ ...f, search: v })),
           placeholder: "Buscar venue, cidade, briefing…",
         }}
+        resultCount={gigs.length}
         filtersActiveCount={
           (filters.status !== "Todas" ? 1 : 0) +
           (filters.eventCategory !== "all" ? 1 : 0) +
@@ -216,52 +217,61 @@ export function GigsPage() {
         }
         filters={
           <>
-            <Select
-              value={filters.status}
-              onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
-            >
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todas">Todos os status</SelectItem>
-                {GIG_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={filters.eventCategory}
-              onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
-            >
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="Todas as categorias" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as categorias</SelectItem>
-                <SelectItem value="Evento Social">Evento Social</SelectItem>
-                <SelectItem value="Festa">Festa</SelectItem>
-              </SelectContent>
-            </Select>
-            {recurringNames.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
               <Select
-                value={filters.recurringEventName}
-                onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+                value={filters.status}
+                onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
               >
-                <SelectTrigger className="w-full sm:w-48">
-                  <SelectValue placeholder="Todas as festas" />
+                <SelectTrigger className="w-full">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas as festas</SelectItem>
-                  {recurringNames.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
+                  <SelectItem value="Todas">Todos os status</SelectItem>
+                  {GIG_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+              <Select
+                value={filters.eventCategory}
+                onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Todas as categorias" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  <SelectItem value="Evento Social">Evento Social</SelectItem>
+                  <SelectItem value="Festa">Festa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {recurringNames.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Festa recorrente</label>
+                <Select
+                  value={filters.recurringEventName}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Todas as festas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as festas</SelectItem>
+                    {recurringNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           </>
         }

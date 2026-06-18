@@ -257,9 +257,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Clique para editar. Selecione um intervalo (clique e arraste, ou shift+clique) e use Ctrl+C / Ctrl+V para copiar e colar como no Excel.
-        </p>
+        <div />
         {/* Column visibility picker */}
         <div
           className="relative"
