@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { todayISO } from "@/lib/format";
-import { currentQuarter, listOkrs, okrProgress, quarterRange } from "@/modules/objetivos/api";
+import { currentQuarter, listOkrs, okrProgress, quarterRange, stageEnteredFromHistory } from "@/modules/objetivos/api";
 import { parsePrepState, PREP_GROUPS } from "@/modules/gigs/prep";
 
 export type WeekStats = {
@@ -45,7 +45,7 @@ function weekRange(): { start: string; end: string } {
 }
 
 type CountRow = { c: number };
-type TrackRow = { standby: number; stage_entered_at: string | null };
+type TrackRow = { standby: number; stage_history: string | null };
 type RatingRow = { rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null };
 
 // Roda um SELECT isolado: se a query falhar (ex.: coluna ausente em banco
@@ -102,7 +102,6 @@ async function computeWeekStats(): Promise<WeekStats> {
     debriefRows,
     gigRatingRows,
     hotIdeasRows,
-    stalledTracksRows,
     stalledPartiesRows,
     stalledContentRows,
     undatedPartiesRows,
@@ -143,7 +142,7 @@ async function computeWeekStats(): Promise<WeekStats> {
       [today]
     ), []),
     safeSelect<TrackRow>(() => db.select(
-      `SELECT standby, stage_entered_at FROM tracks`,
+      `SELECT standby, stage_history FROM tracks`,
       []
     ), []),
     safeSelect<CountRow>(() => db.select(
@@ -158,13 +157,6 @@ async function computeWeekStats(): Promise<WeekStats> {
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM ideas
         WHERE heat = 3 AND maturation = 'Embrião' AND substr(updated_at, 1, 10) < $1`,
-      [cut15]
-    ), []),
-    // tracks ativas sem mudança de stage há +15 dias
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM tracks
-        WHERE standby = 0 AND stage_entered_at IS NOT NULL
-          AND substr(stage_entered_at, 1, 10) < $1`,
       [cut15]
     ), []),
     // festas em aberto sem movimento há +15 dias
@@ -258,12 +250,23 @@ async function computeWeekStats(): Promise<WeekStats> {
     // não interrompe
   }
 
+  const nowMs = Date.now();
+  // dias desde que a track entrou no stage atual (derivado do stage_history JSON)
+  const daysInStage = (t: TrackRow): number | null => {
+    const entered = stageEnteredFromHistory(t.stage_history);
+    return entered ? (nowMs - new Date(entered).getTime()) / 86_400_000 : null;
+  };
   const tracksActive = tracksRows.filter((t: TrackRow) => !t.standby).length;
   const tracksStalled = tracksRows.filter((t: TrackRow) => {
-    if (t.standby || !t.stage_entered_at) return false;
-    const entered = new Date(t.stage_entered_at);
-    const now = new Date();
-    return (now.getTime() - entered.getTime()) / 86400000 > 30;
+    if (t.standby) return false;
+    const d = daysInStage(t);
+    return d !== null && d > 30;
+  }).length;
+  // tracks ativas sem mudança de stage há +15 dias (antes: query SQL c/ coluna inexistente)
+  const stalledTracks = tracksRows.filter((t: TrackRow) => {
+    if (t.standby) return false;
+    const d = daysInStage(t);
+    return d !== null && d > 15;
   }).length;
 
   const ratings = gigRatingRows
@@ -290,7 +293,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     avgGigRating,
     pendingDebriefs: debriefRows[0]?.c ?? 0,
     hotIdeasStuck: hotIdeasRows[0]?.c ?? 0,
-    stalledTracks: stalledTracksRows[0]?.c ?? 0,
+    stalledTracks,
     stalledParties: stalledPartiesRows[0]?.c ?? 0,
     stalledContent: stalledContentRows[0]?.c ?? 0,
     undatedParties: undatedPartiesRows[0]?.c ?? 0,

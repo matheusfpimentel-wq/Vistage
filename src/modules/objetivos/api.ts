@@ -94,6 +94,18 @@ export async function deleteOkr(id: number): Promise<void> {
   await db.execute(`DELETE FROM okrs WHERE id=$1`, [id]);
 }
 
+/** Data (ISO) em que a track entrou no stage atual, derivada do stage_history JSON.
+ *  `tracks` não tem coluna `stage_entered_at`; a fonte da verdade é o stage_history. */
+export function stageEnteredFromHistory(historyJson: string | null): string | null {
+  if (!historyJson) return null;
+  try {
+    const arr = JSON.parse(historyJson) as { entered_at?: string }[];
+    return arr[arr.length - 1]?.entered_at ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Conta as métricas auto pra um intervalo (trimestre) específico.
 async function countsForRange(
   needs: Set<string>,
@@ -111,11 +123,15 @@ async function countsForRange(
     counts.gigs_completed = rows[0]?.c ?? 0;
   }
   if (needs.has("tracks_released")) {
-    const rows = await db.select<{ c: number }[]>(
-      `SELECT COUNT(*) as c FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento') AND stage_entered_at >= $1 AND stage_entered_at <= $2`,
-      [qStart, qEnd]
+    // `stage_entered_at` não é coluna real: deriva do stage_history (JSON) e filtra em JS.
+    const rows = await db.select<{ stage_history: string | null }[]>(
+      `SELECT stage_history FROM tracks WHERE current_stage IN ('Lançamento','Pós-lançamento')`,
+      []
     );
-    counts.tracks_released = rows[0]?.c ?? 0;
+    counts.tracks_released = rows.filter((r) => {
+      const entered = stageEnteredFromHistory(r.stage_history)?.slice(0, 10);
+      return entered != null && entered >= qStart && entered <= qEnd;
+    }).length;
   }
   if (needs.has("parties_executed")) {
     const rows = await db.select<{ c: number }[]>(
