@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Supplier,
   SupplierCategory,
@@ -24,6 +25,19 @@ export async function listSupplierContactLinks(): Promise<
   return db.select<{ id: number; contact_id: number | null }[]>(
     "SELECT id, contact_id FROM suppliers"
   );
+}
+
+/** Vincula um fornecedor a um contato (papel duplo na visão Pessoas). */
+export async function setSupplierContact(
+  supplierId: number,
+  contactId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE suppliers SET contact_id = $1, updated_at = datetime('now') WHERE id = $2",
+    [contactId, supplierId]
+  );
+  emitDataChanged();
 }
 
 export async function listSuppliers(filters: SupplierFilters = {}): Promise<Supplier[]> {

@@ -151,7 +151,7 @@ export async function loadRelationshipAlerts(): Promise<AlertItem[]> {
     return rows.map((c) => ({
       key: `crm-radar-${c.id}`,
       label: `Faz mais de 45 dias sem contato com ${c.name}. Boa hora para retomar.`,
-      to: `/crm?open=${c.id}`,
+      to: `/pessoas?open=${c.id}`,
       critical: false,
       icon: "heart" as const,
     }));

@@ -47,9 +47,8 @@ const MODULE_DESC: Record<string, string> = {
   "/festas": "Produção de eventos próprios",
   "/aulas": "Aulas e alunos",
   "/tarefas": "To-dos e prazos",
-  "/crm": "Contatos e relacionamento",
+  "/pessoas": "Contatos e fornecedores",
   "/venues": "Locais e casas de show",
-  "/fornecedores": "Parceiros e serviços",
   "/fas": "Clube de fãs e superfãs",
   "/musica": "Pipeline de produção musical",
   "/conteudo": "Calendário de conteúdo",
@@ -274,7 +273,7 @@ export function RelacionamentoDashboard() {
                 <StatCard
                   label="Contatos"
                   value={data.contacts.length}
-                  to="/crm"
+                  to="/pessoas?role=Contato"
                   hint={`${highPriority.length} de prioridade alta`}
                 />
                 <StatCard
@@ -285,7 +284,7 @@ export function RelacionamentoDashboard() {
                 <StatCard
                   label="Fornecedores"
                   value={data.suppliers.length}
-                  to="/fornecedores"
+                  to="/pessoas?role=Fornecedor"
                 />
                 <StatCard
                   label="Superfãs"
@@ -302,7 +301,7 @@ export function RelacionamentoDashboard() {
                 {highPriority.slice(0, 6).map((c) => (
                   <Link
                     key={c.id}
-                    to="/crm"
+                    to={`/pessoas?open=${c.id}`}
                     className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
                   >
                     <span className="min-w-0 truncate text-sm font-medium">

@@ -145,7 +145,7 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
                   {fan.contact_id != null && contactName && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">Contato CRM</span>
-                      <Link to={`/crm?open=${fan.contact_id}`} className="truncate hover:underline text-primary text-sm">
+                      <Link to={`/pessoas?open=${fan.contact_id}`} className="truncate hover:underline text-primary text-sm">
                         {contactName}
                       </Link>
                     </div>

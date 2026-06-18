@@ -31,10 +31,10 @@ import { cn } from "@/lib/utils";
 const CREATE_ACTIONS: { label: string; to: string; icon: React.ElementType }[] = [
   { label: "Nova GIG", to: "/gigs", icon: Calendar },
   { label: "Nova tarefa", to: "/tarefas", icon: CheckSquare },
-  { label: "Novo contato", to: "/crm", icon: Users },
+  { label: "Novo contato", to: "/pessoas", icon: Users },
   { label: "Novo fã", to: "/fas", icon: Heart },
   { label: "Novo venue", to: "/venues", icon: Building2 },
-  { label: "Novo fornecedor", to: "/fornecedores", icon: Store },
+  { label: "Novo fornecedor", to: "/pessoas", icon: Store },
   { label: "Nova aula", to: "/aulas", icon: GraduationCap },
   { label: "Nova track", to: "/musica", icon: Music },
   { label: "Nova produção", to: "/festas", icon: PartyPopper },

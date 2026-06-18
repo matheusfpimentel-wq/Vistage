@@ -158,7 +158,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       id: c.id,
       title: c.name,
       subtitle: [c.city, c.email].filter(Boolean).join(" · ") || "Contato",
-      route: "/crm",
+      route: "/pessoas",
     });
   }
   for (const t of tasks) {
@@ -202,7 +202,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       id: s.id,
       title: s.name,
       subtitle: [s.category, s.city].filter(Boolean).join(" · ") || "Fornecedor",
-      route: "/fornecedores",
+      route: "/pessoas",
     });
   }
   for (const f of fans) {

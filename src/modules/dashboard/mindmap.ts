@@ -52,9 +52,9 @@ export const MIND_TYPE_META: Record<
   project: { label: "Projeto musical", color: "#818cf8", route: "/musica" },      // índigo-claro
   content: { label: "Conteúdo",        color: "#fbbf24", route: "/conteudo" },    // âmbar
   idea:    { label: "Ideia",           color: "#a3e635", route: "/ideias" },      // lima
-  contact: { label: "Contato",         color: "#4ade80", route: "/crm" },         // verde
+  contact: { label: "Contato",         color: "#4ade80", route: "/pessoas" },     // verde
   venue:   { label: "Venue",           color: "#22d3ee", route: "/venues" },      // ciano
-  supplier:{ label: "Fornecedor",      color: "#fb923c", route: "/fornecedores" },// laranja
+  supplier:{ label: "Fornecedor",      color: "#fb923c", route: "/pessoas" },     // laranja
   fan:     { label: "Fã",             color: "#f87171", route: "/fas" },          // vermelho-claro
   fest:    { label: "Festa recorrente", color: "#e879f9", route: "/gigs" },        // fúcsia
 };
