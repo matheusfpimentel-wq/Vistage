@@ -7,14 +7,12 @@ import {
   Package as PackageIcon,
   Pencil,
   Plus,
-  Search,
   Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonList } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -68,7 +66,8 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StatusFilter = ClassStatus | "Todas";
 
@@ -210,6 +209,8 @@ export function ClassesPage() {
     return nums;
   }, [classes]);
 
+  const [view, setView] = useModuleView<"classes" | "students" | "packages">("classes", "classes");
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-4">
@@ -235,7 +236,7 @@ export function ClassesPage() {
         />
       </div>
 
-      <Tabs defaultValue="classes">
+      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="classes">Aulas</TabsTrigger>
           <TabsTrigger value="students">Alunos</TabsTrigger>
@@ -244,71 +245,67 @@ export function ClassesPage() {
 
         {/* ====================== AULAS ====================== */}
         <TabsContent value="classes" className="space-y-4">
-          <PageToolbar
-            actions={
-              <Button
-                onClick={() => {
-                  setEditingClass(null);
-                  setClassFormOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" /> Nova aula
-              </Button>
+          <ModuleToolbar
+            primaryAction={{
+              label: "Nova aula",
+              icon: Plus,
+              onClick: () => { setEditingClass(null); setClassFormOpen(true); },
+            }}
+            secondaryActions={[
+              { label: "Novo aluno", icon: Plus, onClick: () => { setEditingStudent(null); setStudentFormOpen(true); } },
+              { label: "Novo pacote", icon: Plus, onClick: () => { setEditingPkg(null); setPkgFormOpen(true); } },
+            ]}
+            search={{
+              value: filters.search,
+              onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+              placeholder: "Buscar aluno ou matéria…",
+            }}
+            filtersActiveCount={
+              (filters.studentId !== "all" ? 1 : 0) + (filters.status !== "Todas" ? 1 : 0)
             }
-          >
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar aluno ou matéria…"
-                  value={filters.search}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, search: e.target.value }))
-                  }
-                  className="w-64 pl-8"
-                />
-              </div>
-              <Select
-                value={filters.studentId.toString()}
-                onValueChange={(v) =>
-                  setFilters((f) => ({
-                    ...f,
-                    studentId: v === "all" ? "all" : Number(v),
-                  }))
-                }
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os alunos</SelectItem>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id.toString()}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={filters.status}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, status: v as StatusFilter }))
-                }
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todas">Todos os status</SelectItem>
-                  {CLASS_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </PageToolbar>
+            filters={
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Aluno</label>
+                  <Select
+                    value={filters.studentId.toString()}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, studentId: v === "all" ? "all" : Number(v) }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os alunos</SelectItem>
+                      {students.map((s) => (
+                        <SelectItem key={s.id} value={s.id.toString()}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Status</label>
+                  <Select
+                    value={filters.status}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Todas">Todos os status</SelectItem>
+                      {CLASS_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            }
+          />
 
           {loading ? (
             <SkeletonList />
@@ -405,16 +402,13 @@ export function ClassesPage() {
 
         {/* ====================== ALUNOS ====================== */}
         <TabsContent value="students" className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                setEditingStudent(null);
-                setStudentFormOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" /> Novo aluno
-            </Button>
-          </div>
+          <ModuleToolbar
+            primaryAction={{
+              label: "Novo aluno",
+              icon: Plus,
+              onClick: () => { setEditingStudent(null); setStudentFormOpen(true); },
+            }}
+          />
           {loading ? (
             <SkeletonList />
           ) : students.length === 0 ? (
@@ -495,16 +489,13 @@ export function ClassesPage() {
 
         {/* ====================== PACOTES (templates) ====================== */}
         <TabsContent value="packages" className="space-y-4">
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                setEditingPkg(null);
-                setPkgFormOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" /> Novo pacote
-            </Button>
-          </div>
+          <ModuleToolbar
+            primaryAction={{
+              label: "Novo pacote",
+              icon: Plus,
+              onClick: () => { setEditingPkg(null); setPkgFormOpen(true); },
+            }}
+          />
 
           {packages.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
