@@ -245,9 +245,6 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               onChange={(e) => { setAgenda(e.target.value); setDirty(true); }}
               placeholder="Tópicos a tratar..."
             />
-            <p className="text-[11px] text-muted-foreground">
-              O texto da ata e os encaminhamentos são preenchidos na aba <strong>Ata</strong>.
-            </p>
           </div>
           </TabsContent>
 
