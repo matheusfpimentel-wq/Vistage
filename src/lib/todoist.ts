@@ -1,8 +1,10 @@
 /**
  * Integração bidirecional com o Todoist (REST API v2).
  * Token pessoal + projeto específico, armazenados em app_settings.
- * Não usa nenhuma dependência extra — apenas fetch() nativo.
+ * Usa o fetch do plugin HTTP do Tauri (passa pela camada Rust) — o fetch nativo
+ * do webview falha por CORS, já que a API do Todoist não libera origem de browser.
  */
+import { fetch } from "@tauri-apps/plugin-http";
 import { getDb } from "./db";
 import type { TaskPriority, TaskStatus } from "@/modules/tasks/types";
 
