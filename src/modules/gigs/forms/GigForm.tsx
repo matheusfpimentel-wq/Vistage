@@ -1136,7 +1136,7 @@ export function GigForm({
 
                 {gig ? (
                   <Section title="Setlist de arquivo">
-                    <p className="text-xs text-muted-foreground">Importe o setlist exportado do Rekordbox, Traktor ou Serato.</p>
+                    <p className="text-xs text-muted-foreground">Importe o histórico exportado do Rekordbox (.txt/.xml), Traktor ou Serato — pode ser direto do pen-drive.</p>
                     <GigSetlist gigId={gig.id} />
                   </Section>
                 ) : (

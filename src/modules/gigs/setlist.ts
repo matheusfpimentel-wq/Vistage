@@ -15,7 +15,7 @@ export type SetlistTrack = {
 
 export type ParsedSetlist = {
   tracks: SetlistTrack[];
-  source_format: "rekordbox_xml" | "traktor_nml" | "serato_session" | "m3u";
+  source_format: "rekordbox_xml" | "rekordbox_txt" | "traktor_nml" | "serato_session" | "m3u";
   source_filename: string;
 };
 
@@ -69,6 +69,80 @@ function parseRekordboxXml(content: string, filename: string): ParsedSetlist {
 
   const tracks = ordered.map((t, i) => ({ ...t, position: i + 1 }));
   return { tracks, source_format: "rekordbox_xml", source_filename: filename };
+}
+
+// ─── Rekordbox TXT (histórico / playlist exportada) ───────────────────────────
+// Exportar um Histórico ou playlist no Rekordbox como TXT gera um arquivo
+// separado por TAB com uma linha de cabeçalho. As colunas dependem do que está
+// visível e do idioma do app — então achamos cada coluna pelo nome (EN/PT).
+
+function parseRekordboxTxt(content: string, filename: string): ParsedSetlist {
+  const lines = content
+    .replace(/^﻿/, "")
+    .split(/\r?\n/)
+    .filter((l) => l.trim().length > 0);
+  if (lines.length < 2) throw new Error("Arquivo vazio ou sem faixas.");
+
+  // Rekordbox exporta com TAB; cai pra ; ou , se não houver TAB.
+  const delim = lines[0].includes("\t") ? "\t" : lines[0].includes(";") ? ";" : ",";
+  const header = lines[0].split(delim).map((h) => h.trim().toLowerCase());
+
+  const findCol = (...names: string[]): number => {
+    for (const n of names) {
+      const i = header.indexOf(n);
+      if (i !== -1) return i;
+    }
+    for (const n of names) {
+      const i = header.findIndex((h) => h.includes(n));
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const idxTitle = findCol("track title", "título da faixa", "titulo da faixa", "title", "título", "titulo", "nome da faixa", "faixa", "track name", "nome");
+  const idxArtist = findCol("artist", "artista");
+  const idxBpm = findCol("bpm");
+  const idxKey = findCol("key", "tom", "tonalidade");
+  const idxTime = findCol("time", "tempo", "duração", "duracao", "length");
+  const idxGenre = findCol("genre", "gênero", "genero");
+  const idxComment = findCol("comments", "comentários", "comentarios", "comment", "coment");
+
+  if (idxTitle === -1) {
+    throw new Error(
+      "Não achei a coluna de título. Exporte o histórico do Rekordbox como TXT (com cabeçalho)."
+    );
+  }
+
+  const parseTime = (v: string | undefined): number | null => {
+    if (!v) return null;
+    const s = v.trim();
+    const mmss = s.match(/^(\d+):(\d{1,2})$/);
+    if (mmss) return parseInt(mmss[1], 10) * 60 + parseInt(mmss[2], 10);
+    const n = parseInt(s, 10);
+    return isNaN(n) ? null : n;
+  };
+  const cell = (cols: string[], i: number): string => (i >= 0 ? (cols[i] ?? "").trim() : "");
+
+  const tracks: SetlistTrack[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(delim);
+    const title = cell(cols, idxTitle);
+    if (!title) continue;
+    const bpmRaw = cell(cols, idxBpm).replace(",", ".");
+    const bpm = bpmRaw ? parseFloat(bpmRaw) : NaN;
+    tracks.push({
+      position: tracks.length + 1,
+      title,
+      artist: cell(cols, idxArtist),
+      bpm: !isNaN(bpm) ? bpm : null,
+      key: cell(cols, idxKey) || null,
+      duration_sec: parseTime(idxTime >= 0 ? cols[idxTime] : undefined),
+      genre: cell(cols, idxGenre) || null,
+      comment: cell(cols, idxComment) || null,
+    });
+  }
+
+  return { tracks, source_format: "rekordbox_txt", source_filename: filename };
 }
 
 // ─── Traktor NML ──────────────────────────────────────────────────────────────
@@ -203,6 +277,7 @@ export function detectAndParse(filename: string, content: string): ParsedSetlist
   if (lower.endsWith(".nml")) return parseTraktorNml(content, filename);
   if (lower.endsWith(".m3u") || lower.endsWith(".m3u8")) return parseM3u(content, filename);
   if (lower.endsWith(".session")) return parseSeratoSession(content, filename);
+  if (lower.endsWith(".txt") || lower.endsWith(".csv")) return parseRekordboxTxt(content, filename);
   if (lower.endsWith(".xml")) {
     if (content.includes("<DJ_PLAYLISTS")) return parseRekordboxXml(content, filename);
     throw new Error("XML não reconhecido");

@@ -36,6 +36,7 @@ type Props = { gigId: number };
 
 const FORMAT_LABEL: Record<string, string> = {
   rekordbox_xml: "Rekordbox",
+  rekordbox_txt: "Rekordbox",
   traktor_nml: "Traktor",
   serato_session: "Serato",
   m3u: "M3U",
@@ -43,10 +44,19 @@ const FORMAT_LABEL: Record<string, string> = {
 
 const FORMAT_CLASS: Record<string, string> = {
   rekordbox_xml: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  rekordbox_txt: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   traktor_nml: "bg-blue-500/15 text-blue-400 border-blue-500/30",
   serato_session: "bg-green-500/15 text-green-400 border-green-500/30",
   m3u: "",
 };
+
+/** Decodifica um buffer de texto detectando BOM UTF-16 (Rekordbox TXT) ou UTF-8. */
+function decodeTextBuffer(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
+  return new TextDecoder("utf-8").decode(bytes);
+}
 
 function formatDuration(sec: number | null): string {
   if (!sec) return "—";
@@ -84,10 +94,16 @@ export function GigSetlist({ gigId }: Props) {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const isBinary = file.name.toLowerCase().endsWith(".session");
+    const name = file.name.toLowerCase();
+    const isBinary = name.endsWith(".session");
+    // TXT/CSV do Rekordbox costumam vir em UTF-16 — lemos os bytes e decodificamos
+    // pelo BOM, senão o conteúdo chega embaralhado.
+    const needsDecode = name.endsWith(".txt") || name.endsWith(".csv");
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const content = ev.target?.result as string;
+      const content = needsDecode
+        ? decodeTextBuffer(ev.target?.result as ArrayBuffer)
+        : (ev.target?.result as string);
       try {
         const parsed = detectAndParse(file.name, content);
         if (parsed.tracks.length === 0) {
@@ -100,6 +116,7 @@ export function GigSetlist({ gigId }: Props) {
       }
     };
     if (isBinary) reader.readAsBinaryString(file);
+    else if (needsDecode) reader.readAsArrayBuffer(file);
     else reader.readAsText(file);
     // reset so same file can be re-imported
     e.target.value = "";
@@ -192,7 +209,7 @@ export function GigSetlist({ gigId }: Props) {
         <input
           ref={fileRef}
           type="file"
-          accept=".xml,.nml,.m3u,.m3u8,.session"
+          accept=".xml,.nml,.m3u,.m3u8,.session,.txt,.csv"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -201,7 +218,10 @@ export function GigSetlist({ gigId }: Props) {
       {setlists.length === 0 && (
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
           <Music className="h-8 w-8 opacity-40" />
-          <span>Importe um arquivo do Rekordbox, Traktor, Serato ou M3U</span>
+          <span>
+            Importe o histórico do Rekordbox (.txt / .xml), Traktor (.nml),
+            Serato (.session) ou M3U — exportado direto no pen-drive.
+          </span>
         </div>
       )}
 
