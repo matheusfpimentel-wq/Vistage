@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { ArrowUpDown, Check, ChevronDown, ChevronRight, GripVertical, PanelLeftClose } from "lucide-react";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
+  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -42,7 +43,7 @@ function SortableNavItem({ item }: { item: NavItem }) {
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "flex touch-none items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm",
+        "mb-1 flex touch-none items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm",
         "cursor-grab active:cursor-grabbing",
         isDragging && "opacity-40"
       )}
@@ -76,9 +77,7 @@ export function Sidebar({
     }
   });
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor));
 
   const reload = useCallback(() => {
     void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
@@ -102,18 +101,12 @@ export function Sidebar({
     });
   }, []);
 
-  // Overrides de grupo atuais, derivados do nav carregado (vs DEFAULT_NAV) — para
-  // não perder reatribuições anteriores ao persistir um novo arraste.
-  const currentItemGroups = useMemo<ItemGroups>(() => {
-    const def = new Map(DEFAULT_NAV.map((i) => [i.to, i.group]));
-    const overrides: ItemGroups = {};
-    for (const i of nav) {
-      if (i.group && def.get(i.to) !== i.group) overrides[i.to] = i.group;
-    }
-    return overrides;
-  }, [nav]);
-
   const reorderable = nav.filter((i) => !i.fixed);
+  // Lista achatada com os grupos contíguos (na ordem dos grupos) — é a base do
+  // sortable único: assim dá pra arrastar suave dentro do grupo E entre grupos.
+  const orderedReorderable = NAV_GROUP_ORDER.flatMap((g) =>
+    reorderable.filter((i) => i.group === g)
+  );
   const activeItem = activeId ? reorderable.find((i) => i.to === activeId) ?? null : null;
 
   async function persist(nextReorderable: NavItem[], nextItemGroups: ItemGroups) {
@@ -130,27 +123,24 @@ export function Sidebar({
     setActiveId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const aId = String(active.id);
-    const oId = String(over.id);
-    const aItem = reorderable.find((i) => i.to === aId);
-    const oItem = reorderable.find((i) => i.to === oId);
-    if (!aItem || !oItem || !aItem.group || !oItem.group) return;
+    const flat = orderedReorderable;
+    const fromIdx = flat.findIndex((i) => i.to === String(active.id));
+    const toIdx = flat.findIndex((i) => i.to === String(over.id));
+    if (fromIdx === -1 || toIdx === -1) return;
 
-    const next = [...reorderable];
-    const fromIdx = next.findIndex((i) => i.to === aId);
-    const newItemGroups = { ...currentItemGroups };
-
-    if (aItem.group !== oItem.group) {
-      // Move entre grupos: ajusta o grupo do item (e o override persistido).
-      next[fromIdx] = { ...next[fromIdx], group: oItem.group };
-      const defaultGroup = DEFAULT_NAV.find((i) => i.to === aId)?.group;
-      if (oItem.group !== defaultGroup) newItemGroups[aId] = oItem.group;
-      else delete newItemGroups[aId];
+    const next = arrayMove(flat, fromIdx, toIdx);
+    // O item movido adota o grupo do vizinho na nova posição (move entre grupos).
+    const moved = next[toIdx];
+    const neighbor = next[toIdx - 1] ?? next[toIdx + 1];
+    if (neighbor?.group && moved.group !== neighbor.group) {
+      next[toIdx] = { ...moved, group: neighbor.group };
     }
-
-    const [moved] = next.splice(fromIdx, 1);
-    const toIdx = next.findIndex((i) => i.to === oId);
-    next.splice(toIdx, 0, moved);
+    // Recalcula os overrides de grupo a partir do estado final.
+    const def = new Map(DEFAULT_NAV.map((i) => [i.to, i.group]));
+    const newItemGroups: ItemGroups = {};
+    for (const it of next) {
+      if (it.group && def.get(it.to) !== it.group) newItemGroups[it.to] = it.group;
+    }
     void persist(next, newItemGroups);
   }
 
@@ -195,24 +185,25 @@ export function Sidebar({
             onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
             onDragEnd={handleDragEnd}
           >
-            {NAV_GROUP_ORDER.map((group) => {
-              const items = reorderable.filter((i) => i.group === group);
-              if (items.length === 0) return null;
-              return (
-                <div key={group} className="mt-4 space-y-1">
-                  <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                    {effectiveGroupLabel(group, groupLabels)}
-                  </div>
-                  <SortableContext items={items.map((i) => i.to)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-1">
-                      {items.map((item) => (
-                        <SortableNavItem key={item.to} item={item} />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </div>
-              );
-            })}
+            <SortableContext
+              items={orderedReorderable.map((i) => i.to)}
+              strategy={verticalListSortingStrategy}
+            >
+              {orderedReorderable.map((item, idx) => {
+                const prev = orderedReorderable[idx - 1];
+                const showHeader = !prev || prev.group !== item.group;
+                return (
+                  <Fragment key={item.to}>
+                    {showHeader && item.group && (
+                      <div className="mb-1 mt-4 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">
+                        {effectiveGroupLabel(item.group, groupLabels)}
+                      </div>
+                    )}
+                    <SortableNavItem item={item} />
+                  </Fragment>
+                );
+              })}
+            </SortableContext>
             <DragOverlay>
               {activeItem ? (
                 <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm shadow-lg ring-1 ring-primary/40">
