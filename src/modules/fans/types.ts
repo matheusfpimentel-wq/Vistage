@@ -8,6 +8,8 @@ export type Fan = {
   id: number;
   name: string;
   level: FanLevel;
+  /** Embaixador é destaque manual (1) — imune ao recálculo de pontuação. */
+  is_ambassador: number;
   instagram: string | null;
   email: string | null;
   phone: string | null;

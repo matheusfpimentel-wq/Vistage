@@ -913,8 +913,10 @@ function FanUpgradeRulesDialog({
               <ScoreField label="Quase fã" value={s.thQuaseFa} placeholder="2" onChange={set("thQuaseFa")} />
               <ScoreField label="Fã" value={s.thFa} placeholder="5" onChange={set("thFa")} />
               <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
-              <ScoreField label="Embaixador" value={s.thEmbaixador} placeholder="25" onChange={set("thEmbaixador")} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              Embaixador não entra na pontuação — é um destaque manual no cadastro do fã.
+            </p>
           </div>
 
           <div className="flex gap-2">

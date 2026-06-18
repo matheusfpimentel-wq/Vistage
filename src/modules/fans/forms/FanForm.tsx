@@ -39,6 +39,7 @@ type Props = {
 const EMPTY: FanCreateInput = {
   name: "",
   level: "Possível fã",
+  is_ambassador: 0,
   instagram: null,
   email: null,
   phone: null,
@@ -53,6 +54,7 @@ function fanToState(f: Fan): FanCreateInput {
   return {
     name: f.name,
     level: f.level,
+    is_ambassador: f.is_ambassador,
     instagram: f.instagram,
     email: f.email,
     phone: f.phone,
@@ -190,7 +192,13 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
                   <button
                     key={level}
                     type="button"
-                    onClick={() => setState((s) => ({ ...s, level }))}
+                    onClick={() =>
+                      setState((s) => ({
+                        ...s,
+                        level,
+                        is_ambassador: level === "Embaixador" ? 1 : 0,
+                      }))
+                    }
                     className={cn(
                       "rounded-md border px-2.5 py-1 text-xs transition",
                       active
@@ -205,6 +213,10 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
             </div>
             <p className="text-xs text-muted-foreground">
               Atual: <LevelBadge level={state.level as FanLevel} />
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Possível fã → Superfã são calculados pela pontuação.{" "}
+              <strong>Embaixador</strong> é um destaque manual (fica imune ao recálculo).
             </p>
           </div>
 

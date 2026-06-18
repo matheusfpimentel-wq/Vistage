@@ -1653,6 +1653,11 @@ const MIGRATIONS: Migration[] = [
     description: "artist_identity.brand_manual_path — arquivo do manual de marca (PDF).",
     sql: `ALTER TABLE artist_identity ADD COLUMN brand_manual_path TEXT;`,
   },
+  {
+    version: 111,
+    description: "fans.is_ambassador — Embaixador é destaque manual, fora da pontuação automática.",
+    sql: `ALTER TABLE fans ADD COLUMN is_ambassador INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 

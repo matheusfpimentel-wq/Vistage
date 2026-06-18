@@ -149,8 +149,9 @@ function decayedWeight(dateStr: string | null, weight: number, halfLifeDays: num
   return weight * Math.pow(0.5, ageDays / halfLifeDays);
 }
 
+// Embaixador NÃO entra na pontuação automática — é um destaque manual
+// (fans.is_ambassador). O score sobe no máximo até Superfã.
 function scoreToLevel(score: number, th: Required<FanScoreThresholds>): FanLevel {
-  if (score >= th.embaixador) return "Embaixador";
   if (score >= th.superfa) return "Superfã";
   if (score >= th.fa) return "Fã";
   if (score >= th.quaseFa) return "Quase fã";
@@ -209,12 +210,15 @@ export async function fanEngagementScore(fanId: number): Promise<number> {
  */
 export async function recomputeFanLevel(fanId: number): Promise<void> {
   const db = getDb();
-  const { level } = await computeFanScoreAndLevel(fanId);
-  const cur = await db.select<{ level: string }[]>(
-    `SELECT level FROM fans WHERE id = $1`,
+  const { level: computed } = await computeFanScoreAndLevel(fanId);
+  const cur = await db.select<{ level: string; is_ambassador: number }[]>(
+    `SELECT level, is_ambassador FROM fans WHERE id = $1`,
     [fanId]
   );
-  if (cur[0] && cur[0].level !== level) {
+  if (!cur[0]) return;
+  // Embaixador é manual (is_ambassador) e imune ao recálculo.
+  const level = cur[0].is_ambassador ? "Embaixador" : computed;
+  if (cur[0].level !== level) {
     await db.execute(
       `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
       [level, fanId]
@@ -230,12 +234,13 @@ export async function recomputeFanLevel(fanId: number): Promise<void> {
 export async function recomputeAllFanLevels(): Promise<number> {
   const db = getDb();
   const rules = await loadFanUpgradeRules();
-  const fans = await db.select<{ id: number; level: string }[]>(
-    `SELECT id, level FROM fans`
+  const fans = await db.select<{ id: number; level: string; is_ambassador: number }[]>(
+    `SELECT id, level, is_ambassador FROM fans`
   );
   let changed = 0;
   for (const f of fans) {
-    const { level } = await computeFanScoreAndLevel(f.id, rules);
+    const { level: computed } = await computeFanScoreAndLevel(f.id, rules);
+    const level = f.is_ambassador ? "Embaixador" : computed;
     if (f.level !== level) {
       await db.execute(
         `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
