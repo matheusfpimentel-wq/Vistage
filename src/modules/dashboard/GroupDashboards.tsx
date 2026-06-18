@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
+import { ActionPanel } from "@/components/shared/ActionPanel";
 import {
   DEFAULT_NAV,
   NAV_GROUP_META,
@@ -271,6 +272,7 @@ export function RelacionamentoDashboard() {
 
           return (
             <>
+              <ActionPanel group="Relacionamento" />
               <div className={KPI_GRID}>
                 <StatCard
                   label="Contatos"
