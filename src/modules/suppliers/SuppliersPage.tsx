@@ -113,7 +113,13 @@ export function SuppliersPage() {
   return (
     <div className="space-y-4">
       {/* Toolbar */}
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-wrap items-center gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
+        <div className="flex justify-end">
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo fornecedor
+          </Button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -159,10 +165,7 @@ export function SuppliersPage() {
             <List className="h-4 w-4" />
           </button>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          Novo fornecedor
-        </Button>
+        </div>
       </div>
 
       {/* Empty state */}

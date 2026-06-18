@@ -145,7 +145,12 @@ export function TasksPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-wrap items-end justify-between gap-3">
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
+        <div className="flex justify-end">
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova tarefa
+          </Button>
+        </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -231,9 +236,6 @@ export function TasksPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova tarefa
-        </Button>
       </div>
 
       <div className="flex flex-wrap gap-1.5">

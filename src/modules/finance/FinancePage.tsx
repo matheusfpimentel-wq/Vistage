@@ -213,7 +213,28 @@ export function FinancePage() {
         </TabsList>
 
         <TabsContent value="transactions" className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setCategoryMgrOpen(true)}
+              >
+                <Settings className="h-4 w-4" /> Categorias
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExportCsv}
+                disabled={transactions.length === 0}
+              >
+                <Download className="h-4 w-4" /> Exportar CSV
+              </Button>
+              <Button variant="outline" onClick={() => openCreate("expense")}>
+                <Plus className="h-4 w-4" /> Despesa
+              </Button>
+              <Button onClick={() => openCreate("income")}>
+                <Plus className="h-4 w-4" /> Receita
+              </Button>
+            </div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -315,27 +336,6 @@ export function FinancePage() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCategoryMgrOpen(true)}
-              >
-                <Settings className="h-4 w-4" /> Categorias
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleExportCsv}
-                disabled={transactions.length === 0}
-              >
-                <Download className="h-4 w-4" /> Exportar CSV
-              </Button>
-              <Button variant="outline" onClick={() => openCreate("expense")}>
-                <Plus className="h-4 w-4" /> Despesa
-              </Button>
-              <Button onClick={() => openCreate("income")}>
-                <Plus className="h-4 w-4" /> Receita
-              </Button>
             </div>
           </div>
 

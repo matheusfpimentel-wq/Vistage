@@ -52,17 +52,17 @@ export function ObjetivosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between">
-        <div>
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />Em dia (≥70%)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />Em risco (40–69%)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/60" />Atrasado (&lt;40%)</span>
-          </div>
+      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
+        <div className="flex justify-end">
+          <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
+            <Plus className="h-4 w-4" /> Novo OKR
+          </Button>
         </div>
-        <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
-          <Plus className="h-4 w-4" /> Novo OKR
-        </Button>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />Em dia (≥70%)</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />Em risco (40–69%)</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/60" />Atrasado (&lt;40%)</span>
+        </div>
       </div>
 
       {quarters.length === 0 ? (
