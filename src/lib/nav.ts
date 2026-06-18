@@ -211,9 +211,36 @@ function applyNavOrder(items: NavItem[], order: string[]): NavItem[] {
   return [...fixed_head, ...reorderable, ...missing, ...fixed_tail];
 }
 
+/**
+ * Rotas aposentadas → rota atual. "/crm" e "/fornecedores" viraram "/pessoas";
+ * normaliza ordens/grupos salvos de versões anteriores para o item novo
+ * aparecer no lugar certo (em vez de cair no fim da lista).
+ */
+const LEGACY_ROUTE_MAP: Record<string, string> = {
+  "/crm": "/pessoas",
+  "/fornecedores": "/pessoas",
+};
+
+function normalizeOrder(order: string[] | null): string[] | null {
+  if (!order) return null;
+  const mapped = order.map((to) => LEGACY_ROUTE_MAP[to] ?? to);
+  return [...new Set(mapped)]; // remove duplicata de /pessoas
+}
+
+function normalizeItemGroups(groups: ItemGroups): ItemGroups {
+  const out: ItemGroups = { ...groups };
+  for (const [legacy, current] of Object.entries(LEGACY_ROUTE_MAP)) {
+    if (out[legacy] && !out[current]) out[current] = out[legacy];
+    delete out[legacy];
+  }
+  return out;
+}
+
 /** Carrega a ordem efetiva já aplicada ao DEFAULT_NAV (com grupos customizados). */
 export async function loadOrderedNav(): Promise<NavItem[]> {
-  const [order, itemGroups] = await Promise.all([loadNavOrder(), loadItemGroups()]);
+  const [rawOrder, rawItemGroups] = await Promise.all([loadNavOrder(), loadItemGroups()]);
+  const order = normalizeOrder(rawOrder);
+  const itemGroups = normalizeItemGroups(rawItemGroups);
   const withGroups = applyItemGroups(DEFAULT_NAV, itemGroups);
   return order ? applyNavOrder(withGroups, order) : withGroups;
 }

@@ -12,7 +12,9 @@ import {
 
 // rota de destino → grupo temático da dash
 const ROUTE_GROUP: Record<string, string> = {
+  "/pessoas": "Relacionamento",
   "/crm": "Relacionamento",
+  "/fornecedores": "Relacionamento",
   "/fas": "Relacionamento",
   "/gigs": "Criação",
   "/musica": "Criação",

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Pencil, Plus, Store, Trash2, User, Users } from "lucide-react";
+import { Pencil, Plus, Store, Trash2, User, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -15,6 +15,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ContactForm } from "@/modules/crm/forms/ContactForm";
 import { ContactDetail } from "@/modules/crm/forms/ContactDetail";
 import {
+  createContact,
   deleteContact,
   getContact,
   listContacts,
@@ -28,6 +29,7 @@ import {
   deleteSupplier,
   listSupplierContactLinks,
   listSuppliers,
+  setSupplierContact,
 } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
@@ -136,6 +138,8 @@ export function PessoasPage() {
       });
     }
     if (supId && !Number.isNaN(Number(supId))) setSupplierDetailId(Number(supId));
+    const r = searchParams.get("role");
+    if (r === "Contato" || r === "Fornecedor") setRole(r);
     if (openId || supId) setSearchParams({}, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -186,6 +190,35 @@ export function PessoasPage() {
     try {
       await upsertSupplierMirror(p.contact);
       toast.success(`${p.contact.name} agora também é fornecedor`);
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  // Inverso do toggle: dá o papel "Contato" a um fornecedor puro, criando um
+  // contato espelho e vinculando-o (suppliers.contact_id). Aditivo e opt-in.
+  async function makeContact(p: Person) {
+    if (!p.supplier) return;
+    const s = p.supplier;
+    try {
+      const contactId = await createContact({
+        name: s.name,
+        types: [],
+        phone: s.phone,
+        email: s.email,
+        instagram: s.instagram,
+        city: s.city,
+        tags: [],
+        notes: s.notes,
+        rating: s.rating,
+        photo_path: null,
+        follower_count: null,
+        venue_id: null,
+        company: null,
+      });
+      await setSupplierContact(s.id, contactId);
+      toast.success(`${s.name} agora também é contato`);
       await refresh();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -263,6 +296,7 @@ export function PessoasPage() {
               onOpen={() => openPerson(p)}
               onEdit={() => editPerson(p)}
               onMakeSupplier={() => void makeSupplier(p)}
+              onMakeContact={() => void makeContact(p)}
               onDelete={() => void handleDelete(p)}
             />
           ))}
@@ -369,16 +403,19 @@ function PersonRow({
   onOpen,
   onEdit,
   onMakeSupplier,
+  onMakeContact,
   onDelete,
 }: {
   person: Person;
   onOpen: () => void;
   onEdit: () => void;
   onMakeSupplier: () => void;
+  onMakeContact: () => void;
   onDelete: () => void;
 }) {
   const sub = p.email ?? p.phone ?? p.instagram ?? p.city ?? "—";
   const canBecomeSupplier = p.contact != null && p.supplierId == null;
+  const canBecomeContact = p.contact == null && p.supplier != null;
   return (
     <div
       role="button"
@@ -412,6 +449,17 @@ function PersonRow({
             onClick={onMakeSupplier}
           >
             <Store className="h-4 w-4" />
+          </Button>
+        )}
+        {canBecomeContact && (
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Tornar contato"
+            title="Tornar também contato"
+            onClick={onMakeContact}
+          >
+            <UserPlus className="h-4 w-4" />
           </Button>
         )}
         <Button size="icon" variant="ghost" aria-label="Editar" onClick={onEdit}>

@@ -216,7 +216,7 @@ export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[]
     alerts.push({
       key: "crm-no-interaction-week",
       icon: "heart",
-      to: "/crm",
+      to: "/pessoas",
       critical: false,
       label: "Nenhum contato CRM interagido esta semana — que tal manter o relacionamento?",
     });
