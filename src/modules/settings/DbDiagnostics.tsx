@@ -228,7 +228,7 @@ function Diagnosis({ result }: { result: DiagResult }) {
   if (!result.turso_direct.ok) {
     lines.push({ icon: "err", msg: `Não conseguiu conectar direto ao Turso: ${result.turso_direct.error}. Verifique URL e token (provavelmente é problema de rede ou credencial — não de dados perdidos).` });
   } else if (directGigs === 0) {
-    lines.push({ icon: "err", msg: "O Turso está VAZIO — não tem GIGs. Os dados nunca chegaram à nuvem. Use 'Reimportar dados do banco local' na máquina que tem o arquivo .db original." });
+    lines.push({ icon: "err", msg: "O Turso está VAZIO — não tem GIGs. Os dados nunca chegaram à nuvem. Use 'Salvar manualmente' na máquina que tem os dados para enviá-los à nuvem." });
   } else if (typeof directGigs === "number" && directGigs > 0) {
     lines.push({ icon: "ok", msg: `O Turso TEM ${directGigs} GIGs. Os dados estão seguros na nuvem.` });
     // Compara com o local

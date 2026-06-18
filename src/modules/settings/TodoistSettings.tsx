@@ -3,7 +3,7 @@ import { CheckCircle2, Link2, Loader2, RefreshCw, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -153,11 +153,6 @@ export function TodoistSettings() {
             </span>
           )}
         </CardTitle>
-        <CardDescription>
-          Sincronização bidirecional com um projeto do Todoist. Tarefas criadas
-          aqui são enviadas ao Todoist e vice-versa. Conclusões se espelham nos
-          dois sentidos.
-        </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">

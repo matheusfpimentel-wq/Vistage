@@ -5,7 +5,6 @@ import {
   CloudUpload,
   FolderOpen,
   Loader2,
-  RotateCcw,
   Save,
   SaveAll,
   Sparkles,
@@ -16,24 +15,21 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { useConfigStore } from "@/lib/config";
-import { closeDatabase, pushToTurso } from "@/lib/db";
-import { useDocumentStore, displayDocName } from "@/lib/document";
+import { pushToTurso } from "@/lib/db";
+import { useDocumentStore } from "@/lib/document";
 import { DEFAULT_TURSO_TOKEN, DEFAULT_TURSO_URL } from "@/lib/turso-defaults";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
-import { SyncedFolderSettings } from "./SyncedFolderSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { TodoistSettings } from "./TodoistSettings";
 import { DbDiagnostics } from "./DbDiagnostics";
 
 export function SettingsPage() {
-  const { config, configPath, reset, patchConfig } = useConfigStore();
+  const { config, patchConfig } = useConfigStore();
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
-  const [remigrating, setRemigrating] = useState(false);
-  const [remigrateResult, setRemigrateResult] = useState<[string, number][] | null>(null);
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
 
@@ -43,15 +39,6 @@ export function SettingsPage() {
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
   }, []);
-
-  async function handleReset() {
-    const ok = await confirmDialog(
-      "Isso vai desconectar o app do banco atual. Você precisará apontar o caminho do banco novamente. Continuar?"
-    );
-    if (!ok) return;
-    await closeDatabase();
-    reset();
-  }
 
   async function handleSeed() {
     if (
@@ -126,37 +113,6 @@ export function SettingsPage() {
     }
   }
 
-  async function handleRemigrate() {
-    if (!config?.dbPath) {
-      toast.error("Nenhum arquivo .db legado configurado.");
-      return;
-    }
-    const ok = await confirmDialog({
-      title: "Reimportar dados do banco local",
-      description:
-        `Vai copiar todos os dados do arquivo local (${config.dbPath}) para o Turso novamente. ` +
-        "Dados já existentes no Turso não são apagados antes — registros duplicados são ignorados (INSERT OR IGNORE). " +
-        "Isso é seguro e não-destrutivo.",
-      confirmLabel: "Reimportar",
-    });
-    if (!ok) return;
-    setRemigrating(true);
-    setRemigrateResult(null);
-    try {
-      const result = await invoke<[string, number][]>("db_migrate_from_sqlite", {
-        sqlitePath: config.dbPath,
-      });
-      await patchConfig({ migrated: true });
-      setRemigrateResult(result);
-      toast.success("Dados reimportados com sucesso! Recarregando…");
-      setTimeout(() => window.location.reload(), 1200);
-    } catch (e) {
-      toast.error(`Erro ao reimportar: ${String(e)}`);
-    } finally {
-      setRemigrating(false);
-    }
-  }
-
   return (
     <Tabs defaultValue="salvamento" className="space-y-4">
       <TabsList className="w-full justify-start">
@@ -184,7 +140,7 @@ export function SettingsPage() {
               checked={autoCloud}
               onChange={handleToggleAutoCloud}
               label="Salvamento em nuvem automático"
-              hint={autoCloud ? "Ligado — envia mudanças pra nuvem sozinho" : "Desligado — usando só o arquivo local (.vistage), sem sync automático"}
+              hint={autoCloud ? undefined : "Desligado — usando só o arquivo local (.vistage), sem sync automático"}
             />
             <div className="flex flex-wrap gap-2 pt-1">
               <Button variant="outline" onClick={handlePull} disabled={pulling}>
@@ -208,14 +164,6 @@ export function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Documento (.vistage)</CardTitle>
-            <CardDescription>
-              Um arquivo único com TODOS os dados, imagens e arquivos (roteiros,
-              manual de marca, etc.) — como um documento do Office. Independe da
-              nuvem: pode abrir, salvar e mandar para outra pessoa.
-              {doc.currentName && (
-                <> Atual: <code>{displayDocName(doc.currentName)}</code>.</>
-              )}
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-wrap gap-2">
@@ -251,7 +199,6 @@ export function SettingsPage() {
         <TodoistSettings />
         <GoogleCalendarSettings />
         <GoogleDriveSettings />
-        <SyncedFolderSettings />
       </TabsContent>
 
       {/* ─── Personalização ──────────────────────────────────── */}
@@ -268,74 +215,6 @@ export function SettingsPage() {
             <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Localização dos dados</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <Row label="Banco de dados" value={config?.dbPath ?? "—"} />
-            <Row label="Pasta de anexos" value={config?.uploadsDir ?? "—"} />
-            <Row label="Arquivo de configuração" value={configPath ?? "—"} />
-            <Row
-              label="Criado em"
-              value={
-                config?.createdAt
-                  ? new Date(config.createdAt).toLocaleString("pt-BR")
-                  : "—"
-              }
-            />
-            <div className="pt-2">
-              <Button variant="outline" onClick={handleReset}>
-                Trocar / reapontar banco de dados
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {config?.dbPath && (
-          <Card className="border-amber-500/30">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <RotateCcw className="h-4 w-4 text-amber-500" />
-                Reimportar dados do banco local
-              </CardTitle>
-              <CardDescription>
-                Se seus dados sumiram após a migração para o Turso, use isso para
-                copiar o arquivo <code>.db</code> local de volta para a nuvem. Não
-                apaga nada — registros já existentes são preservados.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground break-all">
-                Arquivo: <code>{config.dbPath}</code>
-              </p>
-              <Button
-                variant="outline"
-                onClick={handleRemigrate}
-                disabled={remigrating}
-                className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
-              >
-                {remigrating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-4 w-4" />
-                )}
-                {remigrating ? "Reimportando…" : "Reimportar agora"}
-              </Button>
-              {remigrateResult && (
-                <div className="text-xs font-mono space-y-0.5 text-muted-foreground max-h-32 overflow-y-auto">
-                  {remigrateResult.map(([table, count]) => (
-                    <div key={table} className="flex justify-between gap-4">
-                      <span>{table}</span>
-                      <span className="text-foreground">{count} linhas</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {canSeed && (
           <Card className="border-primary/30">
@@ -424,13 +303,3 @@ function Shortcut({ keys, label }: { keys: string[]; label: string }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <code className="break-all text-sm">{value}</code>
-    </div>
-  );
-}
