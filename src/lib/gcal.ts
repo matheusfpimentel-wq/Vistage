@@ -438,6 +438,7 @@ export async function pushClassToCalendar(classData: {
   date: string;
   start_time: string | null;
   end_time: string | null;
+  title: string | null;
   subject: string | null;
   student_name: string;
   gcal_event_id: string | null;
@@ -454,7 +455,7 @@ export async function pushClassToCalendar(classData: {
     : classData.date;
 
   const event: EventInput = {
-    summary: `Aula: ${classData.student_name}`,
+    summary: `Aula: ${classData.title?.trim() || classData.student_name}`,
     description: classData.subject ?? null,
     start,
     end,

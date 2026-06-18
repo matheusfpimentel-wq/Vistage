@@ -117,7 +117,7 @@ export function ClassesPage() {
       const filtered =
         filters.search.trim().length > 0
           ? cls.filter((c) =>
-              (c.student_name + " " + (c.subject ?? ""))
+              (c.student_name + " " + (c.title ?? "") + " " + (c.subject ?? ""))
                 .toLowerCase()
                 .includes(filters.search.toLowerCase())
             )
@@ -324,7 +324,7 @@ export function ClassesPage() {
                     <th className="w-8 px-3 py-2 text-left text-muted-foreground">#</th>
                     <SortableHeader<ClassWithStudent> col="date" label="Data" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
                     <SortableHeader<ClassWithStudent> col="student_name" label="Aluno" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
-                    <SortableHeader<ClassWithStudent> col="subject" label="Matéria" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="title" label="Título" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
                     <SortableHeader<ClassWithStudent> col="status" label="Status" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
                     <th className="px-3 py-2 text-left">Modalidade</th>
                     <SortableHeader<ClassWithStudent> col="amount" label="Valor" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-right" />
@@ -349,8 +349,13 @@ export function ClassesPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 font-medium">{c.student_name}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {c.subject ?? "—"}
+                      <td className="px-3 py-2">
+                        <div className="font-medium">{c.title ?? c.subject ?? "—"}</div>
+                        {c.title && c.subject && (
+                          <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                            {c.subject}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant={classStatusVariant(c.status)}>

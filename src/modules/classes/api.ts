@@ -320,7 +320,7 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
       const studentName = studentRows[0]?.name ?? "Aluno";
       const { createTask } = await import("@/modules/tasks/api");
       const taskId = await createTask({
-        title: `Aula: ${studentName}`,
+        title: `Aula: ${input.title?.trim() || studentName}`,
         description: input.subject ?? null,
         category: "Pessoal",
         gig_id: null,
@@ -359,8 +359,8 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
   );
   // Sincroniza tarefa vinculada
   if ("date" in rest || input.status === "Realizada") {
-    const rows = await db.select<{ task_id: number | null; date: string | null; student_id: number; subject: string | null }[]>(
-      "SELECT task_id, date, student_id, subject FROM classes WHERE id = $1", [id]
+    const rows = await db.select<{ task_id: number | null; date: string | null; student_id: number; title: string | null; subject: string | null }[]>(
+      "SELECT task_id, date, student_id, title, subject FROM classes WHERE id = $1", [id]
     );
     const taskId = rows[0]?.task_id;
     const today = toLocalISODate();
@@ -383,7 +383,7 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
         const studentName = studentRows[0]?.name ?? "Aluno";
         const { createTask } = await import("@/modules/tasks/api");
         const newTaskId = await createTask({
-          title: `Aula: ${studentName}`,
+          title: `Aula: ${rows[0].title?.trim() || studentName}`,
           description: rows[0].subject ?? null,
           category: "Pessoal",
           gig_id: null,

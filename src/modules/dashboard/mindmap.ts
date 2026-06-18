@@ -114,7 +114,7 @@ export async function buildMindGraph(): Promise<MindGraph> {
     ),
     db.select<{ id: number; label: string; student_id: number }[]>(
       `SELECT c.id,
-              COALESCE(NULLIF(c.subject,''), s.name, 'Aula #'||c.id) AS label,
+              COALESCE(NULLIF(c.title,''), NULLIF(c.subject,''), s.name, 'Aula #'||c.id) AS label,
               c.student_id
          FROM classes c LEFT JOIN students s ON s.id = c.student_id`
     ),

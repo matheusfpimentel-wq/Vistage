@@ -82,6 +82,7 @@ export type ClassSession = {
   date: string;
   start_time: string | null;
   duration_min: number | null;
+  title: string | null;
   subject: string | null;
   status: ClassStatus;
   feedback: string | null;

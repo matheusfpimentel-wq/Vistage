@@ -1658,6 +1658,11 @@ const MIGRATIONS: Migration[] = [
     description: "fans.is_ambassador — Embaixador é destaque manual, fora da pontuação automática.",
     sql: `ALTER TABLE fans ADD COLUMN is_ambassador INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 112,
+    description: "classes.title — título da aula, usado como referência principal (na view e no mapa mental) em vez da matéria.",
+    sql: `ALTER TABLE classes ADD COLUMN title TEXT;`,
+  },
 ];
 
 

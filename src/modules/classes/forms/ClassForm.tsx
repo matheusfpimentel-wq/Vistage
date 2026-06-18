@@ -70,6 +70,7 @@ const EMPTY: ClassSessionCreateInput = {
   date: todayISO(),
   start_time: null,
   duration_min: 60,
+  title: null,
   subject: null,
   status: "Agendada",
   feedback: null,
@@ -84,6 +85,7 @@ function toState(c: ClassSession): ClassSessionCreateInput {
     date: c.date,
     start_time: c.start_time,
     duration_min: c.duration_min,
+    title: c.title,
     subject: c.subject,
     status: c.status,
     feedback: c.feedback,
@@ -224,6 +226,7 @@ export function ClassForm({
             date: state.date,
             start_time: state.start_time ?? null,
             end_time: null,
+            title: state.title ?? null,
             subject: state.subject ?? null,
             student_name: studentName,
             gcal_event_id: gcalEventId,
@@ -450,6 +453,19 @@ export function ClassForm({
                 }
               />
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Título da aula</Label>
+            <Input
+              placeholder="Ex: Aula 3 — Transições, Mentoria mensal, Aulão de scratch…"
+              value={state.title ?? ""}
+              onChange={(e) => set("title", e.target.value || null)}
+            />
+            <p className="text-xs text-muted-foreground">
+              É a referência da aula na lista e no mapa mental. Sem título, cai
+              na matéria ou no nome do aluno.
+            </p>
           </div>
 
           <div className="space-y-1.5">

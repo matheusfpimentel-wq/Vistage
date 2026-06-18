@@ -258,9 +258,9 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                             {formatDate(c.date)}
                             {c.start_time && ` · ${c.start_time}`}
                           </div>
-                          {c.subject && (
+                          {(c.title || c.subject) && (
                             <div className="text-xs text-muted-foreground">
-                              {c.subject}
+                              {c.title ?? c.subject}
                             </div>
                           )}
                         </div>

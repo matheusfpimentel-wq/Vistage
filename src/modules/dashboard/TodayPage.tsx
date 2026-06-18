@@ -191,7 +191,7 @@ export function TodayPage() {
             items.push({
               key: `class-${c.id}`,
               type: "aula",
-              title: c.student_name,
+              title: c.title ?? c.student_name,
               subtitle: c.subject ?? undefined,
               time: c.start_time,
               route: "/aulas",
