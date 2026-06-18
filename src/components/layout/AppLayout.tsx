@@ -6,6 +6,7 @@ import { MobileTabBar } from "./MobileTabBar";
 import { FileMenu } from "./FileMenu";
 import { useDocumentStore } from "@/lib/document";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
+import { NotificationBell } from "@/components/shared/NotificationBell";
 import { Toaster } from "@/components/ui/toaster";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
@@ -169,6 +170,8 @@ export function AppLayout() {
                 Ctrl K
               </kbd>
             </button>
+            {/* Notificações */}
+            <NotificationBell />
             {/* Settings button */}
             <button
               type="button"
