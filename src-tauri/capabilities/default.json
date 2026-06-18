@@ -37,6 +37,7 @@
       ]
     },
     "shell:default",
-    "shell:allow-open"
+    "shell:allow-open",
+    "notification:default"
   ]
 }

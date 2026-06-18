@@ -6,7 +6,7 @@ import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
-import { enableNotifications, notificationPermission } from "@/lib/notify";
+import { checkNotificationPermission, enableNotifications, type NotifPermission } from "@/lib/notify";
 import { DATA_CHANGED, emitDataChanged } from "@/lib/events";
 import { getDb } from "@/lib/db";
 import { updateGig } from "@/modules/gigs/api";
@@ -223,9 +223,10 @@ export function NotificationBell() {
   const [crmAlerts, setCrmAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const [perm, setPerm] = useState<NotificationPermission | "unsupported">(() =>
-    notificationPermission()
-  );
+  const [perm, setPerm] = useState<NotifPermission>("granted");
+  useEffect(() => {
+    void checkNotificationPermission().then(setPerm);
+  }, []);
   const ref = useRef<HTMLDivElement>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -328,7 +329,7 @@ export function NotificationBell() {
               type="button"
               onClick={async () => {
                 await enableNotifications();
-                setPerm(notificationPermission());
+                setPerm(await checkNotificationPermission());
               }}
               className="flex w-full items-center gap-2 border-b bg-primary/5 px-3 py-2 text-left text-xs text-primary transition hover:bg-primary/10"
             >

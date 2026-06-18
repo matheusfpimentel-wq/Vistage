@@ -1,35 +1,43 @@
 import { useEffect } from "react";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 import { computeAlerts } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
 
 /**
- * Notificações locais do sistema para alertas CRÍTICOS.
- *
- * Usa a Web Notification API (disponível no webview quando o app está aberto).
- * Para push real com o app FECHADO é preciso o backend na nuvem — veja
- * docs/cloud-push.md. O núcleo de decisão (`computeAlerts`) é o mesmo aqui e lá.
+ * Notificações locais do sistema para alertas CRÍTICOS, via o plugin de
+ * notificação do Tauri (a Web Notification API não funciona no webview).
+ * Disparam enquanto o app está aberto; push com o app FECHADO precisaria de
+ * backend — o núcleo de decisão (`computeAlerts`) é o mesmo aqui e lá.
  */
 
 const NOTIFIED_KEY = "vistage:notified-alerts";
 
-function notificationsSupported(): boolean {
-  return typeof window !== "undefined" && "Notification" in window;
-}
+export type NotifPermission = "granted" | "default";
 
-export function notificationPermission(): NotificationPermission | "unsupported" {
-  if (!notificationsSupported()) return "unsupported";
-  return Notification.permission;
-}
-
-/** Pede permissão ao usuário. Retorna true se concedida. */
-export async function enableNotifications(): Promise<boolean> {
-  if (!notificationsSupported()) return false;
+/** Lê a permissão atual (assíncrono — plugin do Tauri). */
+export async function checkNotificationPermission(): Promise<NotifPermission> {
   try {
-    const p = await Notification.requestPermission();
-    if (p === "granted") void syncAlertNotifications();
-    return p === "granted";
+    return (await isPermissionGranted()) ? "granted" : "default";
+  } catch {
+    return "default";
+  }
+}
+
+/** Pede permissão ao usuário (mostra o prompt do SO). Retorna true se concedida. */
+export async function enableNotifications(): Promise<boolean> {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      granted = (await requestPermission()) === "granted";
+    }
+    if (granted) void syncAlertNotifications();
+    return granted;
   } catch {
     return false;
   }
@@ -48,12 +56,19 @@ function saveNotified(keys: string[]): void {
 }
 
 /**
- * Dispara notificação para cada alerta crítico que ainda não foi notificado.
+ * Dispara notificação para cada alerta crítico ainda não notificado.
  * Alertas dispensados (snooze) são ignorados. Mantém só as chaves ativas, então
  * um alerta que some e volta dispara de novo.
  */
 async function syncAlertNotifications(): Promise<void> {
-  if (notificationPermission() !== "granted") return;
+  let granted = false;
+  try {
+    granted = await isPermissionGranted();
+  } catch {
+    return;
+  }
+  if (!granted) return;
+
   let critical;
   try {
     const stats = await loadWeekStats();
@@ -66,9 +81,9 @@ async function syncAlertNotifications(): Promise<void> {
   for (const a of critical) {
     if (notified.has(a.key)) continue;
     try {
-      new Notification("Vistage — alerta", { body: a.label, tag: a.key });
+      sendNotification({ title: "Vistage — alerta", body: a.label });
     } catch {
-      /* webview pode bloquear; ignora */
+      /* ignora — best-effort */
     }
   }
   saveNotified(currentKeys);
