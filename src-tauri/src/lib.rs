@@ -37,10 +37,12 @@ pub fn run() {
                 let app = window.app_handle().clone();
                 tauri::async_runtime::spawn(async move {
                     let state = app.state::<DbState>();
-                    // Timeout externo cobre aquisição do mutex + sync
+                    // Fecha rápido: tenta um sync curtíssimo (1s) e segue pra
+                    // destruição. Os dados já estão na réplica local; o push pro
+                    // Turso é best-effort (o DriveSync já empurra durante a sessão).
                     let _ = tokio::time::timeout(
-                        Duration::from_secs(4),
-                        db::sync_blocking(&state, 4),
+                        Duration::from_secs(1),
+                        db::sync_blocking(&state, 1),
                     ).await;
                     let _ = win.destroy();
                 });
