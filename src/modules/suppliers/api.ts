@@ -12,6 +12,20 @@ export type SupplierFilters = {
   category?: SupplierCategory | "Todos";
 };
 
+/**
+ * Vínculos fornecedor→contato (suppliers.contact_id). Usado pela visão unificada
+ * "Pessoas" para saber quais fornecedores já são um contato (papel duplo) e
+ * quais são fornecedores puros.
+ */
+export async function listSupplierContactLinks(): Promise<
+  { id: number; contact_id: number | null }[]
+> {
+  const db = getDb();
+  return db.select<{ id: number; contact_id: number | null }[]>(
+    "SELECT id, contact_id FROM suppliers"
+  );
+}
+
 export async function listSuppliers(filters: SupplierFilters = {}): Promise<Supplier[]> {
   const db = getDb();
   const where: string[] = [];

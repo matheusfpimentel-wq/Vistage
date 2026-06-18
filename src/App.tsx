@@ -66,6 +66,9 @@ const GigsPage = lazy(() =>
 const CrmPage = lazy(() =>
   import("@/modules/crm/CrmPage").then((m) => ({ default: m.CrmPage }))
 );
+const PessoasPage = lazy(() =>
+  import("@/modules/pessoas/PessoasPage").then((m) => ({ default: m.PessoasPage }))
+);
 const VenuesPage = lazy(() =>
   import("@/modules/venues/VenuesPage").then((m) => ({ default: m.VenuesPage }))
 );
@@ -368,6 +371,8 @@ function RoutedApp() {
             <Route path="alertas" element={<AlertsPage />} />
             <Route path="gigs" element={<GigsPage />} />
             <Route path="venues" element={<VenuesPage />} />
+            <Route path="pessoas" element={<PessoasPage />} />
+            {/* Mantidos para deep-links e compatibilidade; a navegação agora é "Pessoas". */}
             <Route path="crm" element={<CrmPage />} />
             <Route path="fornecedores" element={<SuppliersPage />} />
             <Route path="fas" element={<FansPage />} />
