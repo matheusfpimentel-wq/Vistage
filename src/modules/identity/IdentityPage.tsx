@@ -137,6 +137,7 @@ export function IdentityPage() {
         isotype_path: i.isotype_path,
         presskit_path: i.presskit_path,
         presskit_link: i.presskit_link,
+        brand_manual_path: i.brand_manual_path,
         palette: i.palette,
         fonts: i.fonts,
         photos: i.photos,
@@ -177,6 +178,7 @@ export function IdentityPage() {
         isotype_path: identity.isotype_path,
         presskit_path: identity.presskit_path,
         presskit_link: identity.presskit_link,
+        brand_manual_path: identity.brand_manual_path,
         palette: identity.palette,
         fonts: identity.fonts,
         photos: identity.photos,
@@ -438,6 +440,14 @@ export function IdentityPage() {
                   variant="document"
                 />
               </div>
+
+              <AttachmentField
+                label="Manual de marca (PDF)"
+                value={identity.brand_manual_path}
+                onChange={(v) => set("brand_manual_path", v)}
+                subdir="identity/brand-manual"
+                variant="document"
+              />
 
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1.5">

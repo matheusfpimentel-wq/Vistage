@@ -93,7 +93,7 @@ const FILE_PATH_COLS: Partial<Record<TableName, string[]>> = {
   finance_transactions: ["receipt_file_path"],
   finance_recurring:    ["receipt_file_path"],
   tracks:               ["daw_project_path", "stems_path", "final_files_path"],
-  artist_identity:      ["logo_path", "isotype_path", "presskit_path", "thumbnail_path", "file_path"],
+  artist_identity:      ["logo_path", "isotype_path", "presskit_path", "brand_manual_path", "thumbnail_path", "file_path"],
   artist_templates:     ["file_path"],
 };
 

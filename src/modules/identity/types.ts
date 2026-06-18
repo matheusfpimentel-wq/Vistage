@@ -64,6 +64,8 @@ export type ArtistIdentity = {
   presskit_path: string | null;
   /** Link (URL) para o presskit hospedado externamente. */
   presskit_link: string | null;
+  /** Arquivo do manual de marca (PDF). */
+  brand_manual_path: string | null;
   /** Paleta livre (qualquer número de cores). Substitui primary/secondary. */
   palette: PaletteColor[];
   /** Fontes da marca (tipografia). */

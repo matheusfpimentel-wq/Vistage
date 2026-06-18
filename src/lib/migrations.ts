@@ -1648,6 +1648,11 @@ const MIGRATIONS: Migration[] = [
     description: "gigs.time_slots — múltiplos intervalos de horário (set alternado). JSON array [{start,end}]; start_time/end_time seguem espelhando o 1º intervalo.",
     sql: `ALTER TABLE gigs ADD COLUMN time_slots TEXT;`,
   },
+  {
+    version: 110,
+    description: "artist_identity.brand_manual_path — arquivo do manual de marca (PDF).",
+    sql: `ALTER TABLE artist_identity ADD COLUMN brand_manual_path TEXT;`,
+  },
 ];
 
 
