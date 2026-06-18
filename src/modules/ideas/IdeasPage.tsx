@@ -106,6 +106,22 @@ export function IdeasPage() {
     await refresh();
   }
 
+  async function handleDeleteById(id: number) {
+    const idea = items.find((i) => i.id === id);
+    if (
+      !(await confirmDialog({
+        title: "Excluir",
+        description: idea ? `Excluir "${idea.title}"?` : "Excluir esta ideia?",
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    await deleteIdea(id);
+    toast.success("Ideia excluída");
+    await refresh();
+  }
+
   async function handleToggleHot(i: Idea) {
     // Marca/desmarca a ideia como quente (calor 3 ↔ 2/morna como padrão neutro).
     const next: IdeaHeat = i.heat === 3 ? 2 : 3;
@@ -218,11 +234,11 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={(id) => void handleDeleteById(id)} />
           </TabsContent>
 
           <TabsContent value="kanban">
-            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} onRefresh={() => void refresh()} />
+            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={(id) => void handleDeleteById(id)} onRefresh={() => void refresh()} />
           </TabsContent>
 
           <TabsContent value="list">
@@ -238,7 +254,7 @@ export function IdeasPage() {
         onSaved={() => void refresh()}
         onConverted={() => void refresh()}
         onConvertToEntity={openConvertToForm}
-        onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }}
+        onDelete={(id) => void handleDeleteById(id)}
       />
 
       <QuickCapture
