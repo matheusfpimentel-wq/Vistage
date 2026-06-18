@@ -67,7 +67,7 @@ export function FileMenu() {
       </button>
 
       {menuOpen && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md border bg-popover shadow-md">
+        <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md border bg-popover/80 shadow-md backdrop-blur-xl">
           <MenuItem icon={<FolderOpen className="h-4 w-4" />} label="Abrir…" onClick={handleOpen} />
           <MenuItem
             icon={<Save className="h-4 w-4" />}

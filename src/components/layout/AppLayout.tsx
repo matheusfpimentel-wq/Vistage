@@ -86,7 +86,7 @@ export function AppLayout() {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center justify-between border-b px-4 sm:px-6">
+        <header className="flex h-16 items-center justify-between border-b bg-background/60 px-4 backdrop-blur-xl sm:px-6">
           {/* LEFT */}
           <div className="flex items-center gap-2">
             {/* Hamburguer — só no mobile */}
@@ -127,7 +127,7 @@ export function AppLayout() {
                 <ChevronDown className={cn("h-3 w-3 transition-transform", createOpen && "rotate-180")} />
               </button>
               {createOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded-md border bg-popover shadow-md">
+                <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded-md border bg-popover/80 shadow-md backdrop-blur-xl">
                   {CREATE_ITEMS.map(({ label, to }) => (
                     <button
                       key={to}

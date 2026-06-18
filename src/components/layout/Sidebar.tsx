@@ -165,7 +165,7 @@ export function Sidebar({
   );
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r bg-card">
+    <aside className="flex h-screen w-60 flex-col border-r bg-card/70 backdrop-blur-xl">
       <div className="flex h-16 items-center gap-2 border-b px-5">
         <div>
           <div className="text-lg font-semibold leading-tight tracking-tight bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
