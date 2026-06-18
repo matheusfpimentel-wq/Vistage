@@ -130,3 +130,36 @@ export type FanGroupMember = {
 
 export type FanGroupCreateInput = Omit<FanGroup, "id" | "created_at" | "updated_at">;
 export type FanGroupUpdateInput = Partial<FanGroupCreateInput> & { id: number };
+
+// ============================================================
+// Perks / VIP / brindes — clube de fãs
+// ============================================================
+
+export const FAN_PERK_CATEGORIES = [
+  "Brinde",
+  "VIP",
+  "Acesso",
+  "Cortesia",
+  "Desconto",
+  "Outro",
+] as const;
+export type FanPerkCategory = (typeof FAN_PERK_CATEGORIES)[number];
+
+export const FAN_PERK_STATUSES = ["Planejado", "Entregue"] as const;
+export type FanPerkStatus = (typeof FAN_PERK_STATUSES)[number];
+
+export type FanPerk = {
+  id: number;
+  fan_id: number;
+  category: FanPerkCategory;
+  name: string;
+  status: FanPerkStatus;
+  /** Data planejada / de entrega (ISO YYYY-MM-DD). */
+  date: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FanPerkCreateInput = Omit<FanPerk, "id" | "created_at" | "updated_at">;
+export type FanPerkUpdateInput = Partial<FanPerkCreateInput> & { id: number };

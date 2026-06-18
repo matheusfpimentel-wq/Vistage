@@ -1671,6 +1671,26 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_finance_tx_source_ref ON finance_transactions(source_ref);
     `,
   },
+  {
+    version: 114,
+    description: "fan_perks — perks/VIP e distribuição de brindes por fã (clube de fãs).",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fan_perks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fan_id INTEGER NOT NULL,
+        category TEXT NOT NULL DEFAULT 'Brinde',   -- Brinde | VIP | Acesso | Cortesia | Desconto | Outro
+        name TEXT NOT NULL,                        -- descrição do perk/brinde
+        status TEXT NOT NULL DEFAULT 'Planejado',  -- Planejado | Entregue
+        date TEXT,                                 -- data planejada / de entrega (ISO YYYY-MM-DD)
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (fan_id) REFERENCES fans(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_fan_perks_fan ON fan_perks(fan_id);
+      CREATE INDEX IF NOT EXISTS idx_fan_perks_status ON fan_perks(status);
+    `,
+  },
 ];
 
 

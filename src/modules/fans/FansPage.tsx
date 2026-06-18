@@ -5,6 +5,7 @@ import {
   ChevronUp,
   Crown,
   Flame,
+  Gift,
   Heart,
   LayoutGrid,
   List,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonCards } from "@/components/shared/Skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
@@ -56,6 +58,7 @@ import {
   listFanGroupMembers,
   listFanGroups,
   listFanInteractionCounts,
+  listFanPerkCounts,
   listFans,
   loadFanUpgradeRules,
   recomputeAllFanLevels,
@@ -86,6 +89,7 @@ export function FansPage() {
     { fan_id: number; name: string; gigs: number }[]
   >([]);
   const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
+  const [perkCounts, setPerkCounts] = useState<Map<number, number>>(new Map());
   const [filters, setFilters] = useState<{
     level: LevelFilter;
     city: string;
@@ -113,16 +117,18 @@ export function FansPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, s, top, counts] = await Promise.all([
+      const [data, s, top, counts, perks] = await Promise.all([
         listFans(queryFilters),
         getFanStats(),
         topFansByPresence(5).catch(() => []),
         listFanInteractionCounts().catch(() => new Map<number, number>()),
+        listFanPerkCounts().catch(() => new Map<number, number>()),
       ]);
       setFans(data);
       setStats(s);
       setTopPresence(top ?? []);
       setInteractionCounts(counts);
+      setPerkCounts(perks);
     } finally {
       setLoading(false);
     }
@@ -303,6 +309,7 @@ export function FansPage() {
               key={f.id}
               fan={f}
               interactionCount={interactionCounts.get(f.id) ?? 0}
+              perkCount={perkCounts.get(f.id) ?? 0}
               onOpen={() => openDetail(f)}
               onEdit={() => openEdit(f)}
               onDelete={() => void handleDelete(f)}
@@ -468,12 +475,14 @@ function FanListAvatar({ fan: f }: { fan: Fan }) {
 function FanCard({
   fan: f,
   interactionCount,
+  perkCount,
   onOpen,
   onEdit,
   onDelete,
 }: {
   fan: Fan;
   interactionCount: number;
+  perkCount: number;
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -535,9 +544,15 @@ function FanCard({
       </div>
       <div className="space-y-1.5 p-3">
         <div className="font-medium leading-tight">{f.name}</div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <LevelBadge level={f.level} />
           <PendingTasksBadge entityType="fan" entityId={f.id} />
+          {perkCount > 0 && (
+            <Badge variant="secondary" className="gap-1" title={`${perkCount} perk(s)/brinde(s)`}>
+              <Gift className="h-3 w-3" />
+              {perkCount}
+            </Badge>
+          )}
         </div>
         <div className="text-xs text-muted-foreground">{f.city ?? "—"}</div>
         {last && (
