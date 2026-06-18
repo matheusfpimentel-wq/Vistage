@@ -1,34 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="256" fill="#1A0D2E"/>
-
-  <!-- Bullseye rings — purple tones -->
-  <circle cx="256" cy="256" r="218" fill="none" stroke="#7C3AED" stroke-width="18"/>
-  <circle cx="256" cy="256" r="158" fill="none" stroke="#7C3AED" stroke-width="18"/>
-  <circle cx="256" cy="256" r="98"  fill="none" stroke="#7C3AED" stroke-width="18"/>
-  <!-- Bull's eye filled -->
-  <circle cx="256" cy="256" r="34"  fill="#7C3AED"/>
-
-  <!--
-    Gaivota / seagull V: filled shape, pointed at both wing tips,
-    thickening smoothly toward the center bottom point.
-    Outer edge: wide bezier curve from tip-to-tip via center.
-    Inner edge: tighter bezier slightly above, creating a tapering filled wing.
-  -->
-  <!--
-    Gaivota: ponta afiada nas extremidades, arco que engrossa até o centro.
-    Borda externa (belly): arco largo e baixo.
-    Borda interna: arco mais curto/alto — encontra a externa nas pontas (zero espessura)
-    e se afasta no centro (~30px de espessura).
-  -->
-  <path d="
-    M 136 106
-    Q 192 168, 256 274
-    Q 320 168, 376 106
-    C 368 98, 358 98, 350 105
-    C 318 144, 274 228, 256 246
-    C 238 228, 194 144, 162 105
-    C 154 98, 144 98, 136 106
-    Z"
-        fill="#C4B5FD"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vistage">
+  <rect width="512" height="512" rx="116" fill="#0e1b2b"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#3c566d" stroke-width="6" stroke-dasharray="15 13"/>
+  <g fill="none" stroke="#e9f2fa" stroke-width="6.8" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="14">
+    <path d="M175.9 176.3 L256 364 L336.1 176.3"/>
+    <path d="M196.1 167.7 L256 308 L315.9 167.7"/>
+  </g>
 </svg>
