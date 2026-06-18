@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Music, Plus, Search, Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Download, Music, Plus, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -41,7 +40,7 @@ import { formatCurrency } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useConfirm } from "@/components/ui/confirm";
 import { exportTransactionsCsv } from "@/lib/csv";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 type KindFilter = TransactionKind | "all";
 type StatusFilter = TransactionStatus | "all";
@@ -216,140 +215,124 @@ export function FinancePage() {
         </TabsList>
 
         <TabsContent value="transactions" className="space-y-4">
-          <PageToolbar
-            actions={
+          <ModuleToolbar
+            primaryAction={{ label: "Receita", icon: Plus, onClick: () => openCreate("income") }}
+            secondaryActions={[
+              { label: "Despesa", icon: Plus, onClick: () => openCreate("expense") },
+              { label: "Royalties", icon: Music, onClick: () => setRoyaltyOpen(true) },
+              { label: "Exportar CSV", icon: Download, onClick: handleExportCsv },
+              { label: "Categorias", icon: Settings, onClick: () => setCategoryMgrOpen(true) },
+            ]}
+            search={{
+              value: filters.search,
+              onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+              placeholder: "Buscar descrição, categoria…",
+            }}
+            resultCount={transactions.length}
+            resultLabel="lançamentos"
+            filtersActiveCount={
+              (filters.kind !== "all" ? 1 : 0) +
+              (filters.period !== "all" ? 1 : 0) +
+              (filters.categoryId !== "all" ? 1 : 0) +
+              (filters.status !== "all" ? 1 : 0)
+            }
+            filters={
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => setCategoryMgrOpen(true)}
-                >
-                  <Settings className="h-4 w-4" /> Categorias
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleExportCsv}
-                  disabled={transactions.length === 0}
-                >
-                  <Download className="h-4 w-4" /> Exportar CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setRoyaltyOpen(true)}
-                >
-                  <Music className="h-4 w-4" /> Royalties
-                </Button>
-                <Button variant="outline" onClick={() => openCreate("expense")}>
-                  <Plus className="h-4 w-4" /> Despesa
-                </Button>
-                <Button onClick={() => openCreate("income")}>
-                  <Plus className="h-4 w-4" /> Receita
-                </Button>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Tipo</label>
+                  <Select
+                    value={filters.kind}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, kind: v as KindFilter }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Entradas e saídas</SelectItem>
+                      <SelectItem value="income">Só entradas</SelectItem>
+                      <SelectItem value="expense">Só saídas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Período</label>
+                  <Select
+                    value={filters.period}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, period: v }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {periodOptions().map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {filters.period === "custom" && (
+                  <div className="flex items-end gap-2">
+                    <Input
+                      type="date"
+                      className="w-full"
+                      value={filters.customFrom}
+                      onChange={(e) => setFilters((f) => ({ ...f, customFrom: e.target.value }))}
+                    />
+                    <span className="pb-2 text-sm text-muted-foreground">até</span>
+                    <Input
+                      type="date"
+                      className="w-full"
+                      value={filters.customTo}
+                      onChange={(e) => setFilters((f) => ({ ...f, customTo: e.target.value }))}
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+                  <Select
+                    value={filters.categoryId.toString()}
+                    onValueChange={(v) =>
+                      setFilters((f) => ({ ...f, categoryId: v === "all" ? "all" : Number(v) }))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas categorias</SelectItem>
+                      {categories.map((c) => (
+                        <SelectItem key={c.id} value={c.id.toString()}>
+                          {c.kind === "income" ? "↑ " : "↓ "}
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Status</label>
+                  <Select
+                    value={filters.status}
+                    onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      {TRANSACTION_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             }
-          >
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar descrição, categoria…"
-                  value={filters.search}
-                  onChange={(e) =>
-                    setFilters((f) => ({ ...f, search: e.target.value }))
-                  }
-                  className="w-64 pl-8"
-                />
-              </div>
-              <Select
-                value={filters.kind}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, kind: v as KindFilter }))
-                }
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Entradas e saídas</SelectItem>
-                  <SelectItem value="income">Só entradas</SelectItem>
-                  <SelectItem value="expense">Só saídas</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select
-                value={filters.period}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, period: v }))
-                }
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {periodOptions().map((m) => (
-                    <SelectItem key={m.value} value={m.value}>
-                      {m.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {filters.period === "custom" && (
-                <>
-                  <Input
-                    type="date"
-                    className="w-40"
-                    value={filters.customFrom}
-                    onChange={(e) => setFilters((f) => ({ ...f, customFrom: e.target.value }))}
-                  />
-                  <span className="text-muted-foreground text-sm">até</span>
-                  <Input
-                    type="date"
-                    className="w-40"
-                    value={filters.customTo}
-                    onChange={(e) => setFilters((f) => ({ ...f, customTo: e.target.value }))}
-                  />
-                </>
-              )}
-              <Select
-                value={filters.categoryId.toString()}
-                onValueChange={(v) =>
-                  setFilters((f) => ({
-                    ...f,
-                    categoryId: v === "all" ? "all" : Number(v),
-                  }))
-                }
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas categorias</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      {c.kind === "income" ? "↑ " : "↓ "}
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={filters.status}
-                onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, status: v as StatusFilter }))
-                }
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os status</SelectItem>
-                  {TRANSACTION_STATUSES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </PageToolbar>
+          />
 
           <div className="grid gap-3 sm:grid-cols-3">
             <KPIChip label="Receitas (filtro)" value={formatCurrency(monthIncome)} tone="income" />
@@ -421,10 +404,10 @@ function KPIChip({
   bold?: boolean;
 }) {
   return (
-    <div className="rounded-md border p-3">
+    <div className="rounded-lg border bg-card px-3 py-2">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div
-        className={`mt-1 tabular-nums ${bold ? "text-xl font-semibold" : "text-lg font-medium"} ${
+        className={`mt-0.5 tabular-nums font-semibold ${bold ? "text-2xl" : "text-xl"} ${
           tone === "income" ? "text-emerald-500" : "text-destructive"
         }`}
       >

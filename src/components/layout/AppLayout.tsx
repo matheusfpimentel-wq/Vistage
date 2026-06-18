@@ -114,7 +114,11 @@ export function AppLayout() {
             <div className="hidden md:block">
               <FileMenu />
             </div>
-            {/* "+" dropdown */}
+          </div>
+
+          {/* RIGHT */}
+          <div className="flex items-center gap-2">
+            {/* "+" criar — logo antes da sessão */}
             <div className="relative" ref={createRef}>
               <button
                 type="button"
@@ -127,7 +131,7 @@ export function AppLayout() {
                 <ChevronDown className={cn("h-3 w-3 transition-transform", createOpen && "rotate-180")} />
               </button>
               {createOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1 w-44 rounded-md border bg-popover shadow-md">
+                <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-md border bg-popover shadow-md">
                   {CREATE_ITEMS.map(({ label, to }) => (
                     <button
                       key={to}
@@ -149,10 +153,6 @@ export function AppLayout() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* RIGHT */}
-          <div className="flex items-center gap-2">
             <WorkSessionWidget />
             {/* Search */}
             <button
