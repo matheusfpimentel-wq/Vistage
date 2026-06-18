@@ -1088,7 +1088,7 @@ export async function loadFinanceInsights(period?: string): Promise<FinanceInsig
 // ============================================================
 
 export type ProjectProfit = {
-  kind: "gig" | "party" | "student";
+  kind: "gig" | "party" | "student" | "track";
   id: number;
   name: string;
   date: string | null;
@@ -1106,7 +1106,7 @@ export type ProjectProfit = {
 export async function loadProjectProfit(): Promise<ProjectProfit[]> {
   const db = getDb();
 
-  const [gigRows, partyRows, studentRows] = await Promise.all([
+  const [gigRows, partyRows, studentRows, trackRows] = await Promise.all([
     db.select<
       { id: number; name: string; date: string; income: number; expense: number }[]
     >(
@@ -1141,6 +1141,17 @@ export async function loadProjectProfit(): Promise<ProjectProfit[]> {
         GROUP BY s.id, s.name
         HAVING income > 0
         ORDER BY income DESC`
+    ),
+    db.select<{ id: number; name: string; income: number; expense: number }[]>(
+      `SELECT tr.id AS id,
+              COALESCE(NULLIF(tr.title_working,''), 'Faixa sem título') AS name,
+              COALESCE((SELECT SUM(ft.amount) FROM finance_transactions ft
+                          WHERE ft.track_id = tr.id AND ft.kind='income'), 0) AS income,
+              COALESCE((SELECT SUM(ft.amount) FROM finance_transactions ft
+                          WHERE ft.track_id = tr.id AND ft.kind='expense'), 0)
+                + COALESCE((SELECT SUM(mpc.amount) FROM music_project_costs mpc
+                              WHERE mpc.track_id = tr.id), 0) AS expense
+         FROM tracks tr`
     ),
   ]);
 
@@ -1177,7 +1188,22 @@ export async function loadProjectProfit(): Promise<ProjectProfit[]> {
     profit: r.income,
   }));
 
-  return [...gigs, ...parties, ...students];
+  // Música: cada faixa = um projeto. Receita = transações com track_id
+  // (royalties); custo = despesas com track_id + custos de produção.
+  const tracks: ProjectProfit[] = trackRows
+    .map((r) => ({
+      kind: "track" as const,
+      id: r.id,
+      name: r.name,
+      date: null,
+      income: r.income,
+      expense: r.expense,
+      profit: r.income - r.expense,
+    }))
+    .filter((t) => t.income !== 0 || t.expense !== 0)
+    .sort((a, b) => b.profit - a.profit);
+
+  return [...gigs, ...parties, ...students, ...tracks];
 }
 
 /**

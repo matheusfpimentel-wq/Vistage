@@ -13,12 +13,14 @@ const KIND_LABEL: Record<ProjectProfit["kind"], string> = {
   gig: "GIG",
   party: "Festa",
   student: "Aluno",
+  track: "Música",
 };
 
 const KIND_VARIANT: Record<ProjectProfit["kind"], "default" | "secondary" | "outline"> = {
   gig: "default",
   party: "secondary",
   student: "outline",
+  track: "secondary",
 };
 
 export function ProjectProfitView() {
