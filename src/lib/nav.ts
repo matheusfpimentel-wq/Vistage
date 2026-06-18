@@ -14,7 +14,6 @@ import {
   Palette,
   PartyPopper,
   Sparkles,
-  Store,
   Target,
   Users,
   Wallet,
@@ -63,9 +62,8 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
 
-  { to: "/crm", label: "CRM", icon: Users, group: "Relacionamento" },
+  { to: "/pessoas", label: "Pessoas", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },
-  { to: "/fornecedores", label: "Fornecedores", icon: Store, group: "Relacionamento" },
   { to: "/fas", label: "Clube de fãs", icon: Heart, group: "Relacionamento" },
 
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Produtividade" },
