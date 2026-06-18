@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vistage">
-  <rect width="512" height="512" rx="116" fill="#0b0b10"/>
-  <circle cx="256" cy="256" r="158" fill="none" stroke="#7c5cff" stroke-width="26"/>
-  <circle cx="256" cy="256" r="104" fill="none" stroke="#3a2f6b" stroke-width="10"/>
-  <circle cx="256" cy="256" r="34" fill="#7c5cff"/>
-  <circle cx="256" cy="256" r="10" fill="#0b0b10"/>
+  <rect width="512" height="512" rx="116" fill="#0e1b2b"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#3c566d" stroke-width="6" stroke-dasharray="15 13"/>
+  <g fill="none" stroke="#e9f2fa" stroke-width="6.8" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="14">
+    <path d="M175.9 176.3 L256 364 L336.1 176.3"/>
+    <path d="M196.1 167.7 L256 308 L315.9 167.7"/>
+  </g>
 </svg>
