@@ -22,6 +22,7 @@ import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
 import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ViewToggle } from "@/components/shared/ViewToggle";
 
 type ViewMode = "cards" | "list" | "map";
 
@@ -186,47 +187,15 @@ export function VenuesPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
-            <button
-              onClick={() => setView("cards")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "cards"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em cards"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Cards
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "list"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em lista"
-            >
-              <List className="h-3.5 w-3.5" />
-              Lista
-            </button>
-            <button
-              onClick={() => setView("map")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "map"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em mapa"
-            >
-              <Map className="h-3.5 w-3.5" />
-              Mapa
-            </button>
-          </div>
+          <ViewToggle
+            options={[
+              { value: "cards", label: "Cards", icon: LayoutGrid },
+              { value: "list", label: "Lista", icon: List },
+              { value: "map", label: "Mapa", icon: Map },
+            ]}
+            value={view}
+            onChange={setView}
+          />
         </div>
         </div>
       </PageToolbar>

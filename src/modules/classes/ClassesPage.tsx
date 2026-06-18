@@ -68,6 +68,7 @@ import {
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = ClassStatus | "Todas";
 
@@ -243,8 +244,8 @@ export function ClassesPage() {
 
         {/* ====================== AULAS ====================== */}
         <TabsContent value="classes" className="space-y-4">
-          <div className="sticky top-0 z-10 bg-background pb-3 flex flex-col gap-3">
-            <div className="flex justify-end">
+          <PageToolbar
+            actions={
               <Button
                 onClick={() => {
                   setEditingClass(null);
@@ -253,7 +254,8 @@ export function ClassesPage() {
               >
                 <Plus className="h-4 w-4" /> Nova aula
               </Button>
-            </div>
+            }
+          >
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -306,7 +308,7 @@ export function ClassesPage() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </PageToolbar>
 
           {loading ? (
             <SkeletonList />

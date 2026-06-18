@@ -34,6 +34,7 @@ import { SupplierForm } from "./forms/SupplierForm";
 import { SupplierDetail } from "./SupplierDetail";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ViewToggle } from "@/components/shared/ViewToggle";
 
 type ViewMode = "cards" | "list";
 
@@ -145,28 +146,14 @@ export function SuppliersPage() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex rounded-md border">
-          <button
-            type="button"
-            onClick={() => setView("cards")}
-            className={cn(
-              "px-2.5 py-1.5 transition-colors",
-              view === "cards" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-            )}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className={cn(
-              "px-2.5 py-1.5 transition-colors",
-              view === "list" ? "bg-accent text-accent-foreground" : "text-muted-foreground"
-            )}
-          >
-            <List className="h-4 w-4" />
-          </button>
-        </div>
+        <ViewToggle
+          options={[
+            { value: "cards", label: "Cards", icon: LayoutGrid },
+            { value: "list", label: "Lista", icon: List },
+          ]}
+          value={view}
+          onChange={setView}
+        />
         </div>
       </PageToolbar>
 
