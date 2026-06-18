@@ -27,8 +27,6 @@ const TABLES = [
   "ideas",
   "content",
   "suppliers",
-  "decisions",       // log de decisões (sem FK)
-  "recurring_fests", // catálogo de fests recorrentes (standalone)
   // ── dependem do nível anterior ────────────────────────────────────────────
   "contacts",        // venue_id → venues
   "fan_interactions",        // fan_id → fans
@@ -65,7 +63,6 @@ const TABLES = [
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks
   "okr_kr_tasks",            // okr_id → okrs, task_id → tasks
-  "task_links",              // task_id → tasks
 ] as const;
 
 type TableName = (typeof TABLES)[number];
