@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderOpen, FolderPlus, Music, Plus, Search } from "lucide-react";
+import { FolderOpen, FolderPlus, Music, Plus } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import type { MusicProject } from "./types";
-import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -30,7 +28,8 @@ import { ListView } from "./views/ListView";
 import { RoadmapView } from "./views/RoadmapView";
 import { PortfolioView } from "./views/PortfolioView";
 import { ProjectsView } from "./views/ProjectsView";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StageFilter = Stage | "Todos";
 type KindFilter = TrackKind | "Todos";
@@ -102,66 +101,72 @@ export function MusicPage() {
     });
   }, [tracks, search, stageFilter, kindFilter]);
 
+  const [view, setView] = useModuleView<
+    "projetos" | "kanban" | "list" | "roadmap" | "portfolio"
+  >("music", "list");
+
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
+      <ModuleToolbar
+        primaryAction={{ label: "Nova track", icon: Plus, onClick: () => openCreate() }}
+        secondaryActions={[
+          { label: "Novo projeto", icon: FolderPlus, onClick: () => setProjectFormOpen(true) },
+        ]}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Buscar track, projeto, gênero…",
+        }}
+        resultCount={filtered.length}
+        resultLabel="tracks"
+        filtersActiveCount={
+          (stageFilter !== "Todos" ? 1 : 0) + (kindFilter !== "Todos" ? 1 : 0)
+        }
+        filters={
           <>
-            <Button variant="outline" onClick={() => setProjectFormOpen(true)}>
-              <FolderPlus className="h-4 w-4" /> Novo projeto
-            </Button>
-            <Button onClick={() => openCreate()}>
-              <Plus className="h-4 w-4" /> Nova track
-            </Button>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Stage</label>
+              <Select
+                value={stageFilter}
+                onValueChange={(v) => setStageFilter(v as StageFilter)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos os stages</SelectItem>
+                  {STAGES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Tipo</label>
+              <Select
+                value={kindFilter}
+                onValueChange={(v) => setKindFilter(v as KindFilter)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos os tipos</SelectItem>
+                  {TRACK_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {TRACK_KIND_LABEL[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar track, projeto, gênero…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64 pl-8"
-          />
-        </div>
-        <Select
-          value={stageFilter}
-          onValueChange={(v) => setStageFilter(v as StageFilter)}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todos os stages</SelectItem>
-            {STAGES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={kindFilter}
-          onValueChange={(v) => setKindFilter(v as KindFilter)}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todos">Todos os tipos</SelectItem>
-            {TRACK_KINDS.map((k) => (
-              <SelectItem key={k} value={k}>
-                {TRACK_KIND_LABEL[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <Tabs defaultValue="list">
+      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="projetos">
             <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
