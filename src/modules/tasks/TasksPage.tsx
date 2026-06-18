@@ -45,6 +45,7 @@ import {
 } from "./types";
 import { cn } from "@/lib/utils";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
@@ -145,12 +146,13 @@ export function TasksPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Nova tarefa
           </Button>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -236,7 +238,7 @@ export function TasksPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </PageToolbar>
 
       <div className="flex flex-wrap gap-1.5">
         {DATE_FILTERS.map((f) => (

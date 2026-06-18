@@ -21,6 +21,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type ViewMode = "cards" | "list" | "map";
 
@@ -155,12 +156,13 @@ export function VenuesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo venue
           </Button>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
@@ -227,7 +229,7 @@ export function VenuesPage() {
           </div>
         </div>
         </div>
-      </div>
+      </PageToolbar>
 
       {view === "map" ? (
         <Suspense

@@ -31,6 +31,7 @@ import { RoadmapView } from "./views/RoadmapView";
 import { PortfolioView } from "./views/PortfolioView";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { ProjectsView } from "./views/ProjectsView";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StageFilter = Stage | "Todos";
 type KindFilter = TrackKind | "Todos";
@@ -112,16 +113,18 @@ export function MusicPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-start justify-end gap-3">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setProjectFormOpen(true)}>
-            <FolderPlus className="h-4 w-4" /> Novo projeto
-          </Button>
-          <Button onClick={() => openCreate()}>
-            <Plus className="h-4 w-4" /> Nova track
-          </Button>
-        </div>
-      </div>
+      <PageToolbar
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setProjectFormOpen(true)}>
+              <FolderPlus className="h-4 w-4" /> Novo projeto
+            </Button>
+            <Button onClick={() => openCreate()}>
+              <Plus className="h-4 w-4" /> Nova track
+            </Button>
+          </>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard label="Tracks ativas" value={activeCount} />

@@ -72,6 +72,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
@@ -225,12 +226,13 @@ export function FansPage() {
         </Card>
       )}
 
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo fã
           </Button>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
@@ -299,7 +301,7 @@ export function FansPage() {
           </Button>
         </div>
         </div>
-      </div>
+      </PageToolbar>
 
       {loading ? (
         <SkeletonCards />

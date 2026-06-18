@@ -30,6 +30,7 @@ import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type TypeFilter = ContactType | "Todos";
 type ViewMode = "cards" | "list";
@@ -134,12 +135,13 @@ export function CrmPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo contato
           </Button>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
@@ -209,7 +211,7 @@ export function CrmPage() {
           </div>
         </div>
         </div>
-      </div>
+      </PageToolbar>
 
       {loading ? (
         <SkeletonCards />

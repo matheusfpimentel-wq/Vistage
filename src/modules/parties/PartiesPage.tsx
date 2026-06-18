@@ -25,6 +25,7 @@ import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = PartyStatus | "Todas";
 
@@ -90,11 +91,13 @@ export function PartiesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex items-center justify-end gap-3">
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova produção
-        </Button>
-      </div>
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova produção
+          </Button>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <KpiCard label="Próximas" value={upcoming.length} />

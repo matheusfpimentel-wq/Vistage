@@ -41,6 +41,7 @@ import {
   type Meeting,
   type MeetingStatus,
 } from "./types";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 function formatWhen(m: Meeting): string {
   if (!m.date) return "Sem data";
@@ -97,12 +98,13 @@ export function MeetingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Nova reunião
           </Button>
-        </div>
+        }
+      >
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as MeetingStatus | "Todas")}>
           <SelectTrigger className="w-44">
             <SelectValue />
@@ -114,7 +116,7 @@ export function MeetingsPage() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </PageToolbar>
 
       {visible.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">

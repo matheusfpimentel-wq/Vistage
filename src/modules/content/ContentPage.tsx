@@ -36,6 +36,7 @@ import {
 import { KpiCard } from "@/components/shared/KpiCard";
 import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = ContentStatus | "Todos";
 type FormatFilter = ContentFormat | "Todos";
@@ -161,12 +162,13 @@ export function ContentPage() {
         />
       </div>
 
-      <div className="sticky top-0 z-10 bg-background pt-1 pb-3 flex flex-col gap-3">
-        <div className="flex justify-end">
+      <PageToolbar
+        actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo conteúdo
           </Button>
-        </div>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -234,7 +236,7 @@ export function ContentPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </PageToolbar>
 
       {items.length === 0 && (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
