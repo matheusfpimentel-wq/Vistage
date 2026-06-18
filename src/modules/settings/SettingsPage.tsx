@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Loader2, Save, SaveAll, Sparkles } from "lucide-react";
+import { FolderOpen, Loader2, Moon, Save, SaveAll, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
+import { useThemeStore, ACCENTS } from "@/lib/theme";
 import { useDocumentStore, reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
@@ -16,6 +18,7 @@ export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
   const doc = useDocumentStore();
+  const { theme, accent, setTheme, setAccent } = useThemeStore();
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -91,6 +94,54 @@ export function SettingsPage() {
 
       {/* ─── Personalização ──────────────────────────────────── */}
       <TabsContent value="personalizacao" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Aparência</CardTitle>
+            <CardDescription>Tema e cor de destaque do app.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Tema</p>
+              <div className="flex gap-2">
+                <Button
+                  variant={theme === "light" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("light")}
+                >
+                  <Sun className="h-4 w-4" /> Claro
+                </Button>
+                <Button
+                  variant={theme === "dark" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("dark")}
+                >
+                  <Moon className="h-4 w-4" /> Escuro
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Cor de destaque</p>
+              <div className="flex flex-wrap gap-2">
+                {ACCENTS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAccent(a.id)}
+                    title={a.label}
+                    aria-label={a.label}
+                    aria-pressed={accent === a.id}
+                    className={cn(
+                      "h-8 w-8 rounded-full border-2 transition",
+                      accent === a.id ? "border-foreground" : "border-transparent hover:border-muted-foreground/40"
+                    )}
+                    style={{ backgroundColor: `hsl(${a.swatch})` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <ShortcutSettings />
 
         <Card>
