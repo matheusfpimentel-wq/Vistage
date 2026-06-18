@@ -79,6 +79,16 @@ create table if not exists public.capture_inbox (
   unique (user_id, client_ref)
 );
 
+-- ── Detecção de mudança barata (o "ETag" da nuvem) ──────────────────────────
+-- Um contador `rev` por conta; um trigger incrementa a cada mudança nas tabelas
+-- acima. O app guarda localmente o último `rev` que viu e só puxa o delta quando
+-- o `rev` da nuvem for maior — uma linha minúscula responde "mudou algo?".
+create table if not exists public.sync_state (
+  user_id     uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  rev         bigint not null default 0,
+  updated_at  timestamptz not null default now()
+);
+
 -- ── Índices de leitura ──────────────────────────────────────────────────────
 create index if not exists idx_agenda_user_start on public.agenda_mirror (user_id, start_at);
 create index if not exists idx_contact_user_due  on public.contact_today (user_id, due_date);
@@ -108,3 +118,38 @@ create policy "own rows" on public.focus_metrics
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 create policy "own rows" on public.capture_inbox
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+alter table public.sync_state enable row level security;
+drop policy if exists "own rows" on public.sync_state;
+create policy "own rows" on public.sync_state
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ── Trigger: incrementa o rev a cada push do desktop ou captura do celular ───
+create or replace function public.bump_sync_rev() returns trigger
+  language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := coalesce(new.user_id, old.user_id);
+begin
+  insert into public.sync_state (user_id, rev, updated_at) values (uid, 1, now())
+  on conflict (user_id) do update
+    set rev = public.sync_state.rev + 1, updated_at = now();
+  return coalesce(new, old);
+end;
+$$;
+
+drop trigger if exists trg_bump on public.agenda_mirror;
+drop trigger if exists trg_bump on public.finance_summary;
+drop trigger if exists trg_bump on public.contact_today;
+drop trigger if exists trg_bump on public.focus_metrics;
+drop trigger if exists trg_bump on public.capture_inbox;
+
+create trigger trg_bump after insert or update or delete on public.agenda_mirror
+  for each row execute function public.bump_sync_rev();
+create trigger trg_bump after insert or update or delete on public.finance_summary
+  for each row execute function public.bump_sync_rev();
+create trigger trg_bump after insert or update or delete on public.contact_today
+  for each row execute function public.bump_sync_rev();
+create trigger trg_bump after insert or update or delete on public.focus_metrics
+  for each row execute function public.bump_sync_rev();
+create trigger trg_bump after insert or update or delete on public.capture_inbox
+  for each row execute function public.bump_sync_rev();

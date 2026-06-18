@@ -14,6 +14,7 @@ pra nuvem sobe só um **espelho mínimo**.
 | Consultas no celular | Agenda próxima · Resumo financeiro (só saldo) · Contato do dia · Métricas de foco |
 | Escrita do celular | Atividade (work session) · Nota/destaque (highlight) · Tarefa |
 | Privacidade | Finanças **detalhadas nunca sobem**; o resto do app fica local |
+| Conta / acesso | **Uma conta por DJ/arquivo**; a mesma conta abre em **vários aparelhos** |
 
 ## Arquitetura
 
@@ -48,13 +49,34 @@ O contrato (tabelas + RLS) está em [`supabase/schema.sql`](../supabase/schema.s
 | `contact_today` | follow-ups do CRM com vencimento hoje (nome + motivo + contato) |
 | `focus_metrics` | `work_sessions` da semana agregadas por atividade |
 | `capture_inbox` | (entrada) capturas feitas no celular |
+| `sync_state` | contador `rev` por conta (trigger) — detecção barata de mudança |
 
-## Autenticação
+## Conta, acesso e multi-dispositivo
 
-Single-user, **e-mail magic link** do Supabase. Desktop e celular logam no mesmo
-usuário; o RLS (`user_id = auth.uid()`) garante que só esse usuário lê/escreve.
-O desktop guarda o refresh token (em `app_settings`, tabela de máquina, fora do
-backup) pra sincronizar sem relogar.
+**Uma conta por DJ/arquivo.** Cada `.vistage` corresponde a uma conta Supabase
+(e-mail + senha ou magic link). Toda linha na nuvem carrega `user_id`, e o **RLS**
+(`user_id = auth.uid()`) garante que cada conta vê **só a base dela** — é esse
+isolamento que torna o app distribuível: cada DJ é uma conta independente; uma
+agência apenas distribui contas (sem precisar de um modelo de "vaults").
+
+**Vários aparelhos, mesma conta.** Multi-dispositivo é **nativo do Supabase Auth**:
+celular, notebook e um segundo aparelho logam na mesma conta e enxergam a mesma
+base, sem tabela extra. O desktop guarda o refresh token (em `app_settings`, fora
+do backup) pra sincronizar sem relogar.
+
+## Detecção de mudança (o "ETag" da nuvem)
+
+`sync_state` tem **um contador `rev` por conta**, incrementado por trigger a cada
+mudança. Cada lado guarda localmente o último `rev` visto e só puxa o delta quando
+o `rev` da nuvem é maior — ler **uma linha** já responde "mudou algo?". As duas
+direções:
+
+- **Celular → desktop:** ao abrir o notebook, ele vê `capture_inbox` com
+  `consumed_at IS NULL` (índice dedicado) → avisa *"o celular registrou X"*, ingere
+  e marca consumido.
+- **Desktop → celular:** o app compara o `rev` e busca as linhas do espelho com
+  `updated_at` mais novo que o cursor. Com **Realtime** (websocket) o aviso é
+  instantâneo; sem ele, um poll ao abrir resolve.
 
 ## Fases
 
