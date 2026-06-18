@@ -4,6 +4,7 @@ import {
   createTask,
   updateTask,
   deleteTask,
+  setTaskLinks,
   syncLinkedTasksStatus,
   unlinkTasksFromEntity,
 } from "@/modules/tasks/api";
@@ -175,13 +176,14 @@ export async function deleteMeeting(id: number): Promise<void> {
 
 /**
  * Cria uma tarefa de follow-up a partir de uma reunião (ex.: encaminhamentos
- * após a reunião acontecer). Não mexe na tarefa-lembrete original.
+ * após a reunião acontecer). Não mexe na tarefa-lembrete original. A tarefa é
+ * vinculada à reunião, então aparece na lista de tarefas vinculadas dela.
  */
 export async function createFollowUpTask(
   meeting: Meeting,
   input: { title: string; due_date: string | null; priority?: TaskPriority }
 ): Promise<number> {
-  return createTask({
+  const taskId = await createTask({
     title: input.title,
     description: `Follow-up da reunião "${meeting.title}".`,
     category: "Administrativo",
@@ -192,4 +194,41 @@ export async function createFollowUpTask(
     due_date: input.due_date,
     tags: ["reunião"],
   });
+  await setTaskLinks(taskId, [
+    { entity_type: "meeting", entity_id: meeting.id, label: meeting.title },
+  ]);
+  emitDataChanged();
+  return taskId;
+}
+
+/**
+ * Transforma cada linha dos encaminhamentos em uma tarefa vinculada à reunião
+ * ("ideia vira coisa"). Ignora marcadores de lista (-, *, •) no início. Retorna
+ * quantas tarefas foram criadas.
+ */
+export async function createTasksFromOutcomes(meeting: Meeting): Promise<number> {
+  const lines = (meeting.outcomes ?? "")
+    .split("\n")
+    .map((l) => l.replace(/^[-*•–—\s]+/, "").trim())
+    .filter((l) => l.length > 0);
+  let created = 0;
+  for (const line of lines) {
+    const taskId = await createTask({
+      title: line,
+      description: `Encaminhamento da reunião "${meeting.title}".`,
+      category: "Administrativo",
+      gig_id: null,
+      contact_id: null,
+      priority: "Média",
+      status: "A fazer",
+      due_date: null,
+      tags: ["reunião", "encaminhamento"],
+    });
+    await setTaskLinks(taskId, [
+      { entity_type: "meeting", entity_id: meeting.id, label: meeting.title },
+    ]);
+    created++;
+  }
+  if (created > 0) emitDataChanged();
+  return created;
 }

@@ -320,7 +320,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-popover/80 shadow-lg backdrop-blur-xl">
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-lg border bg-popover shadow-lg">
           <div className="border-b px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             Alertas
           </div>

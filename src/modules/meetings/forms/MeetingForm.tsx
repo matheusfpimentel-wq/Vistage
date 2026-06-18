@@ -245,34 +245,51 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               onChange={(e) => { setAgenda(e.target.value); setDirty(true); }}
               placeholder="Tópicos a tratar..."
             />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="meet-notes">Ata</Label>
-            <textarea
-              id="meet-notes"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              rows={3}
-              value={notes}
-              onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
-              placeholder="O que foi discutido..."
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="meet-outcomes">Decisões</Label>
-            <textarea
-              id="meet-outcomes"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              rows={2}
-              value={outcomes}
-              onChange={(e) => { setOutcomes(e.target.value); setDirty(true); }}
-              placeholder="O que ficou decidido e os próximos passos..."
-            />
+            <p className="text-[11px] text-muted-foreground">
+              O texto da ata e os encaminhamentos são preenchidos na aba <strong>Ata</strong>.
+            </p>
           </div>
           </TabsContent>
 
           <TabsContent value="ata" className="space-y-4 pt-2">
+            {/* Cabeçalho de contexto (somente leitura) — vem da aba Reunião. */}
+            <div className="rounded-md border bg-muted/30 px-3 py-2">
+              <h3 className="text-sm font-semibold leading-tight">
+                {title.trim() || "Reunião sem título"}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {[date ? formatDate(date) : null, time || null, location.trim() || null]
+                  .filter(Boolean)
+                  .join(" · ") || "Sem data"}
+                {participants.length > 0 && ` · ${participants.length} participante(s)`}
+              </p>
+            </div>
+
+            {/* Edição da ata propriamente dita. */}
+            <div className="space-y-1">
+              <Label htmlFor="ata-notes">Texto da ata</Label>
+              <textarea
+                id="ata-notes"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                rows={8}
+                value={notes}
+                onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
+                placeholder="Registro do que foi discutido na reunião…"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="ata-outcomes">Encaminhamentos</Label>
+              <textarea
+                id="ata-outcomes"
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                rows={4}
+                value={outcomes}
+                onChange={(e) => { setOutcomes(e.target.value); setDirty(true); }}
+                placeholder="Decisões e próximos passos (um por linha)…"
+              />
+            </div>
+
             <div className="flex justify-end">
               <Button
                 variant="outline"
@@ -282,44 +299,6 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               >
                 <Printer className="h-4 w-4" /> Imprimir ata
               </Button>
-            </div>
-            <div className="rounded-md border p-4 space-y-4">
-              <div>
-                <h3 className="text-base font-semibold leading-tight">
-                  {title.trim() || "Reunião sem título"}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  {[date ? formatDate(date) : null, time || null, location.trim() || null]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
-                {participants.length > 0 && (
-                  <p className="mt-1 text-sm">
-                    <span className="text-muted-foreground">Participantes: </span>
-                    {participants.join(", ")}
-                  </p>
-                )}
-              </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Texto completo
-                </div>
-                {notes.trim() ? (
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{notes}</p>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">—</p>
-                )}
-              </div>
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Encaminhamentos
-                </div>
-                {outcomes.trim() ? (
-                  <p className="mt-1 whitespace-pre-wrap text-sm">{outcomes}</p>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">—</p>
-                )}
-              </div>
             </div>
           </TabsContent>
         </Tabs>

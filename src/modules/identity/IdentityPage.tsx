@@ -229,6 +229,7 @@ export function IdentityPage() {
 
         {/* ====================== IDENTIDADE ====================== */}
         <TabsContent value="general" className="space-y-4">
+          {/* ─── Quem você é (texto) ─── */}
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
@@ -247,13 +248,24 @@ export function IdentityPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Briefing rápido</Label>
-                <Textarea
-                  rows={2}
-                  value={identity.bio_short ?? ""}
-                  onChange={(e) => set("bio_short", e.target.value || null)}
-                />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Briefing rápido</Label>
+                  <Textarea
+                    rows={3}
+                    value={identity.bio_short ?? ""}
+                    onChange={(e) => set("bio_short", e.target.value || null)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Notas internas</Label>
+                  <Textarea
+                    rows={3}
+                    placeholder="Tagline, posicionamento, referências…"
+                    value={identity.notes ?? ""}
+                    onChange={(e) => set("notes", e.target.value || null)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -264,7 +276,92 @@ export function IdentityPage() {
                   onChange={(e) => set("bio_long", e.target.value || null)}
                 />
               </div>
+            </CardContent>
+          </Card>
 
+          {/* ─── Marca (logo, isótipo, presskit, manual) ─── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-primary" />
+                Marca
+              </CardTitle>
+              <CardDescription>
+                Logotipo e isótipo (imagens) · presskit e manual de marca (PDF).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Imagens lado a lado — mesma altura, sem buracos. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <AttachmentField
+                  label="Logotipo (texto + símbolo)"
+                  value={identity.logo_path}
+                  onChange={(v) => set("logo_path", v)}
+                  subdir="identity/logo"
+                  variant="image"
+                />
+                <AttachmentField
+                  label="Isótipo (só símbolo)"
+                  value={identity.isotype_path}
+                  onChange={(v) => set("isotype_path", v)}
+                  subdir="identity/isotype"
+                  variant="image"
+                />
+              </div>
+              {/* Documentos lado a lado — compactos, mesma altura. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <AttachmentField
+                  label="Presskit (PDF)"
+                  value={identity.presskit_path}
+                  onChange={(v) => set("presskit_path", v)}
+                  subdir="identity/presskit"
+                  variant="document"
+                />
+                <AttachmentField
+                  label="Manual de marca (PDF)"
+                  value={identity.brand_manual_path}
+                  onChange={(v) => set("brand_manual_path", v)}
+                  subdir="identity/brand-manual"
+                  variant="document"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5" />
+                  Presskit (link)
+                </Label>
+                <Input
+                  type="url"
+                  placeholder="https://… (Notion, Drive, site…)"
+                  value={identity.presskit_link ?? ""}
+                  onChange={(e) => set("presskit_link", e.target.value || null)}
+                />
+                {identity.presskit_link && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openShell(identity.presskit_link!).catch(() => {})
+                    }
+                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Abrir presskit
+                  </button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ─── Cores & tipografia ─── */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Palette className="h-4 w-4 text-primary" />
+                Cores & tipografia
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1.5">
                   <Palette className="h-3.5 w-3.5" />
@@ -415,73 +512,6 @@ export function IdentityPage() {
                     Nova fonte
                   </button>
                 </div>
-              </div>
-
-              {/* Coluna 1 = marcas (imagens), Coluna 2 = documentos (PDF). */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <AttachmentField
-                  label="Logotipo (texto + símbolo)"
-                  value={identity.logo_path}
-                  onChange={(v) => set("logo_path", v)}
-                  subdir="identity/logo"
-                  variant="image"
-                />
-                <AttachmentField
-                  label="Presskit (PDF)"
-                  value={identity.presskit_path}
-                  onChange={(v) => set("presskit_path", v)}
-                  subdir="identity/presskit"
-                  variant="document"
-                />
-                <AttachmentField
-                  label="Isótipo (só símbolo)"
-                  value={identity.isotype_path}
-                  onChange={(v) => set("isotype_path", v)}
-                  subdir="identity/isotype"
-                  variant="image"
-                />
-                <AttachmentField
-                  label="Manual de marca (PDF)"
-                  value={identity.brand_manual_path}
-                  onChange={(v) => set("brand_manual_path", v)}
-                  subdir="identity/brand-manual"
-                  variant="document"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="flex items-center gap-1.5">
-                  <LinkIcon className="h-3.5 w-3.5" />
-                  Presskit (link)
-                </Label>
-                <Input
-                  type="url"
-                  placeholder="https://… (Notion, Drive, site…)"
-                  value={identity.presskit_link ?? ""}
-                  onChange={(e) => set("presskit_link", e.target.value || null)}
-                />
-                {identity.presskit_link && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openShell(identity.presskit_link!).catch(() => {})
-                    }
-                    className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    Abrir presskit
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Notas internas</Label>
-                <Textarea
-                  rows={2}
-                  placeholder="Tagline, posicionamento, referências visuais…"
-                  value={identity.notes ?? ""}
-                  onChange={(e) => set("notes", e.target.value || null)}
-                />
               </div>
             </CardContent>
           </Card>

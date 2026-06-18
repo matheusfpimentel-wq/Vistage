@@ -29,6 +29,7 @@ import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   createFollowUpTask,
+  createTasksFromOutcomes,
   deleteMeeting,
   listMeetings,
   updateMeeting,
@@ -90,6 +91,16 @@ export function MeetingsPage() {
     await updateMeeting({ id: m.id, status });
     void refresh();
     if (status === "Realizada") setFollowUpFor({ ...m, status });
+  }
+
+  async function genTasksFromOutcomes(m: Meeting) {
+    const n = await createTasksFromOutcomes(m);
+    if (n > 0) {
+      toast.success(`${n} tarefa(s) criada(s) a partir dos encaminhamentos`);
+      void refresh();
+    } else {
+      toast.error("Nenhum encaminhamento (uma linha vira uma tarefa)");
+    }
   }
 
   const visible = meetings.filter(
@@ -178,8 +189,19 @@ export function MeetingsPage() {
 
               {m.outcomes && (
                 <div className="mt-3 rounded-md bg-muted/40 p-3 text-sm">
-                  <div className="mb-1 text-xs font-medium text-muted-foreground">Decisões</div>
-                  {m.outcomes}
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">Encaminhamentos</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 gap-1 px-2 text-xs"
+                      onClick={() => void genTasksFromOutcomes(m)}
+                      title="Cada linha vira uma tarefa vinculada à reunião"
+                    >
+                      <ListTodo className="h-3.5 w-3.5" /> Transformar em tarefas
+                    </Button>
+                  </div>
+                  <div className="whitespace-pre-wrap">{m.outcomes}</div>
                 </div>
               )}
 
