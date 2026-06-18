@@ -80,11 +80,12 @@ export function Setup() {
               Setup inicial
             </span>
           </div>
-          <CardTitle>Onde vamos guardar seus dados?</CardTitle>
+          <CardTitle>Onde vamos guardar seus anexos?</CardTitle>
           <CardDescription>
-            O Vistage é local-first. Escolha uma pasta no seu HD externo
-            (recomendado) — o banco de dados, anexos e configuração ficarão lá
-            para que tudo seja portátil entre Mac e Windows.
+            O Vistage é local-first. Escolha uma pasta (no HD externo, de
+            preferência) para os anexos e a configuração. O banco de dados fica
+            no computador; para levar TODOS os dados entre máquinas, use o
+            documento <code>.vistage</code> (Salvar como…).
           </CardDescription>
         </CardHeader>
 
@@ -109,8 +110,8 @@ export function Setup() {
                 <code className="rounded bg-muted px-1 text-xs">
                   /Volumes/HD/vistage
                 </code>
-                ). Criamos o <code>.db</code>, a pasta{" "}
-                <code>uploads/</code> e o arquivo de configuração.
+                ). Criamos a pasta <code>uploads/</code> e o arquivo de
+                configuração.
               </span>
             </button>
 
@@ -149,9 +150,8 @@ export function Setup() {
             <div className="mb-1 font-medium text-foreground">Dica</div>
             Em Mac, o caminho típico é{" "}
             <code>/Volumes/&lt;NomeDoHD&gt;/vistage</code>. Em Windows, algo
-            como <code>E:\vistage</code>. Pluge o HD em qualquer máquina,
-            abra o app e use “Abrir banco existente” para continuar de onde
-            parou.
+            como <code>E:\vistage</code>. Para continuar noutra máquina com
+            todos os dados, salve um <code>.vistage</code> e abra-o lá.
           </div>
         </CardContent>
       </Card>
