@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, FolderOpen, Loader2, Save, SaveAll } from "lucide-react";
 import { useDocumentStore, displayDocName } from "@/lib/document";
+import { hasAnyDocumentData } from "@/lib/backup";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 
@@ -25,14 +26,19 @@ export function FileMenu() {
 
   async function handleOpen() {
     setMenuOpen(false);
-    const ok = await confirmDialog({
-      title: "Abrir documento",
-      description:
-        "Abrir um arquivo .vistage SUBSTITUI todos os dados atuais pelos do arquivo. " +
-        "Salve o estado atual antes se quiser preservá-lo. Continuar?",
-      confirmLabel: "Abrir",
-    });
-    if (ok) void open();
+    // App em branco → não há dados a substituir, abre direto.
+    const hasData = await hasAnyDocumentData().catch(() => true);
+    if (hasData) {
+      const ok = await confirmDialog({
+        title: "Abrir documento",
+        description:
+          "Abrir um arquivo .vistage SUBSTITUI todos os dados atuais pelos do arquivo. " +
+          "Salve o estado atual antes se quiser preservá-lo. Continuar?",
+        confirmLabel: "Abrir",
+      });
+      if (!ok) return;
+    }
+    void open();
   }
 
   return (

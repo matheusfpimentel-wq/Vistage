@@ -3,6 +3,7 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   buildBackup,
+  hasAnyDocumentData,
   pickBackupFile,
   restoreBackup,
   restoreBackupFiles,
@@ -125,8 +126,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       const picked = await pickBackupFile();
       if (!picked) return;
 
-      // Pergunta ao usuário como abrir ANTES de modificar qualquer dado
-      const mode = await askOpenMode();
+      // App em branco → não há o que mesclar ou sobrescrever: abre direto.
+      // Só pergunta Mesclar/Sobrescrever quando já existem dados a preservar.
+      const hasData = await hasAnyDocumentData().catch(() => true);
+      const mode: OpenMode = hasData ? await askOpenMode() : "overwrite";
       if (mode === "cancel") return;
 
       if (mode === "merge") {
