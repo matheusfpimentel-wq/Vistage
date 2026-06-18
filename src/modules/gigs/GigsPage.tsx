@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Plus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -36,7 +34,8 @@ import {
   type GigFilters,
 } from "./api";
 import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StatusFilter = GigStatus | "Todas";
 
@@ -47,6 +46,8 @@ export function GigsPage() {
     { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
   );
   const [recurringNames, setRecurringNames] = useState<string[]>([]);
+  const [counts, setCounts] = useState({ total: 0, upcoming: 0 });
+  const [view, setView] = useModuleView<"list" | "bulk" | "sheet" | "calendar" | "insights">("gigs", "list");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Gig | null>(null);
@@ -89,6 +90,14 @@ export function GigsPage() {
           "SELECT DISTINCT recurring_event_name FROM gigs WHERE recurring_event_name IS NOT NULL AND recurring_event_name != '' ORDER BY recurring_event_name"
         );
         setRecurringNames(rows.map((r) => r.recurring_event_name));
+        const today = new Date().toISOString().slice(0, 10);
+        const cnt = await db.select<{ total: number; upcoming: number }[]>(
+          `SELECT COUNT(*) AS total,
+                  COALESCE(SUM(CASE WHEN date >= $1 AND status != 'Cancelada' THEN 1 ELSE 0 END), 0) AS upcoming
+             FROM gigs`,
+          [today]
+        );
+        if (cnt[0]) setCounts({ total: cnt[0].total, upcoming: cnt[0].upcoming });
       } catch { /* silently ignore */ }
     })();
   }, [refreshKey]);
@@ -189,78 +198,76 @@ export function GigsPage() {
 
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova GIG
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Nova GIG", icon: Plus, onClick: openCreate }}
+        summaryCards={[
+          { label: "GIGs futuras", value: counts.upcoming },
+          { label: "GIGs totais", value: counts.total },
+        ]}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar venue, cidade, briefing…",
+        }}
+        filtersActiveCount={
+          (filters.status !== "Todas" ? 1 : 0) +
+          (filters.eventCategory !== "all" ? 1 : 0) +
+          (filters.recurringEventName !== "all" ? 1 : 0)
         }
-      >
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar venue, cidade, briefing…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-full pl-8 sm:w-72"
-            />
-          </div>
-          <Select
-            value={filters.status}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, status: v as StatusFilter }))
-            }
-          >
-            <SelectTrigger className="w-full sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todos os status</SelectItem>
-              {GIG_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.eventCategory}
-            onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
-          >
-            <SelectTrigger className="w-full sm:w-44">
-              <SelectValue placeholder="Todas as categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as categorias</SelectItem>
-              <SelectItem value="Evento Social">Evento Social</SelectItem>
-              <SelectItem value="Festa">Festa</SelectItem>
-            </SelectContent>
-          </Select>
-          {recurringNames.length > 0 && (
+        filters={
+          <>
             <Select
-              value={filters.recurringEventName}
-              onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+              value={filters.status}
+              onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
             >
               <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Todas as festas" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas as festas</SelectItem>
-                {recurringNames.map((name) => (
-                  <SelectItem key={name} value={name}>
-                    {name}
+                <SelectItem value="Todas">Todos os status</SelectItem>
+                {GIG_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
-        </div>
-      </PageToolbar>
+            <Select
+              value={filters.eventCategory}
+              onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
+            >
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                <SelectItem value="Evento Social">Evento Social</SelectItem>
+                <SelectItem value="Festa">Festa</SelectItem>
+              </SelectContent>
+            </Select>
+            {recurringNames.length > 0 && (
+              <Select
+                value={filters.recurringEventName}
+                onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+              >
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue placeholder="Todas as festas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as festas</SelectItem>
+                  {recurringNames.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </>
+        }
+      />
 
-      <Tabs defaultValue="list">
+      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="bulk">Seleção múltipla</TabsTrigger>
