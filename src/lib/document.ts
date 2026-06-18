@@ -5,6 +5,7 @@ import {
   buildBackup,
   pickBackupFile,
   restoreBackup,
+  restoreBackupFiles,
   saveBackupToPath,
   type Backup,
 } from "./backup";
@@ -89,6 +90,8 @@ async function mergeBackup(backup: Backup): Promise<void> {
       }
     }
   }
+  // Restaura também os anexos embutidos (imagens, PDFs) no uploadsDir atual.
+  await restoreBackupFiles(backup);
 }
 
 type DocumentState = {

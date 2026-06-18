@@ -9,7 +9,6 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { open as openShell } from "@tauri-apps/plugin-shell";
 import { useConfigStore } from "./config";
-import { syncFileToDrive, restoreFileFromDrive } from "./mediaSync";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
 export const VIDEO_EXTS = ["mp4", "mov", "webm", "avi", "mkv", "m4v"];
@@ -62,8 +61,6 @@ export async function saveAttachment(
   const filename = `${stamp}.${ext}`;
   const dest = joinPath(dir, filename);
   await copyFile(sourcePath, dest);
-  // Background Drive sync — does not block or throw
-  void syncFileToDrive(dest);
   return dest;
 }
 
@@ -80,20 +77,42 @@ export function useImageUrl(path: string | null | undefined): string | null {
     }
     let cancelled = false;
     void (async () => {
-      // Try local first
-      const local = await readAsDataUrl(path);
-      if (cancelled) return;
-      if (local) {
-        setUrl(local);
-        return;
+      // 1. tenta o caminho absoluto como está salvo no banco
+      let data = await readAsDataUrl(path);
+      // 2. fallback: resolve sob o uploadsDir ATUAL. Cobre o caso de abrir um
+      //    .vistage cujos caminhos absolutos são de outra máquina/pasta — os
+      //    bytes foram restaurados em uploads/<subdir>/<arquivo>, mas a linha no
+      //    banco ainda aponta para o caminho antigo, que não existe aqui.
+      if (!data) {
+        const alt = resolveUnderCurrentUploads(path);
+        if (alt && alt !== path) data = await readAsDataUrl(alt);
       }
-      // Local missing — try Drive
-      const fromDrive = await restoreFileFromDrive(path);
-      if (!cancelled) setUrl(fromDrive);
+      if (!cancelled) setUrl(data);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [path]);
   return url;
+}
+
+/**
+ * Reconstrói o caminho de um anexo sob o uploadsDir atual a partir da parte
+ * relativa (depois de ".../uploads/"). Torna o carregamento de imagens imune a
+ * caminhos absolutos antigos vindos de outro computador ou de outra pasta.
+ */
+function resolveUnderCurrentUploads(path: string): string | null {
+  const uploadsDir = useConfigStore.getState().config?.uploadsDir;
+  if (!uploadsDir) return null;
+  const norm = path.replace(/\\/g, "/");
+  const idx = norm.toLowerCase().lastIndexOf("/uploads/");
+  if (idx === -1) return null;
+  const segs = norm
+    .slice(idx + "/uploads/".length)
+    .split("/")
+    .filter(Boolean);
+  if (segs.length === 0) return null;
+  return joinPath(uploadsDir, ...segs);
 }
 
 /** Lê o arquivo e retorna um data URL — útil quando convertFileSrc não funciona em alguns paths. */

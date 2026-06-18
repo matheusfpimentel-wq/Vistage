@@ -4,11 +4,9 @@
 
 mod db;
 mod gcal;
-mod gdrive;
 
 use db::DbState;
 use gcal::GcalState;
-use gdrive::GdriveState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,7 +16,6 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(DbState::default())
         .manage(GcalState::default())
-        .manage(GdriveState::default())
         .invoke_handler(tauri::generate_handler![
             db::db_init,
             db::db_select,
@@ -33,13 +30,6 @@ pub fn run() {
             gcal::gcal_update_event,
             gcal::gcal_delete_event,
             gcal::gcal_list_events,
-            gdrive::gdrive_start_oauth,
-            gdrive::gdrive_wait_callback,
-            gdrive::gdrive_exchange_code,
-            gdrive::gdrive_refresh_token,
-            gdrive::gdrive_ensure_folder,
-            gdrive::gdrive_upload_media,
-            gdrive::gdrive_download_media,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");

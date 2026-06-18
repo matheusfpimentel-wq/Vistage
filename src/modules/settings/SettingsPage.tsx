@@ -8,7 +8,6 @@ import { toast } from "@/components/ui/toaster";
 import { useDocumentStore, reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
-import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { TodoistSettings } from "./TodoistSettings";
@@ -88,7 +87,6 @@ export function SettingsPage() {
       <TabsContent value="integracoes" className="space-y-6">
         <TodoistSettings />
         <GoogleCalendarSettings />
-        <GoogleDriveSettings />
       </TabsContent>
 
       {/* ─── Personalização ──────────────────────────────────── */}

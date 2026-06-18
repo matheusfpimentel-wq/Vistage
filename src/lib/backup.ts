@@ -291,6 +291,16 @@ export async function hasAnyDocumentData(): Promise<boolean> {
   return false;
 }
 
+/**
+ * Escreve os anexos embutidos (base64) de um backup no uploadsDir atual.
+ * Usado pela mesclagem de documento (o restore completo já faz isso por dentro).
+ */
+export async function restoreBackupFiles(backup: Backup): Promise<void> {
+  const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
+  if (!uploadsDir || !backup.files || Object.keys(backup.files).length === 0) return;
+  await restoreFiles(backup.files, uploadsDir).catch(() => {});
+}
+
 /** Valida e converte o texto bruto de um arquivo .vistage/backup em Backup. */
 export function parseBackupRaw(raw: string): Backup {
   const parsed = JSON.parse(raw) as Partial<Backup>;
