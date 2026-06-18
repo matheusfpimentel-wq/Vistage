@@ -400,22 +400,19 @@ function OkrMiniCard({ okrs }: { okrs: Okr[] }) {
       : null;
 
   return (
-    <Link to="/objetivos" className="block transition hover:opacity-90">
-      <Card className="h-full transition hover:border-primary">
-        <CardHeader className="pb-2">
-          <CardDescription className="text-xs">OKRs</CardDescription>
-          <CardTitle className="text-2xl tabular-nums">
-            {avgPct !== null ? `${avgPct}%` : "—"}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <span className="text-xs text-muted-foreground">
-            {shown.length === 0
-              ? "Sem OKRs"
-              : `${shown.length} objetivo(s) · ${quarter}`}
-          </span>
-        </CardContent>
-      </Card>
+    <Link
+      to="/objetivos"
+      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
+    >
+      <div className="text-xs text-muted-foreground">OKRs</div>
+      <div className="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
+        {avgPct !== null ? `${avgPct}%` : "—"}
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground">
+        {shown.length === 0
+          ? "Sem OKRs"
+          : `${shown.length} objetivo(s) · ${quarter}`}
+      </div>
     </Link>
   );
 }
@@ -432,14 +429,15 @@ function KpiCard({
   to: string;
 }) {
   return (
-    <Link to={to} className="block transition hover:opacity-90">
-      <Card className="h-full transition hover:border-primary">
-        <CardHeader className="pb-2">
-          <CardDescription className="text-xs">{label}</CardDescription>
-          <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
-        </CardHeader>
-        {footer && <CardContent className="pt-0">{footer}</CardContent>}
-      </Card>
+    <Link
+      to={to}
+      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
+    >
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
+        {value}
+      </div>
+      {footer && <div className="mt-1">{footer}</div>}
     </Link>
   );
 }
