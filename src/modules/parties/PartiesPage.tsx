@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, PartyPopper, Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Loader2, PartyPopper, Plus } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,7 +21,8 @@ import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StatusFilter = PartyStatus | "Todas";
 
@@ -77,43 +76,42 @@ export function PartiesPage() {
     });
   }, [parties, search, statusFilter]);
 
+  const [view, setView] = useModuleView<"cards" | "lista">("parties", "cards");
+
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova produção
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Nova produção", icon: Plus, onClick: openCreate }}
+        search={{
+          value: search,
+          onChange: setSearch,
+          placeholder: "Buscar título, venue…",
+        }}
+        resultCount={filtered.length}
+        resultLabel="produções"
+        filtersActiveCount={statusFilter !== "Todas" ? 1 : 0}
+        filters={
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Status</label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todas">Todos os status</SelectItem>
+                {PARTY_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar título, venue…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64 pl-8"
-          />
-        </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todas">Todos os status</SelectItem>
-            {PARTY_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -125,7 +123,7 @@ export function PartiesPage() {
           Nenhuma produção cadastrada. Clique em "Nova produção" para começar.
         </div>
       ) : (
-        <Tabs defaultValue="cards">
+        <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <TabsList>
             <TabsTrigger value="cards">Cards</TabsTrigger>
             <TabsTrigger value="lista">Lista</TabsTrigger>
