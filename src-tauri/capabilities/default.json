@@ -39,6 +39,10 @@
     },
     "shell:default",
     "shell:allow-open",
-    "notification:default"
+    "notification:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://api.todoist.com/*" }]
+    }
   ]
 }

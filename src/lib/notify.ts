@@ -43,6 +43,15 @@ export async function enableNotifications(): Promise<boolean> {
   }
 }
 
+/** Dispara uma notificação de teste — feedback imediato ao ativar. */
+export async function sendTestNotification(): Promise<void> {
+  try {
+    sendNotification({ title: "Vistage", body: "Notificações ativadas ✓" });
+  } catch {
+    /* best-effort */
+  }
+}
+
 function loadNotified(): string[] {
   try {
     return JSON.parse(localStorage.getItem(NOTIFIED_KEY) ?? "[]") as string[];
