@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
-  CalendarRange,
   FileDown,
   GraduationCap,
   Package as PackageIcon,
@@ -45,14 +44,12 @@ import {
   deleteClass,
   deletePackage,
   deleteStudent,
-  getClassStats,
   getStudent,
   listClasses,
   listPackages,
   listStudents,
   recalcPackageUsage,
   type ClassFilters,
-  type ClassStats,
   type ClassWithStudent,
 } from "./api";
 import {
@@ -76,7 +73,6 @@ export function ClassesPage() {
   const [classes, setClasses] = useState<ClassWithStudent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [packages, setPackages] = useState<ClassPackage[]>([]);
-  const [stats, setStats] = useState<ClassStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
@@ -108,11 +104,10 @@ export function ClassesPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [cls, sts, pkgs, st] = await Promise.all([
+      const [cls, sts, pkgs] = await Promise.all([
         listClasses(queryFilters),
         listStudents(),
         listPackages(),
-        getClassStats(),
       ]);
       const filtered =
         filters.search.trim().length > 0
@@ -126,7 +121,6 @@ export function ClassesPage() {
       setClasses(filtered);
       setStudents(sts);
       setPackages(pkgs);
-      setStats(st);
     } finally {
       setLoading(false);
     }
@@ -213,29 +207,6 @@ export function ClassesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-4">
-        <Kpi
-          icon={<GraduationCap className="h-4 w-4" />}
-          label="Alunos"
-          value={stats?.studentCount ?? 0}
-        />
-        <Kpi
-          icon={<PackageIcon className="h-4 w-4" />}
-          label="Pacotes ativos"
-          value={stats?.activePackages ?? 0}
-        />
-        <Kpi
-          icon={<CalendarRange className="h-4 w-4" />}
-          label="Aulas no mês"
-          value={stats?.classesThisMonth ?? 0}
-        />
-        <Kpi
-          icon={<CalendarRange className="h-4 w-4 text-emerald-500" />}
-          label="Realizadas no mês"
-          value={stats?.doneThisMonth ?? 0}
-        />
-      </div>
-
       <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="classes">Aulas</TabsTrigger>
@@ -621,24 +592,3 @@ function fmtItemLoad(hours: number): string {
   return `${h}h ${m}min`;
 }
 
-function Kpi({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-2 text-xs">
-          {icon}
-          {label}
-        </CardDescription>
-        <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}

@@ -4,7 +4,6 @@ import { ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -144,26 +143,24 @@ function StatCard({
   tone?: "default" | "danger" | "success";
 }) {
   return (
-    <Link to={to} className="block transition hover:opacity-90">
-      <Card className="h-full transition hover:border-primary">
-        <CardHeader className="pb-2">
-          <CardDescription className="text-xs">{label}</CardDescription>
-          <CardTitle
-            className={cn(
-              "text-2xl tabular-nums",
-              tone === "danger" && "text-destructive",
-              tone === "success" && "text-emerald-500"
-            )}
-          >
-            {value}
-          </CardTitle>
-        </CardHeader>
-        {hint && (
-          <CardContent className="pt-0">
-            <span className="text-xs text-muted-foreground">{hint}</span>
-          </CardContent>
+    <Link
+      to={to}
+      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
+    >
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div
+        className={cn(
+          "mt-0.5 text-2xl font-semibold tabular-nums",
+          tone === "danger"
+            ? "text-destructive"
+            : tone === "success"
+              ? "text-emerald-500"
+              : "text-primary"
         )}
-      </Card>
+      >
+        {value}
+      </div>
+      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
     </Link>
   );
 }
