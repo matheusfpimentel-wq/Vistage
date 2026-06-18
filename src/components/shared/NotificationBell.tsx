@@ -57,7 +57,7 @@ function mergeAndReorder(lists: AlertItem[][]): AlertItem[] {
   return ordered;
 }
 
-async function loadExtraStats(): Promise<ExtraStats> {
+export async function loadExtraStats(): Promise<ExtraStats> {
   try {
     const db = getDb();
     const weekStart = new Date();
@@ -129,7 +129,7 @@ async function loadExtraStats(): Promise<ExtraStats> {
   }
 }
 
-async function loadRelationshipAlerts(): Promise<AlertItem[]> {
+export async function loadRelationshipAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
     const cutoff = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
@@ -161,7 +161,7 @@ async function loadRelationshipAlerts(): Promise<AlertItem[]> {
 }
 
 /** GIGs cuja data já passou mas continuam como Confirmada/Proposta. */
-async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
+export async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
     const today = new Date().toISOString().slice(0, 10);
@@ -189,7 +189,7 @@ async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
 }
 
 /** Recebíveis previstos cuja data já passou e ainda não foram marcados como recebidos. */
-async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
+export async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
     const today = new Date().toISOString().slice(0, 10);
