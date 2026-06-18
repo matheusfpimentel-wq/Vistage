@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Instagram, Mail, MapPin, Pencil, Phone } from "lucide-react";
+import { Instagram, Mail, MapPin, Mic2, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +17,9 @@ import {
 } from "@/components/ui/tabs";
 import { LevelBadge } from "../components/LevelBadge";
 import { FanInteractionList } from "../components/FanInteractionList";
-import { getFan } from "../api";
+import { FanPerksList } from "../components/FanPerksList";
+import { FanQuickActions } from "../components/FanQuickActions";
+import { getFan, listGigsForFan } from "../api";
 import { getContact } from "@/modules/crm/api";
 import type { Fan } from "../types";
 import { formatDate } from "@/lib/format";
@@ -33,14 +35,21 @@ type Props = {
 export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
   const [fan, setFan] = useState<Fan | null>(null);
   const [contactName, setContactName] = useState<string | null>(null);
+  const [gigs, setGigs] = useState<
+    { id: number; name: string | null; date: string | null; city: string | null }[]
+  >([]);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!fanId) return;
     setLoading(true);
     try {
-      const f = await getFan(fanId);
+      const [f, gs] = await Promise.all([
+        getFan(fanId),
+        listGigsForFan(fanId).catch(() => []),
+      ]);
       setFan(f);
+      setGigs(gs);
       if (f?.contact_id != null) {
         const c = await getContact(f.contact_id);
         setContactName(c?.name ?? null);
@@ -86,6 +95,8 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
               <TabsList>
                 <TabsTrigger value="info">Informações</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
+                <TabsTrigger value="actions">Ações</TabsTrigger>
+                <TabsTrigger value="perks">Perks &amp; brindes</TabsTrigger>
               </TabsList>
 
               <TabsContent value="info" className="space-y-3 pt-2">
@@ -124,6 +135,13 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
                       value={formatDate(fan.last_interaction_at)}
                     />
                   )}
+                  {gigs.length > 0 && (
+                    <Row
+                      icon={<Mic2 className="h-3.5 w-3.5" />}
+                      label="Shows assistidos"
+                      value={String(gigs.length)}
+                    />
+                  )}
                   {fan.contact_id != null && contactName && (
                     <div className="flex items-center gap-2">
                       <span className="text-xs uppercase tracking-wide text-muted-foreground">Contato CRM</span>
@@ -149,10 +167,40 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
                     {fan.notes}
                   </div>
                 )}
+
+                {gigs.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Mic2 className="h-3.5 w-3.5" /> Presença em shows
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {gigs.map((g) => (
+                        <Link
+                          key={g.id}
+                          to={`/gigs?open=${g.id}`}
+                          className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs hover:border-primary"
+                        >
+                          <span className="font-medium">{g.name ?? "Show"}</span>
+                          {g.date && (
+                            <span className="text-muted-foreground">{formatDate(g.date)}</span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="interactions">
                 <FanInteractionList fanId={fan.id} onChange={refresh} />
+              </TabsContent>
+
+              <TabsContent value="actions" className="pt-2">
+                <FanQuickActions fanId={fan.id} fanName={fan.name} />
+              </TabsContent>
+
+              <TabsContent value="perks" className="pt-2">
+                <FanPerksList fanId={fan.id} />
               </TabsContent>
             </Tabs>
           </>

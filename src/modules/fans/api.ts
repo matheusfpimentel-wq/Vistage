@@ -10,6 +10,9 @@ import type {
   FanInteraction,
   FanInteractionType,
   FanLevel,
+  FanPerk,
+  FanPerkCreateInput,
+  FanPerkUpdateInput,
   FanScoreThresholds,
   FanUpdateInput,
   FanUpgradeRules,
@@ -555,4 +558,120 @@ export async function topFansByPresence(
       LIMIT $1`,
     [limit]
   );
+}
+
+/** Lista os shows (gigs) que um fã assistiu, mais recentes primeiro. */
+export async function listGigsForFan(
+  fanId: number
+): Promise<{ id: number; name: string | null; date: string | null; city: string | null }[]> {
+  const db = getDb();
+  return db.select<{ id: number; name: string | null; date: string | null; city: string | null }[]>(
+    `SELECT g.id as id, g.name as name, g.date as date, g.city as city
+       FROM gig_fans gf
+       JOIN gigs g ON g.id = gf.gig_id
+      WHERE gf.fan_id = $1
+      ORDER BY g.date DESC NULLS LAST, g.id DESC`,
+    [fanId]
+  );
+}
+
+// ===== Perks / VIP / brindes (clube de fãs) =====
+
+export async function listFanPerks(fanId: number): Promise<FanPerk[]> {
+  const db = getDb();
+  return db.select<FanPerk[]>(
+    `SELECT * FROM fan_perks
+      WHERE fan_id = $1
+      ORDER BY CASE status WHEN 'Planejado' THEN 0 ELSE 1 END,
+               COALESCE(date, '') DESC, created_at DESC`,
+    [fanId]
+  );
+}
+
+export async function addFanPerk(input: FanPerkCreateInput): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO fan_perks (fan_id, category, name, status, date, notes)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [input.fan_id, input.category, input.name, input.status, input.date, input.notes]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updateFanPerk(input: FanPerkUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = [...cols.map((k) => (rest as Record<string, unknown>)[k]), id];
+  await db.execute(
+    `UPDATE fan_perks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+    values
+  );
+  emitDataChanged();
+}
+
+/** Marca um perk/brinde como entregue, datando hoje se ainda não tiver data. */
+export async function markFanPerkDelivered(id: number): Promise<void> {
+  const db = getDb();
+  const today = new Date().toISOString().slice(0, 10);
+  await db.execute(
+    `UPDATE fan_perks
+        SET status = 'Entregue',
+            date = COALESCE(date, $1),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2`,
+    [today, id]
+  );
+  emitDataChanged();
+}
+
+export async function deleteFanPerk(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM fan_perks WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+/** Quantos perks/brindes cada fã possui (para badges na lista). */
+export async function listFanPerkCounts(): Promise<Map<number, number>> {
+  const db = getDb();
+  const rows = await db.select<{ fan_id: number; n: number }[]>(
+    `SELECT fan_id, COUNT(*) as n FROM fan_perks GROUP BY fan_id`
+  );
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.fan_id, r.n);
+  return map;
+}
+
+// ===== Ação → tarefa (cria tarefa já vinculada ao fã) =====
+
+/**
+ * Cria uma tarefa já vinculada ao fã (task_links entity_type "fan"). Usado pelas
+ * ações rápidas do clube de fãs (reativar, agradecer presença, enviar brinde…).
+ */
+export async function createFanTask(
+  fanId: number,
+  title: string,
+  opts?: { description?: string | null; due_date?: string | null }
+): Promise<number> {
+  const fan = await getFan(fanId);
+  const { createTask, setTaskLinks } = await import("@/modules/tasks/api");
+  const taskId = await createTask({
+    title,
+    description: opts?.description ?? null,
+    category: "Pessoal",
+    priority: "Média",
+    status: "A fazer",
+    due_date: opts?.due_date ?? null,
+    gig_id: null,
+    contact_id: null,
+    tags: ["fã"],
+  });
+  await setTaskLinks(taskId, [
+    { entity_type: "fan", entity_id: fanId, label: fan?.name ?? null },
+  ]);
+  emitDataChanged();
+  return taskId;
 }
