@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getDb } from "./db";
 
 /**
@@ -17,12 +18,27 @@ export function triggerQuickCapture(): void {
   window.dispatchEvent(new CustomEvent(QUICK_CAPTURE_EVENT));
 }
 
+// Intenção de "criar item" disparada por NAVEGAÇÃO (command palette, menu "+").
+// Guardamos a rota-alvo; quando a página de destino monta nessa rota, ela abre
+// o próprio form de criação. Se já estiver na rota, o chamador usa
+// triggerNewItem() direto (a página atual responde na hora).
+let pendingNewItemPath: string | null = null;
+export function requestNewItemAt(path: string): void {
+  pendingNewItemPath = path;
+}
+
 export function useNewItemShortcut(handler: () => void): void {
+  const { pathname } = useLocation();
   useEffect(() => {
     const listener = () => handler();
     window.addEventListener(NEW_ITEM_EVENT, listener);
+    // Intenção pendente vinda de navegação: só a página da rota certa responde.
+    if (pendingNewItemPath && pathname === pendingNewItemPath) {
+      pendingNewItemPath = null;
+      handler();
+    }
     return () => window.removeEventListener(NEW_ITEM_EVENT, listener);
-  }, [handler]);
+  }, [handler, pathname]);
 }
 
 export function useQuickCaptureEvent(handler: () => void): void {

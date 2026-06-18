@@ -12,6 +12,7 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { requestNewItemAt, triggerNewItem } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 const CREATE_ITEMS = [
@@ -134,7 +135,12 @@ export function AppLayout() {
                       className="flex w-full items-center px-3 py-2 text-sm text-popover-foreground transition hover:bg-accent hover:text-accent-foreground"
                       onClick={() => {
                         setCreateOpen(false);
-                        void navigate(`${to}?new=1`);
+                        if (location.pathname === to) {
+                          triggerNewItem();
+                        } else {
+                          requestNewItemAt(to);
+                          void navigate(to);
+                        }
                       }}
                     >
                       {label}

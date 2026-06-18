@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Building2,
   Calendar,
@@ -24,8 +24,24 @@ import {
 } from "@/components/ui/dialog";
 import { globalSearch, KIND_LABEL, type SearchHit } from "@/lib/search";
 import { DEFAULT_NAV, NAV_GROUP_META, NAV_GROUP_ORDER } from "@/lib/nav";
-import { triggerQuickCapture } from "@/lib/shortcuts";
+import { requestNewItemAt, triggerNewItem, triggerQuickCapture } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
+
+/** Ações de criação — "Nova GIG", "Nova tarefa"… abrem o form do módulo. */
+const CREATE_ACTIONS: { label: string; to: string; icon: React.ElementType }[] = [
+  { label: "Nova GIG", to: "/gigs", icon: Calendar },
+  { label: "Nova tarefa", to: "/tarefas", icon: CheckSquare },
+  { label: "Novo contato", to: "/crm", icon: Users },
+  { label: "Novo fã", to: "/fas", icon: Heart },
+  { label: "Novo venue", to: "/venues", icon: Building2 },
+  { label: "Novo fornecedor", to: "/fornecedores", icon: Store },
+  { label: "Nova aula", to: "/aulas", icon: GraduationCap },
+  { label: "Nova track", to: "/musica", icon: Music },
+  { label: "Nova produção", to: "/festas", icon: PartyPopper },
+  { label: "Novo conteúdo", to: "/conteudo", icon: Film },
+  { label: "Nova ideia", to: "/ideias", icon: Lightbulb },
+  { label: "Nova transação", to: "/financeiro", icon: Wallet },
+];
 
 const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: string }>> = {
   gig: Calendar,
@@ -63,6 +79,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (open) {
@@ -91,6 +108,23 @@ export function CommandPalette({ open, onOpenChange }: Props) {
         },
       },
     ];
+    // Criar — abre o form do módulo (navega e abre, ou abre na hora se já lá).
+    for (const c of CREATE_ACTIONS) {
+      actions.push({
+        id: `create-${c.to}`,
+        label: c.label,
+        icon: c.icon,
+        run: () => {
+          onOpenChange(false);
+          if (location.pathname === c.to) {
+            triggerNewItem();
+          } else {
+            requestNewItemAt(c.to);
+            navigate(c.to);
+          }
+        },
+      });
+    }
     // Dashboards de grupo (destaque)
     for (const group of NAV_GROUP_ORDER) {
       const meta = NAV_GROUP_META[group];
@@ -112,7 +146,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       });
     }
     return actions;
-  }, [navigate, onOpenChange]);
+  }, [navigate, onOpenChange, location.pathname]);
 
   const filteredActions = useMemo(() => {
     const q = query.trim().toLowerCase();
