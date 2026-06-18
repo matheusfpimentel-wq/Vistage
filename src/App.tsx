@@ -35,6 +35,7 @@ import {
   useQuickCaptureEvent,
 } from "@/lib/shortcuts";
 import { useAlertNotifications } from "@/lib/notify";
+import { startAutoSync } from "@/lib/mobileSync";
 
 // Lazy-load das páginas dos módulos para que cada um vire um chunk separado.
 // O FinancePage carrega o Recharts (~150kb) só quando o usuário abre o módulo.
@@ -323,6 +324,10 @@ function RoutedApp() {
 
   // Notificações locais do sistema para alertas críticos.
   useAlertNotifications();
+
+  // Sincronização mobile automática (só age se o usuário estiver logado no
+  // Supabase): ao abrir, a cada 3 min e via Realtime quando o celular captura.
+  useEffect(() => startAutoSync(), []);
 
   // Mensagem única da transição para o modelo "abre em branco": avisa onde os
   // dados anteriores foram salvos automaticamente. O atraso garante que o

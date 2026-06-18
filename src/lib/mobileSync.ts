@@ -219,33 +219,40 @@ export async function pushMirror(): Promise<void> {
 // ── PULL (capturas do celular → banco local) ────────────────────────────────
 type CaptureRow = { id: string; kind: string; payload: Record<string, unknown> };
 
+let pulling = false;
 export async function pullCaptures(): Promise<number> {
-  const { data, error } = await supabase
-    .from("capture_inbox")
-    .select("id, kind, payload")
-    .is("consumed_at", null);
-  if (error) throw error;
-  const captures = (data ?? []) as CaptureRow[];
-  if (!captures.length) return 0;
-
-  const db = getDb();
-  const done: string[] = [];
-  for (const c of captures) {
-    try {
-      await ingest(db, c.kind, c.payload);
-      done.push(c.id);
-    } catch (e) {
-      console.error("Falha ao ingerir captura", c.id, e);
-    }
-  }
-  if (done.length) {
-    const { error: upErr } = await supabase
+  if (pulling) return 0; // evita pulls concorrentes (intervalo + realtime)
+  pulling = true;
+  try {
+    const { data, error } = await supabase
       .from("capture_inbox")
-      .update({ consumed_at: new Date().toISOString() })
-      .in("id", done);
-    if (upErr) throw upErr;
+      .select("id, kind, payload")
+      .is("consumed_at", null);
+    if (error) throw error;
+    const captures = (data ?? []) as CaptureRow[];
+    if (!captures.length) return 0;
+
+    const db = getDb();
+    const done: string[] = [];
+    for (const c of captures) {
+      try {
+        await ingest(db, c.kind, c.payload);
+        done.push(c.id);
+      } catch (e) {
+        console.error("Falha ao ingerir captura", c.id, e);
+      }
+    }
+    if (done.length) {
+      const { error: upErr } = await supabase
+        .from("capture_inbox")
+        .update({ consumed_at: new Date().toISOString() })
+        .in("id", done);
+      if (upErr) throw upErr;
+    }
+    return done.length;
+  } finally {
+    pulling = false;
   }
-  return done.length;
 }
 
 async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise<void> {
@@ -281,4 +288,47 @@ export async function syncNow(): Promise<{ pulled: number }> {
   const pulled = await pullCaptures();
   await setSetting(K.lastSyncAt, new Date().toISOString());
   return { pulled };
+}
+
+// ── Auto-sync (enquanto o app está aberto) ──────────────────────────────────
+// Sincroniza ao abrir, a cada 3 min, e puxa NA HORA quando o celular insere uma
+// captura (Supabase Realtime). Só age se houver sessão logada. Retorna a função
+// de parada (para o useEffect limpar ao desmontar).
+export function startAutoSync(): () => void {
+  let stopped = false;
+
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      if (!(await currentUser())) return; // sem login → não faz nada
+      await syncNow();
+    } catch (e) {
+      console.warn("Auto-sync falhou:", e);
+    }
+  };
+
+  void tick();
+  const interval = window.setInterval(() => void tick(), 3 * 60_000);
+
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+  try {
+    channel = supabase
+      .channel("capture-inbox")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "capture_inbox" },
+        () => {
+          void pullCaptures().catch(() => {});
+        }
+      )
+      .subscribe();
+  } catch {
+    // Realtime é opcional — o intervalo já cobre.
+  }
+
+  return () => {
+    stopped = true;
+    window.clearInterval(interval);
+    if (channel) void supabase.removeChannel(channel);
+  };
 }

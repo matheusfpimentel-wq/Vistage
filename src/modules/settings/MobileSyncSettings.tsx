@@ -35,6 +35,11 @@ export function MobileSyncSettings() {
       setUserEmail(u.email ?? null);
       setPassword("");
       toast.success("Conectado ao Supabase.");
+      // sincroniza logo após o login (em segundo plano)
+      void syncNow()
+        .then(() => getLastSyncAt())
+        .then(setLastSync)
+        .catch(() => {});
     } catch (e) {
       toast.error(`Falha no login: ${(e as Error).message ?? String(e)}`);
     } finally {

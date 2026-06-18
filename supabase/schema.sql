@@ -158,3 +158,15 @@ create trigger trg_bump after insert or update or delete on public.focus_metrics
   for each row execute function public.bump_sync_rev();
 create trigger trg_bump after insert or update or delete on public.capture_inbox
   for each row execute function public.bump_sync_rev();
+
+-- ── Realtime: o desktop assina INSERTs da capture_inbox pra puxar na hora ────
+-- (a RLS continua valendo: cada conta só recebe eventos das próprias linhas)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'capture_inbox'
+  ) then
+    alter publication supabase_realtime add table public.capture_inbox;
+  end if;
+end $$;
