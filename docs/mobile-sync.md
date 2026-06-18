@@ -82,18 +82,22 @@ direções:
 
 - [x] **Fase 0 — contrato:** schema da nuvem + RLS + este doc.
 - [x] **Fase 1 — provisionar:** schema aplicado no projeto Supabase (`opvctbxzlwpyrvutfazb`).
-- [ ] **Fase 2 — desktop sync:** módulo de push (4 tabelas) + pull/ingest da caixa,
-      painel em Configurações (colar URL + anon key, login, status).
-- [ ] **Fase 3 — PWA:** telas Hoje / Foco / Capturar + auth + deploy (GitHub Pages).
+- [x] **Fase 2 — desktop sync:** push das 4 tabelas + pull/ingest da caixa, com
+      painel em Configurações (login email/senha, sincronizar, status). Config
+      pública embutida — sem colar nada.
+- [x] **Fase 3 — PWA:** app em `mobile/` (Hoje / Foco / Capturar) + login + service
+      worker/manifest + workflow de deploy no GitHub Pages.
 
 ## O que o usuário precisa fazer
 
-1. Criar conta no **Supabase** → *New project* (grátis, região São Paulo); guardar
-   a senha do banco.
-2. Enviar **Project URL** + **anon/public key** (nunca a `service_role`).
-3. Ativar **GitHub Pages** no repo (deploy do PWA — workflow vem pronto).
-4. No celular: abrir a URL → *Adicionar à tela inicial*. No desktop: colar URL+key
-   uma vez e logar.
+1. Criar a **conta de login** (uma por DJ/arquivo): painel Supabase →
+   *Authentication → Users → Add user* (email + senha, marcar *Auto Confirm User*).
+2. Ativar o **GitHub Pages**: *Settings → Pages → Source = GitHub Actions*. O
+   workflow `deploy-pwa.yml` publica o `mobile/` quando a `main` recebe o merge.
+3. No **desktop**: Configurações → Integrações → Sincronização mobile → logar →
+   *Sincronizar agora*.
+4. No **celular**: abrir a URL do Pages → *Adicionar à tela inicial* → logar na
+   mesma conta.
 
 > Free tier do Supabase pausa após ~1 semana sem uso (reativa num clique) e tem
 > limite de tamanho — folgado pra esse espelho.
