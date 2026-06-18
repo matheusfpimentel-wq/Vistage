@@ -78,8 +78,8 @@ export function SettingsPage() {
     await patchConfig({ autoCloudSave: !autoCloud });
     toast.success(
       !autoCloud
-        ? "Salvamento em nuvem automático ligado."
-        : "Salvamento em nuvem automático desligado. Use 'Salvar manualmente' para enviar."
+        ? "Sync automático na nuvem ligado."
+        : "Sync automático desligado — usando só o arquivo local. Envie com 'Salvar manualmente' quando quiser."
     );
   }
 
@@ -172,9 +172,11 @@ export function SettingsPage() {
           <CardHeader>
             <CardTitle className="text-base">Salvamento em nuvem (Turso)</CardTitle>
             <CardDescription>
-              Seus dados ficam salvos na nuvem e sincronizados entre seus
-              computadores. Com o automático ligado, cada mudança é enviada
-              sozinha após um minuto.
+              Sincroniza seus dados entre computadores via Turso. Se você
+              trabalha <strong>só pelo arquivo .vistage</strong> (abrir/salvar),
+              pode <strong>desligar</strong> e usar apenas o arquivo — sem o sync
+              automático, que é o que pode causar divergência entre máquinas. Os
+              dados continuam salvos localmente e no arquivo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -182,7 +184,7 @@ export function SettingsPage() {
               checked={autoCloud}
               onChange={handleToggleAutoCloud}
               label="Salvamento em nuvem automático"
-              hint={autoCloud ? "Ligado — enviando mudanças sozinho" : "Desligado — salve manualmente"}
+              hint={autoCloud ? "Ligado — envia mudanças pra nuvem sozinho" : "Desligado — usando só o arquivo local (.vistage), sem sync automático"}
             />
             <div className="flex flex-wrap gap-2 pt-1">
               <Button variant="outline" onClick={handlePull} disabled={pulling}>
