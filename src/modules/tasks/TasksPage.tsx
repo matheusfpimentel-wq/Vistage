@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -45,7 +43,8 @@ import {
 } from "./types";
 import { cn } from "@/lib/utils";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
@@ -167,101 +166,106 @@ export function TasksPage() {
     await refresh();
   }
 
+  const [view, setView] = useModuleView<
+    "list" | "kanban" | "timeline" | "sprint" | "energy"
+  >("tasks", "list");
+
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova tarefa
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Nova tarefa", icon: Plus, onClick: openCreate }}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar título ou descrição…",
+        }}
+        filtersActiveCount={
+          (filters.status !== "Todas" ? 1 : 0) +
+          (filters.category !== "Todas" ? 1 : 0) +
+          (filters.priority !== "Todas" ? 1 : 0) +
+          (filters.linkType !== "Todas" ? 1 : 0)
         }
-      >
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar título ou descrição…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-72 pl-8"
-            />
-          </div>
-          <Select
-            value={filters.status}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, status: v as StatusFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todos os status</SelectItem>
-              {TASK_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.category}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, category: v as CategoryFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas categorias</SelectItem>
-              {TASK_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.priority}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, priority: v as PriorityFilter }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas prioridades</SelectItem>
-              {TASK_PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {p}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.linkType}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, linkType: v as LinkFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todos os vínculos</SelectItem>
-              {TASK_LINK_TYPES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {TASK_LINK_LABELS[t]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </PageToolbar>
+        filters={
+          <>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select
+                value={filters.status}
+                onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todos os status</SelectItem>
+                  {TASK_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+              <Select
+                value={filters.category}
+                onValueChange={(v) => setFilters((f) => ({ ...f, category: v as CategoryFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas categorias</SelectItem>
+                  {TASK_CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Prioridade</label>
+              <Select
+                value={filters.priority}
+                onValueChange={(v) => setFilters((f) => ({ ...f, priority: v as PriorityFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas prioridades</SelectItem>
+                  {TASK_PRIORITIES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Vínculo</label>
+              <Select
+                value={filters.linkType}
+                onValueChange={(v) => setFilters((f) => ({ ...f, linkType: v as LinkFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todos os vínculos</SelectItem>
+                  {TASK_LINK_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {TASK_LINK_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-1.5">
         {DATE_FILTERS.map((f) => (
@@ -284,7 +288,7 @@ export function TasksPage() {
         <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
       )}
 
-      <Tabs defaultValue="list">
+      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
