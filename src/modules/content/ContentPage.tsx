@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Film, Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Film, Plus } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -22,7 +20,7 @@ import { ContentForm } from "./forms/ContentForm";
 import { ContentList } from "./views/ContentList";
 import { ContentKanban } from "./views/ContentKanban";
 import { ContentCalendar } from "./views/ContentCalendar";
-import { deleteContent, getContentStats, listContent, updateContent, type ContentFilters, type ContentStats } from "./api";
+import { deleteContent, listContent, updateContent, type ContentFilters } from "./api";
 import { updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
@@ -33,10 +31,10 @@ import {
   type ContentNetwork,
   type ContentStatus,
 } from "./types";
-import { KpiCard } from "@/components/shared/KpiCard";
 import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { useModuleView } from "@/lib/moduleView";
 
 type StatusFilter = ContentStatus | "Todos";
 type FormatFilter = ContentFormat | "Todos";
@@ -45,7 +43,6 @@ type NetworkFilter = ContentNetwork | "Todas";
 export function ContentPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Content[]>([]);
-  const [stats, setStats] = useState<ContentStats | null>(null);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
     format: FormatFilter;
@@ -71,12 +68,8 @@ export function ContentPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [data, s] = await Promise.all([
-      listContent(queryFilters),
-      getContentStats(),
-    ]);
+    const data = await listContent(queryFilters);
     setItems(data);
-    setStats(s);
   }, [queryFilters]);
 
   useEffect(() => {
@@ -140,103 +133,86 @@ export function ContentPage() {
     await refresh();
   }
 
+  const [view, setView] = useModuleView<string>("content", "list");
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <KpiCard label="Total" value={stats?.total.toString() ?? "—"} />
-        <KpiCard
-          label="Publicados no mês"
-          value={stats?.publishedThisMonth.toString() ?? "—"}
-        />
-        <KpiCard
-          label="Em produção"
-          value={
-            stats
-              ? (
-                  (stats.byStatus.Roteiro ?? 0) +
-                  (stats.byStatus.Gravando ?? 0) +
-                  (stats.byStatus["Edição"] ?? 0)
-                ).toString()
-              : "—"
-          }
-        />
-      </div>
-
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Novo conteúdo
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Novo conteúdo", icon: Plus, onClick: openCreate }}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar título, finalidade, roteiro…",
+        }}
+        resultCount={items.length}
+        resultLabel="conteúdos"
+        filtersActiveCount={
+          (filters.status !== "Todos" ? 1 : 0) +
+          (filters.format !== "Todos" ? 1 : 0) +
+          (filters.network !== "Todas" ? 1 : 0)
         }
-      >
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar título, finalidade, roteiro…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-72 pl-8"
-            />
-          </div>
-          <Select
-            value={filters.status}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, status: v as StatusFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todos">Todos os status</SelectItem>
-              {CONTENT_STATUSES.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.format}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, format: v as FormatFilter }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todos">Todos formatos</SelectItem>
-              {CONTENT_FORMATS.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {f}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.network}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, network: v as NetworkFilter }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas redes</SelectItem>
-              {networkOptions.map((n) => (
-                <SelectItem key={n} value={n}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </PageToolbar>
+        filters={
+          <>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select
+                value={filters.status}
+                onValueChange={(v) => setFilters((f) => ({ ...f, status: v as StatusFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos os status</SelectItem>
+                  {CONTENT_STATUSES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Formato</label>
+              <Select
+                value={filters.format}
+                onValueChange={(v) => setFilters((f) => ({ ...f, format: v as FormatFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos formatos</SelectItem>
+                  {CONTENT_FORMATS.map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Rede</label>
+              <Select
+                value={filters.network}
+                onValueChange={(v) => setFilters((f) => ({ ...f, network: v as NetworkFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas redes</SelectItem>
+                  {networkOptions.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        }
+      />
 
       {items.length === 0 && (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -246,7 +222,7 @@ export function ContentPage() {
       )}
 
       {items.length > 0 && (
-        <Tabs defaultValue="list">
+        <Tabs value={view} onValueChange={setView}>
           <TabsList>
             <TabsTrigger value="list">Lista</TabsTrigger>
             <TabsTrigger value="calendar">Calendário editorial</TabsTrigger>
