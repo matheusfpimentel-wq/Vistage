@@ -269,7 +269,7 @@ export function IdentityPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Briefing completo / bio longa</Label>
+                <Label>Briefing completo</Label>
                 <Textarea
                   rows={6}
                   value={identity.bio_long ?? ""}
@@ -286,9 +286,6 @@ export function IdentityPage() {
                 <ImageIcon className="h-4 w-4 text-primary" />
                 Marca
               </CardTitle>
-              <CardDescription>
-                Logotipo e isótipo (imagens) · presskit e manual de marca (PDF).
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Imagens lado a lado — mesma altura, sem buracos. */}

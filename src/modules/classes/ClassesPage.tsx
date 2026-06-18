@@ -505,9 +505,6 @@ export function ClassesPage() {
               <Plus className="h-4 w-4" /> Novo pacote
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Templates de pacote. Vincule a um aluno na tela de detalhe dele.
-          </p>
 
           {packages.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">

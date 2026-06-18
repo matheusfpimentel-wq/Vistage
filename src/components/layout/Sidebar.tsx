@@ -154,7 +154,7 @@ export function Sidebar({
         cn(
           "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
           isActive
-            ? "bg-accent text-accent-foreground font-medium"
+            ? "bg-primary/10 text-primary font-medium"
             : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         )
       }
@@ -168,7 +168,7 @@ export function Sidebar({
     <aside className="flex h-screen w-60 flex-col border-r bg-card">
       <div className="flex h-16 items-center gap-2 border-b px-5">
         <div>
-          <div className="text-lg font-semibold leading-tight tracking-tight bg-gradient-to-r from-violet-400 via-primary to-fuchsia-400 bg-clip-text text-transparent" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <div className="text-lg font-semibold leading-tight tracking-tight bg-gradient-to-r from-primary to-[hsl(var(--primary-glow))] bg-clip-text text-transparent" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             Vistage
           </div>
           <div className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground/60 leading-tight">
