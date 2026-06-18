@@ -2,21 +2,30 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { appDataDir } from "@tauri-apps/api/path";
-import { exists, mkdir } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { UnsavedCloseGuard } from "@/components/shared/UnsavedCloseGuard";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ConfirmProvider } from "@/components/ui/confirm";
+import { ConfirmProvider, confirmDialog } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
+import { buildBackup, clearDocumentData, hasAnyDocumentData } from "@/lib/backup";
+import { useDocumentStore, SKIP_BLANK_WIPE_KEY } from "@/lib/document";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
+
+// Modelo "abre em branco": o app inicia vazio a cada boot; os dados vivem nos
+// arquivos .vistage. Estas chaves controlam a transição única (1º boot) e a
+// mensagem que avisa onde o backup automático foi salvo.
+const BLANK_MODEL_INIT_KEY = "vistage.blankModelInit";
+const TRANSITION_BACKUP_KEY = "vistage.transitionBackupPath";
 import {
   hydrateShortcuts,
   isModKey,
@@ -157,6 +166,38 @@ function MainApp() {
         const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
         const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
         await initDatabase(replicaPath);
+
+        // ── Abre em branco ────────────────────────────────────────────────
+        // Zera os dados a cada boot (a persistência é o arquivo .vistage). O
+        // reload de abrir/mesclar documento ou popular exemplos marca para
+        // pular o zeramento — senão apagaria o que acabou de ser carregado.
+        const skipWipe = sessionStorage.getItem(SKIP_BLANK_WIPE_KEY) === "1";
+        sessionStorage.removeItem(SKIP_BLANK_WIPE_KEY);
+        if (!skipWipe) {
+          let safe = true;
+          // Transição única: se já houver dados de uso anterior, exporta um
+          // .vistage de backup antes do primeiro zeramento — nada se perde.
+          if (localStorage.getItem(BLANK_MODEL_INIT_KEY) !== "1") {
+            if (await hasAnyDocumentData()) {
+              try {
+                const backup = await buildBackup();
+                const stamp = new Date().toISOString().slice(0, 10);
+                const backupPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}Vistage - dados anteriores ${stamp}.vistage`;
+                await writeTextFile(backupPath, JSON.stringify(backup, null, 2));
+                localStorage.setItem(TRANSITION_BACKUP_KEY, backupPath);
+              } catch {
+                safe = false; // export falhou → não zera; tenta de novo no próximo boot
+              }
+            }
+            if (safe) localStorage.setItem(BLANK_MODEL_INIT_KEY, "1");
+          }
+          if (safe) {
+            await clearDocumentData();
+            localStorage.removeItem("vistage.currentDocument");
+            useDocumentStore.setState({ currentPath: null, currentName: null, dirty: false });
+          }
+        }
+
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
@@ -275,6 +316,24 @@ function RoutedApp() {
   // Notificações locais do sistema para alertas críticos.
   useAlertNotifications();
 
+  // Mensagem única da transição para o modelo "abre em branco": avisa onde os
+  // dados anteriores foram salvos automaticamente. O atraso garante que o
+  // provider de diálogos já esteja montado.
+  useEffect(() => {
+    const path = localStorage.getItem(TRANSITION_BACKUP_KEY);
+    if (!path) return;
+    localStorage.removeItem(TRANSITION_BACKUP_KEY);
+    const t = setTimeout(() => {
+      void confirmDialog({
+        title: "O Vistage agora abre em branco",
+        description: `A cada inicialização o app começa vazio — seus dados ficam em arquivos .vistage. Salvamos seus dados anteriores em "${path}". Use Arquivo → Abrir… para carregá-los.`,
+        confirmLabel: "Entendi",
+        cancelLabel: "Fechar",
+      });
+    }, 600);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <>
       <Suspense
@@ -322,6 +381,7 @@ function RoutedApp() {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
       <OpenDocumentDialog />
+      <UnsavedCloseGuard />
     </>
   );
 }

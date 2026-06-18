@@ -29,6 +29,18 @@ export function displayDocName(name: string | null): string | null {
   return name ? name.replace(/\.vistage$/i, "") : null;
 }
 
+// Chave de sessão (sobrevive ao reload, não ao relançamento do app) que avisa
+// o próximo boot para NÃO zerar o banco. Usada quando o reload vem de uma troca
+// de dados (abrir/mesclar documento, popular exemplos): os dados recém-carregados
+// devem permanecer em vez de cair no "abre em branco". Ver o boot em App.tsx.
+export const SKIP_BLANK_WIPE_KEY = "vistage.skipBlankWipe";
+
+/** Recarrega a página preservando os dados (não dispara o "abre em branco"). */
+export function reloadKeepingData(): void {
+  sessionStorage.setItem(SKIP_BLANK_WIPE_KEY, "1");
+  window.location.reload();
+}
+
 // Resolução imperativa de diálogo de 3 opções (Mesclar / Sobrescrever / Cancelar).
 // O componente OpenDocumentDialog registra o resolver ao montar.
 export type OpenMode = "merge" | "overwrite" | "cancel";
@@ -83,18 +95,25 @@ type DocumentState = {
   currentPath: string | null;
   currentName: string | null;
   busy: boolean;
+  /** true quando há mudanças não salvas no documento aberto (ou no não-salvo). */
+  dirty: boolean;
+  markDirty: () => void;
+  markClean: () => void;
   /** Abre um .vistage (diálogo), pergunta Mesclar/Sobrescrever/Cancelar antes de agir. */
   open: () => Promise<void>;
-  /** Salva no arquivo atual; se não houver, cai em "Salvar como". */
-  save: () => Promise<void>;
-  /** Sempre abre o diálogo "Salvar como". */
-  saveAs: () => Promise<void>;
+  /** Salva no arquivo atual; se não houver, cai em "Salvar como". Retorna se salvou. */
+  save: () => Promise<boolean>;
+  /** Sempre abre o diálogo "Salvar como". Retorna se salvou. */
+  saveAs: () => Promise<boolean>;
 };
 
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   currentPath: localStorage.getItem(LS_KEY),
   currentName: fileName(localStorage.getItem(LS_KEY)),
   busy: false,
+  dirty: false,
+  markDirty: () => set({ dirty: true }),
+  markClean: () => set({ dirty: false }),
 
   open: async () => {
     if (get().busy) return;
@@ -110,16 +129,16 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       if (mode === "merge") {
         await mergeBackup(picked.backup);
         localStorage.setItem(LS_KEY, picked.path);
-        set({ currentPath: picked.path, currentName: fileName(picked.path) });
+        set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
         toast.success(`Documento mesclado: ${fileName(picked.path)}. Recarregando…`);
-        setTimeout(() => window.location.reload(), 800);
+        setTimeout(() => reloadKeepingData(), 800);
       } else {
         // overwrite
         await restoreBackup(picked.backup);
         localStorage.setItem(LS_KEY, picked.path);
-        set({ currentPath: picked.path, currentName: fileName(picked.path) });
+        set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
         toast.success(`Documento aberto: ${fileName(picked.path)}. Recarregando…`);
-        setTimeout(() => window.location.reload(), 800);
+        setTimeout(() => reloadKeepingData(), 800);
       }
     } catch (e) {
       toast.error(`Erro ao abrir documento: ${String(e)}`);
@@ -129,25 +148,25 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   },
 
   save: async () => {
-    if (get().busy) return;
+    if (get().busy) return false;
     const path = get().currentPath;
-    if (!path) {
-      await get().saveAs();
-      return;
-    }
+    if (!path) return get().saveAs();
     set({ busy: true });
     try {
       await saveBackupToPath(path);
+      set({ dirty: false });
       toast.success(`Salvo em ${fileName(path)}`);
+      return true;
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
+      return false;
     } finally {
       set({ busy: false });
     }
   },
 
   saveAs: async () => {
-    if (get().busy) return;
+    if (get().busy) return false;
     set({ busy: true });
     try {
       const stamp = new Date().toISOString().slice(0, 10);
@@ -156,14 +175,16 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         defaultPath: get().currentName ?? `Vistage ${stamp}.vistage`,
         filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
       });
-      if (!path) return;
+      if (!path) return false;
       const backup = await buildBackup();
       await writeTextFile(path, JSON.stringify(backup, null, 2));
       localStorage.setItem(LS_KEY, path);
-      set({ currentPath: path, currentName: fileName(path) });
+      set({ currentPath: path, currentName: fileName(path), dirty: false });
       toast.success(`Salvo como ${fileName(path)}`);
+      return true;
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
+      return false;
     } finally {
       set({ busy: false });
     }

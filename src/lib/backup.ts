@@ -248,6 +248,49 @@ export async function buildBackup(): Promise<Backup> {
   };
 }
 
+// Tabelas de configuração POR MÁQUINA — não são "documento". Integrações
+// (tokens do Google/Todoist em app_settings, tokens do Calendar em gcal_auth),
+// tema e atalhos. Ficam de fora do "abre em branco" pra não desconectar o
+// usuário a cada inicialização.
+const MACHINE_TABLES: TableName[] = ["app_settings", "gcal_auth"];
+
+/**
+ * Zera os dados de DOCUMENTO (gigs, aulas, contatos, finanças…), preservando
+ * as configurações da máquina (app_settings, gcal_auth). É o núcleo do modelo
+ * "abre em branco": a cada boot o app começa vazio e o usuário abre um
+ * `.vistage`. Apaga em ordem inversa de TABLES (filhos antes de pais), num
+ * único lote atômico — ou limpa tudo, ou nada (ROLLBACK).
+ */
+export async function clearDocumentData(): Promise<void> {
+  const db = getDb();
+  const stmts: BatchStatement[] = [];
+  for (const t of [...TABLES].reverse()) {
+    if (MACHINE_TABLES.includes(t)) continue;
+    stmts.push({ sql: `DELETE FROM ${t}` });
+  }
+  await db.executeBatch(stmts);
+}
+
+/**
+ * true se houver QUALQUER dado de documento (em qualquer tabela não-máquina).
+ * Mais abrangente que isDatabaseEmpty (que só olha gigs/contatos/tarefas/finanças)
+ * — usado antes de zerar pela primeira vez para NUNCA descartar dados sem antes
+ * exportar um backup.
+ */
+export async function hasAnyDocumentData(): Promise<boolean> {
+  const db = getDb();
+  for (const t of TABLES) {
+    if (MACHINE_TABLES.includes(t)) continue;
+    try {
+      const r = await db.select<{ n: number }[]>(`SELECT EXISTS(SELECT 1 FROM ${t}) as n`);
+      if ((r[0]?.n ?? 0) > 0) return true;
+    } catch {
+      // tabela pode não existir em bancos de versões diferentes — ignora
+    }
+  }
+  return false;
+}
+
 /** Valida e converte o texto bruto de um arquivo .vistage/backup em Backup. */
 export function parseBackupRaw(raw: string): Backup {
   const parsed = JSON.parse(raw) as Partial<Backup>;

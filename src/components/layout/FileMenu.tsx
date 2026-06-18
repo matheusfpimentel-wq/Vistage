@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * anexos.
  */
 export function FileMenu() {
-  const { currentName, busy, open, save, saveAs } = useDocumentStore();
+  const { currentName, busy, dirty, open, save, saveAs } = useDocumentStore();
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -45,7 +45,10 @@ export function FileMenu() {
           "text-muted-foreground hover:bg-accent hover:text-foreground",
           menuOpen && "bg-accent text-foreground"
         )}
-        title={currentName ? `Documento: ${displayDocName(currentName)}` : "Nenhum documento aberto"}
+        title={
+          (currentName ? `Documento: ${displayDocName(currentName)}` : "Nenhum documento aberto") +
+          (dirty ? " • alterações não salvas" : "")
+        }
       >
         {busy ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -55,6 +58,12 @@ export function FileMenu() {
         <span className="hidden sm:inline max-w-[160px] truncate">
           {displayDocName(currentName) ?? "Arquivo"}
         </span>
+        {dirty && (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+            aria-label="Alterações não salvas"
+          />
+        )}
       </button>
 
       {menuOpen && (

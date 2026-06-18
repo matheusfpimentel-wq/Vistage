@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
-import { useDocumentStore } from "@/lib/document";
+import { useDocumentStore, reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
@@ -35,7 +35,7 @@ export function SettingsPage() {
       toast.success(
         `${result.gigs} GIGs, ${result.contacts} contatos, ${result.tasks} tarefas e ${result.transactions} transações criadas.`
       );
-      setTimeout(() => window.location.reload(), 800);
+      setTimeout(() => reloadKeepingData(), 800);
     } catch (e) {
       toast.error(`Erro ao popular: ${String(e)}`);
     } finally {
