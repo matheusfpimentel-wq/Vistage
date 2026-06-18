@@ -11,10 +11,59 @@ const SETTINGS_KEYS = {
 };
 
 // ============================================================
+// Calendários por módulo
+// ============================================================
+
+/** Módulos que sincronizam com o Google Calendar. */
+export const GCAL_MODULES = ["gigs", "classes", "parties", "okrs"] as const;
+export type GcalModule = (typeof GCAL_MODULES)[number];
+
+export const GCAL_MODULE_LABELS: Record<GcalModule, string> = {
+  gigs: "GIGs",
+  classes: "Aulas",
+  parties: "Festas",
+  okrs: "OKRs",
+};
+
+function moduleCalendarKey(module: GcalModule): string {
+  return `gcal.calendar.${module}`;
+}
+
+/** Define o calendário usado por um módulo (null = usar o principal). */
+export async function setModuleCalendarId(
+  module: GcalModule,
+  calendarId: string | null
+): Promise<void> {
+  await setSetting(moduleCalendarKey(module), calendarId);
+}
+
+/** Lê o id de calendário configurado para cada módulo (null se usar o principal). */
+export async function loadModuleCalendarIds(): Promise<Record<GcalModule, string | null>> {
+  const entries = await Promise.all(
+    GCAL_MODULES.map(async (m) => [m, await getSetting(moduleCalendarKey(m))] as const)
+  );
+  return Object.fromEntries(entries) as Record<GcalModule, string | null>;
+}
+
+/**
+ * Resolve qual calendário usar para um módulo: o específico do módulo, ou o
+ * principal (gcal_auth.calendar_id) como fallback.
+ */
+async function resolveCalendarId(module: GcalModule): Promise<string> {
+  const specific = await getSetting(moduleCalendarKey(module));
+  if (specific) return specific;
+  const auth = await loadAuth();
+  if (!auth?.calendar_id) {
+    throw new Error("Selecione um calendário nas configurações antes.");
+  }
+  return auth.calendar_id;
+}
+
+// ============================================================
 // Tipos espelhando o Rust
 // ============================================================
 
-export type StartOauthResult = {
+type StartOauthResult = {
   auth_url: string;
   port: number;
   state: string;
@@ -22,12 +71,12 @@ export type StartOauthResult = {
   redirect_uri: string;
 };
 
-export type OauthCallback = {
+type OauthCallback = {
   code: string;
   state: string;
 };
 
-export type GcalTokens = {
+type GcalTokens = {
   access_token: string;
   refresh_token?: string | null;
   expires_in: number;
@@ -43,18 +92,7 @@ export type CalendarListItem = {
   time_zone?: string | null;
 };
 
-export type GcalEvent = {
-  id: string;
-  summary?: string | null;
-  description?: string | null;
-  location?: string | null;
-  start?: string | null;
-  end?: string | null;
-  status?: string | null;
-  updated?: string | null;
-};
-
-export type EventInput = {
+type EventInput = {
   summary: string;
   description?: string | null;
   location?: string | null;
@@ -233,17 +271,50 @@ export async function listCalendars(): Promise<CalendarListItem[]> {
 // ============================================================
 
 import type { Gig } from "@/modules/gigs/types";
-import { getGig, listGigs, updateGig, createGig } from "@/modules/gigs/api";
+import { getGig, listGigs, updateGig } from "@/modules/gigs/api";
+import { gigDisplayName } from "@/modules/gigs/displayName";
+
+/** Soma N dias a uma data "YYYY-MM-DD" e devolve no mesmo formato. */
+function addDaysISO(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
 
 function gigToEvent(gig: Gig, tz: string): EventInput {
-  const start = gig.start_time
-    ? `${gig.date}T${gig.start_time}:00`
-    : gig.date;
-  const end = gig.end_time
-    ? `${gig.date}T${gig.end_time}:00`
-    : gig.date;
+  const hasTime = !!gig.start_time;
+  let start: string;
+  let end: string;
+
+  if (hasTime) {
+    // Evento com hora. Garante que o fim seja >= início; se não houver hora de
+    // fim, ou se ela for anterior/igual ao início (ex.: vira a madrugada),
+    // considera +1h ou o dia seguinte.
+    start = `${gig.date}T${gig.start_time}:00`;
+    if (gig.end_time) {
+      end = `${gig.date}T${gig.end_time}:00`;
+      if (end <= start) {
+        // fim no dia seguinte (festa que atravessa a meia-noite)
+        end = `${addDaysISO(gig.date, 1)}T${gig.end_time}:00`;
+      }
+    } else {
+      // sem hora de fim: assume 1h de duração
+      const d = new Date(`${start}`);
+      d.setHours(d.getHours() + 1);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      end = `${gig.date}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+      if (end <= start) end = `${addDaysISO(gig.date, 1)}T00:00:00`;
+    }
+  } else {
+    // Evento de dia inteiro: o "end.date" no Google é exclusivo, então precisa
+    // ser o dia seguinte — senão a API rejeita (start == end) com 400.
+    start = gig.date;
+    end = addDaysISO(gig.date, 1);
+  }
 
   const descLines = [
+    // Quando o título é o nome da festa, registra o local no corpo também.
+    gig.event_name?.trim() && gig.venue_name && `Local: ${gig.venue_name}`,
     gig.briefing && `Briefing: ${gig.briefing}`,
     gig.day_contact_name &&
       `Contato no dia: ${gig.day_contact_name}${
@@ -251,15 +322,14 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
       }`,
     typeof gig.cache_amount === "number" &&
       `Cachê: R$ ${gig.cache_amount.toFixed(2)}`,
-    `MusicGest GIG #${gig.id}`,
+    `Vistage GIG #${gig.id}`,
   ].filter(Boolean);
 
   const location = [gig.venue_address, gig.venue_city].filter(Boolean).join(" — ");
 
   return {
-    summary: gig.venue_city
-      ? `${gig.venue_name} (${gig.venue_city})`
-      : gig.venue_name,
+    // Prefere o nome da festa/evento (o que vai no flyer); cai pro venue.
+    summary: gigDisplayName(gig),
     description: descLines.length ? descLines.join("\n") : null,
     location: location || null,
     start,
@@ -273,10 +343,7 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
 export async function pushGigToCalendar(gigId: number): Promise<void> {
   const gig = await getGig(gigId);
   if (!gig) throw new Error("GIG não encontrada");
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) {
-    throw new Error("Selecione um calendário nas configurações antes.");
-  }
+  const calendarId = await resolveCalendarId("gigs");
   const cfg = await loadGcalConfig();
   const accessToken = await getValidAccessToken();
   const event = gigToEvent(gig, cfg.timezone);
@@ -284,14 +351,14 @@ export async function pushGigToCalendar(gigId: number): Promise<void> {
   if (gig.gcal_event_id) {
     await invoke<void>("gcal_update_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: gig.gcal_event_id,
       event,
     });
   } else {
     const id = await invoke<string>("gcal_create_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       event,
     });
     await updateGig({ id: gig.id, gcal_event_id: id });
@@ -301,13 +368,12 @@ export async function pushGigToCalendar(gigId: number): Promise<void> {
 /** Deleta o evento no GCal correspondente a uma GIG (se houver). */
 export async function deleteGigFromCalendar(gig: Gig): Promise<void> {
   if (!gig.gcal_event_id) return;
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) return;
   try {
+    const calendarId = await resolveCalendarId("gigs");
     const accessToken = await getValidAccessToken();
     await invoke<void>("gcal_delete_event", {
       accessToken,
-      calendarId: auth.calendar_id,
+      calendarId,
       eventId: gig.gcal_event_id,
     });
   } catch {
@@ -315,15 +381,17 @@ export async function deleteGigFromCalendar(gig: Gig): Promise<void> {
   }
 }
 
-/** Sincronização completa bidirecional, manual. Retorna contadores. */
+/**
+ * Sincronização manual — **somente push** (GIGs → Google Calendar).
+ * A importação reversa (eventos da agenda virando GIGs) foi removida de
+ * propósito: o fluxo é unidirecional, a GIG é a fonte da verdade.
+ * `pulled` é mantido em 0 só pra preservar o formato de retorno.
+ */
 export async function syncAll(): Promise<{
   pushed: number;
   pulled: number;
 }> {
-  const auth = await loadAuth();
-  if (!auth?.calendar_id) {
-    throw new Error("Selecione um calendário nas configurações antes.");
-  }
+  const calendarId = await resolveCalendarId("gigs");
   const accessToken = await getValidAccessToken();
   const cfg = await loadGcalConfig();
 
@@ -335,7 +403,7 @@ export async function syncAll(): Promise<{
     if (!g.gcal_event_id) {
       const id = await invoke<string>("gcal_create_event", {
         accessToken,
-        calendarId: auth.calendar_id,
+        calendarId,
         event: gigToEvent(g, cfg.timezone),
       });
       await updateGig({ id: g.id, gcal_event_id: id });
@@ -347,7 +415,7 @@ export async function syncAll(): Promise<{
     ) {
       await invoke<void>("gcal_update_event", {
         accessToken,
-        calendarId: auth.calendar_id,
+        calendarId,
         eventId: g.gcal_event_id,
         event: gigToEvent(g, cfg.timezone),
       });
@@ -355,84 +423,136 @@ export async function syncAll(): Promise<{
     }
   }
 
-  // --- PULL: eventos com updatedMin maior que o último sync (ou todos se primeiro sync)
-  const events = await invoke<GcalEvent[]>("gcal_list_events", {
-    accessToken,
-    calendarId: auth.calendar_id,
-    updatedMin: cfg.lastSyncAt,
-  });
-
-  // mapeia gcal_event_id → gig existente
-  const existingByEventId = new Map<string, Gig>();
-  for (const g of gigs) if (g.gcal_event_id) existingByEventId.set(g.gcal_event_id, g);
-
-  let pulled = 0;
-  for (const ev of events) {
-    if (!ev.id) continue;
-    if (existingByEventId.has(ev.id)) continue; // já temos
-    if (ev.status === "cancelled") continue;
-
-    const startStr = ev.start ?? "";
-    const date = startStr.slice(0, 10);
-    const startTime = startStr.includes("T") ? startStr.slice(11, 16) : null;
-    const endTime = ev.end?.includes("T") ? ev.end.slice(11, 16) : null;
-    if (!date) continue;
-
-    await createGig({
-      date,
-      start_time: startTime,
-      end_time: endTime,
-      venue_name: ev.summary ?? "(sem título)",
-      venue_city: null,
-      venue_address: ev.location ?? null,
-      promoter_contact_id: null,
-      day_contact_name: null,
-      day_contact_phone: null,
-      estimated_audience: null,
-      cache_amount: null,
-      script_file_path: null,
-      banner_file_path: null,
-      opportunities: null,
-      briefing: ev.description ?? null,
-      set_concept: null,
-      concrete_goals: null,
-      targets: null,
-      status: "Proposta",
-      transport: null,
-      departure_time: null,
-      equipment_provided: null,
-      equipment_to_bring: null,
-      related_expenses: null,
-      payment_method: null,
-      payment_status: "Pendente",
-      payment_due_date: null,
-      invoice_file_path: null,
-      general_notes: null,
-      debrief_strengths: null,
-      debrief_weaknesses: null,
-      debrief_learnings: null,
-      debrief_opportunities_used: null,
-      debrief_future_opportunities: null,
-      debrief_promoter_feedback: null,
-      debrief_technical_notes: null,
-      debrief_media_content: null,
-      rating_charisma: null,
-      rating_charisma_note: null,
-      rating_technique: null,
-      rating_technique_note: null,
-      rating_repertoire: null,
-      rating_repertoire_note: null,
-      gcal_event_id: ev.id,
-      main_goal: null,
-      prep_state: null,
-      main_goal_task_id: null,
-      venue_id: null,
-      event_name: ev.summary ?? null,
-      fans_present: null,
-    });
-    pulled += 1;
-  }
-
   await saveGcalConfig({ lastSyncAt: new Date().toISOString() });
-  return { pushed, pulled };
+  return { pushed, pulled: 0 };
 }
+
+
+// ============================================================
+// Sync — Aulas, Festas, OKRs ↔ Eventos
+// ============================================================
+
+/** Cria/atualiza evento no GCal para uma aula. Retorna o event id. */
+export async function pushClassToCalendar(classData: {
+  id: number;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  title: string | null;
+  subject: string | null;
+  student_name: string;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  const calendarId = await resolveCalendarId("classes");
+  const cfg = await loadGcalConfig();
+  const accessToken = await getValidAccessToken();
+
+  const start = classData.start_time
+    ? `${classData.date}T${classData.start_time}:00`
+    : classData.date;
+  const end = classData.end_time
+    ? `${classData.date}T${classData.end_time}:00`
+    : classData.date;
+
+  const event: EventInput = {
+    summary: `Aula: ${classData.title?.trim() || classData.student_name}`,
+    description: classData.subject ?? null,
+    start,
+    end,
+    time_zone: classData.start_time ? cfg.timezone : null,
+  };
+
+  if (classData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId,
+      eventId: classData.gcal_event_id,
+      event,
+    });
+    return classData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId,
+      event,
+    });
+  }
+}
+
+/** Cria/atualiza evento no GCal para uma festa. Retorna o event id. */
+export async function pushPartyToCalendar(partyData: {
+  id: number;
+  title: string;
+  date: string | null;
+  venue_name?: string | null;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  if (!partyData.date) throw new Error("Festa sem data não pode ser sincronizada.");
+  const calendarId = await resolveCalendarId("parties");
+  const accessToken = await getValidAccessToken();
+
+  const event: EventInput = {
+    summary: partyData.title,
+    location: partyData.venue_name ?? null,
+    start: partyData.date,
+    end: partyData.date,
+  };
+
+  if (partyData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId,
+      eventId: partyData.gcal_event_id,
+      event,
+    });
+    return partyData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId,
+      event,
+    });
+  }
+}
+
+/** Cria/atualiza evento no GCal para um OKR (data fim do trimestre). Retorna o event id. */
+export async function pushOkrToCalendar(okrData: {
+  id: number;
+  quarter: string;
+  objective: string;
+  gcal_event_id: string | null;
+}): Promise<string> {
+  const calendarId = await resolveCalendarId("okrs");
+  const accessToken = await getValidAccessToken();
+
+  // Compute end of quarter
+  const [year, q] = okrData.quarter.split("-Q");
+  const qNum = parseInt(q);
+  const endMonth = qNum * 3;
+  const lastDay = new Date(parseInt(year), endMonth, 0).getDate();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const endDate = `${year}-${pad(endMonth)}-${lastDay}`;
+
+  const event: EventInput = {
+    summary: `OKR fim: ${okrData.objective}`,
+    start: endDate,
+    end: endDate,
+  };
+
+  if (okrData.gcal_event_id) {
+    await invoke<void>("gcal_update_event", {
+      accessToken,
+      calendarId,
+      eventId: okrData.gcal_event_id,
+      event,
+    });
+    return okrData.gcal_event_id;
+  } else {
+    return invoke<string>("gcal_create_event", {
+      accessToken,
+      calendarId,
+      event,
+    });
+  }
+}
+

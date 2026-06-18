@@ -1,15 +1,23 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissões padrão do MusicGest",
-  "windows": ["main"],
+  "description": "Permissões padrão do Vistage",
+  "windows": ["main", "work-session"],
   "permissions": [
     "core:default",
     "core:window:allow-close",
+    "core:window:allow-destroy",
     "core:window:allow-minimize",
+    "core:window:allow-unminimize",
     "core:window:allow-maximize",
     "core:window:allow-unmaximize",
     "core:window:allow-set-fullscreen",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-start-dragging",
+    "core:webview:allow-create-webview-window",
     "dialog:default",
     "dialog:allow-open",
     "dialog:allow-save",
@@ -29,12 +37,8 @@
         { "path": "**/*" }
       ]
     },
-    "sql:default",
-    "sql:allow-load",
-    "sql:allow-execute",
-    "sql:allow-select",
-    "sql:allow-close",
     "shell:default",
-    "shell:allow-open"
+    "shell:allow-open",
+    "notification:default"
   ]
 }

@@ -1,13 +1,15 @@
 export const CONTACT_TYPES = [
-  "Cliente / Contratante",
-  "Agente / Booker",
+  "Contratante",
+  "Booker",
   "Produtor de eventos",
   "DJ parceiro",
-  "Colaborador",
-  "Fornecedor",
-  "Outros",
+  "Músico",
+  "Influencer",
+  "Jornalista",
+  "Gerente de Club",
+  "Dono de Club",
 ] as const;
-export type ContactType = (typeof CONTACT_TYPES)[number];
+export type ContactType = string;
 
 export const CONTACT_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
 export type ContactPriority = (typeof CONTACT_PRIORITIES)[number];
@@ -41,6 +43,9 @@ export type Contact = {
   rating: number | null; // 1..5
   last_interaction_at: string | null;
   photo_path: string | null;
+  follower_count: number | null;
+  venue_id: number | null;
+  company: string | null;
   created_at: string;
   updated_at: string;
 };

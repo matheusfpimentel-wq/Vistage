@@ -1,6 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -16,13 +23,30 @@ import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { createVenue, updateVenue } from "../api";
+import { VENUE_TYPES } from "../types";
 import type { Venue, VenueCreateInput } from "../types";
+import { updateGigCityForVenue } from "@/modules/gigs/api";
+import { VenuePrioritySelector } from "../components/VenueStar";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   venue?: Venue | null;
   onSaved: (id: number) => void;
+};
+
+type NominatimResult = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  address: {
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+    country_code?: string;
+  };
 };
 
 const EMPTY: VenueCreateInput = {
@@ -33,13 +57,25 @@ const EMPTY: VenueCreateInput = {
   address: null,
   founded_year: null,
   capacity: null,
+  venue_type: null,
+  star_status: null,
+  priority: null,
   owner_name: null,
+  owner_role: null,
   owner_phone: null,
   owner_email: null,
   instagram: null,
   website: null,
   notes: null,
   photo_path: null,
+  lat: null,
+  lng: null,
+  geocoded_at: null,
+  concept: null,
+  dominant_genre: null,
+  rider_equipment: null,
+  regular_audience: null,
+  is_closed: 0,
 };
 
 function venueToState(v: Venue): VenueCreateInput {
@@ -51,13 +87,25 @@ function venueToState(v: Venue): VenueCreateInput {
     address: v.address,
     founded_year: v.founded_year,
     capacity: v.capacity,
+    venue_type: v.venue_type ?? null,
+    star_status: v.star_status ?? null,
+    priority: v.priority ?? null,
     owner_name: v.owner_name,
+    owner_role: v.owner_role,
     owner_phone: v.owner_phone,
     owner_email: v.owner_email,
     instagram: v.instagram,
     website: v.website,
     notes: v.notes,
     photo_path: v.photo_path,
+    lat: v.lat,
+    lng: v.lng,
+    geocoded_at: v.geocoded_at,
+    concept: v.concept,
+    dominant_genre: v.dominant_genre,
+    rider_equipment: v.rider_equipment ?? null,
+    regular_audience: v.regular_audience,
+    is_closed: v.is_closed ?? 0,
   };
 }
 
@@ -68,13 +116,34 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
+  const [suggestions, setSuggestions] = useState<NominatimResult[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addressContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     if (venue) setState(venueToState(venue));
     else setState(EMPTY);
     setNameError(null);
     setDirty(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
   }, [venue, open]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        addressContainerRef.current &&
+        !addressContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   function set<K extends keyof VenueCreateInput>(
     key: K,
@@ -82,6 +151,59 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
   ) {
     setDirty(true);
     setState((s) => ({ ...s, [key]: value }));
+  }
+
+  function handleAddressChange(value: string) {
+    set("address", value || null);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!value.trim()) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(value)}&addressdetails=1`;
+        const res = await fetch(url, {
+          headers: { "User-Agent": "Vistage/1.0" },
+        });
+        if (!res.ok) return;
+        const data: NominatimResult[] = await res.json();
+        setSuggestions(data);
+        setShowSuggestions(data.length > 0);
+      } catch {
+        // silently ignore network errors
+      }
+    }, 600);
+  }
+
+  function applySuggestion(s: NominatimResult) {
+    const city =
+      s.address.city ?? s.address.town ?? s.address.village ?? null;
+    const stateVal = s.address.state ?? null;
+    const country = s.address.country_code
+      ? s.address.country_code.toUpperCase()
+      : null;
+    const lat = parseFloat(s.lat);
+    const lng = parseFloat(s.lon);
+    setDirty(true);
+    setState((prev) => ({
+      ...prev,
+      address: s.display_name,
+      city: city ?? prev.city,
+      state: stateVal ?? prev.state,
+      country: country ?? prev.country,
+      lat,
+      lng,
+      geocoded_at: new Date().toISOString(),
+    }));
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  function clearCoordinates() {
+    setDirty(true);
+    setState((s) => ({ ...s, lat: null, lng: null, geocoded_at: null }));
   }
 
   async function handleSubmit() {
@@ -95,6 +217,9 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
       const id = venue
         ? (await updateVenue({ id: venue.id, ...state }), venue.id)
         : await createVenue(state);
+      if (venue) {
+        await updateGigCityForVenue(venue.id, state.city ?? null);
+      }
       toast.success(venue ? "Venue atualizado" : "Venue criado");
       onSaved(id);
       onOpenChange(false);
@@ -156,24 +281,91 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Field>
           </div>
 
-          <Field label="Endereço completo">
-            <Input
-              value={state.address ?? ""}
-              onChange={(e) => set("address", e.target.value || null)}
-            />
-          </Field>
+          <div ref={addressContainerRef} className="relative">
+            <Field label="Endereço completo">
+              <Input
+                value={state.address ?? ""}
+                onChange={(e) => handleAddressChange(e.target.value)}
+                onFocus={() => {
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                autoComplete="off"
+              />
+            </Field>
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md">
+                {suggestions.map((s) => (
+                  <div
+                    key={s.place_id}
+                    className="cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                    onMouseDown={(e) => {
+                      // prevent blur from firing before click
+                      e.preventDefault();
+                      applySuggestion(s);
+                    }}
+                  >
+                    {s.display_name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Geolocalização */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Geolocalização
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Latitude">
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder="ex: -23.5505"
+                  value={state.lat ?? ""}
+                  onChange={(e) =>
+                    set("lat", e.target.value ? Number(e.target.value) : null)
+                  }
+                />
+              </Field>
+              <Field label="Longitude">
+                <Input
+                  type="number"
+                  step="any"
+                  placeholder="ex: -46.6333"
+                  value={state.lng ?? ""}
+                  onChange={(e) =>
+                    set("lng", e.target.value ? Number(e.target.value) : null)
+                  }
+                />
+              </Field>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={clearCoordinates}
+              disabled={state.lat == null && state.lng == null}
+            >
+              Limpar coordenadas
+            </Button>
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Ano de fundação">
-              <Input
-                type="number"
-                min={1800}
-                max={2100}
-                value={state.founded_year ?? ""}
-                onChange={(e) =>
-                  set("founded_year", e.target.value ? Number(e.target.value) : null)
-                }
-              />
+            <Field label="Tipo">
+              <Select
+                value={state.venue_type ?? ""}
+                onValueChange={(v) => set("venue_type", (v || null) as import("../types").VenueType | null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VENUE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="Capacidade (pessoas)">
               <Input
@@ -187,24 +379,96 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Field>
           </div>
 
+          <Field label="Prioridade">
+            <VenuePrioritySelector
+              value={state.priority ?? null}
+              onChange={(v) => set("priority", v)}
+            />
+          </Field>
+
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={(state.is_closed ?? 0) === 1}
+              onChange={(e) => set("is_closed", e.target.checked ? 1 : 0)}
+              className="h-4 w-4"
+            />
+            <span className="text-sm">Venue fechado</span>
+          </label>
+
           <div className="rounded-md border bg-muted/30 p-3 space-y-3">
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Dono / Operação
+              Identidade do Espaço
             </div>
-            <Field label="Nome do dono / responsável">
-              <Input
-                value={state.owner_name ?? ""}
-                onChange={(e) => set("owner_name", e.target.value || null)}
+            <Field label="Conceito do espaço">
+              <Textarea
+                rows={2}
+                placeholder="Ex: underground techno, intimista, industrial…"
+                value={state.concept ?? ""}
+                onChange={(e) => set("concept", e.target.value || null)}
               />
             </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Telefone do dono">
+              <Field label="Gênero musical dominante">
+                <Input
+                  placeholder="Ex: Techno, House, Drum & Bass"
+                  value={state.dominant_genre ?? ""}
+                  onChange={(e) => set("dominant_genre", e.target.value || null)}
+                />
+              </Field>
+              <Field label="Público habitual">
+                <Input
+                  placeholder="Ex: 200–400 pessoas, 25–35 anos"
+                  value={state.regular_audience ?? ""}
+                  onChange={(e) => set("regular_audience", e.target.value || null)}
+                />
+              </Field>
+            </div>
+            <Field label="Rider técnico disponível">
+              <Textarea
+                placeholder="Equipamento disponível na casa: PA, mesa, monitores, microfones, backline…"
+                value={state.rider_equipment ?? ""}
+                onChange={(e) => set("rider_equipment", e.target.value || null)}
+                rows={3}
+              />
+            </Field>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Contato responsável
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Nome">
+                <Input
+                  value={state.owner_name ?? ""}
+                  onChange={(e) => set("owner_name", e.target.value || null)}
+                  placeholder="Nome do responsável"
+                />
+              </Field>
+              <Field label="Cargo">
+                <Select
+                  value={state.owner_role ?? ""}
+                  onValueChange={(v) => set("owner_role", v || null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Gerente">Gerente</SelectItem>
+                    <SelectItem value="Dono">Dono</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Telefone">
                 <Input
                   value={state.owner_phone ?? ""}
                   onChange={(e) => set("owner_phone", e.target.value || null)}
                 />
               </Field>
-              <Field label="Email do dono">
+              <Field label="Email">
                 <Input
                   type="email"
                   value={state.owner_email ?? ""}

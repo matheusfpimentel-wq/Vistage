@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { toLocalISODate } from "./format";
 
 /**
  * Popula o banco com dados de exemplo: 4 GIGs em estados diferentes,
@@ -9,7 +10,7 @@ import { getDb } from "./db";
 function isoDaysOffset(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 export async function isDatabaseEmpty(): Promise<boolean> {
@@ -164,7 +165,7 @@ export async function seedExampleData(): Promise<{
     ).lastInsertId
   );
 
-  // A Caminho — daqui 2 dias
+  // Confirmada — daqui 2 dias
   await db.execute(
     `INSERT INTO gigs (
       date, start_time, end_time, venue_name, venue_city, promoter_contact_id,
@@ -179,8 +180,8 @@ export async function seedExampleData(): Promise<{
       lautaroId,
       1500,
       "Set abrindo a noite. Estilo afro-house.",
-      "A Caminho",
-      "50% pago",
+      "Confirmada",
+      "Pago parcialmente",
       isoDaysOffset(5),
     ]
   );
@@ -351,7 +352,7 @@ export async function seedExampleData(): Promise<{
       "Cachê — Cãmara (BH)",
       catId("DJ", "income"),
       pastConcluida,
-      "Recebido/Pago",
+      "Recebido",
       "PIX",
     ]
   );
@@ -366,7 +367,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-9),
       "Royalties — DistroKid jan/2024",
       catId("Royalties", "income"),
-      "Recebido/Pago",
+      "Recebido",
       "Transferência",
     ]
   );
@@ -381,7 +382,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-14),
       "Aula particular de produção (Pedro)",
       catId("Aulas / Mentorias", "income"),
-      "Recebido/Pago",
+      "Recebido",
     ]
   );
 
@@ -396,7 +397,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-10),
       "Estúdio Mood — 3h",
       catId("Estúdio", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "PIX",
       "Variável",
     ]
@@ -412,7 +413,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-3),
       "Distroideal mensal",
       catId("Plataformas", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "Cartão",
       "Fixa",
     ]
@@ -428,7 +429,7 @@ export async function seedExampleData(): Promise<{
       isoDaysOffset(-40),
       "CDJ-3000 (par)",
       catId("Equipamentos", "expense"),
-      "Recebido/Pago",
+      "Pago",
       "Cartão",
       "Variável",
     ]

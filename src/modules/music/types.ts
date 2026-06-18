@@ -2,7 +2,7 @@ import type { Stage } from "./stages";
 import type { TrackKind, ProjectKind } from "./stages";
 import type { GateDecisionRecord } from "./gates";
 
-export type ReleaseStrategy = "waterfall" | "drop_unico" | "album_direto";
+export type ReleaseStrategy = "waterfall" | "drop_unico" | "album_direto" | "surprise_drop" | "ep_focus_track" | "singles_sequenciais" | "split_release" | "edits_bootlegs" | "sped_up" | "direct_to_fan" | "live_set_id" | "dj_pool_promo" | "double_single" | "remix_pack" | "deluxe_edition" | "visual_album" | "gated_release";
 
 export type MusicProject = {
   id: number;
@@ -13,6 +13,8 @@ export type MusicProject = {
   press_release_draft: string | null;
   marketing_dates: string | null; // JSON
   partnerships_confirmed: string | null;
+  fans_notified: number | null;
+  concept: string | null; // conceito do projeto
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -57,6 +59,9 @@ export type TrackRow = {
   stage_notes: string | null;
   creative_block_notes: string | null;
   standby: number;
+  standby_until: string | null;
+  task_id: number | null;
+  related_track_id: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -70,6 +75,7 @@ export type Track = Omit<
   references: string[];
   stage_history: StageHistoryEntry[];
   standby: boolean;
+  standby_until: string | null;
 };
 
 export type TrackCreateInput = {
@@ -91,11 +97,10 @@ export type TrackCreateInput = {
   final_files_path: string | null;
   stage_notes: string | null;
   creative_block_notes: string | null;
+  related_track_id?: number | null;
 };
 
-export type TrackUpdateInput = Partial<
-  Omit<TrackCreateInput, "project_id">
-> & { id: number };
+export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number; standby_until?: string | null };
 
 /** Track com dados do projeto agregados (pro dashboard e listas). */
 export type TrackWithProject = Track & {
@@ -111,19 +116,6 @@ export type FlowSession = {
   flow_level: number | null;
   block_notes: string | null;
 };
-
-export const MOOD_SUGGESTIONS = [
-  "dark",
-  "eufórico",
-  "melancólico",
-  "hipnótico",
-  "agressivo",
-  "sonhador",
-  "groovy",
-  "tenso",
-  "íntimo",
-  "épico",
-] as const;
 
 export type MusicProjectCost = {
   id: number;

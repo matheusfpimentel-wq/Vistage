@@ -1,17 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Bell,
+  BookOpen,
   CalendarClock,
+  ChevronDown,
   ChevronRight,
   Disc3,
   Film,
   Minus,
   Music,
   PartyPopper,
+  RefreshCw,
   Star,
+  Target,
   TrendingDown,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
@@ -23,6 +27,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
+import { MindMapPage } from "@/modules/dashboard/MindMapPage";
+import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
+import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
+import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
 import { averageRating, type Gig } from "@/modules/gigs/types";
@@ -38,12 +48,86 @@ import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api
 import { listTracks, daysInStage } from "@/modules/music/api";
 import { listParties } from "@/modules/parties/api";
 import { estimatedRevenue, type PartyDeserialized } from "@/modules/parties/types";
+import { listOkrs, currentQuarter, okrProgress, type Okr } from "@/modules/objetivos/api";
 import type { TrackWithProject } from "@/modules/music/types";
 import { trackDisplayName } from "@/modules/music/types";
 import { TRACK_KIND_LABEL } from "@/modules/music/stages";
 import { gateAfter } from "@/modules/music/gates";
 import { StageBadge } from "@/modules/music/components/StageBadge";
+import { listClasses } from "@/modules/classes/api";
+import type { ClassSession } from "@/modules/classes/types";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+
+// Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
+const FinanceDashboard = lazy(() =>
+  import("@/modules/finance/views/FinanceDashboard").then((m) => ({
+    default: m.FinanceDashboard,
+  }))
+);
+
+// ============================================================
+// Painel temático colapsável (estado lembrado em localStorage)
+// ============================================================
+
+function useCollapsed(key: string, defaultOpen = true): [boolean, () => void] {
+  const storageKey = `dash.panel.${key}`;
+  const [open, setOpen] = useState<boolean>(() => {
+    const v = localStorage.getItem(storageKey);
+    return v === null ? defaultOpen : v === "1";
+  });
+  const toggle = useCallback(() => {
+    setOpen((o) => {
+      localStorage.setItem(storageKey, o ? "0" : "1");
+      return !o;
+    });
+  }, [storageKey]);
+  return [open, toggle];
+}
+
+function CollapsibleCard({
+  storageKey,
+  icon,
+  title,
+  description,
+  children,
+  defaultOpen = true,
+}: {
+  storageKey: string;
+  icon: React.ReactNode;
+  title: string;
+  description?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, toggle] = useCollapsed(storageKey, defaultOpen);
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={toggle}
+        className="w-full text-left"
+        aria-expanded={open}
+      >
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              {icon}
+              {title}
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                !open && "-rotate-90"
+              )}
+            />
+          </div>
+          {description && <CardDescription>{description}</CardDescription>}
+        </CardHeader>
+      </button>
+      {open && <CardContent className="space-y-3">{children}</CardContent>}
+    </Card>
+  );
+}
 
 // ============================================================
 // Helpers de data
@@ -66,8 +150,6 @@ function nextNDays(n: number): string[] {
   return out;
 }
 
-const CONTENT_IN_PRODUCTION = ["Roteiro", "Gravando", "Edição", "Pronto"];
-
 // ============================================================
 // Página
 // ============================================================
@@ -79,52 +161,110 @@ type DashData = {
   weekTasks: Task[];
   tracks: TrackWithProject[];
   parties: PartyDeserialized[];
+  okrs: Okr[];
+  classes: ClassSession[];
 };
 
 export function DashboardPage() {
   const [data, setData] = useState<DashData | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    void (async () => {
-      const [gigs, fin, content, weekTasks, tracks, parties] = await Promise.all([
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
         listUpcoming(50),
         listTracks(),
         listParties(),
+        listOkrs(),
+        listClasses(),
       ]);
-      setData({ gigs, fin, content, weekTasks, tracks, parties });
-    })();
+      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
+      setUpdatedAt(new Date());
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
+  useEffect(() => { void load(); }, [load]);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Visão geral</h2>
-        <p className="text-sm text-muted-foreground">
-          Poucos números, alto sinal. A semana inteira num só eixo.
-        </p>
+    <Tabs defaultValue="overview" className="space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <TabsList className="flex-wrap h-auto gap-0.5">
+          <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+          <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
+          <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
+          <TabsTrigger value="report">Relatório mensal</TabsTrigger>
+          <TabsTrigger value="career">Carreira em números</TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-2">
+          {updatedAt && (
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              Atualizado às {updatedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => void load()} disabled={refreshing} aria-label="Atualizar">
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
-      {data ? (
-        <>
-          <KpiRow data={data} />
-          <DomainCards data={data} />
-          <WeekTimeline data={data} />
-        </>
-      ) : (
-        <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-          Carregando…
-        </div>
-      )}
+      <TabsContent value="overview" className="space-y-6">
+        {data ? (
+          <>
+            <KpiRow data={data} />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <GigsCard data={data} />
+              <MusicCard data={data} />
+              <ContentCard data={data} />
+              <FestasCard data={data} />
+            </div>
+            <WeekTimeline data={data} />
 
-      <p className="pt-2 text-center text-xs text-muted-foreground/70">
-        Métricas são bússolas, não termômetros. Otimizar para o número costuma
-        deformar o resultado real.{" "}
-        <span className="italic">(Lei de Goodhart)</span>
-      </p>
-    </div>
+            <div className="space-y-4">
+              <FinancePanel />
+              <OkrPanel okrs={data.okrs} />
+            </div>
+          </>
+        ) : (
+          <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+            Carregando…
+          </div>
+        )}
+
+        <p className="pt-2 text-center text-xs text-muted-foreground/70">
+          Métricas são bússolas, não termômetros. Otimizar para o número costuma
+          deformar o resultado real.{" "}
+          <span className="italic">(Lei de Goodhart)</span>
+        </p>
+      </TabsContent>
+
+      <TabsContent value="timeline">
+        <CareerTimelinePage />
+      </TabsContent>
+
+      <TabsContent value="mindmap" className="-mx-1">
+        <MindMapPage />
+      </TabsContent>
+
+      <TabsContent value="metodologias">
+        <MetodologiasPage />
+      </TabsContent>
+
+      <TabsContent value="report">
+        <MonthlyReportPage />
+      </TabsContent>
+
+      <TabsContent value="career">
+        <CareerWrappedPage />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -133,31 +273,18 @@ export function DashboardPage() {
 // ============================================================
 
 function KpiRow({ data }: { data: DashData }) {
-  const { gigs, fin, content, weekTasks, tracks } = data;
+  const { gigs, fin } = data;
   const month = todayISO().slice(0, 7);
 
-  // receita do mês + tendência vs mês anterior
   const series = fin.monthly;
   const curRevenue = fin.monthIncome;
   const prevRevenue = series.length >= 2 ? series[series.length - 2].income : 0;
   const revenueTrend = curRevenue - prevRevenue;
 
-  // GIGs do mês
   const monthGigs = gigs.filter((g) => g.date.slice(0, 7) === month);
   const concluidas = monthGigs.filter((g) => g.status === "Concluída").length;
   const confirmadas = monthGigs.filter((g) => g.status === "Confirmada").length;
   const propostas = monthGigs.filter((g) => g.status === "Proposta").length;
-
-  // pipeline criativo: tracks ativas + conteúdos em produção (festas em breve)
-  const activeTracks = tracks.filter((t) => !t.standby).length;
-  const contentInProd = content.filter((c) =>
-    CONTENT_IN_PRODUCTION.includes(c.status)
-  ).length;
-  const pipeline = activeTracks + contentInProd;
-
-  // alertas críticos
-  const alerts = computeAlerts(gigs, weekTasks, fin);
-  const totalAlerts = alerts.reduce((s, a) => s + a.count, 0);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -178,100 +305,118 @@ function KpiRow({ data }: { data: DashData }) {
           </span>
         }
       />
-      <KpiCard
-        label="Pipeline criativo"
-        value={pipeline.toString()}
-        to="/musica"
-        footer={
-          <span className="text-xs text-muted-foreground">
-            {activeTracks} tracks · {contentInProd} conteúdos · festas em breve
-          </span>
-        }
-      />
-      <AlertsKpi alerts={alerts} total={totalAlerts} />
+      <EmExecucaoCard data={data} />
+      <OkrMiniCard okrs={data.okrs} />
     </div>
   );
 }
 
-type AlertLine = { label: string; to: string; count: number };
+function EmExecucaoCard({ data }: { data: DashData }) {
+  const today = todayISO();
 
-function computeAlerts(
-  gigs: Gig[],
-  weekTasks: Task[],
-  fin: FinanceInsights
-): AlertLine[] {
-  const out: AlertLine[] = [];
-
-  const pendingDebriefs = gigs.filter((g) => g.debrief_pending === 1).length;
-  if (pendingDebriefs > 0)
-    out.push({
-      label: `${pendingDebriefs} debrief${pendingDebriefs > 1 ? "s" : ""} pendente${pendingDebriefs > 1 ? "s" : ""}`,
-      to: "/gigs",
-      count: pendingDebriefs,
-    });
-
-  const soon = weekTasks.filter(
-    (t) => t.due_date && daysUntil(t.due_date) <= 2
+  const upcomingGigs = data.gigs.filter(
+    (g) => g.date >= today && (g.status === "Proposta" || g.status === "Confirmada")
   ).length;
-  if (soon > 0)
-    out.push({
-      label: `${soon} tarefa${soon > 1 ? "s" : ""} vencendo em 48h`,
-      to: "/tarefas",
-      count: soon,
-    });
 
-  if (fin.next30Payable > 0)
-    out.push({
-      label: `${formatCurrency(fin.next30Payable)} a pagar em 30 dias`,
-      to: "/financeiro",
-      count: 1,
-    });
+  const contentInProgress = data.content.filter((c) =>
+    ["Ideia", "Roteiro", "Gravando", "Edição", "Pronto"].includes(c.status)
+  ).length;
 
-  // tracks paradas / festas abaixo do break-even entram nos batches I e K
-  return out;
+  const activeTracks = data.tracks.filter(
+    (t) => !t.standby && ["Ideação", "Composição", "Produção"].includes(t.current_stage)
+  ).length;
+
+  const partiesPipeline = data.parties.filter(
+    (p) => p.status === "Planejando" || p.status === "Confirmada"
+  ).length;
+
+  const upcomingClasses = data.classes.filter(
+    (c) => c.status === "Agendada" && c.date >= today
+  ).length;
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardDescription className="text-xs">Em execução</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0 space-y-1">
+        <Link
+          to="/gigs"
+          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+        >
+          <Disc3 className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="tabular-nums font-medium">{upcomingGigs}</span>
+          <span className="text-muted-foreground">GIGs futuras</span>
+        </Link>
+        <Link
+          to="/conteudo"
+          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+        >
+          <Film className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="tabular-nums font-medium">{contentInProgress}</span>
+          <span className="text-muted-foreground">Conteúdos</span>
+        </Link>
+        <Link
+          to="/musica"
+          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+        >
+          <Music className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="tabular-nums font-medium">{activeTracks}</span>
+          <span className="text-muted-foreground">Tracks ativas</span>
+        </Link>
+        <Link
+          to="/festas"
+          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+        >
+          <PartyPopper className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <span className="tabular-nums font-medium">{partiesPipeline}</span>
+          <span className="text-muted-foreground">Festas em andamento</span>
+        </Link>
+        {upcomingClasses > 0 && (
+          <Link
+            to="/aulas"
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+          >
+            <BookOpen className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="tabular-nums font-medium">{upcomingClasses}</span>
+            <span className="text-muted-foreground">Aulas agendadas</span>
+          </Link>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
-function AlertsKpi({ alerts, total }: { alerts: AlertLine[]; total: number }) {
-  const [open, setOpen] = useState(false);
-  const danger = total > 0;
+function OkrMiniCard({ okrs }: { okrs: Okr[] }) {
+  const quarter = currentQuarter();
+  const current = okrs.filter((o) => o.quarter === quarter);
+  const shown = current.length > 0 ? current : okrs;
+
+  const avgPct =
+    shown.length > 0
+      ? Math.round(
+          shown.reduce((s, o) => s + okrProgress(o), 0) / shown.length * 100
+        )
+      : null;
+
   return (
-    <Card className={cn(danger && "border-amber-500/40 bg-amber-500/5")}>
-      <CardHeader className="pb-2">
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="w-full text-left"
-          disabled={total === 0}
-        >
-          <CardDescription className="flex items-center gap-2 text-xs">
-            <Bell className={cn("h-4 w-4", danger && "text-amber-500")} />
-            Alertas críticos
-          </CardDescription>
-          <CardTitle
-            className={cn(
-              "text-2xl tabular-nums",
-              danger ? "text-amber-600" : "text-muted-foreground"
-            )}
-          >
-            {total}
+    <Link to="/objetivos" className="block transition hover:opacity-90">
+      <Card className="h-full transition hover:border-primary">
+        <CardHeader className="pb-2">
+          <CardDescription className="text-xs">OKRs</CardDescription>
+          <CardTitle className="text-2xl tabular-nums">
+            {avgPct !== null ? `${avgPct}%` : "—"}
           </CardTitle>
-        </button>
-      </CardHeader>
-      {open && total > 0 && (
-        <CardContent className="space-y-1 pt-0">
-          {alerts.map((a) => (
-            <Link
-              key={a.label}
-              to={a.to}
-              className="flex items-center justify-between rounded-md border bg-background px-2 py-1.5 text-xs transition hover:border-amber-500/60"
-            >
-              <span>{a.label}</span>
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            </Link>
-          ))}
+        </CardHeader>
+        <CardContent className="pt-0">
+          <span className="text-xs text-muted-foreground">
+            {shown.length === 0
+              ? "Sem OKRs"
+              : `${shown.length} objetivo(s) · ${quarter}`}
+          </span>
         </CardContent>
-      )}
-    </Card>
+      </Card>
+    </Link>
   );
 }
 
@@ -326,23 +471,106 @@ function TrendIndicator({ delta }: { delta: number }) {
 }
 
 // ============================================================
-// Bloco 2 — 4 cards de domínio
+// Bloco 2 — painéis temáticos
 // ============================================================
 
-function DomainCards({ data }: { data: DashData }) {
+function FinancePanel() {
+  const [open, toggle] = useCollapsed("financeiro", false);
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <GigsCard data={data} />
-      <MusicCard data={data} />
-      <ContentCard data={data} />
-      <FestasCard data={data} />
-    </div>
+    <Card>
+      <button type="button" onClick={toggle} className="w-full text-left" aria-expanded={open}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Wallet className="h-4 w-4 text-primary" />
+              Financeiro
+            </CardTitle>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                !open && "-rotate-90"
+              )}
+            />
+          </div>
+        </CardHeader>
+      </button>
+      {open && (
+        <CardContent>
+          <Suspense
+            fallback={
+              <div className="text-sm text-muted-foreground">Carregando dashboard…</div>
+            }
+          >
+            <FinanceDashboard refreshKey={0} />
+          </Suspense>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function OkrPanel({ okrs }: { okrs: Okr[] }) {
+  const quarter = currentQuarter();
+  const current = okrs.filter((o) => o.quarter === quarter);
+  const shown = current.length > 0 ? current : okrs;
+
+  return (
+    <CollapsibleCard
+      storageKey="okrs"
+      icon={<Target className="h-4 w-4 text-primary" />}
+      title="OKRs"
+      description={
+        shown.length === 0
+          ? "Nenhum OKR cadastrado."
+          : `${shown.length} objetivo(s) · ${quarter}`
+      }
+      defaultOpen={false}
+    >
+      {shown.length === 0 ? (
+        <Link
+          to="/objetivos"
+          className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
+        >
+          <Target className="h-3.5 w-3.5" /> Criar primeiro objetivo
+        </Link>
+      ) : (
+        <div className="space-y-3">
+          {shown.map((o) => {
+            const pct = Math.round(okrProgress(o) * 100);
+            return (
+              <Link
+                key={o.id}
+                to="/objetivos"
+                className="block space-y-1.5 rounded-md border p-3 transition hover:border-primary"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium leading-tight">{o.objective}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    {pct}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all",
+                      pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-primary/60"
+                    )}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </CollapsibleCard>
   );
 }
 
 function GigsCard({ data }: { data: DashData }) {
   const { gigs } = data;
   const today = todayISO();
+  const lifeTimeCount = gigs.filter((g) => g.status === "Concluída").length;
 
   const upcoming = gigs
     .filter(
@@ -370,10 +598,13 @@ function GigsCard({ data }: { data: DashData }) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Disc3 className="h-4 w-4 text-primary" />
-          GIGs
+          <Disc3 className="h-4 w-4 text-primary" /> GIGs
+          {lifeTimeCount > 0 && (
+            <span className="ml-auto text-xs font-normal text-muted-foreground">
+              {lifeTimeCount} realizadas
+            </span>
+          )}
         </CardTitle>
-        <CardDescription>Próximas apresentações e debriefs.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {upcoming.length === 0 ? (
@@ -392,7 +623,7 @@ function GigsCard({ data }: { data: DashData }) {
               return (
                 <Link
                   key={g.id}
-                  to="/gigs"
+                  to={`/gigs?open=${g.id}`}
                   className="block space-y-2 rounded-md border p-3 transition hover:border-primary"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -410,7 +641,7 @@ function GigsCard({ data }: { data: DashData }) {
                       <StatusBadge status={g.status} />
                     </div>
                   </div>
-                  <PrepProgressMini state={prep} />
+                  <PrepProgressMini state={prep} groupFilter={g.event_category === "Festa" ? undefined : ["musical", "logistica"]} />
                 </Link>
               );
             })}
@@ -456,10 +687,8 @@ function MusicCard({ data }: { data: DashData }) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Music className="h-4 w-4 text-primary" />
-          Produção Musical
+          <Music className="h-4 w-4 text-primary" /> Produção Musical
         </CardTitle>
-        <CardDescription>Tracks ativas no pipeline.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {top3.length === 0 ? (
@@ -543,7 +772,6 @@ function ContentCard({ data }: { data: DashData }) {
       (a.publish_date ?? "").localeCompare(b.publish_date ?? "")
     )[0];
 
-  // distribuição por finalidade no mês
   const monthContent = content.filter((c) => {
     const ref = c.publish_date ?? c.due_date ?? c.created_at;
     return ref.slice(0, 7) === month && !!c.purpose;
@@ -562,10 +790,8 @@ function ContentCard({ data }: { data: DashData }) {
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Film className="h-4 w-4 text-primary" />
-          Conteúdos
+          <Film className="h-4 w-4 text-primary" /> Conteúdos
         </CardTitle>
-        <CardDescription>Pipeline editorial resumido.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-4 gap-2">
@@ -674,21 +900,41 @@ function FestasCard({ data }: { data: DashData }) {
     .slice(0, 3);
 
   const next = upcoming[0] ?? null;
-  const noConfirmed =
-    !data.parties.some(
-      (p) =>
-        p.status === "Confirmada" &&
-        p.date &&
-        p.date >= today &&
-        p.date <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
-    );
+
+  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const hasUpcoming30 = data.parties.some(
+    (p) =>
+      p.date &&
+      p.date >= today &&
+      p.date <= in30 &&
+      p.status !== "Cancelada" &&
+      p.status !== "Realizada"
+  );
+  const noConfirmed = !data.parties.some(
+    (p) =>
+      p.status === "Confirmada" &&
+      p.date &&
+      p.date >= today &&
+      p.date <= in30
+  );
+
+  const undated =
+    !hasUpcoming30
+      ? data.parties
+          .filter(
+            (p) =>
+              !p.date &&
+              p.status !== "Cancelada" &&
+              p.status !== "Realizada"
+          )
+          .slice(0, 3)
+      : [];
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <PartyPopper className="h-4 w-4 text-pink-400" />
-          Produção de Festas
+          <PartyPopper className="h-4 w-4 text-pink-400" /> Produção de Festas
         </CardTitle>
         <CardDescription>
           {data.parties.length === 0
@@ -732,13 +978,36 @@ function FestasCard({ data }: { data: DashData }) {
               </p>
             )}
           </div>
-        ) : (
+        ) : undated.length === 0 ? (
           <Link
             to="/festas"
             className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
           >
             <PartyPopper className="h-3.5 w-3.5" /> Cadastrar primeira festa
           </Link>
+        ) : null}
+
+        {undated.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Nada nos próximos 30 dias. Festas sem data definida:
+            </p>
+            {undated.map((p) => (
+              <Link
+                key={p.id}
+                to="/festas"
+                className="flex items-center justify-between gap-2 rounded-md border p-2.5 transition hover:bg-accent"
+              >
+                <span className="text-sm font-medium">{p.title}</span>
+                <Badge
+                  variant="outline"
+                  className="shrink-0 border-amber-500/30 text-xs text-amber-400"
+                >
+                  Sem data
+                </Badge>
+              </Link>
+            ))}
+          </div>
         )}
         <Link
           to="/festas"
@@ -750,7 +1019,6 @@ function FestasCard({ data }: { data: DashData }) {
     </Card>
   );
 }
-
 
 // ============================================================
 // Bloco 3 — Visão integrada da semana
@@ -776,7 +1044,7 @@ function WeekTimeline({ data }: { data: DashData }) {
     };
     for (const g of gigs) {
       if (g.status === "Cancelada") continue;
-      push(g.date, { kind: "gig", label: gigDisplayName(g), to: "/gigs" });
+      push(g.date, { kind: "gig", label: gigDisplayName(g), to: `/gigs?open=${g.id}` });
     }
     for (const t of weekTasks) {
       push(t.due_date, { kind: "task", label: t.title, to: "/tarefas" });
@@ -801,9 +1069,6 @@ function WeekTimeline({ data }: { data: DashData }) {
           <CalendarClock className="h-4 w-4 text-primary" />
           Sua semana
         </CardTitle>
-        <CardDescription>
-          GIGs, tarefas e posts dos próximos 7 dias — no mesmo eixo, sem silos.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {totalItems === 0 ? (
@@ -811,7 +1076,8 @@ function WeekTimeline({ data }: { data: DashData }) {
             Semana livre. Nada agendado nos próximos 7 dias.
           </div>
         ) : (
-          <div className="grid grid-cols-7 gap-2">
+          // Mobile: lista vertical (dias vazios escondidos). Desktop: grade de 7 colunas.
+          <div className="flex flex-col gap-2 sm:grid sm:grid-cols-7">
             {days.map((d) => {
               const items = byDay.get(d) ?? [];
               const isToday = d === todayISO();
@@ -819,29 +1085,32 @@ function WeekTimeline({ data }: { data: DashData }) {
                 <div
                   key={d}
                   className={cn(
-                    "min-h-[6rem] space-y-1.5 rounded-md border p-2",
-                    isToday && "border-primary bg-primary/5"
+                    "flex gap-3 rounded-md border p-2 sm:block sm:min-h-[6rem] sm:gap-0 sm:space-y-1.5",
+                    isToday && "border-primary bg-primary/5",
+                    items.length === 0 && "hidden sm:block"
                   )}
                 >
-                  <div className="text-center text-[11px] font-medium uppercase text-muted-foreground">
+                  <div className="flex w-10 shrink-0 flex-col items-center justify-center text-[11px] font-medium uppercase text-muted-foreground sm:w-auto sm:justify-start">
                     {formatDate(d, "EEE")}
                     <div className="text-sm font-semibold text-foreground">
                       {formatDate(d, "dd")}
                     </div>
                   </div>
-                  {items.map((item, i) => (
-                    <Link
-                      key={i}
-                      to={item.to}
-                      title={item.label}
-                      className={cn(
-                        "block truncate rounded px-1.5 py-1 text-[11px] transition hover:opacity-80",
-                        TIMELINE_STYLES[item.kind]
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                  <div className="flex-1 space-y-1.5">
+                    {items.map((item, i) => (
+                      <Link
+                        key={i}
+                        to={item.to}
+                        title={item.label}
+                        className={cn(
+                          "block truncate rounded px-1.5 py-1 text-[11px] transition hover:opacity-80",
+                          TIMELINE_STYLES[item.kind]
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               );
             })}

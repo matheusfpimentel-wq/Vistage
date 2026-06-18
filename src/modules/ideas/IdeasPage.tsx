@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Lightbulb, Plus, Search, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -21,8 +22,10 @@ import { QuickCapture } from "./forms/QuickCapture";
 import { IdeaList } from "./views/IdeaList";
 import { IdeaKanban } from "./views/IdeaKanban";
 import { IdeaBoard } from "./views/IdeaBoard";
-import { deleteIdea, listIdeas, markIdeaAsConverted, type IdeaFilters } from "./api";
+import { InsightDie } from "./InsightDie";
+import { deleteIdea, listIdeas, markIdeaAsConverted, updateIdea, type IdeaFilters } from "./api";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
+import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
   IDEA_CATEGORIES,
   IDEA_MATURATIONS,
@@ -32,6 +35,7 @@ import {
   type IdeaMaturation,
 } from "./types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type CategoryFilter = IdeaCategory | "Todas";
 type MaturationFilter = IdeaMaturation | "Todas";
@@ -51,6 +55,7 @@ export function IdeasPage() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [convertingIdea, setConvertingIdea] = useState<Idea | null>(null);
   const [trackFormOpen, setTrackFormOpen] = useState(false);
+  const [gigFormOpen, setGigFormOpen] = useState(false);
 
   const queryFilters: IdeaFilters = useMemo(
     () => ({
@@ -83,21 +88,61 @@ export function IdeasPage() {
     setTrackFormOpen(true);
   }
 
+  function openConvertToForm(i: Idea, target: "gig" | "track") {
+    setConvertingIdea(i);
+    if (target === "gig") setGigFormOpen(true);
+    else setTrackFormOpen(true);
+  }
+
   function openEdit(i: Idea) {
     setEditing(i);
     setFormOpen(true);
   }
 
   async function handleDelete(i: Idea) {
-    if (!window.confirm(`Excluir "${i.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${i.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteIdea(i.id);
     toast.success("Ideia excluída");
     await refresh();
   }
 
+  async function handleDeleteById(id: number) {
+    const idea = items.find((i) => i.id === id);
+    if (
+      !(await confirmDialog({
+        title: "Excluir",
+        description: idea ? `Excluir "${idea.title}"?` : "Excluir esta ideia?",
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    await deleteIdea(id);
+    toast.success("Ideia excluída");
+    await refresh();
+  }
+
+  async function handleToggleHot(i: Idea) {
+    // Marca/desmarca a ideia como quente (calor 3 ↔ 2/morna como padrão neutro).
+    const next: IdeaHeat = i.heat === 3 ? 2 : 3;
+    await updateIdea({ id: i.id, heat: next });
+    await refresh();
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <PageToolbar
+        actions={
+          <>
+            <Button variant="outline" onClick={() => setQuickOpen(true)}>
+              <Zap className="h-4 w-4" /> Captura rápida
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Nova ideia
+            </Button>
+          </>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -166,15 +211,7 @@ export function IdeasPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setQuickOpen(true)}>
-            <Zap className="h-4 w-4" /> Captura rápida
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova ideia
-          </Button>
-        </div>
-      </div>
+      </PageToolbar>
 
       {items.length === 0 && filters.search === "" ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -187,6 +224,9 @@ export function IdeasPage() {
         </div>
       ) : (
         <Tabs defaultValue="board">
+          <div className="mb-3">
+            <InsightDie />
+          </div>
           <TabsList>
             <TabsTrigger value="board">Mural</TabsTrigger>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
@@ -194,11 +234,11 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={(id) => void handleDeleteById(id)} />
           </TabsContent>
 
           <TabsContent value="kanban">
-            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }} onRefresh={() => void refresh()} />
+            <IdeaKanban items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onDelete={(id) => void handleDeleteById(id)} onRefresh={() => void refresh()} />
           </TabsContent>
 
           <TabsContent value="list">
@@ -213,7 +253,8 @@ export function IdeasPage() {
         idea={editing}
         onSaved={() => void refresh()}
         onConverted={() => void refresh()}
-        onDelete={async (id) => { await deleteIdea(id); toast.success("Ideia excluída"); await refresh(); }}
+        onConvertToEntity={openConvertToForm}
+        onDelete={(id) => void handleDeleteById(id)}
       />
 
       <QuickCapture
@@ -231,10 +272,27 @@ export function IdeasPage() {
           if (!v) setConvertingIdea(null);
         }}
         track={null}
-        onSaved={async () => {
+        onSaved={async (newId) => {
           if (convertingIdea) {
-            await markIdeaAsConverted(convertingIdea.id, "track", 0);
+            await markIdeaAsConverted(convertingIdea.id, "track", newId ?? 0);
             toast.success("Ideia convertida em track");
+          }
+          void refresh();
+          setConvertingIdea(null);
+        }}
+      />
+
+      <GigForm
+        open={gigFormOpen}
+        onOpenChange={(v) => {
+          setGigFormOpen(v);
+          if (!v) setConvertingIdea(null);
+        }}
+        gig={null}
+        onSaved={async (res) => {
+          if (convertingIdea) {
+            await markIdeaAsConverted(convertingIdea.id, "gig", res.id);
+            toast.success("Ideia convertida em GIG");
           }
           void refresh();
           setConvertingIdea(null);

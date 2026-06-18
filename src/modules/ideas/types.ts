@@ -13,7 +13,6 @@ export const IDEA_MATURATIONS = [
   "Embrião",
   "Desenvolvendo",
   "Pronta",
-  "Convertida",
   "Arquivada",
 ] as const;
 export type IdeaMaturation = (typeof IDEA_MATURATIONS)[number];
@@ -34,11 +33,18 @@ export type Idea = {
   maturation: IdeaMaturation;
   converted_to: IdeaConversion | null;
   converted_id: number | null;
+  related_idea_id: number | null;
+  task_id?: number | null;
   created_at: string;
   updated_at: string;
 };
 
-export type IdeaCreateInput = Omit<Idea, "id" | "created_at" | "updated_at">;
+export type IdeaCreateInput = Omit<
+  Idea,
+  "id" | "created_at" | "updated_at" | "related_idea_id"
+> & {
+  related_idea_id?: number | null;
+};
 export type IdeaUpdateInput = Partial<IdeaCreateInput> & { id: number };
 
 export function heatLabel(h: IdeaHeat): string {

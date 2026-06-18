@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Settings } from "lucide-react";
+import { Download, Music, Plus, Search, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,12 +16,14 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { SkeletonList } from "@/components/shared/Skeleton";
 import { TransactionForm } from "./forms/TransactionForm";
 import { CategoryManager } from "./forms/CategoryManager";
+import { RoyaltyImportDialog } from "./forms/RoyaltyImportDialog";
 import { TransactionList } from "./views/TransactionList";
-import { FinanceDashboard } from "./views/FinanceDashboard";
 import { EquipmentView } from "./views/EquipmentView";
 import { RecurringView } from "./views/RecurringView";
+import { ProjectProfitView } from "./views/ProjectProfitView";
 import {
   deleteTransaction,
   listCategories,
@@ -37,23 +39,59 @@ import {
 } from "./types";
 import { formatCurrency } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { useConfirm } from "@/components/ui/confirm";
+import { exportTransactionsCsv } from "@/lib/csv";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type KindFilter = TransactionKind | "all";
 type StatusFilter = TransactionStatus | "all";
 
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+function isoDaysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
-function monthOptions(): { value: string; label: string }[] {
-  const opts: { value: string; label: string }[] = [];
+/**
+ * Converte um "período" selecionado em filtros de data. O padrão é os últimos
+ * 12 meses (não mais um único mês), com opções pra ano corrente e global.
+ */
+function periodToFilter(period: string, customFrom?: string, customTo?: string): { fromDate?: string; toDate?: string } {
+  if (period === "custom") return { fromDate: customFrom || undefined, toDate: customTo || undefined };
+  const now = new Date();
+  if (period === "all") return {};
+  if (period === "last12") return { fromDate: isoDaysAgo(365) };
+  if (period === "thismonth") {
+    const m = now.toISOString().slice(0, 7);
+    return { fromDate: `${m}-01`, toDate: `${m}-31` };
+  }
+  if (period === "thisyear") {
+    const y = now.toISOString().slice(0, 4);
+    return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
+  }
+  // mês específico YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(period)) {
+    return { fromDate: `${period}-01`, toDate: `${period}-31` };
+  }
+  return {};
+}
+
+function periodOptions(): { value: string; label: string }[] {
+  const opts = [
+    { value: "last12", label: "Últimos 12 meses" },
+    { value: "thismonth", label: "Este mês" },
+    { value: "thisyear", label: "Este ano" },
+    { value: "all", label: "Total" },
+    { value: "custom", label: "Personalizado…" },
+  ];
   const d = new Date();
   for (let i = 0; i < 12; i++) {
     const month = d.toISOString().slice(0, 7);
-    const label = d.toLocaleDateString("pt-BR", {
+    const raw = d.toLocaleDateString("pt-BR", {
       month: "long",
       year: "numeric",
     });
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1);
     opts.push({ value: month, label });
     d.setMonth(d.getMonth() - 1);
   }
@@ -69,22 +107,28 @@ export function FinancePage() {
     kind: KindFilter;
     status: StatusFilter;
     categoryId: number | "all";
-    month: string;
+    period: string;
     search: string;
+    customFrom: string;
+    customTo: string;
   }>({
     kind: "all",
     status: "all",
     categoryId: "all",
-    month: currentMonth(),
+    period: "all",
     search: "",
+    customFrom: "",
+    customTo: "",
   });
 
+  const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] =
     useState<FinanceTransactionWithCategory | null>(null);
   const [defaultKind, setDefaultKind] = useState<TransactionKind>("income");
   const [categoryMgrOpen, setCategoryMgrOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [royaltyOpen, setRoyaltyOpen] = useState(false);
+  const confirm = useConfirm();
 
   const queryFilters: TransactionFilters = useMemo(
     () => ({
@@ -92,20 +136,24 @@ export function FinancePage() {
       status: filters.status,
       categoryId:
         filters.categoryId === "all" ? undefined : filters.categoryId,
-      month: filters.month,
+      ...periodToFilter(filters.period, filters.customFrom, filters.customTo),
       search: filters.search,
     }),
     [filters]
   );
 
   const refresh = useCallback(async () => {
-    const [tx, cats] = await Promise.all([
-      listTransactions(queryFilters),
-      listCategories(),
-    ]);
-    setTransactions(tx);
-    setCategories(cats);
-    setRefreshKey((k) => k + 1);
+    setLoading(true);
+    try {
+      const [tx, cats] = await Promise.all([
+        listTransactions(queryFilters),
+        listCategories(),
+      ]);
+      setTransactions(tx);
+      setCategories(cats);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
@@ -126,10 +174,27 @@ export function FinancePage() {
   }
 
   async function handleDelete(t: FinanceTransactionWithCategory) {
-    if (!window.confirm(`Excluir esta transação?`)) return;
+    const ok = await confirm({
+      title: "Excluir transação",
+      description: t.gig_id
+        ? "Esta receita está vinculada a uma GIG. Excluí-la some só com o lançamento financeiro, a GIG continua."
+        : "Tem certeza que quer excluir esta transação?",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteTransaction(t.id);
     await refresh();
     toast.success("Transação excluída");
+  }
+
+  async function handleExportCsv() {
+    try {
+      const path = await exportTransactionsCsv(transactions);
+      if (path) toast.success("CSV exportado com sucesso");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao exportar CSV");
+    }
   }
 
   const monthIncome = transactions
@@ -142,20 +207,46 @@ export function FinancePage() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="dashboard">
+      <Tabs defaultValue="transactions">
         <TabsList>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="transactions">Transações</TabsTrigger>
+          <TabsTrigger value="profit">Lucro por projeto</TabsTrigger>
           <TabsTrigger value="recurring">Recorrentes</TabsTrigger>
           <TabsTrigger value="equipment">Patrimônio</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard">
-          <FinanceDashboard refreshKey={refreshKey} />
-        </TabsContent>
-
         <TabsContent value="transactions" className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <PageToolbar
+            actions={
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setCategoryMgrOpen(true)}
+                >
+                  <Settings className="h-4 w-4" /> Categorias
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleExportCsv}
+                  disabled={transactions.length === 0}
+                >
+                  <Download className="h-4 w-4" /> Exportar CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setRoyaltyOpen(true)}
+                >
+                  <Music className="h-4 w-4" /> Royalties
+                </Button>
+                <Button variant="outline" onClick={() => openCreate("expense")}>
+                  <Plus className="h-4 w-4" /> Despesa
+                </Button>
+                <Button onClick={() => openCreate("income")}>
+                  <Plus className="h-4 w-4" /> Receita
+                </Button>
+              </>
+            }
+          >
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -184,22 +275,39 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
               <Select
-                value={filters.month}
+                value={filters.period}
                 onValueChange={(v) =>
-                  setFilters((f) => ({ ...f, month: v }))
+                  setFilters((f) => ({ ...f, period: v }))
                 }
               >
-                <SelectTrigger className="w-48 capitalize">
+                <SelectTrigger className="w-48">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="capitalize">
-                  {monthOptions().map((m) => (
+                <SelectContent>
+                  {periodOptions().map((m) => (
                     <SelectItem key={m.value} value={m.value}>
                       {m.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {filters.period === "custom" && (
+                <>
+                  <Input
+                    type="date"
+                    className="w-40"
+                    value={filters.customFrom}
+                    onChange={(e) => setFilters((f) => ({ ...f, customFrom: e.target.value }))}
+                  />
+                  <span className="text-muted-foreground text-sm">até</span>
+                  <Input
+                    type="date"
+                    className="w-40"
+                    value={filters.customTo}
+                    onChange={(e) => setFilters((f) => ({ ...f, customTo: e.target.value }))}
+                  />
+                </>
+              )}
               <Select
                 value={filters.categoryId.toString()}
                 onValueChange={(v) =>
@@ -241,21 +349,7 @@ export function FinancePage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCategoryMgrOpen(true)}
-              >
-                <Settings className="h-4 w-4" /> Categorias
-              </Button>
-              <Button variant="outline" onClick={() => openCreate("expense")}>
-                <Plus className="h-4 w-4" /> Despesa
-              </Button>
-              <Button onClick={() => openCreate("income")}>
-                <Plus className="h-4 w-4" /> Receita
-              </Button>
-            </div>
-          </div>
+          </PageToolbar>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <KPIChip label="Receitas (filtro)" value={formatCurrency(monthIncome)} tone="income" />
@@ -268,11 +362,19 @@ export function FinancePage() {
             />
           </div>
 
-          <TransactionList
-            transactions={transactions}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-          />
+          {loading ? (
+            <SkeletonList />
+          ) : (
+            <TransactionList
+              transactions={transactions}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="profit">
+          <ProjectProfitView />
         </TabsContent>
 
         <TabsContent value="recurring">
@@ -296,6 +398,12 @@ export function FinancePage() {
         open={categoryMgrOpen}
         onOpenChange={setCategoryMgrOpen}
         onChanged={refresh}
+      />
+
+      <RoyaltyImportDialog
+        open={royaltyOpen}
+        onOpenChange={setRoyaltyOpen}
+        onImported={refresh}
       />
     </div>
   );

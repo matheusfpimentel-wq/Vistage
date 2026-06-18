@@ -1,9 +1,15 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Content,
   ContentCreateInput,
   ContentFormat,
   ContentNetwork,
+  ContentScene,
+  ContentSceneInput,
+  ContentSnapshot,
+  ContentSnapshotInput,
   ContentStatus,
   ContentUpdateInput,
 } from "./types";
@@ -74,15 +80,6 @@ export async function listContent(
   return rows;
 }
 
-export async function getContent(id: number): Promise<Content | null> {
-  const db = getDb();
-  const rows = await db.select<ContentRow[]>(
-    "SELECT * FROM content WHERE id = $1",
-    [id]
-  );
-  return rows[0] ? rowToContent(rows[0]) : null;
-}
-
 export async function createContent(input: ContentCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, networks: JSON.stringify(input.networks ?? []) };
@@ -93,7 +90,55 @@ export async function createContent(input: ContentCreateInput): Promise<number> 
     `INSERT INTO content (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Tarefa de publicação a partir de publish_date (futuro)
+  const today = toLocalISODate();
+  if (typeof input.publish_date === "string" && input.publish_date > today) {
+    try {
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskId = await createTask({
+        title: `Publicar: ${input.title}`,
+        description: "Data de publicação do conteúdo.",
+        category: "Conteúdo",
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: input.publish_date,
+        tags: ["conteúdo", "publicação"],
+      });
+      await db.execute("UPDATE content SET publish_task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch { /* não interrompe */ }
+  }
+  // Tarefas de milestone (roteiro, gravação, edição)
+  const milestones = [
+    { field: "date_roteiro", taskField: "task_roteiro_id", label: "Roteiro" },
+    { field: "date_gravacao", taskField: "task_gravacao_id", label: "Gravação" },
+    { field: "date_edicao", taskField: "task_edicao_id", label: "Edição" },
+  ] as const;
+  for (const m of milestones) {
+    const date = (input as Record<string, unknown>)[m.field] as string | null | undefined;
+    if (date) {
+      try {
+        const { createTask } = await import("@/modules/tasks/api");
+        const taskId = await createTask({
+          title: `${m.label}: ${input.title}`,
+          description: null,
+          category: "Conteúdo",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: date,
+          tags: ["conteúdo"],
+        });
+        await db.execute(`UPDATE content SET ${m.taskField} = $1 WHERE id = $2`, [taskId, id]);
+      } catch { /* não interrompe */ }
+    }
+  }
+
+  emitDataChanged();
+  return id;
 }
 
 export async function updateContent(input: ContentUpdateInput): Promise<void> {
@@ -111,11 +156,103 @@ export async function updateContent(input: ContentUpdateInput): Promise<void> {
     `UPDATE content SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sync task due_date when content due_date changes; conclui ao publicar
+  if ("due_date" in rest || rest.status === "Publicado") {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM content WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        const patch: Parameters<typeof updateTask>[0] = { id: taskId };
+        if ("due_date" in rest) patch.due_date = rest.due_date as string | null;
+        if (rest.status === "Publicado") patch.status = "Concluída";
+        await updateTask(patch);
+      } catch { /* não interrompe */ }
+    }
+  }
+  // Sincroniza a tarefa de publicação quando publish_date muda ou ao publicar
+  if ("publish_date" in rest || rest.status === "Publicado") {
+    const rows = await db.select<{ publish_task_id: number | null }[]>(
+      "SELECT publish_task_id FROM content WHERE id = $1", [id]
+    );
+    const ptId = rows[0]?.publish_task_id;
+    if (ptId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        const patch: Parameters<typeof updateTask>[0] = { id: ptId };
+        if ("publish_date" in rest) patch.due_date = rest.publish_date as string | null;
+        if (rest.status === "Publicado") patch.status = "Concluída";
+        await updateTask(patch);
+      } catch { /* não interrompe */ }
+    }
+  }
+  // Sincroniza tarefas de milestone quando as datas mudam
+  const milestoneUpdates = [
+    { field: "date_roteiro", taskField: "task_roteiro_id", label: "Roteiro" },
+    { field: "date_gravacao", taskField: "task_gravacao_id", label: "Gravação" },
+    { field: "date_edicao", taskField: "task_edicao_id", label: "Edição" },
+  ] as const;
+  for (const m of milestoneUpdates) {
+    if (!(m.field in rest)) continue;
+    const newDate = (rest as Record<string, unknown>)[m.field] as string | null;
+    const mRows = await db.select<{ [k: string]: number | null }[]>(
+      `SELECT ${m.taskField} FROM content WHERE id = $1`, [id]
+    );
+    const existingTaskId = mRows[0]?.[m.taskField] ?? null;
+    try {
+      const { createTask, updateTask } = await import("@/modules/tasks/api");
+      if (existingTaskId) {
+        await updateTask({ id: existingTaskId, due_date: newDate });
+      } else if (newDate) {
+        const currentRows = await db.select<{ title: string }[]>(
+          "SELECT title FROM content WHERE id = $1", [id]
+        );
+        const contentTitle = currentRows[0]?.title ?? "";
+        const taskId = await createTask({
+          title: `${m.label}: ${contentTitle}`,
+          description: null,
+          category: "Conteúdo",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: newDate,
+          tags: ["conteúdo"],
+        });
+        await db.execute(`UPDATE content SET ${m.taskField} = $1 WHERE id = $2`, [taskId, id]);
+      }
+    } catch { /* não interrompe */ }
+  }
+  // Espelha o estado do conteúdo nas tarefas vinculadas
+  if (rest.status === "Publicado" || rest.status === "Arquivado") {
+    try {
+      const { syncLinkedTasksStatus } = await import("@/modules/tasks/api");
+      await syncLinkedTasksStatus(
+        "content",
+        id,
+        rest.status === "Publicado" ? "Concluída" : "Cancelada"
+      );
+    } catch { /* não interrompe */ }
+  }
+  emitDataChanged();
 }
 
 export async function deleteContent(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM content WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM content WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("content", id);
+  emitDataChanged();
 }
 
 export type ContentStats = {
@@ -124,12 +261,23 @@ export type ContentStats = {
   publishedThisMonth: number;
 };
 
+export async function listContentPromoting(
+  type: string,
+  id: number
+): Promise<{ id: number; title: string; status: string }[]> {
+  const db = getDb();
+  return db.select<{ id: number; title: string; status: string }[]>(
+    "SELECT id, title, status FROM content WHERE promotes_type = $1 AND promotes_id = $2 ORDER BY created_at DESC",
+    [type, id]
+  );
+}
+
 export async function getContentStats(): Promise<ContentStats> {
   const db = getDb();
   const rows = await db.select<{ status: ContentStatus; n: number }[]>(
     "SELECT status, COUNT(*) as n FROM content GROUP BY status"
   );
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const publishedRows = await db.select<{ n: number }[]>(
     `SELECT COUNT(*) as n FROM content
       WHERE status = 'Publicado'
@@ -156,4 +304,133 @@ export async function getContentStats(): Promise<ContentStats> {
     byStatus,
     publishedThisMonth: publishedRows[0]?.n ?? 0,
   };
+}
+
+// ============================================================
+// Snapshots de métricas (retratos com data de captura)
+// ============================================================
+
+export async function listContentSnapshots(
+  contentId: number
+): Promise<ContentSnapshot[]> {
+  const db = getDb();
+  return db.select<ContentSnapshot[]>(
+    "SELECT * FROM content_snapshots WHERE content_id = $1 ORDER BY captured_at DESC, id DESC",
+    [contentId]
+  );
+}
+
+export async function addContentSnapshot(
+  input: ContentSnapshotInput
+): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO content_snapshots
+       (content_id, captured_at, metric_views, metric_likes, metric_comments, metric_shares, metric_saves)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      input.content_id,
+      input.captured_at,
+      input.metric_views,
+      input.metric_likes,
+      input.metric_comments,
+      input.metric_shares,
+      input.metric_saves,
+    ]
+  );
+  // mantém os campos "atuais" do content com a captura mais recente
+  await syncLatestSnapshotToContent(input.content_id);
+  return Number(res.lastInsertId);
+}
+
+export async function deleteContentSnapshot(id: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<{ content_id: number }[]>(
+    "SELECT content_id FROM content_snapshots WHERE id = $1",
+    [id]
+  );
+  await db.execute("DELETE FROM content_snapshots WHERE id = $1", [id]);
+  if (rows[0]) await syncLatestSnapshotToContent(rows[0].content_id);
+}
+
+// ============================================================
+// Cenas do roteiro
+// ============================================================
+
+type ContentSceneRow = Omit<ContentScene, "equipment" | "materials"> & {
+  equipment: string | null;
+  materials: string | null;
+};
+
+function parseStringArray(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? (v as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listScenes(contentId: number): Promise<ContentScene[]> {
+  const db = getDb();
+  const rows = await db.select<ContentSceneRow[]>(
+    "SELECT * FROM content_scenes WHERE content_id = $1 ORDER BY position ASC, id ASC",
+    [contentId]
+  );
+  return rows.map((r) => ({
+    ...r,
+    equipment: parseStringArray(r.equipment),
+    materials: parseStringArray(r.materials),
+  }));
+}
+
+export async function replaceScenes(
+  contentId: number,
+  scenes: ContentSceneInput[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM content_scenes WHERE content_id = $1", [
+    contentId,
+  ]);
+  for (let i = 0; i < scenes.length; i++) {
+    const s = scenes[i];
+    await db.execute(
+      `INSERT INTO content_scenes
+         (content_id, position, title, description, equipment, materials, scenery)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        contentId,
+        i,
+        s.title,
+        s.description,
+        JSON.stringify(s.equipment ?? []),
+        JSON.stringify(s.materials ?? []),
+        s.scenery,
+      ]
+    );
+  }
+}
+
+/** Copia a captura mais recente pros campos metric_* do content (compat com listas). */
+async function syncLatestSnapshotToContent(contentId: number): Promise<void> {
+  const db = getDb();
+  const latest = await db.select<ContentSnapshot[]>(
+    "SELECT * FROM content_snapshots WHERE content_id = $1 ORDER BY captured_at DESC, id DESC LIMIT 1",
+    [contentId]
+  );
+  const s = latest[0];
+  await db.execute(
+    `UPDATE content SET metric_views = $1, metric_likes = $2, metric_comments = $3,
+                        metric_shares = $4, metric_saves = $5, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6`,
+    [
+      s?.metric_views ?? null,
+      s?.metric_likes ?? null,
+      s?.metric_comments ?? null,
+      s?.metric_shares ?? null,
+      s?.metric_saves ?? null,
+      contentId,
+    ]
+  );
 }

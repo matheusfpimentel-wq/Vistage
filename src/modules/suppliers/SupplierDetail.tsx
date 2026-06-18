@@ -9,8 +9,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
-import { getSupplier, listServices } from "./api";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { getSupplier, listServices, listPartiesBySupplier, getSupplierSpend } from "./api";
 import type { Supplier, SupplierService } from "./types";
 
 type Props = {
@@ -23,18 +23,26 @@ type Props = {
 export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props) {
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [services, setServices] = useState<SupplierService[]>([]);
+  const [parties, setParties] = useState<
+    { id: number; title: string; date: string | null; status: string; role: string | null; amount_cents: number | null }[]
+  >([]);
+  const [spend, setSpend] = useState<{ total: number; itemCount: number; parties: number } | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!supplierId) return;
     setLoading(true);
     try {
-      const [s, svcs] = await Promise.all([
+      const [s, svcs, prts, spd] = await Promise.all([
         getSupplier(supplierId),
         listServices(supplierId),
+        listPartiesBySupplier(supplierId),
+        getSupplierSpend(supplierId),
       ]);
       setSupplier(s);
       setServices(svcs);
+      setParties(prts);
+      setSpend(spd);
     } finally {
       setLoading(false);
     }
@@ -96,6 +104,14 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                 </div>
               )}
             </div>
+
+            {spend && spend.itemCount > 0 && (
+              <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                Total gasto: {formatCurrency(spend.total)} · {spend.itemCount}{" "}
+                {spend.itemCount === 1 ? "item" : "itens"} · {spend.parties}{" "}
+                {spend.parties === 1 ? "festa" : "festas"}
+              </div>
+            )}
 
             {supplier.contact_name && (
               <div className="text-sm">
@@ -169,6 +185,39 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                 </div>
               </div>
             )}
+
+            {/* Festas atendidas */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium">Festas atendidas</h3>
+              {parties.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma festa registrada com este fornecedor.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {parties.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-start justify-between gap-2 rounded-md border p-3 text-sm"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-medium">{p.title}</div>
+                        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                          <span>{p.date ? formatDate(p.date) : "Sem data"}</span>
+                          <Badge variant="secondary">{p.status}</Badge>
+                          {p.role && <span>{p.role}</span>}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right font-medium">
+                        {p.amount_cents != null
+                          ? formatCurrency(p.amount_cents / 100)
+                          : "—"}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>

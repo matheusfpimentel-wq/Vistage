@@ -1,12 +1,12 @@
-// O caminho do banco SQLite é escolhido pelo usuário em runtime (ex: HD externo),
-// então as migrations e o load do banco rodam no frontend via `Database.load("sqlite:<path>")`.
-// Aqui registramos os plugins e os comandos do módulo Google Calendar.
+// Banco de dados LOCAL via libsql (um arquivo na máquina, sem nuvem). A réplica
+// embarcada roda aqui no Rust (não funciona no JS do webview). Os comandos
+// `db_*` expõem a mesma interface (`select`/`execute`) que o frontend usa.
 
+mod db;
 mod gcal;
-mod gdrive;
 
+use db::DbState;
 use gcal::GcalState;
-use gdrive::GdriveState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,10 +14,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
+        .manage(DbState::default())
         .manage(GcalState::default())
-        .manage(GdriveState::default())
         .invoke_handler(tauri::generate_handler![
+            db::db_init,
+            db::db_select,
+            db::db_execute,
+            db::db_execute_batch,
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,
             gcal::gcal_exchange_code,
@@ -27,15 +31,6 @@ pub fn run() {
             gcal::gcal_update_event,
             gcal::gcal_delete_event,
             gcal::gcal_list_events,
-            gdrive::gdrive_start_oauth,
-            gdrive::gdrive_wait_callback,
-            gdrive::gdrive_exchange_code,
-            gdrive::gdrive_refresh_token,
-            gdrive::gdrive_ensure_folder,
-            gdrive::gdrive_upload_backup,
-            gdrive::gdrive_list_backups,
-            gdrive::gdrive_download_backup,
-            gdrive::gdrive_delete_backup,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");

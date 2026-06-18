@@ -11,7 +11,8 @@ import { open as openShell } from "@tauri-apps/plugin-shell";
 import { useConfigStore } from "./config";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
-export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt"];
+export const VIDEO_EXTS = ["mp4", "mov", "webm", "avi", "mkv", "m4v"];
+export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt", "ttf", "otf", "woff", "woff2"];
 
 type PickOptions = {
   title?: string;
@@ -64,15 +65,6 @@ export async function saveAttachment(
 }
 
 /**
- * @deprecated convertFileSrc não funciona com paths arbitrários fora do scope.
- * Use `useImageUrl(path)` ou `readAsDataUrl(path)` no lugar.
- * Mantido como string vazia pra não quebrar callers existentes que serão migrados.
- */
-export function assetUrl(_path: string | null | undefined): string | null {
-  return null;
-}
-
-/**
  * Hook React que carrega uma imagem como data URL.
  * Funciona pra qualquer caminho que o app tenha permissão fs:allow-read-file.
  */
@@ -84,9 +76,19 @@ export function useImageUrl(path: string | null | undefined): string | null {
       return;
     }
     let cancelled = false;
-    void readAsDataUrl(path).then((u) => {
-      if (!cancelled) setUrl(u);
-    });
+    void (async () => {
+      // 1. tenta o caminho absoluto como está salvo no banco
+      let data = await readAsDataUrl(path);
+      // 2. fallback: resolve sob o uploadsDir ATUAL. Cobre o caso de abrir um
+      //    .vistage cujos caminhos absolutos são de outra máquina/pasta — os
+      //    bytes foram restaurados em uploads/<subdir>/<arquivo>, mas a linha no
+      //    banco ainda aponta para o caminho antigo, que não existe aqui.
+      if (!data) {
+        const alt = resolveUnderCurrentUploads(path);
+        if (alt && alt !== path) data = await readAsDataUrl(alt);
+      }
+      if (!cancelled) setUrl(data);
+    })();
     return () => {
       cancelled = true;
     };
@@ -94,8 +96,27 @@ export function useImageUrl(path: string | null | undefined): string | null {
   return url;
 }
 
+/**
+ * Reconstrói o caminho de um anexo sob o uploadsDir atual a partir da parte
+ * relativa (depois de ".../uploads/"). Torna o carregamento de imagens imune a
+ * caminhos absolutos antigos vindos de outro computador ou de outra pasta.
+ */
+function resolveUnderCurrentUploads(path: string): string | null {
+  const uploadsDir = useConfigStore.getState().config?.uploadsDir;
+  if (!uploadsDir) return null;
+  const norm = path.replace(/\\/g, "/");
+  const idx = norm.toLowerCase().lastIndexOf("/uploads/");
+  if (idx === -1) return null;
+  const segs = norm
+    .slice(idx + "/uploads/".length)
+    .split("/")
+    .filter(Boolean);
+  if (segs.length === 0) return null;
+  return joinPath(uploadsDir, ...segs);
+}
+
 /** Lê o arquivo e retorna um data URL — útil quando convertFileSrc não funciona em alguns paths. */
-export async function readAsDataUrl(
+async function readAsDataUrl(
   absolutePath: string | null | undefined
 ): Promise<string | null> {
   if (!absolutePath) return null;
@@ -113,8 +134,12 @@ export async function readAsDataUrl(
         ? "image/webp"
         : "application/octet-stream";
     // converte Uint8Array em base64
+    // Chunk to avoid stack overflow on large files and O(n²) string builds.
+    const CHUNK = 8192;
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
     return `data:${mime};base64,${btoa(bin)}`;
   } catch {
     return null;

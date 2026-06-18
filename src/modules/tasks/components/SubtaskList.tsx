@@ -66,7 +66,7 @@ export function SubtaskList({ taskId }: Props) {
           <input
             type="checkbox"
             checked={s.done === 1}
-            onChange={() => handleToggle(s)}
+            onChange={() => void handleToggle(s)}
             className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
           />
           <input
@@ -83,7 +83,7 @@ export function SubtaskList({ taskId }: Props) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => handleDelete(s)}
+            onClick={() => void handleDelete(s)}
             aria-label="Remover subtarefa"
           >
             <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -103,7 +103,7 @@ export function SubtaskList({ taskId }: Props) {
           }}
           className="h-8 text-sm"
         />
-        <Button type="button" variant="outline" size="sm" onClick={handleAdd}>
+        <Button type="button" variant="outline" size="sm" onClick={() => void handleAdd()}>
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>

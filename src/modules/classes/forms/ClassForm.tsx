@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,21 +23,38 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import {
   CLASS_STATUSES,
+  type ClassPackage,
   type ClassSession,
   type ClassSessionCreateInput,
   type ClassStatus,
   type Student,
   type StudentPackage,
+  type StudentPackageCreateInput,
 } from "../types";
 import {
   createClass,
+  createStudentPackage,
   getActiveStudentPackage,
+  listPackages,
   listStudentPackages,
   listStudents,
   recalcPackageUsage,
   updateClass,
 } from "../api";
+import { QuickStudentForm } from "./QuickStudentForm";
 import { todayISO } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
+import { loadAuth, pushClassToCalendar } from "@/lib/gcal";
+
+function hoursToMinutes(val: string): number | null {
+  const n = parseFloat(val.replace(",", "."));
+  return isNaN(n) || n <= 0 ? null : Math.round(n * 60);
+}
+function minutesToHoursStr(min: number | null): string {
+  if (min == null) return "";
+  const h = min / 60;
+  return h.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
 
 type Props = {
   open: boolean;
@@ -53,6 +70,7 @@ const EMPTY: ClassSessionCreateInput = {
   date: todayISO(),
   start_time: null,
   duration_min: 60,
+  title: null,
   subject: null,
   status: "Agendada",
   feedback: null,
@@ -67,6 +85,7 @@ function toState(c: ClassSession): ClassSessionCreateInput {
     date: c.date,
     start_time: c.start_time,
     duration_min: c.duration_min,
+    title: c.title,
     subject: c.subject,
     status: c.status,
     feedback: c.feedback,
@@ -86,7 +105,12 @@ export function ClassForm({
   const [saving, setSaving] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPackages, setStudentPackages] = useState<StudentPackage[]>([]);
+  const [allPackages, setAllPackages] = useState<ClassPackage[]>([]);
+  const [linkPkgId, setLinkPkgId] = useState<number | null>(null);
   const [errors, setErrors] = useState<{ student?: string; date?: string }>({});
+  const [quickStudentOpen, setQuickStudentOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (session) setState(toState(session));
@@ -96,14 +120,16 @@ export function ClassForm({
         student_id: defaultStudentId ?? 0,
       });
     setErrors({});
+    setDirty(false);
   }, [session, defaultStudentId, open]);
 
   useEffect(() => {
     if (!open) return;
     void listStudents().then(setStudents);
+    void listPackages(true).then(setAllPackages);
   }, [open]);
 
-  // Quando muda o aluno, busca os pacotes ativos dele e tenta auto-vincular
+  // Quando muda o aluno, busca pacotes ativos e pré-preenche o valor padrão
   useEffect(() => {
     if (!open || !state.student_id) {
       setStudentPackages([]);
@@ -112,11 +138,16 @@ export function ClassForm({
     (async () => {
       const pkgs = await listStudentPackages(state.student_id);
       setStudentPackages(pkgs);
-      // Pré-seleciona o pacote ativo só na criação
-      if (!session && state.student_package_id === null) {
+      if (!session) {
         const active = await getActiveStudentPackage(state.student_id);
         if (active) {
           setState((s) => ({ ...s, student_package_id: active.id }));
+        } else {
+          // Aula avulsa: pré-preenche valor padrão do aluno
+          const student = students.find((s) => s.id === state.student_id);
+          if (student?.default_rate && state.amount === null) {
+            setState((s) => ({ ...s, amount: student.default_rate }));
+          }
         }
       }
     })();
@@ -127,6 +158,35 @@ export function ClassForm({
     value: ClassSessionCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
+  }
+
+  async function handleVincularPackage() {
+    if (!state.student_id || linkPkgId === null) return;
+    const template = allPackages.find((p) => p.id === linkPkgId);
+    if (!template) return;
+    const input: StudentPackageCreateInput = {
+      student_id: state.student_id,
+      package_id: linkPkgId,
+      total_classes: 0,
+      total_hours: template.total_hours,
+      used_classes: 0,
+      used_minutes: 0,
+      purchased_at: todayISO(),
+      status: "Ativo",
+      notes: null,
+    };
+    try {
+      await createStudentPackage(input);
+      const pkgs = await listStudentPackages(state.student_id);
+      setStudentPackages(pkgs);
+      const newest = pkgs[pkgs.length - 1];
+      if (newest) setState((s) => ({ ...s, student_package_id: newest.id }));
+      setLinkPkgId(null);
+      toast.success("Pacote vinculado");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
   }
 
   function validate(): boolean {
@@ -152,11 +212,34 @@ export function ClassForm({
 
       // recalcula saldo do pacote afetado (anterior e novo, se mudaram)
       if (prevPackageId) await recalcPackageUsage(prevPackageId);
-      if (newPackageId && newPackageId !== prevPackageId)
-        await recalcPackageUsage(newPackageId);
-      else if (newPackageId) await recalcPackageUsage(newPackageId);
+      if (newPackageId && newPackageId !== prevPackageId) await recalcPackageUsage(newPackageId);
 
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id) {
+          const savedSession = session ?? null;
+          const studentName = students.find((s) => s.id === state.student_id)?.name ?? "Aluno";
+          const gcalEventId = savedSession?.gcal_event_id ?? null;
+          const eventId = await pushClassToCalendar({
+            id: savedSession?.id ?? 0,
+            date: state.date,
+            start_time: state.start_time ?? null,
+            end_time: null,
+            title: state.title ?? null,
+            subject: state.subject ?? null,
+            student_name: studentName,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId && savedSession?.id) {
+            await updateClass({ id: savedSession.id, gcal_event_id: eventId });
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
+      }
       toast.success(session ? "Aula atualizada" : "Aula agendada");
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -171,12 +254,12 @@ export function ClassForm({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{session ? "Editar aula" : "Nova aula"}</DialogTitle>
           <DialogDescription>
-            Marque como "Realizada" pra consumir uma aula do pacote selecionado.
+            Aulas agendadas já descontam do saldo do pacote.
           </DialogDescription>
         </DialogHeader>
 
@@ -185,21 +268,32 @@ export function ClassForm({
             <Label>
               Aluno <span className="text-destructive">*</span>
             </Label>
-            <Select
-              value={state.student_id ? state.student_id.toString() : ""}
-              onValueChange={(v) => set("student_id", Number(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map((s) => (
-                  <SelectItem key={s.id} value={s.id.toString()}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select
+                value={state.student_id ? state.student_id.toString() : ""}
+                onValueChange={(v) => set("student_id", Number(v))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {students.map((s) => (
+                    <SelectItem key={s.id} value={s.id.toString()}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Novo aluno"
+                onClick={() => setQuickStudentOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
             {errors.student && (
               <p className="text-xs text-destructive">{errors.student}</p>
             )}
@@ -222,19 +316,68 @@ export function ClassForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="avulsa">Aula avulsa</SelectItem>
-                {studentPackages.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    Pacote #{p.id} — {p.used_classes}/{p.total_classes} usadas ·{" "}
-                    {p.status}
-                  </SelectItem>
-                ))}
+                {studentPackages.map((p) => {
+                  const tpl = allPackages.find(t => t.id === p.package_id);
+                  const isHours = tpl?.total_hours != null;
+                  const used = isHours ? `${minutesToHoursStr(p.used_minutes)}h` : `${p.used_classes}`;
+                  const total = isHours ? `${String(tpl!.total_hours).replace(".", ",")}h` : `${p.total_classes}`;
+                  return (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      Pacote #{p.id} — {used}/{total} usadas · {p.status}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
-            {selectedPkg && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="outline">
-                  Saldo: {selectedPkg.total_classes - selectedPkg.used_classes} aulas
-                </Badge>
+            {selectedPkg && (() => {
+              const tpl = allPackages.find(p => p.id === selectedPkg.package_id);
+              const isHoursBased = tpl?.total_hours != null;
+              const remainingMin = isHoursBased
+                ? Math.round(tpl!.total_hours! * 60) - selectedPkg.used_minutes
+                : null;
+              const remainingClasses = !isHoursBased ? selectedPkg.total_classes - selectedPkg.used_classes : null;
+              return (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">
+                    {isHoursBased
+                      ? `Saldo: ${minutesToHoursStr(remainingMin)}h`
+                      : `Saldo: ${remainingClasses} aulas`}
+                  </Badge>
+                </div>
+              );
+            })()}
+            {state.student_id > 0 && studentPackages.length === 0 && allPackages.length > 0 && (
+              <div className="space-y-1.5 rounded-md border border-dashed p-3">
+                <p className="text-xs text-muted-foreground">Este aluno não tem pacote ativo.</p>
+                <div className="flex gap-2">
+                  <Select
+                    value={linkPkgId !== null ? linkPkgId.toString() : ""}
+                    onValueChange={(v) => setLinkPkgId(Number(v))}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecionar pacote template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allPackages.map((p) => (
+                        <SelectItem key={p.id} value={p.id.toString()}>
+                          {p.name}
+                          {p.total_hours != null
+                            ? ` — ${String(p.total_hours).replace(".", ",")}h`
+                            : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleVincularPackage()}
+                    disabled={linkPkgId === null}
+                  >
+                    Vincular pacote
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -262,16 +405,15 @@ export function ClassForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Duração (min)</Label>
-              <Input
-                type="number"
-                min={15}
-                step={15}
-                value={state.duration_min ?? ""}
-                onChange={(e) =>
-                  set("duration_min", e.target.value ? Number(e.target.value) : null)
-                }
-              />
+              <Label>Duração (h)</Label>
+              <div className="relative">
+                <Input
+                  placeholder="Ex: 1,5"
+                  value={minutesToHoursStr(state.duration_min)}
+                  onChange={(e) => set("duration_min", hoursToMinutes(e.target.value))}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">h</span>
+              </div>
             </div>
           </div>
 
@@ -314,6 +456,19 @@ export function ClassForm({
           </div>
 
           <div className="space-y-1.5">
+            <Label>Título da aula</Label>
+            <Input
+              placeholder="Ex: Aula 3 — Transições, Mentoria mensal, Aulão de scratch…"
+              value={state.title ?? ""}
+              onChange={(e) => set("title", e.target.value || null)}
+            />
+            <p className="text-xs text-muted-foreground">
+              É a referência da aula na lista e no mapa mental. Sem título, cai
+              na matéria ou no nome do aluno.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
             <Label>Matéria a ser passada</Label>
             <Textarea
               rows={3}
@@ -353,6 +508,15 @@ export function ClassForm({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <QuickStudentForm
+        open={quickStudentOpen}
+        onOpenChange={setQuickStudentOpen}
+        onCreated={async (id) => {
+          setStudents(await listStudents());
+          set("student_id", id);
+        }}
+      />
     </Dialog>
   );
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "MusicGest",
-  "version": "0.1.0",
-  "identifier": "com.musicgest.app",
+  "productName": "Vistage",
+  "version": "1.0.0",
+  "identifier": "com.vistage.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "MusicGest",
+        "title": "Vistage",
         "width": 1280,
         "height": 800,
         "minWidth": 1024,
@@ -23,7 +23,8 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
@@ -34,6 +35,16 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["vistage"],
+        "name": "Vistage Document",
+        "description": "Documento do Vistage",
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/x-vistage"
+      }
     ],
     "macOS": {
       "signingIdentity": "-",

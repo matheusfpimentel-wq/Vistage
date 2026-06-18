@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,14 +17,17 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { getDb } from "@/lib/db";
+import { confirmDialog } from "@/components/ui/confirm";
 import { GigForm } from "./forms/GigForm";
 import { DebriefForm } from "./forms/DebriefForm";
 import { deleteGigFromCalendar } from "@/lib/gcal";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ListView } from "./views/ListView";
+import { BulkListView } from "./views/BulkListView";
 import { CalendarView } from "./views/CalendarView";
-import { KanbanView } from "./views/KanbanView";
 import { InsightsView } from "./views/InsightsView";
+import { SpreadsheetView } from "./views/SpreadsheetView";
 import {
   deleteGig,
   getGig,
@@ -32,14 +36,17 @@ import {
   type GigFilters,
 } from "./api";
 import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = GigStatus | "Todas";
 
 export function GigsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [gigs, setGigs] = useState<Gig[]>([]);
-  const [filters, setFilters] = useState<{ status: StatusFilter; search: string }>(
-    { status: "Todas", search: "" }
+  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string; recurringEventName: string }>(
+    { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
   );
+  const [recurringNames, setRecurringNames] = useState<string[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Gig | null>(null);
@@ -51,19 +58,62 @@ export function GigsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const queryFilters: GigFilters = useMemo(
-    () => ({ status: filters.status, search: filters.search }),
+    () => ({
+      status: filters.status,
+      search: filters.search,
+      eventCategory: filters.eventCategory !== "all" ? filters.eventCategory : undefined,
+      recurringEventName: filters.recurringEventName !== "all" ? filters.recurringEventName : undefined,
+    }),
     [filters]
   );
 
   const refresh = useCallback(async () => {
-    const data = await listGigs(queryFilters);
-    setGigs(data);
-    setRefreshKey((k) => k + 1);
+    try {
+      const data = await listGigs(queryFilters);
+      setGigs(data);
+      setRefreshKey((k) => k + 1);
+    } catch (e) {
+      toast.error(`Erro ao carregar GIGs: ${String(e)}`);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const db = getDb();
+        const rows = await db.select<{ recurring_event_name: string }[]>(
+          "SELECT DISTINCT recurring_event_name FROM gigs WHERE recurring_event_name IS NOT NULL AND recurring_event_name != '' ORDER BY recurring_event_name"
+        );
+        setRecurringNames(rows.map((r) => r.recurring_event_name));
+      } catch { /* silently ignore */ }
+    })();
+  }, [refreshKey]);
+
+  useEffect(() => {
+    const debriefId = searchParams.get("debrief");
+    if (debriefId) {
+      const id = Number(debriefId);
+      void getGig(id).then((gig) => {
+        if (gig) openDebrief(gig);
+      });
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getGig(id).then((gig) => {
+      if (gig) {
+        setEditing(gig);
+        setFormOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
     setEditing(null);
@@ -80,7 +130,6 @@ export function GigsPage() {
   async function handleSaved({
     id,
     statusChanged,
-    isNew,
   }: {
     id: number;
     statusChanged: boolean;
@@ -91,8 +140,6 @@ export function GigsPage() {
       await refresh();
       return;
     }
-
-    void isNew; // sem mais sugestão automática — agora o checklist vive na GIG
 
     // Se acabou de virar Concluída e ainda não tem debrief preenchido,
     // dispara o modal de debrief em modo obrigatório.
@@ -122,9 +169,12 @@ export function GigsPage() {
   }
 
   async function handleDelete(gig: Gig) {
-    const ok = window.confirm(
-      `Excluir a GIG de "${gig.venue_name}" em ${gig.date}? Essa ação não pode ser desfeita.`
-    );
+    const ok = await confirmDialog({
+      title: "Excluir",
+      description: `Excluir a GIG de "${gig.venue_name}" em ${gig.date}? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
     if (!ok) return;
     try {
       // tenta deletar o evento espelhado no Google Calendar antes — não bloqueia se falhar
@@ -139,7 +189,13 @@ export function GigsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova GIG
+          </Button>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -149,7 +205,7 @@ export function GigsPage() {
               onChange={(e) =>
                 setFilters((f) => ({ ...f, search: e.target.value }))
               }
-              className="w-72 pl-8"
+              className="w-full pl-8 sm:w-72"
             />
           </div>
           <Select
@@ -158,7 +214,7 @@ export function GigsPage() {
               setFilters((f) => ({ ...f, status: v as StatusFilter }))
             }
           >
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -170,17 +226,46 @@ export function GigsPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={filters.eventCategory}
+            onValueChange={(v) => setFilters((f) => ({ ...f, eventCategory: v }))}
+          >
+            <SelectTrigger className="w-full sm:w-44">
+              <SelectValue placeholder="Todas as categorias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              <SelectItem value="Evento Social">Evento Social</SelectItem>
+              <SelectItem value="Festa">Festa</SelectItem>
+            </SelectContent>
+          </Select>
+          {recurringNames.length > 0 && (
+            <Select
+              value={filters.recurringEventName}
+              onValueChange={(v) => setFilters((f) => ({ ...f, recurringEventName: v }))}
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue placeholder="Todas as festas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as festas</SelectItem>
+                {recurringNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova GIG
-        </Button>
-      </div>
+      </PageToolbar>
 
       <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsTrigger value="bulk">Seleção múltipla</TabsTrigger>
+          <TabsTrigger value="sheet">Planilha</TabsTrigger>
           <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
           <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
 
@@ -193,12 +278,20 @@ export function GigsPage() {
           />
         </TabsContent>
 
-        <TabsContent value="calendar">
-          <CalendarView gigs={gigs} onEdit={openEdit} />
+        <TabsContent value="bulk">
+          <BulkListView
+            gigs={gigs}
+            onEdit={openEdit}
+            onRefresh={refresh}
+          />
         </TabsContent>
 
-        <TabsContent value="kanban">
-          <KanbanView gigs={gigs} onEdit={openEdit} />
+        <TabsContent value="sheet">
+          <SpreadsheetView gigs={gigs} onRefresh={refresh} />
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <CalendarView gigs={gigs} onEdit={openEdit} />
         </TabsContent>
 
         <TabsContent value="insights">
@@ -211,6 +304,7 @@ export function GigsPage() {
         onOpenChange={setFormOpen}
         gig={editing}
         onSaved={handleSaved}
+        onDebrief={editing ? () => openDebrief(editing) : undefined}
       />
 
       {debriefGig && (

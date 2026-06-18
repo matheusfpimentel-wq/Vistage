@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,23 @@ import {
 } from "../types";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 
+function minutesToHoursStr(min: number | null): string {
+  if (min == null) return "";
+  const h = min / 60;
+  return h.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+}
+
+/** Formata horas decimais como "Xh Ymin" / "Ymin" amigável. */
+function fmtHoursLabel(hours: number | null | undefined): string {
+  if (hours == null) return "";
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
+}
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -66,6 +84,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
   const [classFormOpen, setClassFormOpen] = useState(false);
   const [pkgToSell, setPkgToSell] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   async function refresh() {
     if (!studentId) return;
@@ -92,14 +111,18 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
 
   async function handleSellPackage() {
     if (!studentId || !pkgToSell) return;
+    if (saving) return;
     const tpl = templates.find((t) => t.id === Number(pkgToSell));
     if (!tpl) return;
+    setSaving(true);
     try {
       await createStudentPackage({
         student_id: studentId,
         package_id: tpl.id,
-        total_classes: tpl.total_classes,
+        total_classes: 0,
+        total_hours: tpl.total_hours,
         used_classes: 0,
+        used_minutes: 0,
         purchased_at: todayISO(),
         status: "Ativo",
         notes: null,
@@ -109,19 +132,33 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
       toast.success(`Pacote "${tpl.name}" vendido`);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleCancelPackage(p: StudentPackage) {
-    if (!window.confirm("Cancelar este pacote?")) return;
-    await setStudentPackageStatus(p.id, "Cancelado");
-    await refresh();
+    if (saving) return;
+    if (!(await confirmDialog("Cancelar este pacote?"))) return;
+    setSaving(true);
+    try {
+      await setStudentPackageStatus(p.id, "Cancelado");
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDeletePackage(p: StudentPackage) {
-    if (!window.confirm("Excluir este pacote? As aulas vinculadas a ele viram avulsa.")) return;
-    await deleteStudentPackage(p.id);
-    await refresh();
+    if (saving) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir este pacote? As aulas vinculadas a ele viram avulsa.", confirmLabel: "Excluir", destructive: true }))) return;
+    setSaving(true);
+    try {
+      await deleteStudentPackage(p.id);
+      await refresh();
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!studentId) return null;
@@ -221,9 +258,9 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                             {formatDate(c.date)}
                             {c.start_time && ` · ${c.start_time}`}
                           </div>
-                          {c.subject && (
+                          {(c.title || c.subject) && (
                             <div className="text-xs text-muted-foreground">
-                              {c.subject}
+                              {c.title ?? c.subject}
                             </div>
                           )}
                         </div>
@@ -256,13 +293,16 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                       <SelectContent>
                         {templates.map((t) => (
                           <SelectItem key={t.id} value={t.id.toString()}>
-                            {t.name} — {t.total_classes} aulas
+                            {t.name}
+                            {t.total_hours != null
+                              ? ` — ${fmtHoursLabel(t.total_hours)}`
+                              : ""}
                             {t.price ? ` · ${formatCurrency(t.price)}` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button onClick={handleSellPackage} disabled={!pkgToSell}>
+                    <Button onClick={handleSellPackage} disabled={!pkgToSell || saving}>
                       <ShoppingCart className="h-4 w-4" /> Vender
                     </Button>
                   </div>
@@ -275,11 +315,18 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                 ) : (
                   <div className="space-y-2">
                     {packages.map((p) => {
-                      const remaining = p.total_classes - p.used_classes;
-                      const pct =
-                        p.total_classes > 0
-                          ? (p.used_classes / p.total_classes) * 100
-                          : 0;
+                      const tpl = templates.find((t) => t.id === p.package_id);
+                      const isHoursBased = tpl?.total_hours != null;
+                      const totalMin = isHoursBased ? Math.round(tpl!.total_hours! * 60) : null;
+                      const usedPct = isHoursBased
+                        ? totalMin! > 0 ? (p.used_minutes / totalMin!) * 100 : 0
+                        : p.total_classes > 0 ? (p.used_classes / p.total_classes) * 100 : 0;
+                      const usedLabel = isHoursBased
+                        ? `${minutesToHoursStr(p.used_minutes)}h / ${fmtHoursLabel(tpl!.total_hours)}`
+                        : `${p.used_classes}/${p.total_classes} aulas`;
+                      const remainingLabel = isHoursBased
+                        ? `${minutesToHoursStr(totalMin! - p.used_minutes)}h restantes`
+                        : `${p.total_classes - p.used_classes} restantes`;
                       return (
                         <div
                           key={p.id}
@@ -308,16 +355,16 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                           <div className="space-y-1">
                             <div className="flex items-center justify-between text-xs">
                               <span className="text-muted-foreground">
-                                {p.used_classes}/{p.total_classes} usadas
+                                {usedLabel}
                               </span>
                               <span className="tabular-nums">
-                                {remaining} restantes
+                                {remainingLabel}
                               </span>
                             </div>
                             <div className="h-2 overflow-hidden rounded-full bg-muted">
                               <div
                                 className="h-full bg-primary-gradient"
-                                style={{ width: `${pct}%` }}
+                                style={{ width: `${usedPct}%` }}
                               />
                             </div>
                           </div>
@@ -326,6 +373,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                               <Button
                                 variant="outline"
                                 size="sm"
+                                disabled={saving}
                                 onClick={() => handleCancelPackage(p)}
                               >
                                 Cancelar pacote
@@ -334,6 +382,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={saving}
                               onClick={() => handleDeletePackage(p)}
                             >
                               Excluir

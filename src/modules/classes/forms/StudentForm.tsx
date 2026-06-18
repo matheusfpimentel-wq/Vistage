@@ -26,6 +26,9 @@ import {
   type StudentCreateInput,
 } from "../types";
 import { createStudent, updateStudent } from "../api";
+import { useUnsavedConfirm } from "@/lib/dirty";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
 
 type Props = {
   open: boolean;
@@ -42,6 +45,8 @@ const EMPTY: StudentCreateInput = {
   city: null,
   acquisition: null,
   notes: null,
+  default_rate: null,
+  contact_id: null,
 };
 
 function toState(s: Student): StudentCreateInput {
@@ -53,25 +58,36 @@ function toState(s: Student): StudentCreateInput {
     city: s.city,
     acquisition: s.acquisition,
     notes: s.notes,
+    default_rate: s.default_rate,
+    contact_id: s.contact_id,
   };
 }
 
 export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
   const [state, setState] = useState<StudentCreateInput>(EMPTY);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (student) setState(toState(student));
     else setState(EMPTY);
     setNameError(null);
+    setDirty(false);
   }, [student, open]);
+
+  useEffect(() => {
+    if (open) void listContacts().then(setContacts);
+  }, [open]);
 
   function set<K extends keyof StudentCreateInput>(
     key: K,
     value: StudentCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   async function handleSubmit() {
@@ -86,6 +102,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
         ? (await updateStudent({ id: student.id, ...state }), student.id)
         : await createStudent(state);
       toast.success(student ? "Aluno atualizado" : "Aluno criado");
+      setDirty(false);
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -96,7 +113,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>{student ? "Editar aluno" : "Novo aluno"}</DialogTitle>
@@ -144,6 +161,18 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
                 onChange={(e) => set("city", e.target.value || null)}
               />
             </Field>
+            <Field label="Valor padrão por aula (R$)">
+              <Input
+                type="number"
+                min={0}
+                step={10}
+                placeholder="Ex: 150"
+                value={state.default_rate ?? ""}
+                onChange={(e) =>
+                  set("default_rate", e.target.value ? Number(e.target.value) : null)
+                }
+              />
+            </Field>
           </div>
 
           <Field label="Como te conheceu? (modo de captação)">
@@ -154,13 +183,34 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder="—" />
+                <SelectValue placeholder="Nenhum" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">—</SelectItem>
+                <SelectItem value="none">Nenhum</SelectItem>
                 {ACQUISITION_SOURCES.map((a) => (
                   <SelectItem key={a} value={a}>
                     {a}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Vincular a contato (CRM)">
+            <Select
+              value={state.contact_id != null ? String(state.contact_id) : "none"}
+              onValueChange={(v) =>
+                set("contact_id", v === "none" ? null : Number(v))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>

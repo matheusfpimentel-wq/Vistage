@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Plus, Star, Trash2 } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,13 +25,26 @@ import { formatDate, todayISO } from "@/lib/format";
 import {
   loadHeatmap,
   loadActivityStats,
+  loadTimePerProject,
+  listSessions,
+  deleteSession,
   listHighlights,
   createHighlight,
   deleteHighlight,
   type HeatmapCell,
   type ActivityStats,
+  type TimePerProject,
+  type WorkSession,
   type Highlight,
 } from "./api";
+
+function formatHours(minutes: number): string {
+  const total = Math.round(minutes);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6h–23h
@@ -38,18 +52,24 @@ const HOURS = Array.from({ length: 18 }, (_, i) => i + 6); // 6h–23h
 export function FocoPage() {
   const [heatmap, setHeatmap] = useState<HeatmapCell[]>([]);
   const [activityStats, setActivityStats] = useState<ActivityStats[]>([]);
+  const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [timePerProject, setTimePerProject] = useState<TimePerProject[]>([]);
   const [addOpen, setAddOpen] = useState(false);
 
   async function refresh() {
-    const [h, a, hl] = await Promise.all([
+    const [h, a, sess, hl, tpp] = await Promise.all([
       loadHeatmap(),
       loadActivityStats(),
+      listSessions(100),
       listHighlights(),
+      loadTimePerProject(),
     ]);
     setHeatmap(h);
     setActivityStats(a);
+    setSessions(sess);
     setHighlights(hl);
+    setTimePerProject(tpp);
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -58,13 +78,6 @@ export function FocoPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Energia & Foco</h2>
-        <p className="text-sm text-muted-foreground">
-          Seus padrões de energia e foco ao longo das sessões de trabalho.
-        </p>
-      </div>
-
       {activityStats.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           Nenhuma sessão encerrada ainda. Inicie uma sessão pelo botão "▶ Sessão" no topo.
@@ -106,6 +119,90 @@ export function FocoPage() {
         </>
       )}
 
+      {timePerProject.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Tempo por projeto</CardTitle>
+            <CardDescription>Tempo investido por faixa, GIG, conteúdo ou tarefa.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {timePerProject.map((p) => (
+                <div
+                  key={`${p.context_type}-${p.context_id}`}
+                  className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium truncate">{p.label}</span>
+                    <span className="ml-2 text-xs uppercase text-muted-foreground">{p.context_type}</span>
+                  </div>
+                  <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {formatHours(p.totalMinutes)} · {p.sessions} sessão{p.sessions !== 1 ? "ões" : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {sessions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Sessões registradas</CardTitle>
+            <CardDescription>
+              {sessions.length} sessão{sessions.length !== 1 ? "ões" : ""} encerrada{sessions.length !== 1 ? "s" : ""}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {sessions.map((s) => {
+                const start = new Date(s.started_at);
+                const end = new Date(s.ended_at!);
+                const mins = Math.round((end.getTime() - start.getTime() - (s.pause_ms ?? 0)) / 60000);
+                const dur = mins >= 60
+                  ? `${Math.floor(mins / 60)}h${String(mins % 60).padStart(2, "0")}m`
+                  : `${mins}min`;
+                return (
+                  <div key={s.id} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-medium">{s.activity_type}</span>
+                      {s.context && (
+                        <span className="ml-2 truncate text-xs text-primary/80">{s.context}</span>
+                      )}
+                      {s.notes && (
+                        <span className="ml-2 truncate text-xs text-muted-foreground">{s.notes}</span>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                      {start.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} · {dur}
+                    </div>
+                    {s.energy_level != null && (
+                      <div className="shrink-0 text-xs text-muted-foreground">
+                        E:{s.energy_level} F:{s.focus_level}
+                      </div>
+                    )}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={async () => {
+                        if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta sessão de foco?", confirmLabel: "Excluir", destructive: true }))) return;
+                        await deleteSession(s.id);
+                        toast.success("Sessão removida");
+                        void refresh();
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -145,6 +242,7 @@ export function FocoPage() {
                     size="icon"
                     variant="ghost"
                     onClick={async () => {
+                      if (!(await confirmDialog({ title: "Excluir", description: "Excluir este highlight?", confirmLabel: "Excluir", destructive: true }))) return;
                       await deleteHighlight(h.id);
                       toast.success("Highlight removido");
                       void refresh();

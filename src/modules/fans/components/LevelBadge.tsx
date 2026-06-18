@@ -1,10 +1,12 @@
-import { Flame, Heart, Sparkles } from "lucide-react";
+import { Crown, Flame, Heart, Sparkles, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { levelVariant, type FanLevel } from "../types";
 
 const ICONS: Record<FanLevel, React.ComponentType<{ className?: string }>> = {
+  "Embaixador": Crown,
   "Superfã": Flame,
   "Fã": Heart,
+  "Quase fã": UserPlus,
   "Possível fã": Sparkles,
 };
 

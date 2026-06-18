@@ -1,6 +1,19 @@
+export const VENUE_TYPES = ["Club", "Bar", "Espaço para eventos", "Teatro", "Festival", "Outro"] as const;
+export type VenueType = (typeof VENUE_TYPES)[number];
+
+const VENUE_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
+export type VenuePriority = (typeof VENUE_PRIORITIES)[number];
+
+// kept for DB compat — no longer exposed in UI
+const VENUE_STAR_STATUSES = ["target", "played", "favorite"] as const;
+type VenueStarStatus = (typeof VENUE_STAR_STATUSES)[number];
+
 export type Venue = {
   id: number;
   name: string;
+  venue_type: VenueType | null;
+  star_status: VenueStarStatus | null;
+  priority: VenuePriority | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -8,15 +21,21 @@ export type Venue = {
   founded_year: number | null;
   capacity: number | null;
   owner_name: string | null;
+  owner_role: string | null;
   owner_phone: string | null;
   owner_email: string | null;
   instagram: string | null;
   website: string | null;
   notes: string | null;
   photo_path: string | null;
+  concept?: string | null;
+  dominant_genre?: string | null;
+  rider_equipment?: string | null;
+  regular_audience?: string | null;
   lat: number | null;
   lng: number | null;
   geocoded_at: string | null;
+  is_closed: number;
   created_at: string;
   updated_at: string;
 };

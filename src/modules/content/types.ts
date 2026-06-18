@@ -1,3 +1,4 @@
+/** Lista padrão de redes, usada como fallback quando a Identidade não tem redes cadastradas. */
 export const CONTENT_NETWORKS = [
   "Instagram",
   "TikTok",
@@ -7,7 +8,11 @@ export const CONTENT_NETWORKS = [
   "Threads",
   "Spotify",
 ] as const;
-export type ContentNetwork = (typeof CONTENT_NETWORKS)[number];
+/**
+ * Rede de conteúdo. É uma string livre porque as opções vêm das redes sociais
+ * cadastradas no módulo Identidade (com fallback para CONTENT_NETWORKS).
+ */
+export type ContentNetwork = string;
 
 export const CONTENT_FORMATS = [
   "Reels",
@@ -50,13 +55,76 @@ export type Content = {
   metric_shares: number | null;
   metric_saves: number | null;
   notes: string | null;
+  engagement_notes: string | null;
   task_id: number | null;
+  track_id: number | null;
+  promotes_type: string | null;
+  promotes_id: number | null;
+  date_roteiro: string | null;
+  date_gravacao: string | null;
+  date_edicao: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ContentCreateInput = Omit<Content, "id" | "created_at" | "updated_at">;
+export type ContentCreateInput = Omit<
+  Content,
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "engagement_notes"
+  | "track_id"
+  | "promotes_type"
+  | "promotes_id"
+  | "date_roteiro"
+  | "date_gravacao"
+  | "date_edicao"
+> & {
+  engagement_notes?: string | null;
+  track_id?: number | null;
+  promotes_type?: string | null;
+  promotes_id?: number | null;
+  date_roteiro?: string | null;
+  date_gravacao?: string | null;
+  date_edicao?: string | null;
+};
 export type ContentUpdateInput = Partial<ContentCreateInput> & { id: number };
+
+/** Retrato de métricas num dado momento (captura). */
+export type ContentSnapshot = {
+  id: number;
+  content_id: number;
+  captured_at: string;
+  metric_views: number | null;
+  metric_likes: number | null;
+  metric_comments: number | null;
+  metric_shares: number | null;
+  metric_saves: number | null;
+  created_at: string;
+};
+
+export type ContentSnapshotInput = Omit<ContentSnapshot, "id" | "created_at">;
+
+/** Cena de um roteiro de conteúdo. */
+export type ContentScene = {
+  id: number;
+  content_id: number;
+  position: number;
+  title: string | null;
+  description: string | null;
+  equipment: string[];
+  materials: string[];
+  scenery: string | null;
+  created_at: string;
+};
+
+export type ContentSceneInput = {
+  title: string | null;
+  description: string | null;
+  equipment: string[];
+  materials: string[];
+  scenery: string | null;
+};
 
 export function contentStatusVariant(s: ContentStatus):
   | "default"

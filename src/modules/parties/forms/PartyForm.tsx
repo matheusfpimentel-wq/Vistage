@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -27,26 +27,46 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { formatDate } from "@/lib/format";
 import { listContacts } from "@/modules/crm/api";
+import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
-import { listContent } from "@/modules/content/api";
-import type { Content } from "@/modules/content/types";
+import { listContent, createContent, listContentPromoting } from "@/modules/content/api";
+import { CONTENT_FORMATS, CONTENT_NETWORKS, type Content } from "@/modules/content/types";
+import { listSuppliers } from "@/modules/suppliers/api";
+import type { Supplier } from "@/modules/suppliers/types";
+import { listVenues } from "@/modules/venues/api";
+import type { Venue } from "@/modules/venues/types";
+import { listGigs } from "@/modules/gigs/api";
+import type { Gig } from "@/modules/gigs/types";
+import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
+import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
   PARTY_STATUSES,
-  PARTY_COST_CATEGORIES,
   type PartyDeserialized,
   type PartyStatus,
-  type PartyCost,
+  type PartyTeamMember,
+  type PartyStage,
+  type PartyBudgetItem,
+  type PartyTicket,
+  type PartyTask,
 } from "../types";
 import {
   createParty,
   updateParty,
-  listPartyCosts,
-  createPartyCost,
-  deletePartyCost,
   autoGeneratePartyTasks,
+  listPartyVenueCandidates,
+  addPartyVenueCandidate,
+  removePartyVenueCandidate,
+  initDefaultStages,
+  listPartyStages,
+  listPartyBudgetItems,
+  listPartyTickets,
+  listPartyTasks,
+  syncTeamBudgetItems,
 } from "../api";
+import { WorkflowTab } from "../components/WorkflowTab";
+import { OrcamentoTab } from "../components/OrcamentoTab";
+import { IngressosTab } from "../components/IngressosTab";
 
 type Props = {
   open: boolean;
@@ -58,6 +78,7 @@ type Props = {
 type FormState = {
   title: string;
   date: string | null;
+  venue_id: number | null;
   venue_name: string | null;
   status: PartyStatus;
   description: string | null;
@@ -65,12 +86,15 @@ type FormState = {
   actual_attendance: number | null;
   lineup: number[];
   sponsors: { name: string; amount_cents: number }[];
+  team: PartyTeamMember[];
   notes: string | null;
+  gig_id: number | null;
 };
 
 const EMPTY: FormState = {
   title: "",
   date: null,
+  venue_id: null,
   venue_name: null,
   status: "Planejando",
   description: null,
@@ -78,27 +102,47 @@ const EMPTY: FormState = {
   actual_attendance: null,
   lineup: [],
   sponsors: [],
+  team: [],
   notes: null,
+  gig_id: null,
 };
 
 const LINEUP_TYPES = ["DJ parceiro", "Músico"];
 
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+// Candidato local (festa nova, ainda sem id): só venue_id + nome para exibir.
+type LocalCandidate = { venue_id: number; venue_name: string };
 
 export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [quickContactOpen, setQuickContactOpen] = useState(false);
   const [linkedContent, setLinkedContent] = useState<Content[]>([]);
-  const [costs, setCosts] = useState<PartyCost[]>([]);
+  const [promotingContent, setPromotingContent] = useState<
+    { id: number; title: string; status: string }[]
+  >([]);
+  const [quickContent, setQuickContent] = useState(false);
+  const [quickContentForm, setQuickContentForm] = useState({ title: "", format: "", network: "", status: "Ideia" as string });
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const [costCategory, setCostCategory] = useState<string>("");
-  const [costDesc, setCostDesc] = useState("");
-  const [costAmount, setCostAmount] = useState("");
-  const [costDate, setCostDate] = useState("");
-  const [addingCost, setAddingCost] = useState(false);
+  // Venues
+  const [venues, setVenues] = useState<Venue[]>([]);
+  const [gigs, setGigs] = useState<Gig[]>([]);
+  const [quickVenueOpen, setQuickVenueOpen] = useState(false);
+  const [candidates, setCandidates] = useState<LocalCandidate[]>([]);
+
+  // Sub-tab data (edit only)
+  const [stages, setStages] = useState<PartyStage[]>([]);
+  const [budgetItems, setBudgetItems] = useState<PartyBudgetItem[]>([]);
+  const [tickets, setTickets] = useState<PartyTicket[]>([]);
+  const [tasks, setTasks] = useState<PartyTask[]>([]);
+
+  // Team add-form state
+  const [teamSupplierId, setTeamSupplierId] = useState<number | null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [teamRole, setTeamRole] = useState("");
+  const [teamAmount, setTeamAmount] = useState("");
 
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
@@ -106,19 +150,36 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!party;
 
-  const loadCosts = useCallback(async () => {
+  const loadCandidates = useCallback(async () => {
     if (!party) return;
-    const rows = await listPartyCosts(party.id);
-    setCosts(rows);
+    const rows = await listPartyVenueCandidates(party.id);
+    setCandidates(rows.map((r) => ({ venue_id: r.venue_id, venue_name: r.venue_name ?? "" })));
   }, [party]);
+
+  const loadSubTabs = useCallback(async () => {
+    if (!party) return;
+    await initDefaultStages(party.id);
+    const [s, b, t, tk] = await Promise.all([
+      listPartyStages(party.id),
+      listPartyBudgetItems(party.id),
+      listPartyTickets(party.id),
+      listPartyTasks(party.id),
+    ]);
+    setStages(s);
+    setBudgetItems(b);
+    setTickets(t);
+    setTasks(tk);
+  }, [party]);
+
+  const reloadLinkedContent = useCallback(async (title: string) => {
+    const all = await listContent();
+    const lower = title.toLowerCase();
+    setLinkedContent(all.filter((c) => c.title.toLowerCase().includes(lower)));
+  }, []);
 
   useEffect(() => {
     if (!open) return;
     setDirty(false);
-    setCostCategory("");
-    setCostDesc("");
-    setCostAmount("");
-    setCostDate("");
     setSponsorName("");
     setSponsorAmount("");
 
@@ -127,17 +188,17 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t)))
       )
     );
+    void listSuppliers().then(setSuppliers);
+    void listVenues().then(setVenues);
+    void listGigs().then(setGigs);
 
     if (party) {
-      void listContent().then((all) => {
-        const titleLower = party.title.toLowerCase();
-        setLinkedContent(
-          all.filter((c) => c.title.toLowerCase().includes(titleLower))
-        );
-      });
+      void reloadLinkedContent(party.title);
+      void listContentPromoting("Festa", party.id).then(setPromotingContent);
       setState({
         title: party.title,
         date: party.date,
+        venue_id: party.venue_id,
         venue_name: party.venue_name,
         status: party.status,
         description: party.description,
@@ -145,19 +206,29 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         actual_attendance: party.actual_attendance,
         lineup: party.lineup,
         sponsors: party.sponsors,
+        team: party.team,
         notes: party.notes,
+        gig_id: party.gig_id,
       });
-      void loadCosts();
+      void loadCandidates();
+      void loadSubTabs();
     } else {
       setState(EMPTY);
-      setCosts([]);
+      setPromotingContent([]);
+      setCandidates([]);
+      setStages([]);
+      setBudgetItems([]);
+      setTickets([]);
+      setTasks([]);
     }
-  }, [open, party, loadCosts]);
+  }, [open, party, loadCandidates, loadSubTabs]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
     setDirty(true);
   }
+
+  const isConfirmedStatus = state.status === "Confirmada" || state.status === "Realizada";
 
   function toggleLineup(id: number) {
     set(
@@ -166,6 +237,39 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         ? state.lineup.filter((x) => x !== id)
         : [...state.lineup, id]
     );
+  }
+
+  async function addCandidate(venueId: number, venueList: Venue[] = venues) {
+    const v = venueList.find((x) => x.id === venueId);
+    if (!v) return;
+    if (candidates.some((c) => c.venue_id === venueId)) return;
+    if (party) {
+      try {
+        await addPartyVenueCandidate(party.id, venueId);
+        await loadCandidates();
+      } catch (e) {
+        toast.error(`Erro: ${String(e)}`);
+        return;
+      }
+    } else {
+      setCandidates((prev) => [...prev, { venue_id: venueId, venue_name: v.name }]);
+    }
+    setDirty(true);
+  }
+
+  async function removeCandidate(venueId: number) {
+    if (party) {
+      try {
+        await removePartyVenueCandidate(party.id, venueId);
+        await loadCandidates();
+      } catch (e) {
+        toast.error(`Erro: ${String(e)}`);
+        return;
+      }
+    } else {
+      setCandidates((prev) => prev.filter((c) => c.venue_id !== venueId));
+    }
+    setDirty(true);
   }
 
   function addSponsor() {
@@ -187,40 +291,70 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     );
   }
 
-  async function handleAddCost() {
-    if (!party) return;
-    const amount = parseFloat(costAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error("Informe um valor válido para o custo");
+  function addTeamMember() {
+    const name = teamSupplierId
+      ? (suppliers.find((s) => s.id === teamSupplierId)?.name ?? teamName.trim())
+      : teamName.trim();
+    const role = teamRole.trim();
+    const cents = Math.round(parseFloat(teamAmount) * 100);
+    if (!name || !role) {
+      toast.error("Preencha nome e função do membro");
       return;
     }
-    setAddingCost(true);
-    try {
-      await createPartyCost(
-        party.id,
-        costCategory || null,
-        costDesc.trim() || null,
-        amount,
-        costDate || null
-      );
-      setCostCategory("");
-      setCostDesc("");
-      setCostAmount("");
-      setCostDate("");
-      await loadCosts();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setAddingCost(false);
-    }
+    const member: PartyTeamMember = {
+      name,
+      role,
+      amount_cents: isNaN(cents) || cents < 0 ? 0 : cents,
+      supplier_id: teamSupplierId,
+    };
+    set("team", [...state.team, member]);
+    setTeamSupplierId(null);
+    setTeamName("");
+    setTeamRole("");
+    setTeamAmount("");
   }
 
-  async function handleDeleteCost(id: number) {
+  function removeTeamMember(idx: number) {
+    set("team", state.team.filter((_, i) => i !== idx));
+  }
+
+  async function handleCreateQuickContent() {
+    const typed = quickContentForm.title.trim();
+    if (!typed) {
+      toast.error("Título é obrigatório");
+      return;
+    }
+    // Garante que o conteúdo apareça na lista vinculada (filtrada pelo nome
+    // da festa): se o título digitado não contém o nome da festa, prefixa.
+    const title = typed.toLowerCase().includes(state.title.toLowerCase())
+      ? typed
+      : `${state.title} — ${typed}`;
     try {
-      await deletePartyCost(id);
-      await loadCosts();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
+      await createContent({
+        title,
+        script: null,
+        networks: quickContentForm.network ? [quickContentForm.network as never] : [],
+        format: (quickContentForm.format as never) || null,
+        purpose: null,
+        status: quickContentForm.status as never,
+        due_date: null,
+        publish_date: null,
+        published_at: null,
+        post_url: null,
+        metric_views: null,
+        metric_likes: null,
+        metric_comments: null,
+        metric_shares: null,
+        metric_saves: null,
+        notes: null,
+        task_id: null,
+      });
+      setQuickContent(false);
+      setQuickContentForm({ title: "", format: "", network: "", status: "Ideia" });
+      await reloadLinkedContent(state.title);
+      toast.success("Conteúdo criado");
+    } catch {
+      toast.error("Erro ao criar conteúdo");
     }
   }
 
@@ -229,18 +363,49 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       toast.error("O título é obrigatório");
       return;
     }
+
+    // Confirmada/Realizada exige exatamente um venue.
+    let venueId = state.venue_id;
+    let venueName = state.venue_name;
+    if (isConfirmedStatus) {
+      // Respeita a escolha explícita do usuário no Select. Só usa o
+      // candidato único automaticamente quando nada foi escolhido.
+      if (venueId == null && candidates.length === 1) {
+        venueId = candidates[0].venue_id;
+        venueName = candidates[0].venue_name;
+      } else if (venueId == null) {
+        if (candidates.length === 0) {
+          toast.error("Status confirmado exige escolher um venue");
+        } else {
+          toast.error("Mais de um candidato. Escolha um venue único");
+        }
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
-        ...state,
-        venue_id: null,
+        title: state.title,
+        date: state.date,
+        venue_id: venueId,
+        venue_name: venueName,
+        status: state.status,
+        description: state.description,
+        expected_capacity: state.expected_capacity,
+        actual_attendance: state.actual_attendance,
         ticket_price_regular: null,
         ticket_price_vip: null,
         lineup: state.lineup,
         sponsors: state.sponsors,
+        team: state.team,
+        notes: state.notes,
+        gig_id: state.gig_id,
       };
 
+      let savedPartyId: number;
       if (party) {
+        savedPartyId = party.id;
         await updateParty({ id: party.id, ...payload });
         if (
           state.status === "Confirmada" &&
@@ -254,10 +419,16 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         toast.success("Festa atualizada");
       } else {
         const id = await createParty(payload);
+        savedPartyId = id;
+        // Persiste candidatos locais agora que temos o id.
+        for (const c of candidates) {
+          await addPartyVenueCandidate(id, c.venue_id);
+        }
         if (state.status === "Confirmada") {
           const fresh: PartyDeserialized = {
             id,
             ...payload,
+            team: state.team,
             stage_current: null,
             financial_synced: 0,
             tasks_generated: 0,
@@ -269,6 +440,37 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         }
         toast.success("Festa criada");
       }
+      // Gera itens de orçamento para novos membros da equipe de produção.
+      try {
+        const createdFor = await syncTeamBudgetItems(savedPartyId, state.team);
+        if (createdFor.length === 1) {
+          toast.success(`Item de orçamento criado para ${createdFor[0]}`);
+        } else if (createdFor.length > 1) {
+          toast.success(`${createdFor.length} itens de orçamento criados para a equipe`);
+        }
+      } catch {
+        // falha ao sincronizar orçamento não bloqueia o save
+      }
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id && state.date) {
+          const savedPartyId = party ? party.id : null;
+          const gcalEventId = party?.gcal_event_id ?? null;
+          const eventId = await pushPartyToCalendar({
+            id: savedPartyId ?? 0,
+            title: state.title,
+            date: state.date,
+            venue_name: state.venue_name ?? null,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId && savedPartyId) {
+            await updateParty({ id: savedPartyId, gcal_event_id: eventId });
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
+      }
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -278,23 +480,23 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     }
   }
 
-  const totalCosts = costs.reduce((acc, c) => acc + c.amount, 0);
+  const candidateVenueIds = new Set(candidates.map((c) => c.venue_id));
+  const availableVenues = venues.filter((v) => !candidateVenueIds.has(v.id));
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle>{party ? "Editar festa" : "Nova festa"}</DialogTitle>
-          <DialogDescription>
-            Gerencie produção, lineup e custos do evento.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="info">
           <TabsList>
             <TabsTrigger value="info">Info</TabsTrigger>
-            <TabsTrigger value="lineup">Lineup</TabsTrigger>
-            {isEdit && <TabsTrigger value="custos">Custos</TabsTrigger>}
+            {isEdit && <TabsTrigger value="workflow">Workflow</TabsTrigger>}
+            <TabsTrigger value="lineup">Equipe</TabsTrigger>
+            {isEdit && <TabsTrigger value="orcamento">Orçamento</TabsTrigger>}
+            {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
@@ -336,13 +538,121 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               </Field>
             </div>
 
-            <Field label="Venue">
-              <Input
-                value={state.venue_name ?? ""}
-                onChange={(e) => set("venue_name", e.target.value || null)}
-                placeholder="Nome do local"
-              />
+            <Field label="GIG vinculada (se você toca na própria festa)">
+              <Select
+                value={state.gig_id != null ? String(state.gig_id) : "none"}
+                onValueChange={(v) =>
+                  set("gig_id", v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhuma" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhuma</SelectItem>
+                  {gigs.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      {(g.event_name || g.venue_name || "GIG")}
+                      {g.date ? ` — ${g.date}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
+
+            {/* ===== VENUES ===== */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>
+                  {isConfirmedStatus ? "Venue (escolha um)" : "Venues candidatos"}
+                </Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setQuickVenueOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo venue
+                </Button>
+              </div>
+
+              {isConfirmedStatus ? (
+                <>
+                  <Select
+                    value={state.venue_id != null ? String(state.venue_id) : "none"}
+                    onValueChange={(v) => {
+                      if (v === "none") {
+                        set("venue_id", null);
+                        set("venue_name", null);
+                      } else {
+                        const id = Number(v);
+                        set("venue_id", id);
+                        set("venue_name", venues.find((x) => x.id === id)?.name ?? null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o venue confirmado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {venues.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>
+                          {v.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {candidates.length > 1 && state.venue_id == null && (
+                    <p className="text-xs text-amber-400">
+                      Vários candidatos. Escolha um venue único para confirmar.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  {candidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {candidates.map((c) => (
+                        <span
+                          key={c.venue_id}
+                          className="flex items-center gap-1 rounded-full border bg-muted px-2.5 py-0.5 text-xs"
+                        >
+                          {c.venue_name}
+                          <button
+                            type="button"
+                            onClick={() => void removeCandidate(c.venue_id)}
+                            className="ml-0.5 text-muted-foreground hover:text-destructive"
+                            aria-label="Remover candidato"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <Select
+                    value="_add"
+                    onValueChange={(v) => {
+                      if (v === "_add") return;
+                      void addCandidate(Number(v));
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Adicionar venue candidato" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_add" disabled>Selecionar…</SelectItem>
+                      {availableVenues.map((v) => (
+                        <SelectItem key={v.id} value={String(v.id)}>
+                          {v.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+            </div>
 
             <Field label="Descrição">
               <Textarea
@@ -382,16 +692,37 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
             </div>
-
           </TabsContent>
 
-          {/* ===== LINEUP ===== */}
+          {/* ===== WORKFLOW (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="workflow" className="pt-2">
+              <WorkflowTab
+                partyId={party.id}
+                stages={stages}
+                tasks={tasks}
+                onReload={loadSubTabs}
+              />
+            </TabsContent>
+          )}
+
+          {/* ===== LINEUP / EQUIPE ===== */}
           <TabsContent value="lineup" className="space-y-6 pt-2">
             <div className="space-y-2">
-              <Label>DJs / Músicos escalados</Label>
+              <div className="flex items-center justify-between">
+                <Label>DJs / Músicos escalados</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setQuickContactOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Novo DJ / Músico
+                </Button>
+              </div>
               {contacts.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Cadastre contatos do tipo DJ parceiro no CRM.
+                  Nenhum DJ parceiro ou músico no CRM. Use "Novo DJ / Músico".
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -460,105 +791,192 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Button>
               </div>
             </div>
-          </TabsContent>
 
-          {/* ===== CUSTOS (edit only) ===== */}
-          {isEdit && (
-            <TabsContent value="custos" className="space-y-4 pt-2">
-              <div className="grid gap-2 sm:grid-cols-4">
-                <Select value={costCategory} onValueChange={setCostCategory}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Categoria" />
+            <div className="space-y-3">
+              <Label>Equipe de produção</Label>
+              {state.team.length > 0 && (
+                <div className="space-y-1.5">
+                  {state.team.map((m, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium">{m.name}</span>
+                      <span className="text-muted-foreground">{m.role}</span>
+                      <span className="text-muted-foreground">
+                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : "—"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeTeamMember(i)}
+                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        aria-label="Remover membro"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Select
+                  value={teamSupplierId !== null ? teamSupplierId.toString() : "none"}
+                  onValueChange={(v) => {
+                    const id = v === "none" ? null : Number(v);
+                    setTeamSupplierId(id);
+                    if (id !== null) {
+                      const sup = suppliers.find((s) => s.id === id);
+                      if (sup) setTeamName(sup.name);
+                    } else {
+                      setTeamName("");
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Fornecedor (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {PARTY_COST_CATEGORIES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
+                    <SelectItem value="none">Sem fornecedor</SelectItem>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id.toString()}>
+                        {s.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Input
-                  placeholder="Descrição"
-                  value={costDesc}
-                  onChange={(e) => setCostDesc(e.target.value)}
+                  placeholder="Nome"
+                  value={teamName}
+                  onChange={(e) => setTeamName(e.target.value)}
+                  className="w-36"
+                  disabled={teamSupplierId !== null}
+                />
+                <Input
+                  placeholder="Função"
+                  value={teamRole}
+                  onChange={(e) => setTeamRole(e.target.value)}
+                  className="w-36"
                 />
                 <Input
                   type="number"
                   min={0}
                   step={0.01}
                   placeholder="Valor (R$)"
-                  value={costAmount}
-                  onChange={(e) => setCostAmount(e.target.value)}
+                  value={teamAmount}
+                  onChange={(e) => setTeamAmount(e.target.value)}
+                  className="w-32"
                 />
-                <div className="flex gap-2">
-                  <Input
-                    type="date"
-                    value={costDate}
-                    onChange={(e) => setCostDate(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void handleAddCost()}
-                    disabled={addingCost}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addTeamMember}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
+                </Button>
               </div>
+            </div>
+          </TabsContent>
 
-              {costs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum custo registrado.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {costs.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
-                    >
-                      {c.category && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                          {c.category}
-                        </span>
-                      )}
-                      <span className="flex-1 truncate text-muted-foreground">
-                        {c.description ?? "—"}
-                      </span>
-                      {c.date && (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatDate(c.date)}
-                        </span>
-                      )}
-                      <span className="shrink-0 font-medium tabular-nums">
-                        {formatCurrency(c.amount)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteCost(c.id)}
-                        className="text-muted-foreground hover:text-destructive"
-                        aria-label="Excluir custo"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                  <div className="flex justify-end pt-1 text-sm font-semibold">
-                    Total: {formatCurrency(totalCosts)}
-                  </div>
-                </div>
-              )}
+          {/* ===== ORÇAMENTO (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="orcamento" className="pt-2">
+              <OrcamentoTab
+                party={party}
+                items={budgetItems}
+                tickets={tickets}
+                onReload={loadSubTabs}
+              />
+            </TabsContent>
+          )}
+
+          {/* ===== INGRESSOS (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="ingressos" className="pt-2">
+              <IngressosTab
+                partyId={party.id}
+                tickets={tickets}
+                onReload={loadSubTabs}
+              />
             </TabsContent>
           )}
 
           {/* ===== CONTEÚDO VINCULADO ===== */}
           {isEdit && (
             <TabsContent value="conteudo" className="space-y-3 pt-2">
-              {linkedContent.length === 0 ? (
-                <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  Nenhum conteúdo com o nome desta festa encontrado. Crie posts
-                  no módulo Conteúdo mencionando "{state.title}" no título.
+              {promotingContent.length > 0 && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Conteúdos promovendo esta Festa
+                  </p>
+                  {promotingContent.map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span>{c.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {c.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {linkedContent.length} conteúdo{linkedContent.length !== 1 ? "s" : ""} vinculado{linkedContent.length !== 1 ? "s" : ""}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuickContentForm({ title: state.title + " — ", format: "", network: "", status: "Ideia" });
+                    setQuickContent(true);
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="h-3 w-3" /> Novo conteúdo
+                </button>
+              </div>
+
+              {quickContent && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <p className="text-xs font-medium">Novo conteúdo</p>
+                  <Input
+                    value={quickContentForm.title}
+                    onChange={(e) => setQuickContentForm((f) => ({ ...f, title: e.target.value }))}
+                    placeholder="Título do conteúdo"
+                    className="h-8 text-sm"
+                  />
+                  <div className="grid grid-cols-3 gap-2">
+                    <select
+                      value={quickContentForm.format}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, format: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      <option value="">Formato…</option>
+                      {CONTENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                    <select
+                      value={quickContentForm.network}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, network: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      <option value="">Rede…</option>
+                      {CONTENT_NETWORKS.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <select
+                      value={quickContentForm.status}
+                      onChange={(e) => setQuickContentForm((f) => ({ ...f, status: e.target.value }))}
+                      className="h-8 rounded-md border bg-background px-2 text-xs"
+                    >
+                      {["Ideia","Roteiro","Gravando","Edição","Pronto"].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleCreateQuickContent} className="h-7 text-xs">Criar</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setQuickContent(false)} className="h-7 text-xs">Cancelar</Button>
+                  </div>
+                </div>
+              )}
+
+              {linkedContent.length === 0 && !quickContent ? (
+                <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  Nenhum conteúdo com o nome desta festa encontrado.
                 </p>
               ) : (
                 <div className="space-y-1.5">
@@ -615,6 +1033,27 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           </Button>
         </div>
       </DialogContent>
+
+      <QuickContactForm
+        open={quickContactOpen}
+        onOpenChange={setQuickContactOpen}
+        defaultType="DJ parceiro"
+        onCreated={async (id) => {
+          const all = await listContacts();
+          setContacts(all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t))));
+          toggleLineup(id);
+        }}
+      />
+
+      <QuickVenueForm
+        open={quickVenueOpen}
+        onOpenChange={setQuickVenueOpen}
+        onCreated={async (id) => {
+          const all = await listVenues();
+          setVenues(all);
+          await addCandidate(id, all);
+        }}
+      />
     </Dialog>
   );
 }

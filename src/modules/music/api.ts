@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import {
   projectKindFromTrack,
   nextStage,
@@ -131,6 +132,7 @@ const TRACK_INSERT_COLS = [
   "stage_notes",
   "creative_block_notes",
   "standby",
+  "related_track_id",
 ];
 
 export async function listTracks(): Promise<TrackWithProject[]> {
@@ -146,6 +148,27 @@ export async function listTracks(): Promise<TrackWithProject[]> {
     project_kind: r.project_kind as TrackWithProject["project_kind"],
     project_title: r.project_title,
   }));
+}
+
+// Moods mais usados em todas as tracks, do mais frequente ao menos.
+// Serve de sugestão persistente ao cadastrar uma nova track.
+export async function getTopMoods(limit = 12): Promise<string[]> {
+  const db = getDb();
+  const rows = await db.select<{ mood_tags: string | null }[]>(
+    "SELECT mood_tags FROM tracks"
+  );
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    for (const tag of parseJsonArray<string>(r.mood_tags)) {
+      const t = tag.trim();
+      if (!t) continue;
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([tag]) => tag);
 }
 
 export async function getTrack(id: number): Promise<Track | null> {
@@ -171,6 +194,8 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
       press_release_draft: null,
       marketing_dates: null,
       partnerships_confirmed: null,
+      fans_notified: null,
+      concept: null,
       notes: null,
     });
   }
@@ -202,13 +227,35 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
     input.stage_notes,
     input.creative_block_notes,
     0,
+    input.related_track_id ?? null,
   ];
   const placeholders = TRACK_INSERT_COLS.map((_, i) => `$${i + 1}`).join(", ");
   const res = await db.execute(
     `INSERT INTO tracks (${TRACK_INSERT_COLS.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa vinculada
+  try {
+    const { createTask } = await import("@/modules/tasks/api");
+    const taskStage = "Ideação";
+    const taskId = await createTask({
+      title: `${input.title_working} (${taskStage})`,
+      description: null,
+      category: "Produção Musical",
+      gig_id: null,
+      contact_id: null,
+      priority: "Média",
+      status: "A fazer",
+      due_date: null,
+      tags: ["música"],
+    });
+    await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
+  return id;
 }
 
 const COL_MAP: Record<string, string> = { references: "reference_files" };
@@ -217,26 +264,55 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
   const payload: Record<string, unknown> = { ...rest };
+  // `date` NÃO é coluna de tracks — é sincronizado para a due_date da task
+  // vinculada (abaixo). Mantê-lo no UPDATE causava "no such column: date".
+  delete payload.date;
   if (Array.isArray(payload.mood_tags))
     payload.mood_tags = JSON.stringify(payload.mood_tags);
   if (Array.isArray(payload.references))
     payload.references = JSON.stringify(payload.references);
   const cols = Object.keys(payload);
-  if (cols.length === 0) return;
-  const sets = cols
-    .map((c, i) => `${COL_MAP[c] ?? c} = $${i + 1}`)
-    .join(", ");
-  const values = cols.map((k) => payload[k]);
-  values.push(id);
-  await db.execute(
-    `UPDATE tracks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
-    values
-  );
+  if (cols.length > 0) {
+    const sets = cols
+      .map((c, i) => `${COL_MAP[c] ?? c} = $${i + 1}`)
+      .join(", ");
+    const values = cols.map((k) => payload[k]);
+    values.push(id);
+    await db.execute(
+      `UPDATE tracks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+      values
+    );
+  }
+  // Sync task due_date when track date changes
+  if ("date" in rest) {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM tracks WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: taskId, due_date: rest.date as string | null });
+      } catch { /* não interrompe */ }
+    }
+  }
+  emitDataChanged();
 }
 
 export async function deleteTrack(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM tracks WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM tracks WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("track", id);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -257,6 +333,66 @@ async function writeStage(
       WHERE id = $4`,
     [stage, JSON.stringify(history), standby ? 1 : 0, id]
   );
+  // Conclui a tarefa vinculada quando a track chega ao lançamento
+  if (stage === "Lançamento" || stage === "Pós-lançamento") {
+    const rows = await db.select<{ task_id: number | null }[]>(
+      "SELECT task_id FROM tracks WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    try {
+      const { updateTask, syncLinkedTasksStatus } = await import("@/modules/tasks/api");
+      if (taskId) await updateTask({ id: taskId, status: "Concluída" });
+      // Espelha: todas as tarefas vinculadas à track são concluídas
+      await syncLinkedTasksStatus("track", id, "Concluída");
+    } catch { /* não interrompe */ }
+  }
+}
+
+/** Títulos de tarefa geradas automaticamente ao entrar em cada etapa. */
+const STAGE_TASK_VERBS: Partial<Record<Stage, string>> = {
+  Composição: "Compor",
+  Produção: "Produzir",
+  Mix: "Mixar",
+  Master: "Masterizar",
+  "Pré-lançamento": "Preparar lançamento de",
+};
+
+/**
+ * Gera automaticamente a tarefa da etapa em que a track acabou de entrar.
+ * Não duplica se já houver uma tarefa aberta com o mesmo título vinculada.
+ */
+async function ensureStageTask(track: Track, stage: Stage): Promise<void> {
+  const verb = STAGE_TASK_VERBS[stage];
+  if (!verb) return;
+  const trackName = track.title_final ?? track.title_working;
+  const title = `${verb} ${trackName}`;
+  try {
+    const { listTasksLinkedTo, createTask, setTaskLinks } = await import(
+      "@/modules/tasks/api"
+    );
+    const existing = await listTasksLinkedTo("track", track.id);
+    const dup = existing.some(
+      (t) =>
+        t.title === title &&
+        t.status !== "Concluída" &&
+        t.status !== "Cancelada"
+    );
+    if (dup) return;
+    const taskId = await createTask({
+      title,
+      description: null,
+      category: "Produção Musical",
+      gig_id: null,
+      contact_id: null,
+      priority: "Média",
+      status: "A fazer",
+      due_date: null,
+      tags: ["música"],
+    });
+    await setTaskLinks(taskId, [
+      { entity_type: "track", entity_id: track.id, label: trackName },
+    ]);
+  } catch { /* não interrompe */ }
 }
 
 /** Avança pro próximo stage. Se houver decisão de gate, grava no histórico. */
@@ -275,6 +411,44 @@ export async function advanceStage(
   }
   history.push({ stage: next, entered_at: now });
   await writeStage(track.id, next, history, false);
+  await ensureStageTask(track, next);
+}
+
+/**
+ * Caminho inverso do espelhamento: quando o usuário conclui a tarefa de etapa
+ * de uma track (ex.: "Mixar X"), avança a track sozinha para o próximo stage.
+ *
+ * Só dispara quando o título da tarefa concluída bate exatamente com o verbo
+ * do stage atual da track — assim tarefas avulsas vinculadas à mesma track não
+ * disparam avanço, e o loop com moveTrackToStage/writeStage (que concluem a
+ * tarefa-mãe com outro título) fica naturalmente quebrado.
+ */
+export async function advanceTrackForCompletedStageTask(
+  taskId: number
+): Promise<void> {
+  const { listTaskLinks } = await import("@/modules/tasks/api");
+  const links = await listTaskLinks(taskId);
+  const trackLink = links.find((l) => l.entity_type === "track");
+  if (!trackLink) return;
+
+  const track = await getTrack(trackLink.entity_id);
+  if (!track || track.standby) return;
+
+  const verb = STAGE_TASK_VERBS[track.current_stage];
+  if (!verb) return; // stage sem tarefa automática → nada a avançar
+
+  const trackName = track.title_final ?? track.title_working;
+  const expected = `${verb} ${trackName}`;
+
+  const db = getDb();
+  const rows = await db.select<{ title: string }[]>(
+    "SELECT title FROM tasks WHERE id = $1",
+    [taskId]
+  );
+  if (rows[0]?.title !== expected) return;
+  if (!nextStage(track.current_stage)) return;
+
+  await advanceStage(track);
 }
 
 /** Volta um stage (sem gate). */
@@ -298,6 +472,41 @@ export async function rejectAtGate(
   const cur = history[history.length - 1];
   if (cur) cur.gate = gate;
   await writeStage(track.id, track.current_stage, history, true);
+}
+
+/** Move a track direto pra um stage (drag no kanban). Sai do stand-by. */
+export async function moveTrackToStage(track: Track, stage: Stage): Promise<void> {
+  if (track.current_stage === stage && !track.standby) return;
+  const now = nowISO();
+  const history = [...track.stage_history];
+  const cur = history[history.length - 1];
+  if (cur && !cur.exited_at) cur.exited_at = now;
+  history.push({ stage, entered_at: now });
+  await writeStage(track.id, stage, history, false);
+  // Sincroniza tarefa vinculada
+  if (track.task_id) {
+    try {
+      const { updateTask } = await import("@/modules/tasks/api");
+      if (stage === "Lançamento" || stage === "Pós-lançamento") {
+        await updateTask({ id: track.task_id, status: "Concluída" });
+      } else {
+        await updateTask({ id: track.task_id, title: `${track.title_working} (${stage})` });
+      }
+    } catch {
+      /* não interrompe */
+    }
+  }
+  // Gera a tarefa da etapa de destino (se houver template e não duplicar)
+  await ensureStageTask(track, stage);
+}
+
+/** Coloca/tira do Stand-by sem mexer no stage (drag pro coluna Stand-by). */
+export async function setTrackStandby(id: number, standby: boolean): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE tracks SET standby = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [standby ? 1 : 0, id]
+  );
 }
 
 /** Reativa uma track que estava em Stand-by. */
@@ -326,7 +535,7 @@ export async function recordGate4(
 }
 
 /** Quando a track entrou no stage atual (entered_at da última entrada). */
-export function stageEnteredAt(track: Track): string | null {
+function stageEnteredAt(track: Track): string | null {
   const last = track.stage_history[track.stage_history.length - 1];
   return last?.entered_at ?? null;
 }
@@ -438,11 +647,20 @@ export async function createCost(input: MusicProjectCostCreateInput): Promise<nu
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [input.project_id, input.track_id, input.category, input.description, input.amount, input.date]
   );
-  return Number(res.lastInsertId);
+  const costId = Number(res.lastInsertId);
+  try {
+    const { syncMusicCostTransaction } = await import("@/modules/finance/api");
+    await syncMusicCostTransaction(costId);
+  } catch { /* não interrompe */ }
+  return costId;
 }
 
 export async function deleteCost(id: number): Promise<void> {
   const db = getDb();
+  try {
+    const { deleteTransactionsForMusicCost } = await import("@/modules/finance/api");
+    await deleteTransactionsForMusicCost(id);
+  } catch { /* não interrompe */ }
   await db.execute("DELETE FROM music_project_costs WHERE id = $1", [id]);
 }
 

@@ -7,12 +7,6 @@ on:
       - "claude/**"
   workflow_dispatch:
 
-# Silencia o aviso "Node.js 20 actions are deprecated" forçando o runner
-# a usar Node 24 para executar as actions JS (checkout, setup-node, etc).
-# Atualize para v5 das actions quando estiverem GA.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build:
     strategy:
@@ -35,19 +29,44 @@ jobs:
 
       - name: Cache Rust build
         uses: swatinem/rust-cache@v2
+        # Falhas transitórias do serviço de cache (comuns no Windows) não devem
+        # derrubar o build — sem cache ele apenas compila do zero.
+        continue-on-error: true
         with:
           workspaces: src-tauri -> target
 
       - name: Install npm deps
         run: npm ci
 
+      # As ferramentas do bundler (WiX/NSIS no Windows) são baixadas pelo Tauri
+      # e ficam em cache local. Persistir entre runs evita rebaixar — e evita o
+      # erro transitório de rede "HTTP2 framing layer" do curl na maioria dos casos.
+      - name: Cache Tauri bundler tools
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/AppData/Local/tauri
+          key: tauri-bundler-${{ matrix.platform }}
+
+      # O download de WiX/NSIS às vezes falha com "HTTP2 framing layer" (curl 16),
+      # um erro transitório de rede. Tentamos o build até 3 vezes antes de desistir.
       - name: Build (Tauri)
-        run: npm run tauri:build
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 60
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: npm run tauri:build
+        env:
+          VITE_TURSO_URL: ${{ secrets.VITE_TURSO_URL }}
+          VITE_TURSO_TOKEN: ${{ secrets.VITE_TURSO_TOKEN }}
 
       - name: Upload bundles
         uses: actions/upload-artifact@v4
         with:
-          name: musicgest-${{ matrix.platform }}
+          name: vistage-${{ matrix.platform }}
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/msi/*.msi

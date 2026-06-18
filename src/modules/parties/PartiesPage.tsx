@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toLocalISODate, formatCurrency } from "@/lib/format";
 import { Loader2, PartyPopper, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,18 +17,17 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { KpiCard } from "@/components/shared/KpiCard";
 import { PARTY_STATUSES, type PartyDeserialized, type PartyStatus, estimatedRevenue } from "./types";
 import { deleteParty, listParties } from "./api";
 import { PartyForm } from "./forms/PartyForm";
 import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
-import { PartyDetail } from "./PartyDetail";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = PartyStatus | "Todas";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PartiesPage() {
   const [parties, setParties] = useState<PartyDeserialized[]>([]);
@@ -37,9 +37,6 @@ export function PartiesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PartyDeserialized | null>(null);
-
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailParty, setDetailParty] = useState<PartyDeserialized | null>(null);
 
   const refresh = useCallback(async () => {
     const rows = await listParties();
@@ -58,25 +55,19 @@ export function PartiesPage() {
 
   useNewItemShortcut(openCreate);
 
-  function openDetail(p: PartyDeserialized) {
-    setDetailParty(p);
-    setDetailOpen(true);
-  }
-
   function openEdit(p: PartyDeserialized) {
-    setDetailOpen(false);
     setEditing(p);
     setFormOpen(true);
   }
 
   async function handleDelete(p: PartyDeserialized) {
-    if (!window.confirm(`Excluir a produção "${p.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir a produção "${p.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteParty(p.id);
     toast.success("Produção excluída");
     await refresh();
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -100,22 +91,18 @@ export function PartiesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Produção de Festas</h2>
-          <p className="text-sm text-muted-foreground">
-            Produção e gestão de eventos próprios.
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova produção
-        </Button>
-      </div>
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova produção
+          </Button>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Próximas" value={upcoming.length} />
-        <Kpi label="Realizadas" value={realized.length} />
-        <KpiCurrency label="Receita estimada" value={estimatedTotal} />
+        <KpiCard label="Próximas" value={upcoming.length} />
+        <KpiCard label="Realizadas" value={realized.length} />
+        <KpiCard label="Receita estimada" value={formatCurrency(estimatedTotal)} />
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -162,12 +149,12 @@ export function PartiesPage() {
             <TabsTrigger value="lista">Lista</TabsTrigger>
           </TabsList>
           <TabsContent value="cards" className="pt-2">
-            <PartyCards parties={filtered} onEdit={openDetail} onDelete={handleDelete} />
+            <PartyCards parties={filtered} onEdit={openEdit} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="lista" className="pt-2">
             <PartyList
               parties={filtered}
-              onEdit={openDetail}
+              onEdit={openEdit}
               onDelete={handleDelete}
             />
           </TabsContent>
@@ -180,37 +167,7 @@ export function PartiesPage() {
         party={editing}
         onSaved={() => void refresh()}
       />
-
-      {detailParty && (
-        <PartyDetail
-          open={detailOpen}
-          onOpenChange={setDetailOpen}
-          party={detailParty}
-          onEdit={() => openEdit(detailParty)}
-          onRefresh={() => void refresh()}
-          onDelete={() => handleDelete(detailParty!)}
-        />
-      )}
     </div>
   );
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}
-
-function KpiCurrency({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">
-        {formatCurrency(value)}
-      </div>
-    </div>
-  );
-}

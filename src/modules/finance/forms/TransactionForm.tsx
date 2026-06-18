@@ -25,10 +25,12 @@ import {
   listCategories,
   updateTransaction,
 } from "../api";
+import { getDb } from "@/lib/db";
 import {
   EXPENSE_TYPES,
   PAYMENT_METHODS,
-  TRANSACTION_STATUSES,
+  defaultStatus,
+  statusesForKind,
   type FinanceCategory,
   type FinanceTransaction,
   type FinanceTransactionCreateInput,
@@ -38,7 +40,9 @@ import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
+import { listClasses, type ClassWithStudent } from "@/modules/classes/api";
 import { todayISO } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -59,12 +63,19 @@ function emptyState(kind: TransactionKind): FormState {
     category_id: null,
     gig_id: null,
     contact_id: null,
-    status: "Recebido/Pago",
+    status: defaultStatus(kind),
     payment_method: null,
     expense_type: kind === "expense" ? "Variável" : null,
     receipt_file_path: null,
     tax_relevant: 0,
     recurring_id: null,
+    student_package_id: null,
+    track_id: null,
+    class_id: null,
+    party_id: null,
+    music_cost_id: null,
+    gig_sync: 0,
+    class_sync: 0,
   };
 }
 
@@ -83,6 +94,13 @@ function txToState(t: FinanceTransaction): FormState {
     receipt_file_path: t.receipt_file_path,
     tax_relevant: t.tax_relevant,
     recurring_id: t.recurring_id,
+    student_package_id: t.student_package_id ?? null,
+    track_id: t.track_id ?? null,
+    class_id: t.class_id ?? null,
+    party_id: t.party_id ?? null,
+    music_cost_id: t.music_cost_id ?? null,
+    gig_sync: t.gig_sync ?? 0,
+    class_sync: t.class_sync ?? 0,
   };
 }
 
@@ -98,12 +116,29 @@ export function TransactionForm({
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [classes, setClasses] = useState<ClassWithStudent[]>([]);
+  const [gigHasSyncedTx, setGigHasSyncedTx] = useState(false);
+
+  useEffect(() => {
+    if (!state.gig_id || state.gig_sync === 1) { setGigHasSyncedTx(false); return; }
+    void (async () => {
+      const db = getDb();
+      const rows = await db.select<{ n: number }[]>(
+        `SELECT COUNT(*) as n FROM finance_transactions WHERE gig_id = $1 AND gig_sync = 1 AND kind = 'income'${transaction ? ` AND id != ${transaction.id}` : ""}`,
+        [state.gig_id]
+      );
+      setGigHasSyncedTx((rows[0]?.n ?? 0) > 0);
+    })();
+  }, [state.gig_id, state.gig_sync, transaction]);
   const [errors, setErrors] = useState<{ amount?: string; date?: string }>({});
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (transaction) setState(txToState(transaction));
     else setState(emptyState(defaultKind));
     setErrors({});
+    setDirty(false);
   }, [transaction, defaultKind, open]);
 
   async function refreshCategories() {
@@ -115,10 +150,12 @@ export function TransactionForm({
     void refreshCategories();
     void listGigs().then(setGigs);
     void listContacts().then(setContacts);
+    void listClasses().then(setClasses);
   }, [open]);
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   function validate(): boolean {
@@ -143,6 +180,7 @@ export function TransactionForm({
         await createTransaction(state);
         toast.success("Transação criada");
       }
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -153,9 +191,13 @@ export function TransactionForm({
   }
 
   const isExpense = state.kind === "expense";
+  const isLocked = state.gig_sync === 1 || state.class_sync === 1;
+  const lockedSource = state.gig_sync === 1 ? "GIG" : "aula";
+  const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
+  const isAulaCategory = selectedCategoryName === "Aulas / Mentorias";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>
@@ -166,16 +208,24 @@ export function TransactionForm({
         </DialogHeader>
 
         <div className="space-y-4">
+          {(isLocked || state.party_id) && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              {isLocked
+                ? `Este lançamento é sincronizado automaticamente pela ${lockedSource} vinculada. Para alterar valores, edite a ${lockedSource}.`
+                : "Este lançamento é sincronizado automaticamente pela festa vinculada. Para alterar valores, edite a festa."}
+            </div>
+          )}
           {!transaction && (
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => set("kind", "income")}
+                disabled={isLocked}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "income"
                     ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
                     : "border-input"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 Entrada (receita)
               </button>
@@ -185,11 +235,12 @@ export function TransactionForm({
                   set("kind", "expense");
                   if (!state.expense_type) set("expense_type", "Variável");
                 }}
+                disabled={isLocked}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "expense"
                     ? "border-destructive bg-destructive/10 text-destructive"
                     : "border-input"
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 Saída (despesa)
               </button>
@@ -206,6 +257,7 @@ export function TransactionForm({
                 onChange={(e) =>
                   set("amount", parseFloat(e.target.value) || 0)
                 }
+                disabled={isLocked}
               />
             </Field>
             <Field label="Data" required error={errors.date}>
@@ -213,6 +265,8 @@ export function TransactionForm({
                 type="date"
                 value={state.date}
                 onChange={(e) => set("date", e.target.value)}
+                disabled={isLocked}
+                title={isLocked ? `Data definida pela ${lockedSource}` : undefined}
               />
             </Field>
           </div>
@@ -222,6 +276,8 @@ export function TransactionForm({
               rows={2}
               value={state.description ?? ""}
               onChange={(e) => set("description", e.target.value || null)}
+              disabled={isLocked}
+              title={isLocked ? `Descrição gerada automaticamente pela ${lockedSource}` : undefined}
             />
           </Field>
 
@@ -242,12 +298,13 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("status", v as FormState["status"])
                 }
+                disabled={isLocked}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TRANSACTION_STATUSES.map((s) => (
+                  {statusesForKind(state.kind).map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>
@@ -264,12 +321,13 @@ export function TransactionForm({
                     v === "none" ? null : (v as FormState["payment_method"])
                   )
                 }
+                disabled={isLocked}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {PAYMENT_METHODS.map((m) => (
                     <SelectItem key={m} value={m}>
                       {m}
@@ -303,6 +361,11 @@ export function TransactionForm({
             </Field>
           )}
 
+          {gigHasSyncedTx && (
+            <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+              Atenção: essa GIG já tem uma receita gerada automaticamente. Criar outra aqui pode duplicar o lançamento.
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Vincular a uma GIG">
               <Select
@@ -312,10 +375,10 @@ export function TransactionForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {gigs.map((g) => (
                     <SelectItem key={g.id} value={g.id.toString()}>
                       {g.venue_name} · {g.date}
@@ -330,12 +393,13 @@ export function TransactionForm({
                 onValueChange={(v) =>
                   set("contact_id", v === "none" ? null : Number(v))
                 }
+                disabled={isLocked}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {contacts.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
                       {c.name}
@@ -345,6 +409,30 @@ export function TransactionForm({
               </Select>
             </Field>
           </div>
+
+          {isAulaCategory && (
+            <Field label="Vincular a uma aula">
+              <Select
+                value={state.class_id?.toString() ?? "none"}
+                onValueChange={(v) =>
+                  set("class_id", v === "none" ? null : Number(v))
+                }
+                disabled={isLocked}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
+                  {classes.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.date} · {c.student_name ?? `Aula #${c.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
 
           <label className="flex items-center gap-2 text-sm">
             <input

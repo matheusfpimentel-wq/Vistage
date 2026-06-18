@@ -1,12 +1,10 @@
 import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 type Props = {
   parties: PartyDeserialized[];
@@ -39,6 +37,7 @@ export function PartyCards({ parties, onEdit, onDelete }: Props) {
             <div className="mb-2 flex items-start justify-between gap-2">
               <h3 className="text-base font-semibold leading-tight">{p.title}</h3>
               <div className="flex items-center gap-1 shrink-0">
+                <PendingTasksBadge entityType="party" entityId={p.id} />
                 <Badge className={partyStatusColor(p.status)}>{p.status}</Badge>
                 <Button
                   variant="ghost"

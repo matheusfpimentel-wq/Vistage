@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -19,6 +20,9 @@ import { toast } from "@/components/ui/toaster";
 import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
+import { TaskTimelineView } from "./views/TaskTimelineView";
+import { TaskSprintView } from "./views/TaskSprintView";
+import { TaskEnergyView } from "./views/TaskEnergyView";
 import {
   completeAndRecur,
   deleteTask,
@@ -29,19 +33,24 @@ import {
 } from "./api";
 import {
   TASK_CATEGORIES,
+  TASK_LINK_LABELS,
+  TASK_LINK_TYPES,
   TASK_PRIORITIES,
   TASK_STATUSES,
   type Task,
   type TaskCategory,
+  type TaskLinkType,
   type TaskPriority,
   type TaskStatus,
 } from "./types";
 import { cn } from "@/lib/utils";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
 type PriorityFilter = TaskPriority | "Todas";
+type LinkFilter = TaskLinkType | "Todas";
 
 const DATE_FILTERS: { id: TasksDateFilter; label: string }[] = [
   { id: "all", label: "Todas" },
@@ -59,14 +68,17 @@ export function TasksPage() {
     priority: PriorityFilter;
     search: string;
     date: TasksDateFilter;
+    linkType: LinkFilter;
   }>({
     status: "Todas",
     category: "Todas",
     priority: "Todas",
     search: "",
     date: "all",
+    linkType: "Todas",
   });
 
+  const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
 
@@ -77,13 +89,19 @@ export function TasksPage() {
       priority: filters.priority,
       search: filters.search,
       date: filters.date,
+      linkType: filters.linkType === "Todas" ? undefined : filters.linkType,
     }),
     [filters]
   );
 
   const refresh = useCallback(async () => {
-    const data = await listTasks(queryFilters);
-    setTasks(data);
+    setLoading(true);
+    try {
+      const data = await listTasks(queryFilters);
+      setTasks(data);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
@@ -114,16 +132,50 @@ export function TasksPage() {
     await refresh();
   }
 
+  async function handleMove(id: number, status: TaskStatus) {
+    await updateTask({ id, status });
+    await refresh();
+  }
+
   async function handleDelete(task: Task) {
-    if (!window.confirm(`Excluir "${task.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${task.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteTask(task.id);
     toast.success("Tarefa excluída");
     await refresh();
   }
 
+  async function handleBulkComplete(list: Task[]) {
+    const pending = list.filter((t) => t.status !== "Concluída");
+    if (pending.length === 0) return;
+    await Promise.all(pending.map((t) => updateTask({ id: t.id, status: "Concluída" })));
+    toast.success(`${pending.length} tarefa(s) concluída(s)`);
+    await refresh();
+  }
+
+  async function handleBulkSetStatus(list: Task[], status: TaskStatus) {
+    if (list.length === 0) return;
+    await Promise.all(list.map((t) => updateTask({ id: t.id, status })));
+    toast.success(`${list.length} tarefa(s) → ${status}`);
+    await refresh();
+  }
+
+  async function handleBulkDelete(list: Task[]) {
+    if (list.length === 0) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir ${list.length} tarefa(s)? Esta ação não pode ser desfeita.`, confirmLabel: "Excluir", destructive: true }))) return;
+    await Promise.all(list.map((t) => deleteTask(t.id)));
+    toast.success(`${list.length} tarefa(s) excluída(s)`);
+    await refresh();
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova tarefa
+          </Button>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -190,11 +242,26 @@ export function TasksPage() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={filters.linkType}
+            onValueChange={(v) =>
+              setFilters((f) => ({ ...f, linkType: v as LinkFilter }))
+            }
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Todas">Todos os vínculos</SelectItem>
+              {TASK_LINK_TYPES.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {TASK_LINK_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nova tarefa
-        </Button>
-      </div>
+      </PageToolbar>
 
       <div className="flex flex-wrap gap-1.5">
         {DATE_FILTERS.map((f) => (
@@ -213,10 +280,17 @@ export function TasksPage() {
         ))}
       </div>
 
+      {loading && (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
+      )}
+
       <Tabs defaultValue="list">
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
+          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
+          <TabsTrigger value="sprint">Sprint</TabsTrigger>
+          <TabsTrigger value="energia">Energia</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list">
@@ -225,11 +299,36 @@ export function TasksPage() {
             onEdit={openEdit}
             onToggleDone={handleToggleDone}
             onDelete={handleDelete}
+            onBulkComplete={handleBulkComplete}
+            onBulkSetStatus={handleBulkSetStatus}
+            onBulkDelete={handleBulkDelete}
           />
         </TabsContent>
 
         <TabsContent value="kanban">
-          <TaskKanbanView tasks={tasks} onEdit={openEdit} />
+          <TaskKanbanView tasks={tasks} onEdit={openEdit} onMove={handleMove} />
+        </TabsContent>
+
+        <TabsContent value="timeline">
+          <TaskTimelineView tasks={tasks} onEdit={openEdit} />
+        </TabsContent>
+
+        <TabsContent value="sprint">
+          <TaskSprintView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+            onDelete={handleDelete}
+          />
+        </TabsContent>
+
+        <TabsContent value="energia">
+          <TaskEnergyView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+            onDelete={handleDelete}
+          />
         </TabsContent>
       </Tabs>
 

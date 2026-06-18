@@ -1,25 +1,39 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 const VenueMap = lazy(() =>
   import("./VenueMap").then((m) => ({ default: m.VenueMap }))
 );
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { VenueForm } from "./forms/VenueForm";
 import { VenueDetail } from "./forms/VenueDetail";
-import { deleteVenue, listVenues, type VenueFilters } from "./api";
-import type { Venue } from "./types";
+import { deleteVenue, getVenue, listVenues, updateVenue, type VenueFilters } from "./api";
+import type { Venue, VenueType } from "./types";
+import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
+import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ViewToggle } from "@/components/shared/ViewToggle";
 
 type ViewMode = "cards" | "list" | "map";
 
+const CARD_GROUPS: Array<VenueType | "__other__"> = [
+  "Club", "Bar", "Espaço para eventos", "Festival", "Teatro", "Outro", "__other__",
+];
+
 export function VenuesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ city: "", search: "" });
   const [view, setView] = useState<ViewMode>("cards");
 
@@ -29,19 +43,83 @@ export function VenuesPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
 
+  // Frozen card order — only rebuilt when a full fetch happens
+  const cardOrderRef = useRef<Venue[]>([]);
+
   const queryFilters: VenueFilters = useMemo(
     () => ({ city: filters.city, search: filters.search }),
     [filters]
   );
 
   const refresh = useCallback(async () => {
-    const data = await listVenues(queryFilters);
-    setVenues(data);
+    setLoading(true);
+    try {
+      const data = await listVenues(queryFilters);
+      setVenues(data);
+      cardOrderRef.current = [...data].sort((a, b) => {
+        const w = prioritySortWeight(a.priority) - prioritySortWeight(b.priority);
+        return w !== 0 ? w : a.name.localeCompare(b.name);
+      });
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getVenue(id).then((venue) => {
+      if (venue) {
+        setDetailId(venue.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { sorted: sortedVenues, sortKey, sortDir, handleSort } = useTableSort(venues);
+
+  async function cyclePriority(v: Venue) {
+    const priorities: Array<Venue["priority"]> = [null, "Alta", "Média", "Baixa"];
+    const idx = priorities.indexOf(v.priority);
+    const next = priorities[(idx + 1) % priorities.length];
+    // Optimistic badge update without reordering cards
+    setVenues((prev) => prev.map((x) => (x.id === v.id ? { ...x, priority: next } : x)));
+    cardOrderRef.current = cardOrderRef.current.map((x) => (x.id === v.id ? { ...x, priority: next } : x));
+    try {
+      await updateVenue({ id: v.id, priority: next });
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+      await refresh();
+    }
+  }
+
+  const cardVenues = cardOrderRef.current.length > 0 ? cardOrderRef.current : [...venues];
+
+  const groupedCards = useMemo(() => {
+    const groups: Array<{ key: string; label: string; items: Venue[] }> = [];
+    for (const group of CARD_GROUPS) {
+      const items =
+        group === "__other__"
+          ? cardVenues.filter((v) => !v.venue_type)
+          : cardVenues.filter((v) => v.venue_type === group);
+      if (items.length === 0) continue;
+      const label =
+        group === "__other__" ? "Sem tipo" :
+        group === "Club" ? "Clubs" :
+        group === "Bar" ? "Bares" :
+        group === "Espaço para eventos" ? "Espaços para eventos" :
+        group === "Festival" ? "Festivais" :
+        group === "Teatro" ? "Teatros" : group;
+      groups.push({ key: group, label, items });
+    }
+    return groups;
+  }, [cardVenues]);
 
   function openCreate() {
     setEditing(null);
@@ -61,9 +139,12 @@ export function VenuesPage() {
   }
 
   async function handleDelete(v: Venue) {
-    const ok = window.confirm(
-      `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`
-    );
+    const ok = await confirmDialog({
+      title: "Excluir",
+      description: `Excluir "${v.name}"? GIGs vinculadas vão perder a referência mas preservam o nome do venue como texto.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
     if (!ok) return;
     try {
       await deleteVenue(v.id);
@@ -76,7 +157,14 @@ export function VenuesPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo venue
+          </Button>
+        }
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -99,52 +187,18 @@ export function VenuesPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
-            <button
-              onClick={() => setView("cards")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "cards"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em cards"
-            >
-              <LayoutGrid className="h-3.5 w-3.5" />
-              Cards
-            </button>
-            <button
-              onClick={() => setView("list")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "list"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em lista"
-            >
-              <List className="h-3.5 w-3.5" />
-              Lista
-            </button>
-            <button
-              onClick={() => setView("map")}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-2.5 py-1 text-xs transition",
-                view === "map"
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label="Visualização em mapa"
-            >
-              <Map className="h-3.5 w-3.5" />
-              Mapa
-            </button>
-          </div>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Novo venue
-          </Button>
+          <ViewToggle
+            options={[
+              { value: "cards", label: "Cards", icon: LayoutGrid },
+              { value: "list", label: "Lista", icon: List },
+              { value: "map", label: "Mapa", icon: Map },
+            ]}
+            value={view}
+            onChange={setView}
+          />
         </div>
-      </div>
+        </div>
+      </PageToolbar>
 
       {view === "map" ? (
         <Suspense
@@ -160,15 +214,36 @@ export function VenuesPage() {
             onRefresh={() => void refresh()}
           />
         </Suspense>
+      ) : loading ? (
+        <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
       ) : venues.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Building2 className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhum venue cadastrado ainda.
-        </div>
+        <EmptyState
+          icon={Building2}
+          title="Nenhum venue cadastrado ainda."
+        />
       ) : view === "cards" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {venues.map((v) => (
-            <VenueCard key={v.id} venue={v} onOpen={() => openDetail(v)} />
+        <div className="space-y-6">
+          {groupedCards.map((group) => (
+            <div key={group.key}>
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {group.label}
+                </h3>
+                <Badge variant="outline" className="text-xs">{group.items.length}</Badge>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {group.items.map((v) => (
+                  <VenueCard
+                    key={v.id}
+                    venue={v}
+                    onOpen={() => openDetail(v)}
+                    onEdit={() => openEdit(v)}
+                    onDelete={() => void handleDelete(v)}
+                    onCyclePriority={() => void cyclePriority(v)}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : (
@@ -176,20 +251,35 @@ export function VenuesPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 text-left">Nome</th>
-                <th className="px-3 py-2 text-left">Cidade</th>
-                <th className="px-3 py-2 text-right">Capacidade</th>
-                <th className="px-3 py-2 text-left">Dono</th>
+                <SortableHeader<Venue> col="priority" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="venue_type" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+                <SortableHeader<Venue> col="capacity" label="Capacidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
+                <SortableHeader<Venue> col="owner_name" label="Dono" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {venues.map((v) => (
+              {sortedVenues.map((v) => (
                 <tr
                   key={v.id}
                   className="cursor-pointer border-t transition-colors hover:bg-muted/40"
                   onClick={() => openDetail(v)}
                 >
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => void cyclePriority(v)}
+                      title="Clique para mudar prioridade"
+                    >
+                      {v.priority ? (
+                        <VenuePriorityBadge priority={v.priority} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition">+ prioridade</span>
+                      )}
+                    </button>
+                  </td>
                   <td className="px-3 py-2 font-medium">
                     {v.name}
                     {v.founded_year && (
@@ -198,6 +288,7 @@ export function VenuesPage() {
                       </span>
                     )}
                   </td>
+                  <td className="px-3 py-2 text-muted-foreground">{v.venue_type ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
                   </td>
@@ -261,13 +352,70 @@ export function VenuesPage() {
   );
 }
 
-function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
+function VenueCard({
+  venue: v,
+  onOpen,
+  onEdit,
+  onDelete,
+  onCyclePriority,
+}: {
+  venue: Venue;
+  onOpen: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onCyclePriority: () => void;
+}) {
   const photoUrl = useImageUrl(v.photo_path);
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="group flex flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      className={cn(
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md",
+        v.is_closed === 1 && "opacity-50"
+      )}
     >
+      {v.priority && (
+        <div className="absolute left-2 top-2 z-10">
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onCyclePriority(); }}
+            title="Clique para mudar prioridade"
+          >
+            <VenuePriorityBadge priority={v.priority} />
+          </button>
+        </div>
+      )}
+      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Editar"
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="icon"
+          variant="secondary"
+          className="h-7 w-7 shadow-sm"
+          aria-label="Excluir"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+        </Button>
+      </div>
       <div className="h-32 w-full bg-muted">
         {photoUrl ? (
           <img
@@ -282,7 +430,11 @@ function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
         )}
       </div>
       <div className="space-y-1.5 p-3">
-        <div className="font-medium leading-tight">{v.name}</div>
+        <div className="flex items-center gap-2 leading-tight">
+          <span className="font-medium">{v.name}</span>
+          {v.is_closed === 1 && <Badge variant="destructive" className="text-xs">Fechado</Badge>}
+          <PendingTasksBadge entityType="venue" entityId={v.id} className="ml-auto" />
+        </div>
         <div className="text-xs text-muted-foreground">
           {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
         </div>
@@ -294,8 +446,18 @@ function VenueCard({ venue: v, onOpen }: { venue: Venue; onOpen: () => void }) {
             </Badge>
           )}
           {v.founded_year && <span className="tabular-nums">desde {v.founded_year}</span>}
+          {!v.priority && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onCyclePriority(); }}
+              className="text-xs text-muted-foreground/40 hover:text-muted-foreground transition"
+              title="Definir prioridade"
+            >
+              + prioridade
+            </button>
+          )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }

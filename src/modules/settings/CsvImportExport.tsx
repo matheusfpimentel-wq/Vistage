@@ -26,6 +26,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import {
   CSV_ENTITIES,
+  exportAllCsv,
   exportEntityCsv,
   importCsvIntoTable,
   pickAndParseCsv,
@@ -38,6 +39,7 @@ export function CsvImportExport() {
   const [importing, setImporting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingData, setPendingData] = useState<string[][]>([]);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const selected = CSV_ENTITIES.find((e) => e.key === entity)!;
 
@@ -50,6 +52,25 @@ export function CsvImportExport() {
       toast.error(String(e));
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function handleExportAll() {
+    setExportingAll(true);
+    try {
+      const res = await exportAllCsv();
+      if (res) {
+        toast.success(
+          `${res.files} tabelas exportadas para a pasta escolhida` +
+            (res.skippedEmpty.length > 0
+              ? ` (${res.skippedEmpty.length} vazias puladas)`
+              : "")
+        );
+      }
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setExportingAll(false);
     }
   }
 
@@ -66,17 +87,21 @@ export function CsvImportExport() {
     }
   }
 
-  async function doImport(mode: "replace" | "append") {
+  async function doImport() {
     setConfirmOpen(false);
     try {
-      const res = await importCsvIntoTable(selected.table, pendingData, mode);
-      const errMsg =
-        res.errors.length > 0
-          ? ` · ${res.errors.length} erro(s)`
-          : "";
-      toast.success(
-        `Importadas ${res.inserted}, puladas ${res.skipped}${errMsg}`
-      );
+      const res = await importCsvIntoTable(selected.table, pendingData, "append");
+      if (res.errors.length > 0) {
+        // mostra o primeiro erro real pra dar pra depurar (coluna faltando,
+        // constraint, data inválida etc.)
+        toast.error(
+          `Importadas ${res.inserted}, puladas ${res.skipped}. ${res.errors[0]}`
+        );
+      } else {
+        toast.success(
+          `Importadas ${res.inserted}, puladas ${res.skipped}`
+        );
+      }
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -140,6 +165,25 @@ export function CsvImportExport() {
             O cabeçalho do CSV precisa bater com as colunas da tabela. Exporte
             uma vez pra ver o formato exato.
           </p>
+
+          <div className="border-t pt-3">
+            <Button
+              variant="secondary"
+              onClick={handleExportAll}
+              disabled={exportingAll}
+            >
+              {exportingAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Exportar tudo em CSV
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Gera um arquivo CSV por tabela numa pasta à sua escolha —
+              portabilidade total dos dados de uma vez.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -155,21 +199,15 @@ export function CsvImportExport() {
             <DialogTitle>Importar CSV</DialogTitle>
             <DialogDescription>
               Importar {rowCount} linha{rowCount !== 1 ? "s" : ""} para{" "}
-              <strong>{selected.label}</strong>. Como deseja proceder?
+              <strong>{selected.label}</strong>. Os registros serão adicionados sem substituir os existentes.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="flex-col gap-2 sm:flex-col">
-            <Button
-              variant="destructive"
-              onClick={() => void doImport("replace")}
-            >
-              Substituir tudo
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); setImporting(false); setPendingData([]); }}>
+              Cancelar
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => void doImport("append")}
-            >
-              Apenas adicionar
+            <Button onClick={() => void doImport()}>
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>

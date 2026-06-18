@@ -1,4 +1,4 @@
-import type Database from "@tauri-apps/plugin-sql";
+import type { BatchStatement, Db } from "./db";
 
 // Migrations versionadas. Cada migration roda em ordem e nunca é re-executada.
 // Para adicionar uma nova, basta empilhar no array com o próximo `version`.
@@ -918,10 +918,784 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 23,
+    description:
+      "ideas — funde maturação 'Convertida' em 'Pronta' (Pronta agora também converte)",
+    sql: `
+      UPDATE ideas SET maturation = 'Pronta' WHERE maturation = 'Convertida';
+    `,
+  },
+  {
+    version: 24,
+    description: "gigs — flyers adicionais (o primeiro continua sendo o da identidade)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN extra_flyer_paths TEXT;
+    `,
+  },
+  {
+    version: 25,
+    description: "artist_identity — fontes (tipografia)",
+    sql: `
+      ALTER TABLE artist_identity ADD COLUMN fonts TEXT;
+    `,
+  },
+  {
+    version: 26,
+    description: "music_projects — campo conceito do projeto",
+    sql: `
+      ALTER TABLE music_projects ADD COLUMN concept TEXT;
+    `,
+  },
+  {
+    version: 27,
+    description: "content_snapshots — retratos de métricas com data de captura",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_id INTEGER NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+        captured_at TEXT NOT NULL,
+        metric_views INTEGER,
+        metric_likes INTEGER,
+        metric_comments INTEGER,
+        metric_shares INTEGER,
+        metric_saves INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
+    version: 28,
+    description: "venues — conceito, gênero, rider, público habitual",
+    sql: `
+      ALTER TABLE venues ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN dominant_genre TEXT;
+      ALTER TABLE venues ADD COLUMN rider_available INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE venues ADD COLUMN regular_audience TEXT;
+    `,
+  },
+  {
+    version: 29,
+    description: "fan_groups — grupos de fãs com membros",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fan_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        whatsapp_group TEXT,
+        origin TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS fan_group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id INTEGER NOT NULL REFERENCES fan_groups(id) ON DELETE CASCADE,
+        fan_id INTEGER REFERENCES fans(id) ON DELETE SET NULL,
+        name TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
+    version: 30,
+    description: "task_id em party_tasks, gigs, ideas, tracks, classes",
+    sql: `
+      ALTER TABLE party_tasks ADD COLUMN global_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN prep_task_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN task_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN task_id INTEGER;
+      ALTER TABLE classes ADD COLUMN task_id INTEGER;
+    `,
+  },
+  {
+    version: 31,
+    description: "okr_kr_tasks — tasks vinculadas a KRs",
+    sql: `
+      CREATE TABLE IF NOT EXISTS okr_kr_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        okr_id INTEGER NOT NULL,
+        kr_index INTEGER NOT NULL,
+        task_id INTEGER NOT NULL,
+        UNIQUE(okr_id, kr_index)
+      );
+    `,
+  },
+  {
+    version: 32,
+    description: "venues — rider técnico como texto (equipamento)",
+    sql: `
+      ALTER TABLE venues ADD COLUMN rider_equipment TEXT;
+    `,
+  },
+  {
+    version: 33,
+    description: "venues — backfill rider_equipment a partir do antigo rider_available",
+    sql: `
+      UPDATE venues
+        SET rider_equipment = 'Rider disponível (revisar equipamento)'
+        WHERE rider_available = 1
+          AND (rider_equipment IS NULL OR rider_equipment = '');
+    `,
+  },
+  {
+    version: 34,
+    description: "parties — add team column for equipe de producao",
+    sql: `
+      ALTER TABLE parties ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    version: 35,
+    description: "party_venue_candidates — venues candidatos por festa (vinculados ao módulo Venues)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_venue_candidates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        venue_id INTEGER NOT NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(party_id, venue_id),
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE,
+        FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_pvc_party ON party_venue_candidates(party_id);
+      CREATE INDEX IF NOT EXISTS idx_pvc_venue ON party_venue_candidates(venue_id);
+    `,
+  },
+  {
+    version: 36,
+    description: "content_scenes — roteiro dividido por cenas (equipamentos, materiais, cenário)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content_scenes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content_id INTEGER NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0,
+        title TEXT,
+        description TEXT,
+        equipment TEXT NOT NULL DEFAULT '[]',
+        materials TEXT NOT NULL DEFAULT '[]',
+        scenery TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (content_id) REFERENCES content(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_scenes_content ON content_scenes(content_id);
+    `,
+  },
+  {
+    version: 37,
+    description: "gcal_event_id for classes",
+    sql: `ALTER TABLE classes ADD COLUMN gcal_event_id TEXT`,
+  },
+  {
+    version: 38,
+    description: "gcal_event_id for parties",
+    sql: `ALTER TABLE parties ADD COLUMN gcal_event_id TEXT`,
+  },
+  {
+    version: 39,
+    description: "gcal_event_id for okrs",
+    sql: `ALTER TABLE okrs ADD COLUMN gcal_event_id TEXT`,
+  },
+  {
+    version: 40,
+    description: "owner_role for venues",
+    sql: `ALTER TABLE venues ADD COLUMN owner_role TEXT`,
+  },
+  {
+    version: 41,
+    description: "venue_type for venues",
+    sql: `ALTER TABLE venues ADD COLUMN venue_type TEXT`,
+  },
+  {
+    version: 42,
+    description: "follower_count and venue_id for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN follower_count INTEGER`,
+  },
+  {
+    version: 43,
+    description: "venue_id link for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL`,
+  },
+  {
+    version: 44,
+    description: "rating_contractor and is_special for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN rating_contractor INTEGER`,
+  },
+  {
+    version: 45,
+    description: "is_special flag for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN is_special INTEGER NOT NULL DEFAULT 0`,
+  },
+  {
+    version: 46,
+    description: "quantity for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1`,
+  },
+  {
+    version: 47,
+    description: "category for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN category TEXT`,
+  },
+  {
+    version: 48,
+    description: "photo_path for equipment",
+    sql: `ALTER TABLE equipment ADD COLUMN photo_path TEXT`,
+  },
+  {
+    version: 49,
+    description: "star_status for venues (target/played/favorite)",
+    sql: `ALTER TABLE venues ADD COLUMN star_status TEXT`,
+  },
+  {
+    version: 50,
+    description: "priority for venues (Alta/Media/Baixa)",
+    sql: `ALTER TABLE venues ADD COLUMN priority TEXT`,
+  },
+  {
+    version: 51,
+    description: "gig_equipment JSON array of equipment IDs",
+    sql: `ALTER TABLE gigs ADD COLUMN gig_equipment TEXT NOT NULL DEFAULT '[]'`,
+  },
+  {
+    version: 52,
+    description: "is_closed flag for venues",
+    sql: `ALTER TABLE venues ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0`,
+  },
+  {
+    version: 53,
+    description: "event_category for gigs",
+    sql: `ALTER TABLE gigs ADD COLUMN event_category TEXT`,
+  },
+  {
+    version: 54,
+    description: "company field for contacts",
+    sql: `ALTER TABLE contacts ADD COLUMN company TEXT`,
+  },
+  {
+    version: 55,
+    description: "gig_research JSON for musical research per gig",
+    sql: `ALTER TABLE gigs ADD COLUMN gig_research TEXT`,
+  },
+  {
+    version: 56,
+    description: "Link finance transactions to classes and student packages (+ backfill)",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN class_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN student_package_id INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_tx_class ON finance_transactions(class_id);
+      CREATE INDEX IF NOT EXISTS idx_tx_student_package ON finance_transactions(student_package_id);
+
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
+      SELECT 'income', c.amount, c.date,
+             'Aula avulsa — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             c.id, 'Recebido/Pago'
+        FROM classes c LEFT JOIN students s ON s.id = c.student_id
+       WHERE c.status = 'Realizada' AND c.amount IS NOT NULL AND c.amount > 0
+         AND c.student_package_id IS NULL;
+
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, student_package_id, status)
+      SELECT 'income', cp.price, sp.purchased_at,
+             'Pacote ' || COALESCE(cp.name, '') || ' — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             sp.id, 'Recebido/Pago'
+        FROM student_packages sp
+        LEFT JOIN class_packages cp ON cp.id = sp.package_id
+        LEFT JOIN students s ON s.id = sp.student_id
+       WHERE cp.price IS NOT NULL AND cp.price > 0 AND sp.status <> 'Cancelado';
+    `,
+  },
+  {
+    version: 57,
+    description: "default_rate on students for class pre-fill",
+    sql: `ALTER TABLE students ADD COLUMN default_rate REAL`,
+  },
+  {
+    version: 59,
+    description: "Backfill: receita de toda aula realizada com valor (inclui aulas de pacote com valor próprio)",
+    sql: `
+      INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, status)
+      SELECT 'income', c.amount, c.date,
+             'Aula — ' || COALESCE(s.name, 'Aluno'),
+             (SELECT id FROM finance_categories WHERE kind='income' AND name='Aulas / Mentorias' LIMIT 1),
+             c.id, 'Recebido/Pago'
+        FROM classes c LEFT JOIN students s ON s.id = c.student_id
+       WHERE c.status = 'Realizada' AND c.amount IS NOT NULL AND c.amount > 0
+         AND NOT EXISTS (
+           SELECT 1 FROM finance_transactions t WHERE t.class_id = c.id
+         );
+    `,
+  },
+  {
+    version: 60,
+    description: "party_id column on finance_transactions for party profit tracking",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN party_id INTEGER`,
+  },
+  {
+    version: 61,
+    description: "Fix existing GIG transaction descriptions to use event_name; fix party sync descriptions",
+    sql: `
+      UPDATE finance_transactions
+         SET description = 'Cachê: ' || COALESCE(NULLIF(g.event_name,''), g.venue_name)
+               || ' (' || g.date || ')'
+        FROM gigs g
+       WHERE finance_transactions.gig_id = g.id
+         AND finance_transactions.kind = 'income'
+         AND (finance_transactions.description LIKE '%—%'
+              OR finance_transactions.description LIKE 'GIG %');
+    `,
+  },
+  {
+    version: 62,
+    description: "class_packages: total_hours; student_packages: used_minutes",
+    sql: `
+      ALTER TABLE class_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE student_packages ADD COLUMN used_minutes INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 63,
+    description: "tracks: standby_until — data de retorno do standby",
+    sql: `ALTER TABLE tracks ADD COLUMN standby_until TEXT;`,
+  },
+  {
+    version: 64,
+    description: "work_sessions: context — contexto opcional da sessão",
+    sql: `ALTER TABLE work_sessions ADD COLUMN context TEXT;`,
+  },
+  {
+    version: 65,
+    description: "content: engagement_notes — resultado pós-publicação",
+    sql: `ALTER TABLE content ADD COLUMN engagement_notes TEXT;`,
+  },
+  {
+    version: 66,
+    description: "class_packages.syllabus_items — ementa estruturada (JSON)",
+    sql: `ALTER TABLE class_packages ADD COLUMN syllabus_items TEXT NOT NULL DEFAULT '[]';`,
+  },
+  {
+    version: 67,
+    description: "students.contact_id — vínculo aluno↔contato (CRM)",
+    sql: `ALTER TABLE students ADD COLUMN contact_id INTEGER;`,
+  },
+  {
+    version: 68,
+    description: "content.track_id — conteúdo divulga uma track",
+    sql: `ALTER TABLE content ADD COLUMN track_id INTEGER;`,
+  },
+  {
+    version: 69,
+    description: "parties.gig_id — festa vinculada a uma GIG (toquei na própria festa)",
+    sql: `ALTER TABLE parties ADD COLUMN gig_id INTEGER;`,
+  },
+  {
+    version: 70,
+    description: "gig_fans — presença de fãs em GIGs (histórico)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS gig_fans (
+        gig_id INTEGER NOT NULL,
+        fan_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (gig_id, fan_id),
+        FOREIGN KEY (gig_id) REFERENCES gigs(id) ON DELETE CASCADE,
+        FOREIGN KEY (fan_id) REFERENCES fans(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_gig_fans_fan ON gig_fans(fan_id);
+      CREATE INDEX IF NOT EXISTS idx_gig_fans_gig ON gig_fans(gig_id);
+    `,
+  },
+  {
+    version: 71,
+    description: "content: promotes_type/promotes_id — conteúdo promove GIG/Festa",
+    sql: `
+      ALTER TABLE content ADD COLUMN promotes_type TEXT;
+      ALTER TABLE content ADD COLUMN promotes_id INTEGER;
+    `,
+  },
+  {
+    version: 72,
+    description: "party_budget_items.supplier_id — item de orçamento vinculado a fornecedor",
+    sql: `ALTER TABLE party_budget_items ADD COLUMN supplier_id INTEGER;`,
+  },
+  {
+    version: 73,
+    description: "tracks.related_track_id — relação entre tracks (remix/sample/álbum)",
+    sql: `ALTER TABLE tracks ADD COLUMN related_track_id INTEGER;`,
+  },
+  {
+    version: 74,
+    description: "ideas.related_idea_id — relação entre ideias (inspirada por/depende de)",
+    sql: `ALTER TABLE ideas ADD COLUMN related_idea_id INTEGER;`,
+  },
+  {
+    version: 75,
+    description: "student_packages: total_hours — carga horária do pacote comprado",
+    sql: `ALTER TABLE student_packages ADD COLUMN total_hours REAL;`,
+  },
+  {
+    version: 76,
+    description: "gigs — debrief_task_id",
+    sql: `ALTER TABLE gigs ADD COLUMN debrief_task_id INTEGER;`,
+  },
+  {
+    version: 78,
+    description: "fan_interactions — campo special; fan_upgrade_rules em app_settings",
+    sql: `ALTER TABLE fan_interactions ADD COLUMN special INTEGER NOT NULL DEFAULT 0;`
+  },
+  {
+    version: 79,
+    description: "finance_transactions — music_cost_id para sync de custos de produção musical",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN music_cost_id INTEGER REFERENCES music_project_costs(id) ON DELETE SET NULL;`,
+  },
+  {
+    version: 80,
+    description: "work_sessions — vínculo a entidade (context_type/context_id)",
+    sql: `
+      ALTER TABLE work_sessions ADD COLUMN context_type TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context_id INTEGER;
+    `,
+  },
+  {
+    version: 81,
+    description: "fans — contact_id para vincular fã a contato do CRM",
+    sql: `ALTER TABLE fans ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;`,
+  },
+  {
+    version: 82,
+    description: "tasks — quadrante de Eisenhower (matriz urgência/importância)",
+    sql: `ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT;`,
+  },
+  {
+    version: 83,
+    description: "artist_templates: add content column for text templates",
+    sql: `ALTER TABLE artist_templates ADD COLUMN content TEXT`,
+  },
+  {
+    version: 84,
+    description: "fan_interactions: add type column (Interação/Presença/Feedback)",
+    sql: `ALTER TABLE fan_interactions ADD COLUMN type TEXT NOT NULL DEFAULT 'Interação'`,
+  },
+  {
+    version: 85,
+    description: "artist_identity: presskit_link (URL), photos e folder_links (JSON)",
+    sql: `
+      ALTER TABLE artist_identity ADD COLUMN presskit_link TEXT;
+      ALTER TABLE artist_identity ADD COLUMN photos TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE artist_identity ADD COLUMN folder_links TEXT NOT NULL DEFAULT '[]';
+    `,
+  },
+  {
+    version: 86,
+    description: "suppliers.contact_id — vínculo fornecedor↔contato (CRM)",
+    sql: `ALTER TABLE suppliers ADD COLUMN contact_id INTEGER;`,
+  },
+  {
+    version: 87,
+    description: "Migra gigs com status 'A Caminho' para 'Confirmada'",
+    sql: `UPDATE gigs SET status = 'Confirmada' WHERE status = 'A Caminho';`,
+  },
+  {
+    version: 88,
+    description: "finance_transactions.gig_sync — flag para transações auto-sincronizadas de GIG",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN gig_sync INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 89,
+    description: "Indexes de performance em finance_transactions (gig_id, recurring_id, category_id)",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_gig_id ON finance_transactions(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_recurring_id ON finance_transactions(recurring_id);
+      CREATE INDEX IF NOT EXISTS idx_finance_transactions_category_id ON finance_transactions(category_id);
+    `,
+  },
+  {
+    version: 90,
+    description: "Reparo de schema: recria colunas históricas que faltarem (bancos afetados por migrations parcialmente aplicadas)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN main_goal TEXT;
+      ALTER TABLE gigs ADD COLUMN prep_state TEXT;
+      ALTER TABLE gigs ADD COLUMN main_goal_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN venue_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN event_name TEXT;
+      ALTER TABLE gigs ADD COLUMN fans_present TEXT;
+      ALTER TABLE venues ADD COLUMN photo_path TEXT;
+      ALTER TABLE contacts ADD COLUMN photo_path TEXT;
+      ALTER TABLE fans ADD COLUMN photo_path TEXT;
+      ALTER TABLE class_packages ADD COLUMN syllabus TEXT;
+      ALTER TABLE artist_identity ADD COLUMN palette TEXT;
+      ALTER TABLE finance_transactions ADD COLUMN track_id INTEGER;
+      ALTER TABLE tasks ADD COLUMN recurrence TEXT DEFAULT NULL;
+      ALTER TABLE venues ADD COLUMN lat REAL;
+      ALTER TABLE venues ADD COLUMN lng REAL;
+      ALTER TABLE venues ADD COLUMN geocoded_at TEXT;
+      ALTER TABLE parties ADD COLUMN stage_current INTEGER;
+      ALTER TABLE parties ADD COLUMN financial_synced INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE gigs ADD COLUMN extra_flyer_paths TEXT;
+      ALTER TABLE artist_identity ADD COLUMN fonts TEXT;
+      ALTER TABLE music_projects ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN concept TEXT;
+      ALTER TABLE venues ADD COLUMN dominant_genre TEXT;
+      ALTER TABLE venues ADD COLUMN rider_available INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE venues ADD COLUMN regular_audience TEXT;
+      ALTER TABLE party_tasks ADD COLUMN global_task_id INTEGER;
+      ALTER TABLE gigs ADD COLUMN prep_task_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN task_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN task_id INTEGER;
+      ALTER TABLE classes ADD COLUMN task_id INTEGER;
+      ALTER TABLE venues ADD COLUMN rider_equipment TEXT;
+      ALTER TABLE parties ADD COLUMN team TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE classes ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE parties ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE okrs ADD COLUMN gcal_event_id TEXT;
+      ALTER TABLE venues ADD COLUMN owner_role TEXT;
+      ALTER TABLE venues ADD COLUMN venue_type TEXT;
+      ALTER TABLE contacts ADD COLUMN follower_count INTEGER;
+      ALTER TABLE contacts ADD COLUMN venue_id INTEGER REFERENCES venues(id) ON DELETE SET NULL;
+      ALTER TABLE gigs ADD COLUMN rating_contractor INTEGER;
+      ALTER TABLE gigs ADD COLUMN is_special INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE equipment ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE equipment ADD COLUMN category TEXT;
+      ALTER TABLE equipment ADD COLUMN photo_path TEXT;
+      ALTER TABLE venues ADD COLUMN star_status TEXT;
+      ALTER TABLE venues ADD COLUMN priority TEXT;
+      ALTER TABLE gigs ADD COLUMN gig_equipment TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE venues ADD COLUMN is_closed INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE gigs ADD COLUMN event_category TEXT;
+      ALTER TABLE contacts ADD COLUMN company TEXT;
+      ALTER TABLE gigs ADD COLUMN gig_research TEXT;
+      ALTER TABLE finance_transactions ADD COLUMN class_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN student_package_id INTEGER;
+      ALTER TABLE students ADD COLUMN default_rate REAL;
+      ALTER TABLE finance_transactions ADD COLUMN party_id INTEGER;
+      ALTER TABLE class_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE student_packages ADD COLUMN used_minutes INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE tracks ADD COLUMN standby_until TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context TEXT;
+      ALTER TABLE content ADD COLUMN engagement_notes TEXT;
+      ALTER TABLE class_packages ADD COLUMN syllabus_items TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE students ADD COLUMN contact_id INTEGER;
+      ALTER TABLE content ADD COLUMN track_id INTEGER;
+      ALTER TABLE parties ADD COLUMN gig_id INTEGER;
+      ALTER TABLE content ADD COLUMN promotes_type TEXT;
+      ALTER TABLE content ADD COLUMN promotes_id INTEGER;
+      ALTER TABLE party_budget_items ADD COLUMN supplier_id INTEGER;
+      ALTER TABLE tracks ADD COLUMN related_track_id INTEGER;
+      ALTER TABLE ideas ADD COLUMN related_idea_id INTEGER;
+      ALTER TABLE student_packages ADD COLUMN total_hours REAL;
+      ALTER TABLE gigs ADD COLUMN debrief_task_id INTEGER;
+      ALTER TABLE fan_interactions ADD COLUMN special INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE finance_transactions ADD COLUMN music_cost_id INTEGER REFERENCES music_project_costs(id) ON DELETE SET NULL;
+      ALTER TABLE work_sessions ADD COLUMN context_type TEXT;
+      ALTER TABLE work_sessions ADD COLUMN context_id INTEGER;
+      ALTER TABLE fans ADD COLUMN contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL;
+      ALTER TABLE tasks ADD COLUMN eisenhower_quadrant TEXT;
+      ALTER TABLE artist_templates ADD COLUMN content TEXT;
+      ALTER TABLE fan_interactions ADD COLUMN type TEXT NOT NULL DEFAULT 'Interação';
+      ALTER TABLE artist_identity ADD COLUMN presskit_link TEXT;
+      ALTER TABLE artist_identity ADD COLUMN photos TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE artist_identity ADD COLUMN folder_links TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE suppliers ADD COLUMN contact_id INTEGER;
+      ALTER TABLE finance_transactions ADD COLUMN gig_sync INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 91,
+    description: "Adiciona recurring_event_name à tabela gigs",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN recurring_event_name TEXT;
+    `,
+  },
+  {
+    version: 92,
+    description: "Adiciona cache_paid_pct à tabela gigs — percentual do cachê já recebido (0-100, null = não definido)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN cache_paid_pct INTEGER;
+    `,
+  },
+  {
+    version: 93,
+    description: "Adiciona energy_required à tabela tasks — nível de energia necessário para a tarefa (1-5)",
+    sql: `
+      ALTER TABLE tasks ADD COLUMN energy_required INTEGER;
+    `,
+  },
+  {
+    version: 94,
+    description: "Cria tabela recurring_fests para banco de festas recorrentes",
+    sql: `
+      CREATE TABLE IF NOT EXISTS recurring_fests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
+    version: 95,
+    description: "Converte payment_status '50% pago' para 'Pago parcialmente'",
+    sql: `
+      UPDATE gigs SET payment_status = 'Pago parcialmente' WHERE payment_status = '50% pago';
+    `,
+  },
+  {
+    version: 96,
+    description: "gigs.fans_notified — fãs comunicados em marketing",
+    sql: `ALTER TABLE gigs ADD COLUMN fans_notified INTEGER;`,
+  },
+  {
+    version: 97,
+    description: "music_projects.fans_notified — fãs comunicados no lançamento",
+    sql: `ALTER TABLE music_projects ADD COLUMN fans_notified INTEGER;`,
+  },
+  {
+    version: 98,
+    description: "gigs.payment_task_id — tarefa de cobrança vinculada ao recebimento",
+    sql: `ALTER TABLE gigs ADD COLUMN payment_task_id INTEGER;`,
+  },
+  {
+    version: 99,
+    description: "content.publish_task_id — tarefa de publicação vinculada",
+    sql: `ALTER TABLE content ADD COLUMN publish_task_id INTEGER;`,
+  },
+  {
+    version: 100,
+    description: "parties.event_task_id — tarefa do dia do evento vinculada",
+    sql: `ALTER TABLE parties ADD COLUMN event_task_id INTEGER;`,
+  },
+  {
+    version: 101,
+    description: "finance — renomeia status Recebido/Pago para Recebido (income) ou Pago (expense)",
+    sql: `
+      UPDATE finance_transactions SET status = 'Recebido' WHERE status = 'Recebido/Pago' AND kind = 'income';
+      UPDATE finance_transactions SET status = 'Pago' WHERE status = 'Recebido/Pago' AND kind = 'expense';
+    `,
+  },
+  {
+    version: 102,
+    description: "finance_transactions.class_sync — trava campos em transações vinculadas a aulas",
+    sql: `ALTER TABLE finance_transactions ADD COLUMN class_sync INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 103,
+    description: "work_sessions.pause_ms — desconta tempo pausado da duração da sessão",
+    sql: `ALTER TABLE work_sessions ADD COLUMN pause_ms INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 104,
+    description: "meetings — reuniões que viram tarefas (lembrete + follow-ups)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS meetings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT,                 -- ISO date (YYYY-MM-DD) da reunião
+        time TEXT,                 -- HH:MM opcional
+        location TEXT,             -- local físico ou link da reunião online
+        participants TEXT,         -- JSON array de nomes
+        agenda TEXT,               -- pauta
+        notes TEXT,                -- ata / anotações
+        outcomes TEXT,             -- decisões / encaminhamentos
+        status TEXT NOT NULL DEFAULT 'Agendada',  -- Agendada | Realizada | Cancelada
+        task_id INTEGER,           -- tarefa-lembrete criada ao agendar
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
+      );
+    `,
+  },
+  {
+    version: 105,
+    description: "content — datas de milestone (roteiro, gravação, edição) com tarefas vinculadas",
+    sql: `
+      ALTER TABLE content ADD COLUMN date_roteiro TEXT;
+      ALTER TABLE content ADD COLUMN task_roteiro_id INTEGER;
+      ALTER TABLE content ADD COLUMN date_gravacao TEXT;
+      ALTER TABLE content ADD COLUMN task_gravacao_id INTEGER;
+      ALTER TABLE content ADD COLUMN date_edicao TEXT;
+      ALTER TABLE content ADD COLUMN task_edicao_id INTEGER;
+    `,
+  },
+  {
+    version: 106,
+    description: "task_links — vínculos polimórficos entre tarefas e qualquer entidade",
+    sql: `
+      CREATE TABLE IF NOT EXISTS task_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER NOT NULL,
+        label TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        UNIQUE(task_id, entity_type, entity_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_links_task ON task_links(task_id);
+      CREATE INDEX IF NOT EXISTS idx_task_links_entity ON task_links(entity_type, entity_id);
+    `,
+  },
+  {
+    version: 107,
+    description: "tasks.todoist_id — id da tarefa correspondente no Todoist para sincronização bidirecional",
+    sql: `ALTER TABLE tasks ADD COLUMN todoist_id TEXT;`,
+  },
+  {
+    version: 108,
+    description: "Remove de vez o status legado 'A Caminho' de gigs (converte para 'Confirmada'). Re-emite a limpeza para bancos onde o dado ressurgiu via sync.",
+    sql: `UPDATE gigs SET status = 'Confirmada' WHERE status = 'A Caminho';`,
+  },
+  {
+    version: 109,
+    description: "gigs.time_slots — múltiplos intervalos de horário (set alternado). JSON array [{start,end}]; start_time/end_time seguem espelhando o 1º intervalo.",
+    sql: `ALTER TABLE gigs ADD COLUMN time_slots TEXT;`,
+  },
+  {
+    version: 110,
+    description: "artist_identity.brand_manual_path — arquivo do manual de marca (PDF).",
+    sql: `ALTER TABLE artist_identity ADD COLUMN brand_manual_path TEXT;`,
+  },
+  {
+    version: 111,
+    description: "fans.is_ambassador — Embaixador é destaque manual, fora da pontuação automática.",
+    sql: `ALTER TABLE fans ADD COLUMN is_ambassador INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 112,
+    description: "classes.title — título da aula, usado como referência principal (na view e no mapa mental) em vez da matéria.",
+    sql: `ALTER TABLE classes ADD COLUMN title TEXT;`,
+  },
+  {
+    version: 113,
+    description: "finance_transactions.source_ref — referência externa idempotente (ex.: import de royalties DistroKid/Beatport por faixa/mês).",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN source_ref TEXT;
+      CREATE INDEX IF NOT EXISTS idx_finance_tx_source_ref ON finance_transactions(source_ref);
+    `,
+  },
 ];
 
+
+/**
+ * Checks if a column exists in a table using pragma_table_info.
+ * Used to guard ALTER TABLE ADD COLUMN statements for idempotency.
+ */
+async function columnExists(db: Db, table: string, column: string): Promise<boolean> {
+  const rows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) as n FROM pragma_table_info('${table}') WHERE name='${column}'`
+  );
+  return (rows[0]?.n ?? 0) > 0;
+}
+
+/**
+ * Parses an ALTER TABLE ADD COLUMN statement and returns { table, column } or null.
+ */
+function parseAlter(stmt: string): { table: string; column: string } | null {
+  const m = /^\s*ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+(\w+)/i.exec(stmt);
+  if (!m) return null;
+  return { table: m[1], column: m[2] };
+}
+
 /** Executa todas as migrations pendentes na ordem. Idempotente. */
-export async function runMigrations(db: Database): Promise<{ applied: number[] }> {
+export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version INTEGER PRIMARY KEY,
@@ -942,9 +1716,37 @@ export async function runMigrations(db: Database): Promise<{ applied: number[] }
       .split(/;/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
+
+    // Pré-filtra ALTER ADD COLUMN cuja coluna já existe (idempotência) — esse
+    // check é leitura e fica fora da transação. O resto roda como UM lote
+    // atômico: ou a migration inteira aplica, ou nada aplica (ROLLBACK). Sem
+    // estado parcial — o defeito antigo era marcar a versão como aplicada mesmo
+    // com statements falhando no meio.
+    const batch: BatchStatement[] = [];
     for (const stmt of statements) {
-      await db.execute(stmt);
+      const alter = parseAlter(stmt);
+      if (alter && (await columnExists(db, alter.table, alter.column))) continue;
+      batch.push({ sql: stmt });
     }
+
+    try {
+      if (batch.length > 0) await db.executeBatch(batch);
+    } catch (err) {
+      // Migration revertida por inteiro. NÃO marca como aplicada (uma versão
+      // futura corrigida tenta de novo) e registra o erro pra diagnóstico. Não
+      // interrompe as próximas, pra manter o app inicializável.
+      const msg = err instanceof Error ? err.message : String(err);
+      try {
+        await db.execute(
+          "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+          [`migration_error_v${m.version}`, msg]
+        );
+      } catch {
+        // best-effort: se app_settings ainda não existe, ignora
+      }
+      continue;
+    }
+
     await db.execute(
       "INSERT INTO _migrations (version, description) VALUES ($1, $2)",
       [m.version, m.description]

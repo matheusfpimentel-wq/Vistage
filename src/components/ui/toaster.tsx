@@ -6,7 +6,7 @@ export function Toaster() {
   return (
     <Sonner
       theme={theme}
-      position="bottom-right"
+      position="bottom-left"
       richColors
       closeButton
       toastOptions={{

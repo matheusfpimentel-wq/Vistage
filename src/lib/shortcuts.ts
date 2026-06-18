@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { getDb } from "./db";
 
 /**
@@ -6,8 +7,8 @@ import { getDb } from "./db";
  * Páginas registram um handler via `useNewItemShortcut(openCreate)` e o
  * listener global de Ctrl+N (em App.tsx) dispara `triggerNewItem()`.
  */
-const NEW_ITEM_EVENT = "musicgest:new-item";
-const QUICK_CAPTURE_EVENT = "musicgest:quick-capture";
+const NEW_ITEM_EVENT = "vistage:new-item";
+const QUICK_CAPTURE_EVENT = "vistage:quick-capture";
 
 export function triggerNewItem(): void {
   window.dispatchEvent(new CustomEvent(NEW_ITEM_EVENT));
@@ -17,12 +18,27 @@ export function triggerQuickCapture(): void {
   window.dispatchEvent(new CustomEvent(QUICK_CAPTURE_EVENT));
 }
 
+// Intenção de "criar item" disparada por NAVEGAÇÃO (command palette, menu "+").
+// Guardamos a rota-alvo; quando a página de destino monta nessa rota, ela abre
+// o próprio form de criação. Se já estiver na rota, o chamador usa
+// triggerNewItem() direto (a página atual responde na hora).
+let pendingNewItemPath: string | null = null;
+export function requestNewItemAt(path: string): void {
+  pendingNewItemPath = path;
+}
+
 export function useNewItemShortcut(handler: () => void): void {
+  const { pathname } = useLocation();
   useEffect(() => {
     const listener = () => handler();
     window.addEventListener(NEW_ITEM_EVENT, listener);
+    // Intenção pendente vinda de navegação: só a página da rota certa responde.
+    if (pendingNewItemPath && pathname === pendingNewItemPath) {
+      pendingNewItemPath = null;
+      handler();
+    }
     return () => window.removeEventListener(NEW_ITEM_EVENT, listener);
-  }, [handler]);
+  }, [handler, pathname]);
 }
 
 export function useQuickCaptureEvent(handler: () => void): void {
@@ -56,7 +72,7 @@ const SETTING_KEYS: Record<ShortcutAction, string> = {
   quickCapture: "shortcut.quickCapture",
 };
 
-const LS_FALLBACK_PREFIX = "musicgest.shortcut.";
+const LS_FALLBACK_PREFIX = "vistage.shortcut.";
 
 async function readSetting(key: string): Promise<string | null> {
   try {
@@ -107,14 +123,6 @@ export async function hydrateShortcuts(): Promise<void> {
   }
   hydrated = true;
   notify();
-}
-
-export function getShortcutKey(action: ShortcutAction): string {
-  return cache[action] ?? DEFAULTS[action];
-}
-
-export function getAllShortcuts(): Record<ShortcutAction, string> {
-  return { ...cache };
 }
 
 export function getDefaultShortcuts(): Record<ShortcutAction, string> {

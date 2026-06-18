@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "../components/StatusBadge";
 import { type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
+import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -99,43 +100,84 @@ export function CalendarView({ gigs, onEdit }: Props) {
           const inMonth = isSameMonth(day, cursor);
           const today = isSameDay(day, new Date());
           return (
-            <div
+            <DayCell
               key={key}
-              className={cn(
-                "min-h-[100px] bg-background p-1.5",
-                !inMonth && "opacity-40"
-              )}
-            >
-              <div
-                className={cn(
-                  "mb-1 text-xs tabular-nums",
-                  today
-                    ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground"
-                    : "text-muted-foreground"
-                )}
-              >
-                {format(day, "d")}
-              </div>
-              <div className="space-y-1">
-                {dayGigs.map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => onEdit(g)}
-                    className="w-full truncate rounded bg-muted px-1.5 py-1 text-left text-xs transition hover:bg-accent"
-                    title={`${gigDisplayName(g)} · ${g.venue_name} · ${g.status}`}
-                  >
-                    <div className="flex items-center gap-1">
-                      <StatusBadge status={g.status} />
-                    </div>
-                    <div className="mt-0.5 truncate font-medium">
-                      {gigDisplayName(g)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
+              day={day}
+              dayGigs={dayGigs}
+              inMonth={inMonth}
+              today={today}
+              onEdit={onEdit}
+            />
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function DayCell({
+  day,
+  dayGigs,
+  inMonth,
+  today,
+  onEdit,
+}: {
+  day: Date;
+  dayGigs: Gig[];
+  inMonth: boolean;
+  today: boolean;
+  onEdit: (gig: Gig) => void;
+}) {
+  // Usa o flyer da primeira GIG do dia que tiver imagem como fundo da célula.
+  const flyerPath = dayGigs.find((g) => g.banner_file_path)?.banner_file_path ?? null;
+  const flyerUrl = useImageUrl(flyerPath);
+
+  return (
+    <div
+      className={cn(
+        "relative min-h-[100px] overflow-hidden bg-background p-1.5",
+        !inMonth && "opacity-40"
+      )}
+    >
+      {flyerUrl && (
+        <>
+          <img
+            src={flyerUrl}
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-background/40" />
+        </>
+      )}
+      <div className="relative">
+        <div
+          className={cn(
+            "mb-1 text-xs tabular-nums",
+            today
+              ? "inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground"
+              : "text-muted-foreground"
+          )}
+        >
+          {format(day, "d")}
+        </div>
+        <div className="space-y-1">
+          {dayGigs.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => onEdit(g)}
+              className="w-full truncate rounded bg-muted/90 px-1.5 py-1 text-left text-xs transition hover:bg-accent"
+              title={`${gigDisplayName(g)} · ${g.venue_name} · ${g.status}`}
+            >
+              <div className="flex items-center gap-1">
+                <StatusBadge status={g.status} />
+              </div>
+              <div className="mt-0.5 truncate font-medium">
+                {gigDisplayName(g)}
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

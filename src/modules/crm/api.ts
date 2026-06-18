@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type { Gig } from "@/modules/gigs/types";
 import type {
   Contact,
@@ -43,6 +44,10 @@ export async function listContacts(
   const where: string[] = [];
   const params: unknown[] = [];
 
+  if (filters.type && filters.type !== "Todos") {
+    params.push(`%${filters.type}%`);
+    where.push(`(types LIKE $${params.length})`);
+  }
   if (filters.city && filters.city.trim().length > 0) {
     params.push(`%${filters.city.trim()}%`);
     where.push(`city LIKE $${params.length}`);
@@ -56,18 +61,14 @@ export async function listContacts(
     );
   }
 
+  // Ordenação padrão: prioridade alta → baixa (rating maior primeiro),
+  // depois nome. A UI pode reordenar em memória conforme a coluna escolhida.
   const sql =
     `SELECT * FROM contacts` +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
-    " ORDER BY name COLLATE NOCASE ASC";
+    " ORDER BY (rating IS NULL) ASC, rating DESC, name COLLATE NOCASE ASC";
   const rows = await db.select<ContactRow[]>(sql, params);
-  const contacts = rows.map(rowToContact);
-
-  // filtro por tipo (multi-valor JSON) feito em JS pra simplicidade
-  if (filters.type && filters.type !== "Todos") {
-    return contacts.filter((c) => c.types.includes(filters.type as ContactType));
-  }
-  return contacts;
+  return rows.map(rowToContact);
 }
 
 export async function getContact(id: number): Promise<Contact | null> {
@@ -93,7 +94,9 @@ export async function createContact(input: ContactCreateInput): Promise<number> 
     `INSERT INTO contacts (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  emitDataChanged();
+  return id;
 }
 
 export async function updateContact(input: ContactUpdateInput): Promise<void> {
@@ -111,11 +114,17 @@ export async function updateContact(input: ContactUpdateInput): Promise<void> {
     `UPDATE contacts SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteContact(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM contacts WHERE id = $1", [id]);
+  try {
+    const { removeContactFromParties } = await import("@/modules/parties/api");
+    await removeContactFromParties(id);
+  } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 // ============================================================
@@ -189,4 +198,121 @@ export async function listGigsByContact(contactId: number): Promise<Gig[]> {
     `SELECT * FROM gigs WHERE promoter_contact_id = $1 ORDER BY date DESC`,
     [contactId]
   );
+}
+
+// ============================================================
+// Personas espelho — fornecedor / aluno vinculados ao contato
+// ============================================================
+
+/** Indica se o contato já possui personas espelho criadas. */
+export async function getMirrorState(
+  contactId: number
+): Promise<{ supplier: boolean; student: boolean }> {
+  const db = getDb();
+  const sup = await db.select<{ id: number }[]>(
+    "SELECT id FROM suppliers WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  const stu = await db.select<{ id: number }[]>(
+    "SELECT id FROM students WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  return { supplier: sup.length > 0, student: stu.length > 0 };
+}
+
+/**
+ * Cria/atualiza o fornecedor espelho de um contato (idempotente por contact_id).
+ * Mantém os dados básicos em sincronia, sem sobrescrever campos próprios do
+ * fornecedor (categoria, etc.).
+ */
+export async function upsertSupplierMirror(contact: Contact): Promise<void> {
+  const db = getDb();
+  const existing = await db.select<{ id: number }[]>(
+    "SELECT id FROM suppliers WHERE contact_id = $1 LIMIT 1",
+    [contact.id]
+  );
+  if (existing[0]) {
+    await db.execute(
+      `UPDATE suppliers SET
+         name = $1, contact_name = $2, phone = $3, email = $4,
+         instagram = $5, city = $6, notes = $7, updated_at = datetime('now')
+       WHERE id = $8`,
+      [
+        contact.name,
+        contact.name,
+        contact.phone ?? null,
+        contact.email ?? null,
+        contact.instagram ?? null,
+        contact.city ?? null,
+        contact.notes ?? null,
+        existing[0].id,
+      ]
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO suppliers
+         (name, category, contact_name, phone, email, instagram, city, notes, rating, contact_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        contact.name,
+        null,
+        contact.name,
+        contact.phone ?? null,
+        contact.email ?? null,
+        contact.instagram ?? null,
+        contact.city ?? null,
+        contact.notes ?? null,
+        null,
+        contact.id,
+      ]
+    );
+  }
+  emitDataChanged();
+}
+
+/**
+ * Cria/atualiza o aluno espelho de um contato (idempotente por contact_id).
+ * Mantém os dados básicos em sincronia, sem tocar em campos próprios do aluno.
+ */
+export async function upsertStudentMirror(contact: Contact): Promise<void> {
+  const db = getDb();
+  const existing = await db.select<{ id: number }[]>(
+    "SELECT id FROM students WHERE contact_id = $1 LIMIT 1",
+    [contact.id]
+  );
+  if (existing[0]) {
+    await db.execute(
+      `UPDATE students SET
+         name = $1, phone = $2, email = $3, instagram = $4, city = $5,
+         notes = $6, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7`,
+      [
+        contact.name,
+        contact.phone ?? null,
+        contact.email ?? null,
+        contact.instagram ?? null,
+        contact.city ?? null,
+        contact.notes ?? null,
+        existing[0].id,
+      ]
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO students
+         (name, phone, email, instagram, city, acquisition, notes, default_rate, contact_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        contact.name,
+        contact.phone ?? null,
+        contact.email ?? null,
+        contact.instagram ?? null,
+        contact.city ?? null,
+        null,
+        contact.notes ?? null,
+        null,
+        contact.id,
+      ]
+    );
+  }
+  emitDataChanged();
 }

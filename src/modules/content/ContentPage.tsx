@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Film, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,7 +22,8 @@ import { ContentForm } from "./forms/ContentForm";
 import { ContentList } from "./views/ContentList";
 import { ContentKanban } from "./views/ContentKanban";
 import { ContentCalendar } from "./views/ContentCalendar";
-import { deleteContent, getContentStats, listContent, type ContentFilters, type ContentStats } from "./api";
+import { deleteContent, getContentStats, listContent, updateContent, type ContentFilters, type ContentStats } from "./api";
+import { updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
   CONTENT_NETWORKS,
@@ -30,13 +33,17 @@ import {
   type ContentNetwork,
   type ContentStatus,
 } from "./types";
+import { KpiCard } from "@/components/shared/KpiCard";
+import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = ContentStatus | "Todos";
 type FormatFilter = ContentFormat | "Todos";
 type NetworkFilter = ContentNetwork | "Todas";
 
 export function ContentPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Content[]>([]);
   const [stats, setStats] = useState<ContentStats | null>(null);
   const [filters, setFilters] = useState<{
@@ -48,6 +55,10 @@ export function ContentPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Content | null>(null);
+  const [formDefaults, setFormDefaults] = useState<{ title?: string; track_id?: number | null } | null>(null);
+  const [networkOptions, setNetworkOptions] = useState<string[]>([
+    ...CONTENT_NETWORKS,
+  ]);
 
   const queryFilters: ContentFilters = useMemo(
     () => ({
@@ -72,8 +83,34 @@ export function ContentPage() {
     void refresh();
   }, [refresh]);
 
+  // Pre-fill form when navigated with ?title=...
+  useEffect(() => {
+    const prefillTitle = searchParams.get("title");
+    const prefillTrackId = searchParams.get("track_id");
+    if (prefillTitle || prefillTrackId) {
+      const defaults: { title?: string; track_id?: number | null } = {};
+      if (prefillTitle) defaults.title = prefillTitle;
+      if (prefillTrackId && !Number.isNaN(Number(prefillTrackId)))
+        defaults.track_id = Number(prefillTrackId);
+      setFormDefaults(defaults);
+      setEditing(null);
+      setFormOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadIdentity().then((identity) => {
+      const fromIdentity = Array.from(
+        new Set(identity.socials.map((s) => s.network).filter(Boolean))
+      );
+      if (fromIdentity.length > 0) setNetworkOptions(fromIdentity);
+    });
+  }, []);
+
   function openCreate() {
     setEditing(null);
+    setFormDefaults(null);
     setFormOpen(true);
   }
 
@@ -84,8 +121,20 @@ export function ContentPage() {
     setFormOpen(true);
   }
 
+  async function handleMove(id: number, status: ContentStatus) {
+    await updateContent({ id, status });
+    // Quando publica, conclui a tarefa vinculada ao conteúdo.
+    if (status === "Publicado") {
+      const moved = items.find((c) => c.id === id);
+      if (moved?.task_id) {
+        await updateTask({ id: moved.task_id, status: "Concluída" });
+      }
+    }
+    await refresh();
+  }
+
   async function handleDelete(c: Content) {
-    if (!window.confirm(`Excluir "${c.title}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${c.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteContent(c.id);
     toast.success("Conteúdo excluído");
     await refresh();
@@ -94,12 +143,12 @@ export function ContentPage() {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-        <Kpi label="Total" value={stats?.total.toString() ?? "—"} />
-        <Kpi
+        <KpiCard label="Total" value={stats?.total.toString() ?? "—"} />
+        <KpiCard
           label="Publicados no mês"
           value={stats?.publishedThisMonth.toString() ?? "—"}
         />
-        <Kpi
+        <KpiCard
           label="Em produção"
           value={
             stats
@@ -113,7 +162,13 @@ export function ContentPage() {
         />
       </div>
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <PageToolbar
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo conteúdo
+          </Button>
+        }
+      >
         <div className="flex flex-wrap items-end gap-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -173,7 +228,7 @@ export function ContentPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="Todas">Todas redes</SelectItem>
-              {CONTENT_NETWORKS.map((n) => (
+              {networkOptions.map((n) => (
                 <SelectItem key={n} value={n}>
                   {n}
                 </SelectItem>
@@ -181,10 +236,7 @@ export function ContentPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Novo conteúdo
-        </Button>
-      </div>
+      </PageToolbar>
 
       {items.length === 0 && (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -214,26 +266,19 @@ export function ContentPage() {
           </TabsContent>
 
           <TabsContent value="kanban">
-            <ContentKanban items={items} onEdit={openEdit} />
+            <ContentKanban items={items} onEdit={openEdit} onMove={handleMove} />
           </TabsContent>
         </Tabs>
       )}
 
       <ContentForm
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(v) => { setFormOpen(v); if (!v) setFormDefaults(null); }}
         content={editing}
+        defaults={formDefaults ?? undefined}
         onSaved={() => void refresh()}
       />
     </div>
   );
 }
 
-function Kpi({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-    </div>
-  );
-}

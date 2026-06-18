@@ -1,9 +1,12 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Subtask,
   Task,
   TaskCategory,
   TaskCreateInput,
+  TaskLink,
+  TaskLinkType,
   TaskPriority,
   TaskStatus,
   TaskUpdateInput,
@@ -33,16 +36,25 @@ export type TaskFilters = {
   contactId?: number;
   search?: string;
   date?: TasksDateFilter;
+  /** Filtra por tarefas vinculadas a um tipo de entidade (inbox unificada). */
+  linkType?: TaskLinkType;
 };
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function sevenDaysFromNowISO(): string {
   const d = new Date();
   d.setDate(d.getDate() + 7);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
@@ -69,6 +81,12 @@ export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
   if (filters.contactId) {
     params.push(filters.contactId);
     where.push(`contact_id = $${params.length}`);
+  }
+  if (filters.linkType) {
+    params.push(filters.linkType);
+    where.push(
+      `EXISTS (SELECT 1 FROM task_links tl WHERE tl.task_id = tasks.id AND tl.entity_type = $${params.length})`
+    );
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
@@ -124,12 +142,6 @@ export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
   return rows.map(rowToTask);
 }
 
-export async function getTask(id: number): Promise<Task | null> {
-  const db = getDb();
-  const rows = await db.select<TaskRow[]>("SELECT * FROM tasks WHERE id = $1", [id]);
-  return rows[0] ? rowToTask(rows[0]) : null;
-}
-
 export async function createTask(input: TaskCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };
@@ -140,6 +152,7 @@ export async function createTask(input: TaskCreateInput): Promise<number> {
     `INSERT INTO tasks (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -157,11 +170,25 @@ export async function updateTask(input: TaskUpdateInput): Promise<void> {
     `UPDATE tasks SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
+  // Caminho inverso: concluir a tarefa de etapa de uma track ("Mixar X") avança
+  // a track para o próximo stage automaticamente.
+  if (rest.status === "Concluída" && id != null) {
+    try {
+      const { advanceTrackForCompletedStageTask } = await import(
+        "@/modules/music/api"
+      );
+      await advanceTrackForCompletedStageTask(id);
+    } catch {
+      /* não interrompe a conclusão da tarefa */
+    }
+  }
 }
 
 export async function deleteTask(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM tasks WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -211,19 +238,6 @@ export async function deleteSubtask(id: number): Promise<void> {
 // Aggregates / Dashboard
 // ============================================================
 
-export async function countUpcoming7Days(): Promise<number> {
-  const db = getDb();
-  const today = todayISO();
-  const week = sevenDaysFromNowISO();
-  const rows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM tasks
-      WHERE due_date BETWEEN $1 AND $2
-        AND status NOT IN ('Concluída', 'Cancelada')`,
-    [today, week]
-  );
-  return rows[0]?.n ?? 0;
-}
-
 export async function listUpcoming(limit = 5): Promise<Task[]> {
   const db = getDb();
   const today = todayISO();
@@ -250,16 +264,58 @@ export async function listUpcoming(limit = 5): Promise<Task[]> {
  * Retorna o id da nova task criada, ou null se não houve recorrência.
  */
 export async function completeAndRecur(task: Task): Promise<number | null> {
-  await updateTask({ id: task.id, status: "Concluída" });
+  const db = getDb();
+  // Reivindica a conclusão de forma atômica. Se um duplo-clique disparar duas
+  // chamadas antes do React re-renderizar, só a primeira pega rowsAffected=1 e
+  // cria a próxima ocorrência — a segunda vê 0 e sai sem duplicar a recorrência.
+  const claim = await db.execute(
+    `UPDATE tasks SET status = 'Concluída', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status <> 'Concluída'`,
+    [task.id]
+  );
+  if (Number(claim.rowsAffected) === 0) return null;
+  emitDataChanged();
+
+  // Mesmo efeito colateral de updateTask: concluir a tarefa de etapa de uma
+  // track avança a track para o próximo stage automaticamente.
+  if (task.id != null) {
+    try {
+      const { advanceTrackForCompletedStageTask } = await import(
+        "@/modules/music/api"
+      );
+      await advanceTrackForCompletedStageTask(task.id);
+    } catch {
+      /* não interrompe a conclusão da tarefa */
+    }
+  }
+
   if (!task.recurrence) return null;
 
-  const days = task.recurrence === "weekly" ? 7 : 30;
-  const base = task.due_date ?? new Date().toISOString().slice(0, 10);
-  const d = new Date(base);
-  d.setDate(d.getDate() + days);
-  const newDue = d.toISOString().slice(0, 10);
+  let newDue: string;
+  if (task.recurrence === "weekly") {
+    const base = task.due_date ?? todayISO();
+    const d = new Date(`${base}T12:00:00`);
+    d.setDate(d.getDate() + 7);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const dy = String(d.getDate()).padStart(2, "0");
+    newDue = `${y}-${mo}-${dy}`;
+  } else {
+    // monthly — proper +1 month arithmetic, clamped to last day of month
+    const base = task.due_date ?? todayISO();
+    const d = new Date(`${base}T12:00:00`);
+    const targetMonth = d.getMonth() + 1; // 0-based month + 1
+    d.setMonth(targetMonth);
+    // If month overflowed (e.g. Jan 31 → Mar 2), clamp back to last day
+    if (d.getMonth() !== (targetMonth % 12)) {
+      d.setDate(0); // day 0 of current month = last day of previous month
+    }
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const dy = String(d.getDate()).padStart(2, "0");
+    newDue = `${y}-${mo}-${dy}`;
+  }
 
-  const db = getDb();
   const now = new Date().toISOString();
   const res = await db.execute(
     `INSERT INTO tasks (title, description, category, gig_id, contact_id, priority, status, due_date, tags, recurrence, created_at, updated_at)
@@ -279,4 +335,106 @@ export async function completeAndRecur(task: Task): Promise<number | null> {
     ]
   );
   return Number(res.lastInsertId);
+}
+
+// ============================================================
+// Task links — vínculos polimórficos
+// ============================================================
+
+export async function listTaskLinks(taskId: number): Promise<TaskLink[]> {
+  const db = getDb();
+  return db.select<TaskLink[]>(
+    "SELECT * FROM task_links WHERE task_id = $1 ORDER BY created_at ASC",
+    [taskId]
+  );
+}
+
+/**
+ * Substitui todos os vínculos de uma tarefa pelos fornecidos.
+ * Usado ao salvar o TaskForm (tanto criação quanto edição).
+ */
+export async function setTaskLinks(
+  taskId: number,
+  links: { entity_type: TaskLinkType; entity_id: number; label: string | null }[]
+): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM task_links WHERE task_id = $1", [taskId]);
+  for (const l of links) {
+    await db.execute(
+      "INSERT OR IGNORE INTO task_links (task_id, entity_type, entity_id, label) VALUES ($1, $2, $3, $4)",
+      [taskId, l.entity_type, l.entity_id, l.label]
+    );
+  }
+}
+
+/**
+ * Remove os vínculos polimórficos que apontam para uma entidade excluída.
+ * A FK de task_links cobre só o lado task_id (ON DELETE CASCADE); o lado
+ * polimórfico (entity_type/entity_id) não pode ter FK, então sem isto sobram
+ * vínculos-fantasma apontando para fãs/festas/tracks já apagados (a tarefa
+ * continua exibindo o link cacheado de algo que não existe mais).
+ */
+export async function unlinkTasksFromEntity(
+  entityType: TaskLinkType,
+  entityId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "DELETE FROM task_links WHERE entity_type = $1 AND entity_id = $2",
+    [entityType, entityId]
+  );
+}
+
+/** Tarefas vinculadas a qualquer entidade (para o painel inverso). */
+export async function listTasksLinkedTo(
+  entityType: string,
+  entityId: number
+): Promise<Task[]> {
+  const db = getDb();
+  const rows = await db.select<TaskRow[]>(
+    `SELECT t.* FROM tasks t
+       JOIN task_links tl ON tl.task_id = t.id
+      WHERE tl.entity_type = $1 AND tl.entity_id = $2
+      ORDER BY t.due_date ASC, t.created_at DESC`,
+    [entityType, entityId]
+  );
+  return rows.map(rowToTask);
+}
+
+/**
+ * Espelha o estado de uma entidade nas tarefas vinculadas a ela.
+ * Só mexe em tarefas ainda abertas (não "ressuscita" concluídas/canceladas).
+ * Usado quando uma track é lançada, uma festa é realizada, etc.
+ */
+export async function syncLinkedTasksStatus(
+  entityType: string,
+  entityId: number,
+  status: TaskStatus
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE tasks SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id IN (
+         SELECT task_id FROM task_links WHERE entity_type = $2 AND entity_id = $3
+       )
+       AND status NOT IN ('Concluída', 'Cancelada')`,
+    [status, entityType, entityId]
+  );
+  emitDataChanged();
+}
+
+/** Conta tarefas abertas vinculadas a uma entidade (para badges de pendência). */
+export async function countOpenTasksLinkedTo(
+  entityType: string,
+  entityId: number
+): Promise<number> {
+  const db = getDb();
+  const rows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) AS n FROM tasks t
+       JOIN task_links tl ON tl.task_id = t.id
+      WHERE tl.entity_type = $1 AND tl.entity_id = $2
+        AND t.status NOT IN ('Concluída', 'Cancelada')`,
+    [entityType, entityId]
+  );
+  return rows[0]?.n ?? 0;
 }

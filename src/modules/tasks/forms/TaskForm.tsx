@@ -21,6 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { SubtaskList } from "../components/SubtaskList";
+import { LinkPicker, type PendingLink } from "../components/LinkPicker";
 import {
   TASK_CATEGORIES,
   TASK_PRIORITIES,
@@ -31,12 +32,13 @@ import {
   type TaskCreateInput,
   type TaskRecurrence,
 } from "../types";
-import { createTask, updateTask } from "../api";
+import { createTask, listTaskLinks, setTaskLinks, updateTask } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { formatDate } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -58,6 +60,7 @@ const EMPTY: TaskCreateInput = {
   due_date: null,
   tags: [],
   recurrence: null,
+  energy_required: null,
 };
 
 function taskToInput(t: Task): TaskCreateInput {
@@ -72,6 +75,7 @@ function taskToInput(t: Task): TaskCreateInput {
     due_date: t.due_date,
     tags: t.tags,
     recurrence: t.recurrence,
+    energy_required: t.energy_required,
   };
 }
 
@@ -87,26 +91,43 @@ export function TaskForm({
   const [tagInput, setTagInput] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
+  const [links, setLinks] = useState<PendingLink[]>([]);
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (task) setState(taskToInput(task));
     else setState({ ...EMPTY, ...(defaults ?? {}) });
     setTagInput("");
     setTitleError(null);
+    setDirty(false);
+    setLinks([]);
   }, [task, defaults, open]);
 
   useEffect(() => {
     if (!open) return;
     void listContacts().then(setContacts);
     void listGigs().then(setGigs);
-  }, [open]);
+    if (task) {
+      void listTaskLinks(task.id).then((rows) =>
+        setLinks(
+          rows.map((r) => ({
+            entity_type: r.entity_type,
+            entity_id: r.entity_id,
+            label: r.label ?? "",
+          }))
+        )
+      );
+    }
+  }, [open, task]);
 
   function set<K extends keyof TaskCreateInput>(
     key: K,
     value: TaskCreateInput[K]
   ) {
     setState((s) => ({ ...s, [key]: value }));
+    setDirty(true);
   }
 
   function addTag() {
@@ -117,10 +138,12 @@ export function TaskForm({
     }
     setState((s) => ({ ...s, tags: [...s.tags, t] }));
     setTagInput("");
+    setDirty(true);
   }
 
   function removeTag(tag: string) {
     setState((s) => ({ ...s, tags: s.tags.filter((t) => t !== tag) }));
+    setDirty(true);
   }
 
   async function handleSubmit() {
@@ -134,7 +157,16 @@ export function TaskForm({
       const id = task
         ? (await updateTask({ id: task.id, ...state }), task.id)
         : await createTask(state);
+      await setTaskLinks(
+        id,
+        links.map((l) => ({
+          entity_type: l.entity_type,
+          entity_id: l.entity_id,
+          label: l.label || null,
+        }))
+      );
       toast.success(task ? "Tarefa atualizada" : "Tarefa criada");
+      setDirty(false);
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -145,7 +177,7 @@ export function TaskForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
@@ -157,6 +189,7 @@ export function TaskForm({
               Título <span className="text-destructive">*</span>
             </Label>
             <Input
+              autoFocus
               value={state.title}
               onChange={(e) => {
                 set("title", e.target.value);
@@ -184,7 +217,7 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sem categoria</SelectItem>
@@ -215,6 +248,31 @@ export function TaskForm({
                 </SelectContent>
               </Select>
             </Field>
+            <Field label="Energia necessária">
+              <div className="flex items-center gap-1 pt-1">
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() =>
+                      set("energy_required", state.energy_required === level ? null : level)
+                    }
+                    className={[
+                      "flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold transition",
+                      state.energy_required != null && level <= state.energy_required
+                        ? "border-amber-500 bg-amber-500 text-white"
+                        : "border-input bg-background text-muted-foreground hover:border-amber-400 hover:text-amber-500",
+                    ].join(" ")}
+                    aria-label={`Energia ${level}`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="Status">
               <Select
                 value={state.status}
@@ -250,10 +308,10 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem recorrência —</SelectItem>
+                  <SelectItem value="none">Nenhuma</SelectItem>
                   {TASK_RECURRENCES.map((r) => (
                     <SelectItem key={r} value={r}>
                       {TASK_RECURRENCE_LABEL[r]}
@@ -270,10 +328,10 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {gigs.map((g) => (
                     <SelectItem key={g.id} value={g.id.toString()}>
                       {g.venue_name} · {formatDate(g.date)}
@@ -290,10 +348,10 @@ export function TaskForm({
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">— Sem vínculo —</SelectItem>
+                  <SelectItem value="none">Sem vínculo</SelectItem>
                   {contacts.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
                       {c.name}
@@ -337,6 +395,17 @@ export function TaskForm({
                 Adicionar
               </Button>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Outros vínculos</Label>
+            <LinkPicker
+              links={links}
+              onChange={(l) => {
+                setLinks(l);
+                setDirty(true);
+              }}
+            />
           </div>
 
           {task && (

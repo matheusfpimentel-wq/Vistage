@@ -18,6 +18,8 @@ export type Student = {
   city: string | null;
   acquisition: AcquisitionSource | null;
   notes: string | null;
+  default_rate: number | null;
+  contact_id: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -25,13 +27,21 @@ export type Student = {
 export type StudentCreateInput = Omit<Student, "id" | "created_at" | "updated_at">;
 export type StudentUpdateInput = Partial<StudentCreateInput> & { id: number };
 
+export type SyllabusItem = {
+  title: string;
+  hours: number | null;
+  detail: string | null;
+};
+
 export type ClassPackage = {
   id: number;
   name: string;
   total_classes: number;
+  total_hours: number | null;
   price: number | null;
   description: string | null;
   syllabus: string | null;
+  syllabus_items: SyllabusItem[];
   active: number;
   created_at: string;
 };
@@ -39,7 +49,7 @@ export type ClassPackage = {
 export type ClassPackageCreateInput = Omit<ClassPackage, "id" | "created_at">;
 export type ClassPackageUpdateInput = Partial<ClassPackageCreateInput> & { id: number };
 
-export const STUDENT_PACKAGE_STATUSES = ["Ativo", "Concluído", "Cancelado"] as const;
+const STUDENT_PACKAGE_STATUSES = ["Ativo", "Concluído", "Cancelado"] as const;
 export type StudentPackageStatus = (typeof STUDENT_PACKAGE_STATUSES)[number];
 
 export type StudentPackage = {
@@ -47,7 +57,9 @@ export type StudentPackage = {
   student_id: number;
   package_id: number | null;
   total_classes: number;
+  total_hours: number | null;
   used_classes: number;
+  used_minutes: number;
   purchased_at: string;
   status: StudentPackageStatus;
   notes: string | null;
@@ -70,11 +82,14 @@ export type ClassSession = {
   date: string;
   start_time: string | null;
   duration_min: number | null;
+  title: string | null;
   subject: string | null;
   status: ClassStatus;
   feedback: string | null;
   amount: number | null;
   notes: string | null;
+  task_id?: number | null;
+  gcal_event_id?: string | null;
   created_at: string;
   updated_at: string;
 };

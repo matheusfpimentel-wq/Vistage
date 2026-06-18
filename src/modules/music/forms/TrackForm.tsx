@@ -55,7 +55,7 @@ import {
   prevStage,
   type TrackKind,
 } from "../stages";
-import { MOOD_SUGGESTIONS, type Track, type TrackCreateInput } from "../types";
+import { trackDisplayName, type MusicProject, type Track, type TrackCreateInput } from "../types";
 import { gateAfter, GATES, type GateDecisionRecord } from "../gates";
 import { StageBadge } from "../components/StageBadge";
 import { FlowSessionPanel } from "../components/FlowSessionPanel";
@@ -68,7 +68,10 @@ import {
   autoCreateLaunchTask,
   autoCreatePreLaunchContent,
   createTrack,
+  getTopMoods,
   getTrack,
+  listProjects,
+  listTracks,
   listTrackCollaborators,
   listTrackGigs,
   reactivateTrack,
@@ -84,7 +87,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   track?: Track | null;
   defaultProjectId?: number | null;
-  onSaved: () => void;
+  onSaved: (newId?: number) => void;
 };
 
 type FormState = Omit<TrackCreateInput, "project_id">;
@@ -107,9 +110,10 @@ const EMPTY: FormState = {
   final_files_path: null,
   stage_notes: null,
   creative_block_notes: null,
+  related_track_id: null,
 };
 
-const COLLAB_TYPES = ["DJ parceiro", "Colaborador", "Produtor de eventos"];
+const COLLAB_TYPES = ["DJ parceiro", "Músico"];
 
 export function TrackForm({
   open,
@@ -125,9 +129,14 @@ export function TrackForm({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [moodInput, setMoodInput] = useState("");
+  const [topMoods, setTopMoods] = useState<string[]>([]);
+  const [projects, setProjects] = useState<MusicProject[]>([]);
+  const [allTracks, setAllTracks] = useState<{ id: number; name: string }[]>([]);
+  const [projectId, setProjectId] = useState<number | null>(null);
   const [gateOpen, setGateOpen] = useState<null | { gateId: string; mode: "advance" | "review" }>(null);
   const [autoCreateOpen, setAutoCreateOpen] = useState<null | "pre_launch" | "launch">(null);
   const [trackGigs, setTrackGigs] = useState<{ id: number; event_name: string | null; venue_name: string; date: string }[]>([]);
+  const [standbyUntil, setStandbyUntil] = useState<string>("");
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!track;
@@ -142,6 +151,12 @@ export function TrackForm({
     if (!open) return;
     setDirty(false);
     setMoodInput("");
+    void getTopMoods().then(setTopMoods);
+    void listProjects().then(setProjects);
+    void listTracks().then((ts) =>
+      setAllTracks(ts.map((t) => ({ id: t.id, name: trackDisplayName(t) })))
+    );
+    setProjectId(track?.project_id ?? defaultProjectId ?? null);
     void listContacts().then((all) =>
       setContacts(
         all.filter((c) => c.types.some((t) => COLLAB_TYPES.includes(t)))
@@ -166,12 +181,15 @@ export function TrackForm({
         final_files_path: track.final_files_path,
         stage_notes: track.stage_notes,
         creative_block_notes: track.creative_block_notes,
+        related_track_id: track.related_track_id,
       });
+      setStandbyUntil(track.standby_until ?? "");
       setLoaded(track);
       void listTrackCollaborators(track.id).then(setCollabs);
       void listTrackGigs(track.id).then(setTrackGigs);
     } else {
       setState(EMPTY);
+      setStandbyUntil("");
       setLoaded(null);
       setCollabs([]);
     }
@@ -184,8 +202,8 @@ export function TrackForm({
 
   function addMood(tag: string) {
     const t = tag.trim();
-    if (!t || state.mood_tags.includes(t)) return;
-    set("mood_tags", [...state.mood_tags, t]);
+    if (!t) return;
+    if (!state.mood_tags.includes(t)) set("mood_tags", [...state.mood_tags, t]);
     setMoodInput("");
   }
 
@@ -222,24 +240,23 @@ export function TrackForm({
       toast.error("O título de trabalho é obrigatório");
       return;
     }
-    if (!state.constraints || !state.constraints.trim()) {
-      toast.error(
-        "Defina as restrições criativas — elas aumentam a produção criativa."
-      );
-      return;
-    }
     setSaving(true);
     try {
       let id: number;
       if (track) {
-        await updateTrack({ id: track.id, ...state });
+        await updateTrack({
+          id: track.id,
+          ...state,
+          project_id: projectId,
+          standby_until: standbyUntil || null,
+        });
         id = track.id;
       } else {
-        id = await createTrack({ ...state, project_id: defaultProjectId ?? null });
+        id = await createTrack({ ...state, project_id: projectId });
       }
       await setTrackCollaborators(id, collabs);
       toast.success(track ? "Track atualizada" : "Track criada");
-      onSaved();
+      onSaved(track ? undefined : id);
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -319,9 +336,6 @@ export function TrackForm({
               <StageBadge stage={loaded.current_stage} standby={loaded.standby} />
             )}
           </DialogTitle>
-          <DialogDescription>
-            Cada track é o objeto de trabalho cotidiano, com modelo Stage-Gate.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="id">
@@ -352,6 +366,53 @@ export function TrackForm({
                 />
               </Field>
             </div>
+            <Field label="Projeto (pasta que agrupa as músicas)">
+              <Select
+                value={projectId === null ? "_none" : projectId.toString()}
+                onValueChange={(v) => {
+                  setProjectId(v === "_none" ? null : Number(v));
+                  setDirty(true);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem projeto" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Sem projeto</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Relacionada a outra track (remix/sample/álbum)">
+              <Select
+                value={
+                  state.related_track_id == null
+                    ? "none"
+                    : String(state.related_track_id)
+                }
+                onValueChange={(v) =>
+                  set("related_track_id", v === "none" ? null : Number(v))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {allTracks
+                    .filter((t) => t.id !== track?.id)
+                    .map((t) => (
+                      <SelectItem key={t.id} value={String(t.id)}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <div className="grid gap-3 sm:grid-cols-4">
               <Field label="Tipo">
                 <Select
@@ -451,26 +512,28 @@ export function TrackForm({
                   className="h-8"
                 />
               </div>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {MOOD_SUGGESTIONS.filter((m) => !state.mood_tags.includes(m)).map(
-                  (m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => addMood(m)}
-                      className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-                    >
-                      + {m}
-                    </button>
-                  )
-                )}
-              </div>
+              {topMoods.filter((m) => !state.mood_tags.includes(m)).length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {topMoods
+                    .filter((m) => !state.mood_tags.includes(m))
+                    .map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => addMood(m)}
+                        className="rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary hover:text-primary"
+                      >
+                        + {m}
+                      </button>
+                    ))}
+                </div>
+              )}
             </Field>
           </TabsContent>
 
           {/* ===== CONCEITO ===== */}
           <TabsContent value="concept" className="space-y-4">
-            <Field label="Restrições criativas *">
+            <Field label="Restrições criativas">
               <p className="text-xs text-muted-foreground">
                 Definir restrições explícitas aumenta a produção criativa. Ex:
                 "só sintetizadores", "sem sample vocal", "produzir em 7 dias".
@@ -570,6 +633,20 @@ export function TrackForm({
                 </div>
               </div>
 
+              {loaded.standby && (
+                <Field label="Retornar em">
+                  <Input
+                    type="date"
+                    value={standbyUntil}
+                    onChange={(e) => {
+                      setStandbyUntil(e.target.value);
+                      setDirty(true);
+                    }}
+                    placeholder="Data de retorno do standby"
+                  />
+                </Field>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-3">
                 <AttachmentField
                   label="Projeto da DAW"
@@ -597,7 +674,7 @@ export function TrackForm({
               <Field label="Colaboradores">
                 {contacts.length === 0 ? (
                   <p className="text-xs text-muted-foreground">
-                    Cadastre contatos do tipo DJ parceiro / Colaborador no CRM.
+                    Cadastre contatos do tipo DJ parceiro ou Músico no CRM.
                   </p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">

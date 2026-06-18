@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { STAGES, STAGE_COLOR, TRACK_KINDS, TRACK_KIND_LABEL } from "../stages";
+import { GATES } from "../gates";
 import { trackDisplayName, type StageHistoryEntry, type TrackWithProject } from "../types";
 
 type Props = {
@@ -44,13 +45,12 @@ export function PortfolioView({ tracks }: Props) {
   const maxAvg = stageAvgDays.reduce((m, x) => Math.max(m, x.avg), 1);
 
   // --- Taxa de aprovação por gate ---
-  const gateIds = ["gate1", "gate2", "gate3", "gate4"] as const;
-  const gateStats = gateIds.map((gid, idx) => {
+  const gateStats = GATES.map((gate) => {
     let approved = 0;
     let rejected = 0;
     for (const t of tracks) {
       for (const h of t.stage_history as StageHistoryEntry[]) {
-        if (h.gate?.gate_id === gid) {
+        if (h.gate?.gate_id === gate.id) {
           if (h.gate.decision === "approved") approved++;
           else if (h.gate.decision === "rejected") rejected++;
         }
@@ -58,7 +58,7 @@ export function PortfolioView({ tracks }: Props) {
     }
     const total = approved + rejected;
     const pct = total > 0 ? Math.round((approved / total) * 100) : null;
-    return { label: `Gate ${idx + 1}`, approved, rejected, total, pct };
+    return { label: gate.title.split("—")[0].trim(), approved, rejected, total, pct };
   }).filter((g) => g.total > 0);
 
   // --- Tracks em Stand-by há +180 dias ---

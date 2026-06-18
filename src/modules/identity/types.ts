@@ -17,15 +17,40 @@ export const SOCIAL_NETWORKS = [
 export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
 
 export type SocialLink = {
-  network: SocialNetwork;
+  network: SocialNetwork | string;
   handle: string;
   url: string;
 };
 
-export type PaletteColor = {
+type PaletteColor = {
   hex: string;
   /** Rótulo opcional (ex: "Roxo principal", "Acento", "Texto escuro"). */
   label?: string;
+};
+
+type FontEntry = {
+  /** Nome da fonte (ex: "Clash Display", "Inter"). */
+  name: string;
+  /** Uso opcional (ex: "Títulos", "Corpo", "Destaque"). */
+  role?: string;
+  /** Caminho opcional do arquivo da fonte anexado. */
+  file_path?: string | null;
+};
+
+/** Um arquivo de mídia na galeria de identidade (foto ou vídeo local). */
+export type IdentityPhoto = {
+  /** Caminho absoluto do arquivo em uploads/. */
+  path: string;
+  /** Legenda opcional. */
+  caption?: string;
+  /** "photo" (padrão) ou "video". */
+  type?: "photo" | "video";
+};
+
+/** Link para uma pasta externa de fotos (Google Drive, Dropbox, etc). */
+export type FolderLink = {
+  name: string;
+  url: string;
 };
 
 export type ArtistIdentity = {
@@ -37,8 +62,18 @@ export type ArtistIdentity = {
   logo_path: string | null;
   isotype_path: string | null;
   presskit_path: string | null;
+  /** Link (URL) para o presskit hospedado externamente. */
+  presskit_link: string | null;
+  /** Arquivo do manual de marca (PDF). */
+  brand_manual_path: string | null;
   /** Paleta livre (qualquer número de cores). Substitui primary/secondary. */
   palette: PaletteColor[];
+  /** Fontes da marca (tipografia). */
+  fonts: FontEntry[];
+  /** Galeria de fotos (arquivos locais). */
+  photos: IdentityPhoto[];
+  /** Links para pastas externas de fotos. */
+  folder_links: FolderLink[];
   notes: string | null;
   updated_at: string;
 };
@@ -61,6 +96,7 @@ export type ArtistTemplate = {
   category: TemplateCategory | null;
   file_path: string | null;
   thumbnail_path: string | null;
+  content: string | null;
   notes: string | null;
   created_at: string;
 };

@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useConfigStore } from "@/lib/config";
-import { loadDatabase } from "@/lib/db";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 
 type Mode = "idle" | "creating" | "loading";
@@ -25,12 +24,11 @@ export function Setup() {
       const folder = await openDialog({
         directory: true,
         multiple: false,
-        title: "Escolha a pasta no HD externo onde o MusicGest vai criar o banco de dados",
+        title: "Escolha a pasta no HD externo onde o Vistage vai criar o banco de dados",
       });
       if (!folder || typeof folder !== "string") return;
       setMode("creating");
-      const cfg = await setupNew(folder);
-      await loadDatabase(cfg.dbPath);
+      await setupNew(folder);
     } catch (e) {
       setError(`Falha ao criar o banco: ${String(e)}`);
     } finally {
@@ -43,15 +41,24 @@ export function Setup() {
     try {
       const file = await openDialog({
         multiple: false,
-        title: "Selecione o arquivo musicgest.config.json no seu HD",
-        filters: [{ name: "Config MusicGest", extensions: ["json"] }],
+        title: "Selecione o arquivo vistage.config.json no seu HD",
+        filters: [{ name: "Config Vistage", extensions: ["json"] }],
       });
       if (!file || typeof file !== "string") return;
       setMode("loading");
-      const cfg = await loadExisting(file);
-      await loadDatabase(cfg.dbPath);
+      await loadExisting(file);
     } catch (e) {
-      setError(`Falha ao carregar: ${String(e)}`);
+      const msg = String(e);
+      const isCloudFile =
+        msg.includes("unable to open") ||
+        msg.includes("no such file") ||
+        msg.includes("not found") ||
+        msg.includes("os error 2");
+      setError(
+        isCloudFile
+          ? "O banco de dados não foi encontrado. Se ele está no Google Drive ou OneDrive, aguarde a sincronização terminar (ícone na barra de menus) e tente de novo. Se necessário, clique com botão direito na pasta → \"Disponível off-line\"."
+          : `Falha ao carregar: ${msg}`
+      );
     } finally {
       setMode("idle");
     }
@@ -73,11 +80,12 @@ export function Setup() {
               Setup inicial
             </span>
           </div>
-          <CardTitle>Onde vamos guardar seus dados?</CardTitle>
+          <CardTitle>Onde vamos guardar seus anexos?</CardTitle>
           <CardDescription>
-            O MusicGest é local-first. Escolha uma pasta no seu HD externo
-            (recomendado) — o banco de dados, anexos e configuração ficarão lá
-            para que tudo seja portátil entre Mac e Windows.
+            O Vistage é local-first. Escolha uma pasta (no HD externo, de
+            preferência) para os anexos e a configuração. O banco de dados fica
+            no computador; para levar TODOS os dados entre máquinas, use o
+            documento <code>.vistage</code> (Salvar como…).
           </CardDescription>
         </CardHeader>
 
@@ -100,10 +108,10 @@ export function Setup() {
               <span className="text-sm text-muted-foreground">
                 Escolha uma pasta vazia (ex:{" "}
                 <code className="rounded bg-muted px-1 text-xs">
-                  /Volumes/HD/musicgest
+                  /Volumes/HD/vistage
                 </code>
-                ). Criamos o <code>.db</code>, a pasta{" "}
-                <code>uploads/</code> e o arquivo de configuração.
+                ). Criamos a pasta <code>uploads/</code> e o arquivo de
+                configuração.
               </span>
             </button>
 
@@ -124,9 +132,10 @@ export function Setup() {
               <span className="text-sm text-muted-foreground">
                 Localize o arquivo{" "}
                 <code className="rounded bg-muted px-1 text-xs">
-                  musicgest.config.json
+                  vistage.config.json
                 </code>{" "}
-                que já existe no HD.
+                que já existe no HD ou na sua pasta sincronizada (Google Drive,
+                OneDrive, Dropbox).
               </span>
             </button>
           </div>
@@ -140,10 +149,9 @@ export function Setup() {
           <div className="rounded-md border bg-muted/30 p-4 text-xs text-muted-foreground">
             <div className="mb-1 font-medium text-foreground">Dica</div>
             Em Mac, o caminho típico é{" "}
-            <code>/Volumes/&lt;NomeDoHD&gt;/musicgest</code>. Em Windows, algo
-            como <code>E:\musicgest</code>. Pluge o HD em qualquer máquina,
-            abra o app e use “Abrir banco existente” para continuar de onde
-            parou.
+            <code>/Volumes/&lt;NomeDoHD&gt;/vistage</code>. Em Windows, algo
+            como <code>E:\vistage</code>. Para continuar noutra máquina com
+            todos os dados, salve um <code>.vistage</code> e abra-o lá.
           </div>
         </CardContent>
       </Card>

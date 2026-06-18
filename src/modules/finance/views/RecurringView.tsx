@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Repeat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,7 +34,7 @@ import {
   type FinanceRecurring,
   type TransactionKind,
 } from "../types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toLocalYearMonth } from "@/lib/format";
 
 type Props = {
   onChanged: () => void;
@@ -55,7 +56,7 @@ export function RecurringView({ onChanged }: Props) {
   async function handleGenerate() {
     setGenerating(true);
     try {
-      const yearMonth = new Date().toISOString().slice(0, 7);
+      const yearMonth = toLocalYearMonth();
       const created = await generateRecurringForMonth(yearMonth);
       if (created === 0) {
         toast.info("Nada novo — todos os lançamentos do mês já existem.");
@@ -79,9 +80,12 @@ export function RecurringView({ onChanged }: Props) {
 
   async function handleDelete(r: FinanceRecurring) {
     if (
-      !window.confirm(
-        `Excluir o modelo recorrente "${r.description ?? "(sem descrição)"}"? Lançamentos já criados serão mantidos.`
-      )
+      !(await confirmDialog({
+        title: "Excluir",
+        description: `Excluir o modelo recorrente "${r.description ?? "(sem descrição)"}"? Lançamentos já criados serão mantidos.`,
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
     )
       return;
     await deleteRecurring(r.id);
@@ -90,12 +94,7 @@ export function RecurringView({ onChanged }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Modelos que se repetem todo mês (assinaturas, aluguel de estúdio,
-          mensalidades). Use o botão abaixo para gerar os lançamentos do mês
-          corrente — só serão criados aqueles que ainda não existem.
-        </p>
+      <div className="flex items-center justify-end">
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleGenerate} disabled={generating}>
             {generating ? (
@@ -126,7 +125,7 @@ export function RecurringView({ onChanged }: Props) {
                 <input
                   type="checkbox"
                   checked={r.active === 1}
-                  onChange={() => handleToggle(r)}
+                  onChange={() => void handleToggle(r)}
                   className="h-4 w-4 cursor-pointer rounded border-input accent-primary"
                 />
                 <div>

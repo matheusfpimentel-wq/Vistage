@@ -67,13 +67,31 @@ export async function updateVenue(input: VenueUpdateInput): Promise<void> {
     `UPDATE venues SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Mantém venue_name/city/address nas GIGs sincronizados com o venue.
+  if (rest.name || rest.city !== undefined || rest.address !== undefined) {
+    const updated: string[] = [];
+    const params: unknown[] = [];
+    if (rest.name) { params.push(rest.name); updated.push(`venue_name = $${params.length}`); }
+    if (rest.city !== undefined) { params.push(rest.city); updated.push(`venue_city = $${params.length}`); }
+    if (rest.address !== undefined) { params.push(rest.address); updated.push(`venue_address = $${params.length}`); }
+    if (updated.length > 0) {
+      params.push(id);
+      await db.execute(
+        `UPDATE gigs SET ${updated.join(", ")} WHERE venue_id = $${params.length}`,
+        params
+      );
+    }
+  }
 }
 
 export async function deleteVenue(id: number): Promise<void> {
   const db = getDb();
-  // GIGs vinculadas perdem o venue_id (mantemos venue_name como fallback).
+  // GIGs e festas vinculadas perdem venue_id (venue_name já está salvo e não é apagado).
   await db.execute("UPDATE gigs SET venue_id = NULL WHERE venue_id = $1", [id]);
+  await db.execute("UPDATE parties SET venue_id = NULL WHERE venue_id = $1", [id]);
   await db.execute("DELETE FROM venues WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("venue", id);
 }
 
 export async function getVenueStats(venueId: number): Promise<VenueStats> {
@@ -126,7 +144,7 @@ export async function geocodeVenue(
   try {
     const resp = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`,
-      { headers: { "User-Agent": "MusicGest/1.0" } }
+      { headers: { "User-Agent": "Vistage/1.0" } }
     );
     const data = await resp.json() as { lat: string; lon: string }[];
     if (!data[0]) return null;

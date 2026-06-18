@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Instagram, Mail, MapPin, Pencil, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
 import { LevelBadge } from "../components/LevelBadge";
 import { FanInteractionList } from "../components/FanInteractionList";
 import { getFan } from "../api";
+import { getContact } from "@/modules/crm/api";
 import type { Fan } from "../types";
 import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
@@ -30,13 +32,21 @@ type Props = {
 
 export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
   const [fan, setFan] = useState<Fan | null>(null);
+  const [contactName, setContactName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!fanId) return;
     setLoading(true);
     try {
-      setFan(await getFan(fanId));
+      const f = await getFan(fanId);
+      setFan(f);
+      if (f?.contact_id != null) {
+        const c = await getContact(f.contact_id);
+        setContactName(c?.name ?? null);
+      } else {
+        setContactName(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -72,63 +82,74 @@ export function FanDetail({ open, onOpenChange, fanId, onEdit }: Props) {
               </div>
             </DialogHeader>
 
-            <div className="grid grid-cols-1 gap-2 rounded-md border p-3 text-sm sm:grid-cols-2">
-              {fan.instagram && (
-                <Row
-                  icon={<Instagram className="h-3.5 w-3.5" />}
-                  label="Instagram"
-                  value={fan.instagram}
-                />
-              )}
-              {fan.phone && (
-                <Row
-                  icon={<Phone className="h-3.5 w-3.5" />}
-                  label="Telefone"
-                  value={fan.phone}
-                />
-              )}
-              {fan.email && (
-                <Row
-                  icon={<Mail className="h-3.5 w-3.5" />}
-                  label="Email"
-                  value={fan.email}
-                />
-              )}
-              {fan.city && (
-                <Row
-                  icon={<MapPin className="h-3.5 w-3.5" />}
-                  label="Cidade"
-                  value={fan.city}
-                />
-              )}
-              {fan.last_interaction_at && (
-                <Row
-                  label="Último contato"
-                  value={formatDate(fan.last_interaction_at)}
-                />
-              )}
-            </div>
-
-            {fan.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {fan.tags.map((t) => (
-                  <Badge key={t} variant="outline">
-                    {t}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {fan.notes && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                {fan.notes}
-              </div>
-            )}
-
-            <Tabs defaultValue="interactions">
+            <Tabs defaultValue="info">
               <TabsList>
+                <TabsTrigger value="info">Informações</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="info" className="space-y-3 pt-2">
+                <div className="grid grid-cols-1 gap-2 rounded-md border p-3 text-sm sm:grid-cols-2">
+                  {fan.instagram && (
+                    <Row
+                      icon={<Instagram className="h-3.5 w-3.5" />}
+                      label="Instagram"
+                      value={fan.instagram}
+                    />
+                  )}
+                  {fan.phone && (
+                    <Row
+                      icon={<Phone className="h-3.5 w-3.5" />}
+                      label="Telefone"
+                      value={fan.phone}
+                    />
+                  )}
+                  {fan.email && (
+                    <Row
+                      icon={<Mail className="h-3.5 w-3.5" />}
+                      label="Email"
+                      value={fan.email}
+                    />
+                  )}
+                  {fan.city && (
+                    <Row
+                      icon={<MapPin className="h-3.5 w-3.5" />}
+                      label="Cidade"
+                      value={fan.city}
+                    />
+                  )}
+                  {fan.last_interaction_at && (
+                    <Row
+                      label="Último contato"
+                      value={formatDate(fan.last_interaction_at)}
+                    />
+                  )}
+                  {fan.contact_id != null && contactName && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">Contato CRM</span>
+                      <Link to={`/crm?open=${fan.contact_id}`} className="truncate hover:underline text-primary text-sm">
+                        {contactName}
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                {fan.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {fan.tags.map((t) => (
+                      <Badge key={t} variant="outline">
+                        {t}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {fan.notes && (
+                  <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+                    {fan.notes}
+                  </div>
+                )}
+              </TabsContent>
 
               <TabsContent value="interactions">
                 <FanInteractionList fanId={fan.id} onChange={refresh} />

@@ -12,16 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { PROJECT_KINDS, PROJECT_KIND_LABEL, type ProjectKind } from "../stages";
 import { createProject, updateProject } from "../api";
 import type { MusicProject } from "../types";
 
@@ -33,8 +25,8 @@ type Props = {
 };
 
 export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
-  const [kind, setKind] = useState<ProjectKind>("single");
   const [title, setTitle] = useState("");
+  const [concept, setConcept] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -43,8 +35,8 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setKind((project?.kind as ProjectKind) ?? "single");
     setTitle(project?.title ?? "");
+    setConcept(project?.concept ?? "");
     setNotes(project?.notes ?? "");
     setDirty(false);
   }, [open, project]);
@@ -58,17 +50,19 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
     try {
       let id: number;
       if (project) {
-        await updateProject({ id: project.id, kind, title: title.trim(), notes: notes.trim() || null });
+        await updateProject({ id: project.id, title: title.trim(), concept: concept.trim() || null, notes: notes.trim() || null });
         id = project.id;
       } else {
         id = await createProject({
-          kind,
+          kind: "single",
           title: title.trim(),
           release_strategy: null,
           presave_link: null,
           press_release_draft: null,
           marketing_dates: null,
           partnerships_confirmed: null,
+          fans_notified: null,
+          concept: concept.trim() || null,
           notes: notes.trim() || null,
         });
       }
@@ -97,27 +91,6 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Tipo</Label>
-            <Select
-              value={kind}
-              onValueChange={(v) => {
-                setKind(v as ProjectKind);
-                setDirty(true);
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PROJECT_KINDS.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {PROJECT_KIND_LABEL[k]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>
               Título <span className="text-destructive">*</span>
             </Label>
@@ -128,6 +101,18 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
                 setDirty(true);
               }}
               placeholder='Ex: "EP Madrugada"'
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Conceito do projeto</Label>
+            <Textarea
+              rows={3}
+              value={concept}
+              onChange={(e) => {
+                setConcept(e.target.value);
+                setDirty(true);
+              }}
+              placeholder="A ideia central que une as músicas: vibe, narrativa, estética..."
             />
           </div>
           <div className="space-y-1.5">

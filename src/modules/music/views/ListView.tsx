@@ -1,9 +1,14 @@
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, PlusSquare, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { TRACK_KIND_LABEL } from "../stages";
 import { daysInStage } from "../api";
 import { StageBadge } from "../components/StageBadge";
 import { trackDisplayName, type TrackWithProject } from "../types";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+
+const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
 
 export function ListView({
   tracks,
@@ -14,21 +19,23 @@ export function ListView({
   onEdit: (t: TrackWithProject) => void;
   onDelete: (t: TrackWithProject) => void;
 }) {
+  const navigate = useNavigate();
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(tracks);
   return (
     <div className="overflow-x-auto rounded-md border">
       <table className="w-full text-sm">
         <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
           <tr>
             <th className="px-3 py-2 text-left">Track</th>
-            <th className="px-3 py-2 text-left">Projeto</th>
-            <th className="px-3 py-2 text-left">Tipo</th>
-            <th className="px-3 py-2 text-left">Stage</th>
+            <SortableHeader<TrackWithProject> col="project_title" label="Projeto" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+            <SortableHeader<TrackWithProject> col="kind" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
+            <SortableHeader<TrackWithProject> col="current_stage" label="Stage" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
             <th className="px-3 py-2 text-right">Tempo no stage</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody>
-          {tracks.map((t) => {
+          {sorted.map((t) => {
             const days = daysInStage(t);
             const stalled = !t.standby && days !== null && days > 30;
             return (
@@ -52,7 +59,10 @@ export function ListView({
                   {TRACK_KIND_LABEL[t.kind]}
                 </td>
                 <td className="px-3 py-2">
-                  <StageBadge stage={t.current_stage} standby={t.standby} />
+                  <div className="flex items-center gap-1.5">
+                    <StageBadge stage={t.current_stage} standby={t.standby} />
+                    <PendingTasksBadge entityType="track" entityId={t.id} />
+                  </div>
                 </td>
                 <td
                   className={cn(
@@ -64,6 +74,21 @@ export function ListView({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">
+                    {(RELEASED_STAGES as readonly string[]).includes(t.current_stage) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            `/conteudo?title=${encodeURIComponent(trackDisplayName(t))}`
+                          )
+                        }
+                        className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        aria-label="Criar conteúdo"
+                        title="Criar conteúdo"
+                      >
+                        <PlusSquare className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onEdit(t)}

@@ -1,4 +1,6 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
+import { emitDataChanged } from "@/lib/events";
 import type {
   ClassPackage,
   ClassPackageCreateInput,
@@ -77,25 +79,51 @@ export async function updateStudent(input: StudentUpdateInput): Promise<void> {
 export async function deleteStudent(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM students WHERE id = $1", [id]);
+  const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
+  await unlinkTasksFromEntity("student", id);
 }
 
 // ============================================================
 // Class Packages (templates)
 // ============================================================
 
+function parsePackageRow(row: Record<string, unknown>): ClassPackage {
+  let items: ClassPackage["syllabus_items"] = [];
+  const raw = row.syllabus_items;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) items = parsed;
+    } catch {
+      items = [];
+    }
+  } else if (Array.isArray(raw)) {
+    items = raw as ClassPackage["syllabus_items"];
+  }
+  return { ...(row as ClassPackage), syllabus_items: items };
+}
+
+function serializePackageValue(key: string, value: unknown): unknown {
+  if (key === "syllabus_items") return JSON.stringify(value ?? []);
+  return value;
+}
+
 export async function listPackages(activeOnly = false): Promise<ClassPackage[]> {
   const db = getDb();
   const sql = activeOnly
     ? "SELECT * FROM class_packages WHERE active = 1 ORDER BY name"
     : "SELECT * FROM class_packages ORDER BY active DESC, name";
-  return db.select<ClassPackage[]>(sql);
+  const rows = await db.select<Record<string, unknown>[]>(sql);
+  return rows.map(parsePackageRow);
 }
 
 export async function createPackage(input: ClassPackageCreateInput): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
-  const values = cols.map((k) => (input as Record<string, unknown>)[k]);
+  const values = cols.map((k) =>
+    serializePackageValue(k, (input as Record<string, unknown>)[k])
+  );
   const res = await db.execute(
     `INSERT INTO class_packages (${cols.join(", ")}) VALUES (${placeholders})`,
     values
@@ -109,7 +137,9 @@ export async function updatePackage(input: ClassPackageUpdateInput): Promise<voi
   const cols = Object.keys(rest);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
-  const values = cols.map((k) => (rest as Record<string, unknown>)[k]);
+  const values = cols.map((k) =>
+    serializePackageValue(k, (rest as Record<string, unknown>)[k])
+  );
   values.push(id);
   await db.execute(
     `UPDATE class_packages SET ${sets} WHERE id = $${values.length}`,
@@ -142,9 +172,12 @@ export async function getActiveStudentPackage(
 ): Promise<StudentPackage | null> {
   const db = getDb();
   const rows = await db.select<StudentPackage[]>(
-    `SELECT * FROM student_packages
-      WHERE student_id = $1 AND status = 'Ativo' AND used_classes < total_classes
-      ORDER BY purchased_at ASC LIMIT 1`,
+    `SELECT sp.* FROM student_packages sp
+      LEFT JOIN class_packages cp ON cp.id = sp.package_id
+      WHERE sp.student_id = $1 AND sp.status = 'Ativo'
+        AND (cp.total_hours IS NULL OR sp.used_minutes < cp.total_hours * 60)
+        AND (cp.total_hours IS NOT NULL OR sp.used_classes < sp.total_classes)
+      ORDER BY sp.purchased_at ASC LIMIT 1`,
     [studentId]
   );
   return rows[0] ?? null;
@@ -161,7 +194,15 @@ export async function createStudentPackage(
     `INSERT INTO student_packages (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  try {
+    const { syncStudentPackageTransaction } = await import("@/modules/finance/api");
+    await syncStudentPackageTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
+  return id;
 }
 
 export async function setStudentPackageStatus(
@@ -173,11 +214,38 @@ export async function setStudentPackageStatus(
     "UPDATE student_packages SET status = $1 WHERE id = $2",
     [status, id]
   );
+  // Cancelar/reativar reflete na receita lançada.
+  try {
+    const { syncStudentPackageTransaction } = await import("@/modules/finance/api");
+    await syncStudentPackageTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 export async function deleteStudentPackage(id: number): Promise<void> {
   const db = getDb();
+  // As aulas vinculadas viram avulsas (mantém o histórico do aluno).
+  const affected = await db.select<{ id: number }[]>(
+    "SELECT id FROM classes WHERE student_package_id = $1",
+    [id]
+  );
+  await db.execute(
+    "UPDATE classes SET student_package_id = NULL WHERE student_package_id = $1",
+    [id]
+  );
   await db.execute("DELETE FROM student_packages WHERE id = $1", [id]);
+  try {
+    const { deleteTransactionsForStudentPackage, syncClassTransaction } =
+      await import("@/modules/finance/api");
+    await deleteTransactionsForStudentPackage(id);
+    // Aulas que viraram avulsas podem agora gerar receita própria.
+    await Promise.all(affected.map((c) => syncClassTransaction(c.id)));
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 // ============================================================
@@ -232,15 +300,6 @@ export async function listClasses(
   return db.select<ClassWithStudent[]>(sql, params);
 }
 
-export async function getClass(id: number): Promise<ClassSession | null> {
-  const db = getDb();
-  const rows = await db.select<ClassSession[]>(
-    "SELECT * FROM classes WHERE id = $1",
-    [id]
-  );
-  return rows[0] ?? null;
-}
-
 export async function createClass(input: ClassSessionCreateInput): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input);
@@ -250,7 +309,40 @@ export async function createClass(input: ClassSessionCreateInput): Promise<numbe
     `INSERT INTO classes (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa se a aula é no futuro
+  const today = toLocalISODate();
+  if (input.date && input.date > today) {
+    try {
+      const studentRows = await db.select<{ name: string }[]>(
+        "SELECT name FROM students WHERE id = $1", [input.student_id]
+      );
+      const studentName = studentRows[0]?.name ?? "Aluno";
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskId = await createTask({
+        title: `Aula: ${input.title?.trim() || studentName}`,
+        description: input.subject ?? null,
+        category: "Pessoal",
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: input.date,
+        tags: ["aula"],
+      });
+      await db.execute("UPDATE classes SET task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch {
+      /* não interrompe */
+    }
+  }
+  try {
+    const { syncClassTransaction } = await import("@/modules/finance/api");
+    await syncClassTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
+  return id;
 }
 
 export async function updateClass(input: ClassSessionUpdateInput): Promise<void> {
@@ -265,11 +357,75 @@ export async function updateClass(input: ClassSessionUpdateInput): Promise<void>
     `UPDATE classes SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  // Sincroniza tarefa vinculada
+  if ("date" in rest || input.status === "Realizada") {
+    const rows = await db.select<{ task_id: number | null; date: string | null; student_id: number; title: string | null; subject: string | null }[]>(
+      "SELECT task_id, date, student_id, title, subject FROM classes WHERE id = $1", [id]
+    );
+    const taskId = rows[0]?.task_id;
+    const today = toLocalISODate();
+    if (taskId) {
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        const patch: Parameters<typeof updateTask>[0] = { id: taskId };
+        if ("date" in rest) patch.due_date = rest.date as string | null;
+        if (input.status === "Realizada") patch.status = "Concluída";
+        await updateTask(patch);
+      } catch {
+        /* não interrompe */
+      }
+    } else if ("date" in rest && rows[0]?.date && rows[0].date > today && input.status !== "Realizada") {
+      // Aula remarcada para o futuro sem tarefa (ex.: criada no passado) → cria agora
+      try {
+        const studentRows = await db.select<{ name: string }[]>(
+          "SELECT name FROM students WHERE id = $1", [rows[0].student_id]
+        );
+        const studentName = studentRows[0]?.name ?? "Aluno";
+        const { createTask } = await import("@/modules/tasks/api");
+        const newTaskId = await createTask({
+          title: `Aula: ${rows[0].title?.trim() || studentName}`,
+          description: rows[0].subject ?? null,
+          category: "Pessoal",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: rows[0].date,
+          tags: ["aula"],
+        });
+        await db.execute("UPDATE classes SET task_id = $1 WHERE id = $2", [newTaskId, id]);
+      } catch {
+        /* não interrompe */
+      }
+    }
+  }
+  try {
+    const { syncClassTransaction } = await import("@/modules/finance/api");
+    await syncClassTransaction(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 export async function deleteClass(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM classes WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM classes WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
+  try {
+    const { deleteTransactionsForClass } = await import("@/modules/finance/api");
+    await deleteTransactionsForClass(id);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
 }
 
 /**
@@ -279,20 +435,32 @@ export async function deleteClass(id: number): Promise<void> {
  */
 export async function recalcPackageUsage(studentPackageId: number): Promise<void> {
   const db = getDb();
-  const rows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM classes
-      WHERE student_package_id = $1 AND status = 'Realizada'`,
+  // Conta aulas Agendada + Realizada (já descontam do saldo)
+  const rows = await db.select<{ n: number; total_min: number }[]>(
+    `SELECT COUNT(*) as n, COALESCE(SUM(duration_min), 0) as total_min
+       FROM classes
+      WHERE student_package_id = $1 AND status IN ('Agendada', 'Realizada')`,
     [studentPackageId]
   );
   const used = rows[0]?.n ?? 0;
+  const usedMin = rows[0]?.total_min ?? 0;
   await db.execute(
-    "UPDATE student_packages SET used_classes = $1 WHERE id = $2",
-    [used, studentPackageId]
+    "UPDATE student_packages SET used_classes = $1, used_minutes = $2 WHERE id = $3",
+    [used, usedMin, studentPackageId]
   );
-  // Marca como Concluído automaticamente quando atinge o total
+  // Pacote por carga horária: conclui quando esgota as horas
   await db.execute(
     `UPDATE student_packages SET status = 'Concluído'
-      WHERE id = $1 AND used_classes >= total_classes AND status = 'Ativo'`,
+      WHERE id = $1 AND status = 'Ativo' AND (
+        SELECT total_hours FROM class_packages WHERE id = (
+          SELECT package_id FROM student_packages WHERE id = $1
+        )
+      ) IS NOT NULL
+      AND used_minutes >= (
+        SELECT total_hours * 60 FROM class_packages WHERE id = (
+          SELECT package_id FROM student_packages WHERE id = $1
+        )
+      )`,
     [studentPackageId]
   );
 }
@@ -310,14 +478,14 @@ export type ClassStats = {
 
 export async function getClassStats(): Promise<ClassStats> {
   const db = getDb();
-  const month = new Date().toISOString().slice(0, 7);
+  const month = toLocalYearMonth();
   const monthStart = `${month}-01`;
   const monthEnd = `${month}-31`;
 
   const [students, activePkgs, total, done] = await Promise.all([
     db.select<{ n: number }[]>("SELECT COUNT(*) as n FROM students"),
     db.select<{ n: number }[]>(
-      `SELECT COUNT(*) as n FROM student_packages WHERE status = 'Ativo'`
+      `SELECT COUNT(*) as n FROM class_packages WHERE active = 1`
     ),
     db.select<{ n: number }[]>(
       `SELECT COUNT(*) as n FROM classes WHERE date BETWEEN $1 AND $2`,

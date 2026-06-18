@@ -5,9 +5,11 @@ import { PREP_GROUPS, prepProgressByGroup, type PrepItem } from "../prep";
 type Props = {
   state: Record<string, 1>;
   onChange: (state: Record<string, 1>) => void;
+  /** Se definido, mostra apenas os grupos cujo id está na lista. */
+  groupFilter?: string[];
 };
 
-export function PrepChecklist({ state, onChange }: Props) {
+export function PrepChecklist({ state, onChange, groupFilter }: Props) {
   function toggle(item: PrepItem) {
     const next = { ...state };
     if (next[item.id]) delete next[item.id];
@@ -15,7 +17,9 @@ export function PrepChecklist({ state, onChange }: Props) {
     onChange(next);
   }
 
-  const byGroup = prepProgressByGroup(state);
+  const byGroup = prepProgressByGroup(state).filter(
+    ({ group }) => !groupFilter || groupFilter.includes(group.id)
+  );
 
   return (
     <div className="space-y-4">
@@ -77,13 +81,15 @@ export function PrepChecklist({ state, onChange }: Props) {
  * Mini indicador agrupado para o card de "Próximas GIGs" no Dashboard.
  * Mostra três barrinhas (uma por subgrupo) + total.
  */
-export function PrepProgressMini({ state }: { state: Record<string, 1> }) {
+export function PrepProgressMini({ state, groupFilter }: { state: Record<string, 1>; groupFilter?: string[] }) {
   const byGroup = prepProgressByGroup(state);
+  const visibleGroups = PREP_GROUPS.filter((g) => !groupFilter || groupFilter.includes(g.id));
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1">
-        {PREP_GROUPS.map((g, i) => {
-          const progress = byGroup[i].progress;
+        {visibleGroups.map((g) => {
+          const idx = PREP_GROUPS.indexOf(g);
+          const progress = byGroup[idx].progress;
           const pct = progress.total ? (progress.done / progress.total) * 100 : 0;
           return (
             <div
@@ -100,7 +106,7 @@ export function PrepProgressMini({ state }: { state: Record<string, 1> }) {
         })}
       </div>
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground">
-        {PREP_GROUPS.map((g) => (
+        {visibleGroups.map((g) => (
           <span key={g.id}>{g.title.split(" ")[0]}</span>
         ))}
       </div>

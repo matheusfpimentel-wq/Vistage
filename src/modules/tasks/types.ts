@@ -2,6 +2,7 @@ export const TASK_CATEGORIES = [
   "GIG",
   "Produção Musical",
   "Conteúdo",
+  "Festas",
   "Administrativo",
   "Pessoal",
 ] as const;
@@ -26,6 +27,10 @@ export const TASK_RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
   monthly: "Mensal (+30 dias)",
 };
 
+/** Quadrantes da matriz de Eisenhower (urgência × importância). */
+const EISENHOWER_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
+export type EisenhowerQuadrant = (typeof EISENHOWER_QUADRANTS)[number];
+
 export type Task = {
   id: number;
   title: string;
@@ -38,14 +43,58 @@ export type Task = {
   due_date: string | null;
   tags: string[];
   recurrence: TaskRecurrence | null;
+  eisenhower_quadrant: EisenhowerQuadrant | null;
+  energy_required: number | null;
   created_at: string;
   updated_at: string;
 };
 
-export type TaskCreateInput = Omit<Task, "id" | "created_at" | "updated_at" | "recurrence"> & {
+export type TaskCreateInput = Omit<
+  Task,
+  "id" | "created_at" | "updated_at" | "recurrence" | "eisenhower_quadrant" | "energy_required"
+> & {
   recurrence?: TaskRecurrence | null;
+  eisenhower_quadrant?: EisenhowerQuadrant | null;
+  energy_required?: number | null;
 };
 export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
+
+// ============================================================
+// Task links — vínculos polimórficos
+// ============================================================
+
+export const TASK_LINK_TYPES = [
+  "fan",
+  "student",
+  "supplier",
+  "venue",
+  "track",
+  "party",
+  "content",
+  "meeting",
+] as const;
+export type TaskLinkType = (typeof TASK_LINK_TYPES)[number];
+
+export const TASK_LINK_LABELS: Record<TaskLinkType, string> = {
+  fan: "Fã",
+  student: "Aluno",
+  supplier: "Fornecedor",
+  venue: "Venue",
+  track: "Track Musical",
+  party: "Festa",
+  content: "Conteúdo",
+  meeting: "Reunião",
+};
+
+export type TaskLink = {
+  id: number;
+  task_id: number;
+  entity_type: TaskLinkType;
+  entity_id: number;
+  /** Label cacheado no momento da criação do vínculo. */
+  label: string | null;
+  created_at: string;
+};
 
 export type Subtask = {
   id: number;

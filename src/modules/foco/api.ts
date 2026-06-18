@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 
 export const ACTIVITY_TYPES = [
   "Criação musical",
@@ -8,6 +9,8 @@ export const ACTIVITY_TYPES = [
   "Comunicação",
   "Produção de festa",
   "Estudo",
+  "Tempo de palco",
+  "Treino",
   "Outro",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -20,16 +23,25 @@ export type WorkSession = {
   energy_level: number | null;
   focus_level: number | null;
   notes: string | null;
+  context: string | null;
+  context_type: string | null;
+  context_id: number | null;
+  pause_ms: number;
   created_at: string;
 };
 
-export async function startSession(activity_type: ActivityType): Promise<number> {
+export async function startSession(
+  activity_type: ActivityType,
+  context_type: string | null = null,
+  context_id: number | null = null
+): Promise<number> {
   const db = getDb();
   const started_at = new Date().toISOString();
   const res = await db.execute(
-    `INSERT INTO work_sessions (started_at, activity_type) VALUES ($1, $2)`,
-    [started_at, activity_type]
+    `INSERT INTO work_sessions (started_at, activity_type, context_type, context_id) VALUES ($1, $2, $3, $4)`,
+    [started_at, activity_type, context_type, context_id]
   );
+  emitDataChanged();
   return res.lastInsertId as number;
 }
 
@@ -37,14 +49,19 @@ export async function endSession(
   id: number,
   energy_level: number,
   focus_level: number,
-  notes: string | null
+  notes: string | null,
+  context: string | null = null,
+  context_type: string | null = null,
+  context_id: number | null = null,
+  pause_ms: number = 0
 ): Promise<void> {
   const db = getDb();
   const ended_at = new Date().toISOString();
   await db.execute(
-    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4 WHERE id=$5`,
-    [ended_at, energy_level, focus_level, notes, id]
+    `UPDATE work_sessions SET ended_at=$1, energy_level=$2, focus_level=$3, notes=$4, context=$5, context_type=$6, context_id=$7, pause_ms=$8 WHERE id=$9`,
+    [ended_at, energy_level, focus_level, notes, context, context_type, context_id, pause_ms, id]
   );
+  emitDataChanged();
 }
 
 export async function getActiveSession(): Promise<WorkSession | null> {
@@ -61,6 +78,12 @@ export async function listSessions(limit = 50): Promise<WorkSession[]> {
     `SELECT * FROM work_sessions WHERE ended_at IS NOT NULL ORDER BY started_at DESC LIMIT $1`,
     [limit]
   );
+}
+
+export async function deleteSession(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM work_sessions WHERE id = $1`, [id]);
+  emitDataChanged();
 }
 
 export type HeatmapCell = {
@@ -110,6 +133,65 @@ export async function loadActivityStats(): Promise<ActivityStats[]> {
   `);
 }
 
+export type TimePerProject = {
+  context_type: string;
+  context_id: number;
+  label: string;
+  totalMinutes: number;
+  sessions: number;
+};
+
+export async function loadTimePerProject(): Promise<TimePerProject[]> {
+  const db = getDb();
+  const rows = await db.select<
+    { context_type: string; context_id: number; totalMinutes: number; sessions: number }[]
+  >(`
+    SELECT
+      context_type,
+      context_id,
+      SUM((julianday(ended_at) - julianday(started_at)) * 24 * 60) as totalMinutes,
+      COUNT(*) as sessions
+    FROM work_sessions
+    WHERE ended_at IS NOT NULL
+      AND context_type IS NOT NULL
+      AND context_id IS NOT NULL
+    GROUP BY context_type, context_id
+    ORDER BY totalMinutes DESC
+  `);
+
+  const result: TimePerProject[] = [];
+  for (const r of rows) {
+    let label = `${r.context_type} #${r.context_id}`;
+    let sql: string | null = null;
+    switch (r.context_type) {
+      case "track":
+        sql = `SELECT title_working AS label FROM tracks WHERE id=$1`;
+        break;
+      case "gig":
+        sql = `SELECT COALESCE(NULLIF(event_name,''), venue_name) AS label FROM gigs WHERE id=$1`;
+        break;
+      case "content":
+        sql = `SELECT title AS label FROM content WHERE id=$1`;
+        break;
+      case "task":
+        sql = `SELECT title AS label FROM tasks WHERE id=$1`;
+        break;
+    }
+    if (sql) {
+      const named = await db.select<{ label: string | null }[]>(sql, [r.context_id]);
+      if (named[0]?.label) label = named[0].label;
+    }
+    result.push({
+      context_type: r.context_type,
+      context_id: r.context_id,
+      label,
+      totalMinutes: r.totalMinutes,
+      sessions: r.sessions,
+    });
+  }
+  return result;
+}
+
 // Highlights
 export type Highlight = {
   id: number;
@@ -136,10 +218,12 @@ export async function createHighlight(input: {
     `INSERT INTO highlights (title, date, body) VALUES ($1, $2, $3)`,
     [input.title, input.date, input.body]
   );
+  emitDataChanged();
   return res.lastInsertId as number;
 }
 
 export async function deleteHighlight(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM highlights WHERE id=$1`, [id]);
+  emitDataChanged();
 }

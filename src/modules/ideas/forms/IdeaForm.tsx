@@ -21,7 +21,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { createIdea, markIdeaAsConverted, updateIdea } from "../api";
+import { createIdea, listIdeas, markIdeaAsConverted, updateIdea } from "../api";
 import {
   IDEA_CATEGORIES,
   IDEA_HEATS,
@@ -45,6 +45,8 @@ type Props = {
   onSaved: (id: number) => void;
   /** Callback chamado quando o usuário converte a ideia em outra entidade. */
   onConverted?: () => void;
+  /** Abre o formulário real de GIG/Track; a página marca a conversão ao salvar. */
+  onConvertToEntity?: (idea: Idea, target: "gig" | "track") => void;
   onDelete?: (id: number) => void;
 };
 
@@ -57,6 +59,7 @@ const EMPTY: IdeaCreateInput = {
   maturation: "Embrião",
   converted_to: null,
   converted_id: null,
+  related_idea_id: null,
 };
 
 function ideaToState(i: Idea): IdeaCreateInput {
@@ -69,6 +72,7 @@ function ideaToState(i: Idea): IdeaCreateInput {
     maturation: i.maturation,
     converted_to: i.converted_to,
     converted_id: i.converted_id,
+    related_idea_id: i.related_idea_id,
   };
 }
 
@@ -82,7 +86,7 @@ const CONVERSION_OPTIONS = [
   { label: "Aula", converted_to: "task" as const, description: "Aula" },
 ];
 
-export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDelete }: Props) {
+export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onConvertToEntity, onDelete }: Props) {
   const [state, setStateRaw] = useState<IdeaCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -91,6 +95,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
   const [dirty, setDirty] = useState(false);
   const [taskTitle, setTaskTitle] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
+  const [otherIdeas, setOtherIdeas] = useState<{ id: number; title: string }[]>([]);
   const confirmClose = useUnsavedConfirm(dirty);
   const setState: typeof setStateRaw = (v) => {
     setStateRaw(v);
@@ -109,6 +114,9 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
     setTagInput("");
     setTitleError(null);
     setDirty(false);
+    void listIdeas().then((all) =>
+      setOtherIdeas(all.map((i) => ({ id: i.id, title: i.title })))
+    );
   }, [idea, open]);
 
   function set<K extends keyof IdeaCreateInput>(key: K, value: IdeaCreateInput[K]) {
@@ -151,7 +159,6 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
   }
 
   async function handleCreateTask() {
-    if (!idea) return;
     setCreatingTask(true);
     try {
       const due = new Date();
@@ -197,6 +204,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
           metric_shares: null,
           metric_saves: null,
           notes: null,
+          engagement_notes: null,
           task_id: null,
         });
         await markIdeaAsConverted(idea.id, "content", contentId);
@@ -219,12 +227,12 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
         });
         await markIdeaAsConverted(idea.id, "task", taskId);
         toast.success(`Convertida em Tarefa — ${option.label}`);
-      } else if (option.converted_to === "gig") {
-        await markIdeaAsConverted(idea.id, "gig", 0);
-        toast.success("Marcada como convertida em GIG");
-      } else if (option.converted_to === "track") {
-        await markIdeaAsConverted(idea.id, "track", 0);
-        toast.success("Marcada como convertida em Produção musical");
+      } else if (option.converted_to === "gig" || option.converted_to === "track") {
+        // Abre o formulário REAL da entidade — a IdeasPage marca a conversão
+        // (com o id verdadeiro) quando o usuário salvar.
+        onConvertToEntity?.(idea, option.converted_to);
+        onOpenChange(false);
+        return;
       }
       onConverted?.();
       onOpenChange(false);
@@ -278,10 +286,10 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
                 }
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="—" />
+                  <SelectValue placeholder="Nenhum" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {IDEA_CATEGORIES.map((c) => (
                     <SelectItem key={c} value={c}>
                       {c}
@@ -310,8 +318,36 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>Relacionada a outra ideia</Label>
+            <Select
+              value={
+                state.related_idea_id == null
+                  ? "none"
+                  : String(state.related_idea_id)
+              }
+              onValueChange={(v) =>
+                set("related_idea_id", v === "none" ? null : Number(v))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
+                {otherIdeas
+                  .filter((i) => i.id !== idea?.id)
+                  .map((i) => (
+                    <SelectItem key={i.id} value={String(i.id)}>
+                      {i.title}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Desenvolvendo — criar tarefa inline */}
-          {idea && state.maturation === "Desenvolvendo" && (
+          {state.maturation === "Desenvolvendo" && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Crie uma tarefa para começar:
@@ -337,7 +373,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onDel
           )}
 
           {/* Pronta — Em que se converteu? */}
-          {idea && state.maturation === "Pronta" && idea.maturation !== "Convertida" && (
+          {idea && state.maturation === "Pronta" && (
             <div className="rounded-md border bg-muted/40 p-3 space-y-2">
               <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Em que se converteu?

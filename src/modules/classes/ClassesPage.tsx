@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CalendarRange,
+  FileDown,
   GraduationCap,
   Package as PackageIcon,
   Pencil,
@@ -8,7 +10,10 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { SkeletonList } from "@/components/shared/Skeleton";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,15 +37,18 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { exportSyllabusPdf } from "./syllabusPdf";
 import { StudentForm } from "./forms/StudentForm";
 import { PackageForm } from "./forms/PackageForm";
 import { ClassForm } from "./forms/ClassForm";
 import { StudentDetail } from "./forms/StudentDetail";
+import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import {
   deleteClass,
   deletePackage,
   deleteStudent,
   getClassStats,
+  getStudent,
   listClasses,
   listPackages,
   listStudents,
@@ -59,14 +67,18 @@ import {
 } from "./types";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { PageToolbar } from "@/components/shared/PageToolbar";
 
 type StatusFilter = ClassStatus | "Todas";
 
 export function ClassesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [classes, setClasses] = useState<ClassWithStudent[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [packages, setPackages] = useState<ClassPackage[]>([]);
   const [stats, setStats] = useState<ClassStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
     studentId: number | "all";
@@ -95,29 +107,48 @@ export function ClassesPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [cls, sts, pkgs, st] = await Promise.all([
-      listClasses(queryFilters),
-      listStudents(),
-      listPackages(),
-      getClassStats(),
-    ]);
-    const filtered =
-      filters.search.trim().length > 0
-        ? cls.filter((c) =>
-            (c.student_name + " " + (c.subject ?? ""))
-              .toLowerCase()
-              .includes(filters.search.toLowerCase())
-          )
-        : cls;
-    setClasses(filtered);
-    setStudents(sts);
-    setPackages(pkgs);
-    setStats(st);
+    setLoading(true);
+    try {
+      const [cls, sts, pkgs, st] = await Promise.all([
+        listClasses(queryFilters),
+        listStudents(),
+        listPackages(),
+        getClassStats(),
+      ]);
+      const filtered =
+        filters.search.trim().length > 0
+          ? cls.filter((c) =>
+              (c.student_name + " " + (c.title ?? "") + " " + (c.subject ?? ""))
+                .toLowerCase()
+                .includes(filters.search.toLowerCase())
+            )
+          : cls;
+      // sort is applied in the render via sortedClasses memo
+      setClasses(filtered);
+      setStudents(sts);
+      setPackages(pkgs);
+      setStats(st);
+    } finally {
+      setLoading(false);
+    }
   }, [queryFilters, filters.search]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const id = Number(openId);
+    void getStudent(id).then((student) => {
+      if (student) {
+        setDetailId(student.id);
+        setDetailOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Ctrl+N na aba de aulas cria aula nova
   useNewItemShortcut(() => {
@@ -126,7 +157,7 @@ export function ClassesPage() {
   });
 
   async function handleDeleteClass(c: ClassWithStudent) {
-    if (!window.confirm("Excluir esta aula?")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta aula?", confirmLabel: "Excluir", destructive: true }))) return;
     const pkgId = c.student_package_id;
     await deleteClass(c.id);
     if (pkgId) await recalcPackageUsage(pkgId);
@@ -136,7 +167,7 @@ export function ClassesPage() {
 
   async function handleDeleteStudent(s: Student) {
     if (
-      !window.confirm(`Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`)
+      !(await confirmDialog({ title: "Excluir", description: `Excluir "${s.name}"? Aulas e pacotes vinculados serão removidos.`, confirmLabel: "Excluir", destructive: true }))
     )
       return;
     await deleteStudent(s.id);
@@ -144,12 +175,40 @@ export function ClassesPage() {
     await refresh();
   }
 
+  async function handleExportSyllabus(p: ClassPackage) {
+    try {
+      await exportSyllabusPdf(p);
+      toast.success("Ementa exportada em PDF");
+    } catch {
+      toast.error("Não foi possível exportar a ementa");
+    }
+  }
+
   async function handleDeletePackage(p: ClassPackage) {
-    if (!window.confirm(`Excluir o template "${p.name}"?`)) return;
+    if (!(await confirmDialog({ title: "Excluir", description: `Excluir o template "${p.name}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deletePackage(p.id);
     toast.success("Pacote excluído");
     await refresh();
   }
+
+  const { sorted: sortedClasses, sortKey: classSortKey, sortDir: classSortDir, handleSort: toggleClassSort } = useTableSort(classes);
+
+  // Número sequencial por aluno (ordem cronológica data+id)
+  const classNumbers = useMemo(() => {
+    const byStudent: Record<number, { id: number; date: string }[]> = {};
+    for (const c of classes) {
+      if (!byStudent[c.student_id]) byStudent[c.student_id] = [];
+      byStudent[c.student_id].push({ id: c.id, date: c.date });
+    }
+    for (const arr of Object.values(byStudent)) {
+      arr.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    }
+    const nums: Record<number, number> = {};
+    for (const arr of Object.values(byStudent)) {
+      arr.forEach((item, idx) => { nums[item.id] = idx + 1; });
+    }
+    return nums;
+  }, [classes]);
 
   return (
     <div className="space-y-4">
@@ -185,7 +244,18 @@ export function ClassesPage() {
 
         {/* ====================== AULAS ====================== */}
         <TabsContent value="classes" className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <PageToolbar
+            actions={
+              <Button
+                onClick={() => {
+                  setEditingClass(null);
+                  setClassFormOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" /> Nova aula
+              </Button>
+            }
+          >
             <div className="flex flex-wrap items-end gap-2">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -238,44 +308,40 @@ export function ClassesPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              onClick={() => {
-                setEditingClass(null);
-                setClassFormOpen(true);
-              }}
-              disabled={students.length === 0}
-              title={students.length === 0 ? "Cadastre um aluno antes" : ""}
-            >
-              <Plus className="h-4 w-4" /> Nova aula
-            </Button>
-          </div>
+          </PageToolbar>
 
-          {classes.length === 0 ? (
-            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-              {students.length === 0
-                ? "Cadastre um aluno na aba ao lado e depois agende a primeira aula."
-                : "Nenhuma aula encontrada."}
-            </div>
+          {loading ? (
+            <SkeletonList />
+          ) : classes.length === 0 ? (
+            <EmptyState
+              icon={GraduationCap}
+              title={students.length === 0 ? "Nenhuma aula ainda." : "Nenhuma aula encontrada."}
+              description={students.length === 0 ? "Cadastre um aluno na aba ao lado e depois agende a primeira aula." : undefined}
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 text-left">Data</th>
-                    <th className="px-3 py-2 text-left">Aluno</th>
-                    <th className="px-3 py-2 text-left">Matéria</th>
+                    <th className="w-8 px-3 py-2 text-left text-muted-foreground">#</th>
+                    <SortableHeader<ClassWithStudent> col="date" label="Data" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="student_name" label="Aluno" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="title" label="Título" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
+                    <SortableHeader<ClassWithStudent> col="status" label="Status" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-left" />
                     <th className="px-3 py-2 text-left">Modalidade</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Valor</th>
+                    <SortableHeader<ClassWithStudent> col="amount" label="Valor" sortKey={classSortKey} sortDir={classSortDir} onSort={toggleClassSort} className="px-3 py-2 text-right" />
                     <th className="px-3 py-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {classes.map((c) => (
+                  {sortedClasses.map((c) => (
                     <tr
                       key={c.id}
                       className="border-t transition-colors hover:bg-muted/40"
                     >
+                      <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
+                        {classNumbers[c.id] ?? "—"}
+                      </td>
                       <td className="px-3 py-2 tabular-nums">
                         {formatDate(c.date)}
                         {c.start_time && (
@@ -285,17 +351,22 @@ export function ClassesPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 font-medium">{c.student_name}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
-                        {c.subject ?? "—"}
-                      </td>
                       <td className="px-3 py-2">
-                        <Badge variant="outline">
-                          {c.student_package_id ? "Pacote" : "Avulsa"}
-                        </Badge>
+                        <div className="font-medium">{c.title ?? c.subject ?? "—"}</div>
+                        {c.title && c.subject && (
+                          <div className="max-w-[220px] truncate text-xs text-muted-foreground">
+                            {c.subject}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant={classStatusVariant(c.status)}>
                           {c.status}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <Badge variant="outline">
+                          {c.student_package_id ? "Pacote" : "Avulsa"}
                         </Badge>
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
@@ -344,11 +415,13 @@ export function ClassesPage() {
               <Plus className="h-4 w-4" /> Novo aluno
             </Button>
           </div>
-          {students.length === 0 ? (
-            <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-              <GraduationCap className="mx-auto mb-2 h-8 w-8 opacity-50" />
-              Nenhum aluno ainda.
-            </div>
+          {loading ? (
+            <SkeletonList />
+          ) : students.length === 0 ? (
+            <EmptyState
+              icon={GraduationCap}
+              title="Nenhum aluno ainda."
+            />
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
@@ -371,7 +444,12 @@ export function ClassesPage() {
                         setDetailOpen(true);
                       }}
                     >
-                      <td className="px-3 py-2 font-medium">{s.name}</td>
+                      <td className="px-3 py-2 font-medium">
+                        <div className="flex items-center gap-2">
+                          {s.name}
+                          <PendingTasksBadge entityType="student" entityId={s.id} />
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-muted-foreground">
                         {s.acquisition ?? "—"}
                       </td>
@@ -417,10 +495,7 @@ export function ClassesPage() {
 
         {/* ====================== PACOTES (templates) ====================== */}
         <TabsContent value="packages" className="space-y-4">
-          <div className="flex justify-between">
-            <p className="text-sm text-muted-foreground">
-              Templates de pacote. Vincule a um aluno na tela de detalhe dele.
-            </p>
+          <div className="flex justify-end">
             <Button
               onClick={() => {
                 setEditingPkg(null);
@@ -430,6 +505,9 @@ export function ClassesPage() {
               <Plus className="h-4 w-4" /> Novo pacote
             </Button>
           </div>
+          <p className="text-sm text-muted-foreground">
+            Templates de pacote. Vincule a um aluno na tela de detalhe dele.
+          </p>
 
           {packages.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -445,7 +523,7 @@ export function ClassesPage() {
                       <div>
                         <CardTitle className="text-base">{p.name}</CardTitle>
                         <CardDescription>
-                          {p.total_classes} aulas
+                          {p.total_hours != null ? fmtItemLoad(p.total_hours) : "—"}
                           {p.price ? ` · ${formatCurrency(p.price)}` : ""}
                         </CardDescription>
                       </div>
@@ -460,17 +538,31 @@ export function ClassesPage() {
                         {p.description}
                       </p>
                     )}
-                    {p.syllabus && (
-                      <details className="rounded-md border bg-muted/30 p-2">
-                        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    {p.syllabus_items.length > 0 && (
+                      <div className="rounded-md border bg-muted/30 p-2">
+                        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Ementa
-                        </summary>
-                        <pre className="mt-2 whitespace-pre-wrap font-sans text-xs">
-                          {p.syllabus}
-                        </pre>
-                      </details>
+                        </div>
+                        <ul className="space-y-0.5 text-xs">
+                          {p.syllabus_items.map((it, i) => (
+                            <li key={i} className="text-muted-foreground">
+                              {it.hours != null ? `${fmtItemLoad(it.hours)} — ` : ""}
+                              {it.title || "(sem título)"}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                     <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => void handleExportSyllabus(p)}
+                        aria-label="Exportar ementa em PDF"
+                        title="Exportar ementa em PDF"
+                      >
+                        <FileDown className="h-4 w-4" />
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -529,6 +621,16 @@ export function ClassesPage() {
       />
     </div>
   );
+}
+
+/** Formata a carga de um item da ementa (horas decimais) como "Xh Ymin" / "Ymin". */
+function fmtItemLoad(hours: number): string {
+  const totalMin = Math.round(hours * 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}min`;
 }
 
 function Kpi({

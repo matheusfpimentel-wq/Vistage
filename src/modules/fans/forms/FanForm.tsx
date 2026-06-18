@@ -10,6 +10,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
@@ -17,8 +24,10 @@ import { AttachmentField } from "@/components/shared/AttachmentField";
 import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { LevelBadge } from "../components/LevelBadge";
-import { createFan, updateFan } from "../api";
-import { FAN_LEVELS, type Fan, type FanCreateInput, type FanLevel } from "../types";
+import { addFanGroupMember, createFan, listFanGroups, updateFan } from "../api";
+import { FAN_LEVELS, type Fan, type FanCreateInput, type FanGroup, type FanLevel } from "../types";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
 
 type Props = {
   open: boolean;
@@ -30,6 +39,7 @@ type Props = {
 const EMPTY: FanCreateInput = {
   name: "",
   level: "Possível fã",
+  is_ambassador: 0,
   instagram: null,
   email: null,
   phone: null,
@@ -37,12 +47,14 @@ const EMPTY: FanCreateInput = {
   tags: [],
   notes: null,
   photo_path: null,
+  contact_id: null,
 };
 
 function fanToState(f: Fan): FanCreateInput {
   return {
     name: f.name,
     level: f.level,
+    is_ambassador: f.is_ambassador,
     instagram: f.instagram,
     email: f.email,
     phone: f.phone,
@@ -50,6 +62,7 @@ function fanToState(f: Fan): FanCreateInput {
     tags: f.tags,
     notes: f.notes,
     photo_path: f.photo_path,
+    contact_id: f.contact_id,
   };
 }
 
@@ -59,6 +72,9 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
   const [tagInput, setTagInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [groups, setGroups] = useState<FanGroup[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
   const confirmClose = useUnsavedConfirm(dirty);
 
   const setState: typeof setStateRaw = (v) => {
@@ -73,6 +89,9 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
     setTagInput("");
     setNameError(null);
     setDirty(false);
+    setSelectedGroupId(null);
+    void listFanGroups().then(setGroups).catch(() => {});
+    void listContacts().then(setContacts).catch(() => {});
   }, [fan, open]);
 
   function addTag() {
@@ -100,6 +119,9 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
       const id = fan
         ? (await updateFan({ id: fan.id, ...state }), fan.id)
         : await createFan(state);
+      if (!fan && selectedGroupId) {
+        await addFanGroupMember(selectedGroupId, id, state.name, null).catch(() => {});
+      }
       toast.success(fan ? "Fã atualizado" : "Fã criado");
       onSaved(id);
       onOpenChange(false);
@@ -131,6 +153,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
               Nome <span className="text-destructive">*</span>
             </Label>
             <Input
+              autoFocus
               value={state.name}
               onChange={(e) => {
                 setState((s) => ({ ...s, name: e.target.value }));
@@ -139,6 +162,26 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
             />
             {nameError && <p className="text-xs text-destructive">{nameError}</p>}
           </div>
+
+          {!fan && groups.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Adicionar ao grupo</Label>
+              <Select
+                value={selectedGroupId != null ? String(selectedGroupId) : "none"}
+                onValueChange={(v) => setSelectedGroupId(v === "none" ? null : Number(v))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhum grupo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum grupo</SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Nível</Label>
@@ -149,7 +192,13 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
                   <button
                     key={level}
                     type="button"
-                    onClick={() => setState((s) => ({ ...s, level }))}
+                    onClick={() =>
+                      setState((s) => ({
+                        ...s,
+                        level,
+                        is_ambassador: level === "Embaixador" ? 1 : 0,
+                      }))
+                    }
                     className={cn(
                       "rounded-md border px-2.5 py-1 text-xs transition",
                       active
@@ -164,6 +213,10 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
             </div>
             <p className="text-xs text-muted-foreground">
               Atual: <LevelBadge level={state.level as FanLevel} />
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Possível fã → Superfã são calculados pela pontuação.{" "}
+              <strong>Embaixador</strong> é um destaque manual (fica imune ao recálculo).
             </p>
           </div>
 
@@ -202,6 +255,31 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
                 }
               />
             </Field>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Vincular a contato (CRM)</Label>
+            <Select
+              value={state.contact_id != null ? String(state.contact_id) : "none"}
+              onValueChange={(v) =>
+                setState((s) => ({
+                  ...s,
+                  contact_id: v === "none" ? null : Number(v),
+                }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Nenhum contato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Nenhum contato</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1.5">

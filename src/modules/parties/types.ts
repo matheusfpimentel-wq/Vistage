@@ -12,7 +12,7 @@ export type PartyStage = {
 
 export const DEFAULT_STAGE_NAMES = ["Ideação","Viabilidade","Marketing","Execução","Concretização"] as const;
 
-export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date" }[]> = {
+export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist" }[]> = {
   "Ideação": [
     { key:"conceito", label:"Conceito da festa", type:"text" },
     { key:"tema", label:"Tema", type:"text" },
@@ -22,9 +22,8 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   ],
   "Viabilidade": [
     { key:"data_pretendida", label:"Data pretendida", type:"date" },
-    { key:"capacidade", label:"Capacidade estimada", type:"number" },
-    { key:"venue_pesquisado", label:"Venues pesquisados", type:"text" },
-    { key:"break_even", label:"Break-even estimado (R$)", type:"number" },
+    { key:"capacidade", label:"Público estimado", type:"number" },
+    { key:"custos_necessarios", label:"Custos necessários", type:"costs" },
     { key:"viabilidade_notas", label:"Observações de viabilidade", type:"text" },
   ],
   "Marketing": [
@@ -37,7 +36,7 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   "Execução": [
     { key:"equipe", label:"Equipe confirmada", type:"text" },
     { key:"rider_tecnico", label:"Rider técnico", type:"text" },
-    { key:"checklist_operacional", label:"Checklist operacional", type:"text" },
+    { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
     { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
   ],
   "Concretização": [
@@ -47,6 +46,17 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
     { key:"proximos_passos", label:"Próximos passos", type:"text" },
   ],
 };
+
+/** Categorias para os custos necessários da etapa de Viabilidade. */
+export const VIABILITY_COST_CATEGORIES = [
+  "Pessoal", "Estrutura", "Marketing", "Operacional", "Outros",
+] as const;
+
+/** Linha de custo estimado na Viabilidade (serializado em JSON no campo da etapa). */
+export type ViabilityCost = { category: string; description: string; amount: number };
+
+/** Item do checklist operacional (serializado em JSON no campo da etapa). */
+export type ChecklistItem = { text: string; done: boolean };
 
 export const BUDGET_CATEGORIES: Record<string, string[]> = {
   Pessoal: ["DJs","Seguranças","Promoters","Staff","Fotógrafo/Vídeo","MC/Apresentador","Outros"],
@@ -61,7 +71,7 @@ export type BudgetItemStatus = "projetado"|"confirmado"|"pago";
 export type PartyBudgetItem = {
   id: number; party_id: number; category: string; subcategory: string|null;
   description: string|null; projected_amount: number; actual_amount: number|null;
-  supplier_note: string|null; status: BudgetItemStatus; date_paid: string|null;
+  supplier_note: string|null; supplier_id: number|null; status: BudgetItemStatus; date_paid: string|null;
   created_at: string; updated_at: string;
 };
 
@@ -74,12 +84,20 @@ export type PartyTicket = {
   sale_start_date: string|null; sale_end_date: string|null; position: number; created_at: string;
 };
 
-export type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
+type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
 
 export type PartyTask = {
   id: number; party_id: number; stage_id: number|null; title: string;
   status: PartyTaskStatus; priority: string; due_date: string|null; notes: string|null;
+  global_task_id?: number | null;
   created_at: string; updated_at: string;
+};
+
+export type PartyTeamMember = {
+  name: string;
+  role: string;
+  amount_cents: number;
+  supplier_id: number | null;
 };
 
 export type Party = {
@@ -87,38 +105,35 @@ export type Party = {
   venue_name: string|null; status: PartyStatus; description: string|null;
   expected_capacity: number|null; actual_attendance: number|null;
   ticket_price_regular: number|null; ticket_price_vip: number|null;
-  lineup: string|null; sponsors: string|null; tasks_generated: number;
+  lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
+  gig_id: number|null;
+  gcal_event_id?: string|null;
   created_at: string; updated_at: string;
 };
 
-export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"> & {
+export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   lineup: number[]; sponsors: { name: string; amount_cents: number }[];
+  team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"> & {
   stage_current?: number|null;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
+  team?: PartyTeamMember[]|string|null;
 };
 export type PartyUpdateInput = Partial<PartyCreateInput> & { id: number };
 
-// Keep PartyCost for backward compat with existing PartyForm
-export const PARTY_COST_CATEGORIES = [
-  "Produção","Decoração","Som/Luz","Marketing","Venue","Cachê DJ","Outros",
-] as const;
-export type PartyCostCategory = (typeof PARTY_COST_CATEGORIES)[number];
-
-export type PartyCost = {
+export type PartyVenueCandidate = {
   id: number;
   party_id: number;
-  category: string | null;
-  description: string | null;
-  amount: number;
-  date: string | null;
+  venue_id: number;
+  notes: string | null;
   created_at: string;
+  venue_name?: string | null;
 };
 
 export function partyStatusColor(s: PartyStatus): string {
@@ -136,13 +151,6 @@ export function budgetSummary(items: PartyBudgetItem[]) {
   return {
     projected: items.reduce((s,i) => s+i.projected_amount, 0),
     actual: items.reduce((s,i) => s+(i.actual_amount??0), 0),
-  };
-}
-
-export function ticketRevenueSummary(tickets: PartyTicket[]) {
-  return {
-    projected: tickets.reduce((s,t) => s+t.price*(t.quantity_total??0), 0),
-    actual: tickets.reduce((s,t) => s+t.price*t.quantity_sold, 0),
   };
 }
 

@@ -6,7 +6,7 @@ import type { Stage } from "./stages";
 // reduz o custo emocional da decisão e enfrenta o viés de sunk-cost
 // (Kahneman), em vez de "Cancelar".
 
-export type GateFieldType = "boolean" | "tri" | "scale" | "number" | "select" | "text";
+type GateFieldType = "boolean" | "tri" | "scale" | "number" | "select" | "text";
 
 export type GateField = {
   key: string;
@@ -51,26 +51,16 @@ export const GATES: Gate[] = [
     ],
   },
   {
-    id: "gate2",
-    afterStage: "Produção",
-    title: "Gate 2 — Vale mixar?",
-    question: "A produção está pronta pra entrar em mix?",
-    fields: [
-      { key: "energy", label: "Energia da track", type: "scale" },
-      { key: "tech_readiness", label: "Prontidão técnica", type: "scale" },
-      {
-        key: "hours_invested",
-        label: "Tempo investido até agora (h)",
-        type: "number",
-      },
-    ],
-  },
-  {
     id: "gate3",
     afterStage: "Master",
-    title: "Gate 3 — Lançar agora ou esperar?",
+    title: "Gate de Lançamento — Momento certo?",
     question: "É o momento certo pra lançar?",
     fields: [
+      {
+        key: "energy",
+        label: "Energia da track (1-5)",
+        type: "scale",
+      },
       {
         key: "market_timing",
         label: "Timing de mercado",
@@ -105,10 +95,6 @@ export const GATES: Gate[] = [
 
 export function gateAfter(stage: Stage): Gate | null {
   return GATES.find((g) => g.afterStage === stage) ?? null;
-}
-
-export function gateById(id: string): Gate | null {
-  return GATES.find((g) => g.id === id) ?? null;
 }
 
 export type GateCriteria = Record<string, string | number | boolean | null>;

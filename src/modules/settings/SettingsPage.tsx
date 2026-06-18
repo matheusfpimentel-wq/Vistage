@@ -1,58 +1,35 @@
 import { useEffect, useState } from "react";
-import { Download, Loader2, Sparkles, Upload } from "lucide-react";
+import { FolderOpen, Loader2, Moon, Save, SaveAll, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
-import { useConfigStore } from "@/lib/config";
-import { closeDatabase } from "@/lib/db";
-import {
-  exportBackupToFile,
-  pickBackupFile,
-  restoreBackup,
-} from "@/lib/backup";
+import { cn } from "@/lib/utils";
+import { useThemeStore, ACCENTS } from "@/lib/theme";
+import { useDocumentStore, reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
-import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
+import { TodoistSettings } from "./TodoistSettings";
+import { MobileSyncSettings } from "./MobileSyncSettings";
 
 export function SettingsPage() {
-  const { config, configPath, reset } = useConfigStore();
-  const [exporting, setExporting] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
+  const doc = useDocumentStore();
+  const { theme, accent, setTheme, setAccent } = useThemeStore();
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
   }, []);
 
-  async function handleReset() {
-    const ok = window.confirm(
-      "Isso vai desconectar o app do banco atual. Você precisará apontar o caminho do banco novamente. Continuar?"
-    );
-    if (!ok) return;
-    await closeDatabase();
-    reset();
-  }
-
-  async function handleExport() {
-    setExporting(true);
-    try {
-      const path = await exportBackupToFile();
-      if (path) toast.success(`Backup salvo em ${path}`);
-    } catch (e) {
-      toast.error(`Erro ao exportar: ${String(e)}`);
-    } finally {
-      setExporting(false);
-    }
-  }
-
   async function handleSeed() {
     if (
-      !window.confirm(
+      !(await confirmDialog(
         "Carregar dados de exemplo? 5 contatos, 4 GIGs em estados diferentes, 6 tarefas e algumas transações vão ser adicionados ao banco."
-      )
+      ))
     )
       return;
     setSeeding(true);
@@ -61,7 +38,7 @@ export function SettingsPage() {
       toast.success(
         `${result.gigs} GIGs, ${result.contacts} contatos, ${result.tasks} tarefas e ${result.transactions} transações criadas.`
       );
-      setTimeout(() => window.location.reload(), 800);
+      setTimeout(() => reloadKeepingData(), 800);
     } catch (e) {
       toast.error(`Erro ao popular: ${String(e)}`);
     } finally {
@@ -69,141 +46,144 @@ export function SettingsPage() {
     }
   }
 
-  async function handleImport() {
-    try {
-      const backup = await pickBackupFile();
-      if (!backup) return;
-      const ok = window.confirm(
-        `ATENÇÃO: importar este backup vai SUBSTITUIR TODOS os dados do banco atual.\n\n` +
-          `Backup gerado em: ${new Date(backup.exportedAt).toLocaleString("pt-BR")}\n` +
-          `Versão: ${backup.version}\n\n` +
-          `Recomendamos exportar o estado atual antes. Continuar?`
-      );
-      if (!ok) return;
-      setImporting(true);
-      const { restoredRows, restoredTables } = await restoreBackup(backup);
-      toast.success(
-        `Restaurado: ${restoredRows} registros em ${restoredTables} tabelas`
-      );
-      // recarrega a aplicação para refletir o novo estado
-      setTimeout(() => window.location.reload(), 800);
-    } catch (e) {
-      toast.error(`Erro ao importar: ${String(e)}`);
-    } finally {
-      setImporting(false);
-    }
-  }
-
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Localização dos dados</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <Row label="Banco de dados" value={config?.dbPath ?? "—"} />
-          <Row label="Pasta de anexos" value={config?.uploadsDir ?? "—"} />
-          <Row label="Arquivo de configuração" value={configPath ?? "—"} />
-          <Row
-            label="Criado em"
-            value={
-              config?.createdAt
-                ? new Date(config.createdAt).toLocaleString("pt-BR")
-                : "—"
-            }
-          />
-          <div className="pt-2">
-            <Button variant="outline" onClick={handleReset}>
-              Trocar / reapontar banco de dados
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <Tabs defaultValue="salvamento" className="space-y-4">
+      <TabsList className="w-full justify-start">
+        <TabsTrigger value="salvamento">Salvamento</TabsTrigger>
+        <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+        <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
+      </TabsList>
 
-      <GoogleCalendarSettings />
-
-      <GoogleDriveSettings />
-
-      {canSeed && (
-        <Card className="border-primary/30">
+      {/* ─── Salvamento ──────────────────────────────────────── */}
+      <TabsContent value="salvamento" className="space-y-6">
+        {/* Documento local (.vistage) */}
+        <Card>
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
-              Carregar dados de exemplo
-            </CardTitle>
-            <CardDescription>
-              Seu banco está vazio. Quer popular com 4 GIGs (uma futura,
-              uma a caminho, uma concluída com debrief, uma com debrief
-              pendente), 5 contatos, 6 tarefas e algumas transações pra
-              você explorar como o sistema funciona?
-            </CardDescription>
+            <CardTitle className="text-base">Documento (.vistage)</CardTitle>
           </CardHeader>
-          <CardContent>
-            <Button onClick={handleSeed} disabled={seeding}>
-              {seeding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              Popular com exemplos
-            </Button>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void doc.open()} disabled={doc.busy}>
+                <FolderOpen className="h-4 w-4" />
+                Abrir…
+              </Button>
+              <Button variant="outline" onClick={() => void doc.save()} disabled={doc.busy}>
+                <Save className="h-4 w-4" />
+                Salvar
+              </Button>
+              <Button variant="outline" onClick={() => void doc.saveAs()} disabled={doc.busy}>
+                <SaveAll className="h-4 w-4" />
+                Salvar como…
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Abrir um documento substitui todos os dados atuais. Atalho:{" "}
+              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">Ctrl S</kbd> salva.
+            </p>
           </CardContent>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Backup completo</CardTitle>
-          <CardDescription>
-            Exporta um arquivo JSON com tudo do seu banco (GIGs, contatos,
-            tarefas, financeiro, configurações). Importar é destrutivo —
-            substitui o estado atual pelo backup.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleExport} disabled={exporting}>
-              {exporting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4" />
-              )}
-              Exportar backup
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleImport}
-              disabled={importing}
-            >
-              {importing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4" />
-              )}
-              Importar backup
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Anexos (arquivos em <code>uploads/</code>) não entram neste JSON.
-            Para backup completo dos anexos, copie a pasta inteira do HD.
-          </p>
-        </CardContent>
-      </Card>
+        {/* Importação/Exportação CSV */}
+        <CsvImportExport />
+      </TabsContent>
 
-      <CsvImportExport />
+      {/* ─── Integrações ─────────────────────────────────────── */}
+      <TabsContent value="integracoes" className="space-y-6">
+        <MobileSyncSettings />
+        <TodoistSettings />
+        <GoogleCalendarSettings />
+      </TabsContent>
 
-      <ShortcutSettings />
+      {/* ─── Personalização ──────────────────────────────────── */}
+      <TabsContent value="personalizacao" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Aparência</CardTitle>
+            <CardDescription>Tema e cor de destaque do app.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Tema</p>
+              <div className="flex gap-2">
+                <Button
+                  variant={theme === "light" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("light")}
+                >
+                  <Sun className="h-4 w-4" /> Claro
+                </Button>
+                <Button
+                  variant={theme === "dark" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("dark")}
+                >
+                  <Moon className="h-4 w-4" /> Escuro
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Cor de destaque</p>
+              <div className="flex flex-wrap gap-2">
+                {ACCENTS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => setAccent(a.id)}
+                    title={a.label}
+                    aria-label={a.label}
+                    aria-pressed={accent === a.id}
+                    className={cn(
+                      "h-8 w-8 rounded-full border-2 transition",
+                      accent === a.id ? "border-foreground" : "border-transparent hover:border-muted-foreground/40"
+                    )}
+                    style={{ backgroundColor: `hsl(${a.swatch})` }}
+                  />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Outras teclas</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
-          <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
-        </CardContent>
-      </Card>
-    </div>
+        <ShortcutSettings />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Outras teclas</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <Shortcut keys={["Ctrl/Cmd", "S"]} label="Salvar documento (.vistage)" />
+            <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
+            <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
+          </CardContent>
+        </Card>
+
+        {canSeed && (
+          <Card className="border-primary/30">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Carregar dados de exemplo
+              </CardTitle>
+              <CardDescription>
+                Seu banco está vazio. Quer popular com 4 GIGs, 5 contatos, 6
+                tarefas e algumas transações pra você explorar como o sistema
+                funciona?
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={handleSeed} disabled={seeding}>
+                {seeding ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                Popular com exemplos
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -221,17 +201,6 @@ function Shortcut({ keys, label }: { keys: string[]; label: string }) {
           </span>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <code className="break-all text-sm">{value}</code>
     </div>
   );
 }

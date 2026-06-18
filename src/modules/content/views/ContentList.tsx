@@ -1,4 +1,4 @@
-import { CalendarClock, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { CalendarClock, ExternalLink, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
@@ -76,6 +76,15 @@ export function ContentList({ items, onEdit, onDelete }: Props) {
                 >
                   link <ExternalLink className="h-3 w-3" />
                 </button>
+              )}
+              {c.engagement_notes && (
+                <span
+                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                  title={c.engagement_notes}
+                >
+                  <MessageSquare className="h-3 w-3" />
+                  Ver resultado
+                </span>
               )}
             </div>
           </div>

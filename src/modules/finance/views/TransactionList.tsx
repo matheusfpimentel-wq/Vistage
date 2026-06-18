@@ -1,9 +1,12 @@
-import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { FinanceTransactionWithCategory } from "../types";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type Props = {
   transactions: FinanceTransactionWithCategory[];
@@ -12,11 +15,14 @@ type Props = {
 };
 
 export function TransactionList({ transactions, onEdit, onDelete }: Props) {
-  if (transactions.length === 0) {
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(transactions);
+
+  if (sorted.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Nenhuma transação encontrada.
-      </div>
+      <EmptyState
+        icon={Wallet}
+        title="Nenhuma transação encontrada."
+      />
     );
   }
 
@@ -26,17 +32,18 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
         <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
             <th className="w-8 px-3 py-2 text-left"></th>
-            <th className="px-3 py-2 text-left">Data</th>
-            <th className="px-3 py-2 text-left">Descrição</th>
+            <SortableHeader col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="description" label="Descrição" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
+            <SortableHeader col="amount" label="Valor" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground" />
             <th className="px-3 py-2 text-left">Categoria</th>
-            <th className="px-3 py-2 text-left">Status</th>
-            <th className="px-3 py-2 text-right">Valor</th>
             <th className="px-3 py-2 text-right">Ações</th>
           </tr>
         </thead>
         <tbody>
-          {transactions.map((t) => {
+          {sorted.map((t) => {
             const isIncome = t.kind === "income";
+            const hasLinks = t.gig_id || t.class_id || t.student_package_id || t.track_id || t.party_id;
             return (
               <tr
                 key={t.id}
@@ -50,15 +57,39 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap tabular-nums">
-                  {formatDate(t.date)}
+                  {formatDate(t.date, "dd/MM/yyyy")}
                 </td>
                 <td className="px-3 py-2">
                   <div className={cn(t.description ? "" : "text-muted-foreground")}>
                     {t.description ?? "—"}
                   </div>
-                  {(t.gig_id || t.expense_type === "Fixa" || t.tax_relevant === 1) && (
+                  {(hasLinks || t.expense_type === "Fixa" || t.tax_relevant === 1) && (
                     <div className="mt-0.5 flex flex-wrap gap-1">
-                      {t.gig_id && <Badge variant="outline" className="text-xs">GIG</Badge>}
+                      {t.gig_id && (
+                        <Link to={`/gigs?open=${t.gig_id}`} onClick={(e) => e.stopPropagation()}>
+                          <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">GIG ↗</Badge>
+                        </Link>
+                      )}
+                      {t.class_id && (
+                        <Link to={`/aulas?open=${t.class_id}`} onClick={(e) => e.stopPropagation()}>
+                          <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">Aula ↗</Badge>
+                        </Link>
+                      )}
+                      {t.student_package_id && (
+                        <Link to={`/aulas?open=${t.student_package_id}`} onClick={(e) => e.stopPropagation()}>
+                          <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">Pacote ↗</Badge>
+                        </Link>
+                      )}
+                      {t.track_id && (
+                        <Link to={`/musica?open=${t.track_id}`} onClick={(e) => e.stopPropagation()}>
+                          <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">Música ↗</Badge>
+                        </Link>
+                      )}
+                      {t.party_id && (
+                        <Link to={`/festas?open=${t.party_id}`} onClick={(e) => e.stopPropagation()}>
+                          <Badge variant="outline" className="text-xs hover:bg-muted cursor-pointer">Festa ↗</Badge>
+                        </Link>
+                      )}
                       {t.expense_type === "Fixa" && (
                         <Badge variant="outline" className="text-xs">Fixa</Badge>
                       )}
@@ -68,11 +99,8 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {t.category_name ?? "—"}
-                </td>
                 <td className="px-3 py-2">
-                  <Badge variant={t.status === "Recebido/Pago" ? "success" : "warning"}>
+                  <Badge variant={(t.status === "Recebido" || t.status === "Pago") ? "success" : "warning"}>
                     {t.status}
                   </Badge>
                 </td>
@@ -83,6 +111,9 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   )}
                 >
                   {isIncome ? "+" : "−"} {formatCurrency(t.amount)}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {t.category_name ?? "—"}
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex justify-end gap-1">

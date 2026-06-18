@@ -28,6 +28,7 @@ import {
 } from "../api";
 import { SUPPLIER_CATEGORIES } from "../types";
 import type { Supplier } from "../types";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type ServiceRow = {
   id?: number;
@@ -59,6 +60,8 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
   const [rating, setRating] = useState<number>(0);
   const [services, setServices] = useState<ServiceRow[]>([]);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (open && supplier) {
@@ -94,6 +97,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
       setRating(0);
       setServices([]);
     }
+    if (open) setDirty(false);
   }, [open, supplier]);
 
   function addServiceRow() {
@@ -101,18 +105,21 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
       ...prev,
       { description: "", unit: "", price: "", notes: "" },
     ]);
+    setDirty(true);
   }
 
   function updateRow(idx: number, field: keyof ServiceRow, value: string) {
     setServices((prev) =>
       prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r))
     );
+    setDirty(true);
   }
 
   function markDelete(idx: number) {
     setServices((prev) =>
       prev.map((r, i) => (i === idx ? { ...r, _delete: true } : r))
     );
+    setDirty(true);
   }
 
   async function handleSave() {
@@ -164,6 +171,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
       }
 
       toast.success(isEdit ? "Fornecedor atualizado" : "Fornecedor criado");
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } catch (e) {
@@ -176,7 +184,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
   const visibleServices = services.filter((r) => !r._delete);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar fornecedor" : "Novo fornecedor"}</DialogTitle>
@@ -190,13 +198,13 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               <Input
                 id="sup-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); setDirty(true); }}
                 placeholder="Nome do fornecedor"
               />
             </div>
             <div className="space-y-1">
               <Label>Categoria</Label>
-              <Select value={category} onValueChange={setCategory}>
+              <Select value={category} onValueChange={(v) => { setCategory(v); setDirty(true); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar..." />
                 </SelectTrigger>
@@ -217,7 +225,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               <Input
                 id="sup-contact"
                 value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
+                onChange={(e) => { setContactName(e.target.value); setDirty(true); }}
                 placeholder="Nome do responsável"
               />
             </div>
@@ -226,7 +234,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               <Input
                 id="sup-phone"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); setDirty(true); }}
                 placeholder="(11) 99999-9999"
               />
             </div>
@@ -239,7 +247,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
                 id="sup-email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setDirty(true); }}
                 placeholder="contato@fornecedor.com"
               />
             </div>
@@ -248,7 +256,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               <Input
                 id="sup-instagram"
                 value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
+                onChange={(e) => { setInstagram(e.target.value); setDirty(true); }}
                 placeholder="@handle"
               />
             </div>
@@ -260,7 +268,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               <Input
                 id="sup-city"
                 value={city}
-                onChange={(e) => setCity(e.target.value)}
+                onChange={(e) => { setCity(e.target.value); setDirty(true); }}
                 placeholder="São Paulo"
               />
             </div>
@@ -271,7 +279,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
                   <button
                     key={star}
                     type="button"
-                    onClick={() => setRating(star === rating ? 0 : star)}
+                    onClick={() => { setRating(star === rating ? 0 : star); setDirty(true); }}
                     className="text-muted-foreground transition hover:text-yellow-400"
                   >
                     <Star
@@ -293,7 +301,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
               className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
               rows={3}
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => { setNotes(e.target.value); setDirty(true); }}
               placeholder="Observações sobre o fornecedor..."
             />
           </div>

@@ -21,22 +21,58 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { loadFinanceInsights, type FinanceInsights } from "../api";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-const INCOME_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5", "#059669", "#047857"];
-const EXPENSE_COLORS = ["#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#dc2626", "#b91c1c"];
+// Paletas com matizes bem espaçados no círculo cromático pra ficarem
+// claramente distinguíveis lado a lado (não só tons da mesma cor).
+const INCOME_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1"];
+const EXPENSE_COLORS = ["#ef4444", "#0ea5e9", "#a855f7", "#eab308", "#22c55e", "#f43f5e", "#64748b", "#d946ef"];
 
-type Props = { refreshKey: number };
+/** Opções de período: atalhos + últimos 12 meses nomeados. */
+function periodOptions(): { value: string; label: string }[] {
+  const opts = [
+    { value: "thismonth", label: "Este mês" },
+    { value: "last12", label: "Últimos 12 meses" },
+    { value: "thisyear", label: "Este ano" },
+    { value: "all", label: "Total" },
+  ];
+  const d = new Date();
+  for (let i = 0; i < 12; i++) {
+    const month = d.toISOString().slice(0, 7);
+    const raw = d.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const label = raw.charAt(0).toUpperCase() + raw.slice(1);
+    opts.push({ value: month, label });
+    d.setMonth(d.getMonth() - 1);
+  }
+  return opts;
+}
 
-export function FinanceDashboard({ refreshKey }: Props) {
+function periodLabel(period: string): string {
+  return periodOptions().find((o) => o.value === period)?.label ?? "Este mês";
+}
+
+type Props = { refreshKey: number; period?: string };
+
+export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
   const [data, setData] = useState<FinanceInsights | null>(null);
+  const [period, setPeriod] = useState(periodProp ?? "thismonth");
+  const options = periodOptions();
 
   useEffect(() => {
-    void loadFinanceInsights().then(setData);
-  }, [refreshKey]);
+    void loadFinanceInsights(period).then(setData);
+  }, [refreshKey, period]);
+
+  const label = periodLabel(period);
 
   if (!data) {
     return <div className="text-sm text-muted-foreground">Carregando dashboard…</div>;
@@ -56,23 +92,40 @@ export function FinanceDashboard({ refreshKey }: Props) {
 
   return (
     <div className="space-y-6">
-      {/* KPIs */}
+      {/* Seletor de período do dashboard */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">Período do painel</span>
+        <Select value={period} onValueChange={setPeriod}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* KPIs do período + saldo do ano */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KPI
           icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />}
-          label="Receitas (mês)"
-          value={formatCurrency(data.monthIncome)}
+          label={`Receitas (${label.toLowerCase()})`}
+          value={formatCurrency(data.periodIncome)}
         />
         <KPI
           icon={<ArrowDownRight className="h-4 w-4 text-destructive" />}
-          label="Despesas (mês)"
-          value={formatCurrency(data.monthExpense)}
+          label={`Despesas (${label.toLowerCase()})`}
+          value={formatCurrency(data.periodExpense)}
         />
         <KPI
           icon={<Wallet className="h-4 w-4" />}
-          label="Saldo do mês"
-          value={formatCurrency(data.monthBalance)}
-          tone={data.monthBalance >= 0 ? "positive" : "negative"}
+          label="Saldo do período"
+          value={formatCurrency(data.periodBalance)}
+          tone={data.periodBalance >= 0 ? "positive" : "negative"}
         />
         <KPI
           icon={<Wallet className="h-4 w-4" />}
@@ -81,6 +134,15 @@ export function FinanceDashboard({ refreshKey }: Props) {
           tone={data.yearBalance >= 0 ? "positive" : "negative"}
         />
       </div>
+
+      {/* Receita por fonte */}
+      {data.incomeBySource.length > 0 && (
+        <CategoryPie
+          title={`Receita por fonte (${label.toLowerCase()})`}
+          data={data.incomeBySource}
+          colors={INCOME_COLORS}
+        />
+      )}
 
       {/* Receitas vs despesas — 12 meses */}
       <Card>
@@ -120,12 +182,12 @@ export function FinanceDashboard({ refreshKey }: Props) {
       {/* Pies por categoria */}
       <div className="grid gap-6 lg:grid-cols-2">
         <CategoryPie
-          title="Receitas por categoria (mês)"
+          title={`Receitas por categoria (${label.toLowerCase()})`}
           data={data.byIncomeCategory}
           colors={INCOME_COLORS}
         />
         <CategoryPie
-          title="Despesas por categoria (mês)"
+          title={`Despesas por categoria (${label.toLowerCase()})`}
           data={data.byExpenseCategory}
           colors={EXPENSE_COLORS}
         />
@@ -151,7 +213,7 @@ export function FinanceDashboard({ refreshKey }: Props) {
                   >
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">#{i + 1}</Badge>
-                      <span className="font-medium">{g.venue_name}</span>
+                      <span className="font-medium">{g.event_name?.trim() || g.venue_name}</span>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(g.date)}
                       </span>
@@ -257,7 +319,7 @@ function CategoryPie({
           <CardTitle className="text-base">{title}</CardTitle>
         </CardHeader>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          Sem dados este mês.
+          Sem dados no período.
         </CardContent>
       </Card>
     );

@@ -1,15 +1,14 @@
 import { create } from "zustand";
 import { exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
-// O arquivo de configuração mora ao lado do banco para que o conjunto inteiro
-// (config + db + uploads) seja portátil. Mantemos também uma chave em localStorage
-// apontando para o último caminho de config usado, para o app encontrar tudo
-// novamente depois de fechar.
+// O arquivo de configuração mora ao lado da pasta de anexos para que o conjunto
+// (config + uploads) seja portátil. Guardamos em localStorage o último caminho
+// de config usado, para o app reencontrar tudo depois de fechar. O banco ativo
+// (libsql) vive no diretório de dados do app (AppData), não nesta pasta.
 
-const LS_KEY = "musicgest.lastConfigPath";
+const LS_KEY = "vistage.lastConfigPath";
 
 export type AppConfig = {
-  dbPath: string;            // caminho absoluto do .db
   uploadsDir: string;        // pasta para anexos
   createdAt: string;         // ISO timestamp
 };
@@ -22,6 +21,7 @@ type ConfigState = {
   hydrate: () => Promise<void>;
   setupNew: (folder: string) => Promise<AppConfig>;
   loadExisting: (configFile: string) => Promise<AppConfig>;
+  patchConfig: (patch: Partial<AppConfig>) => Promise<void>;
   reset: () => void;
 };
 
@@ -42,17 +42,6 @@ export const useConfigStore = create<ConfigState>((set) => ({
     try {
       if (await exists(last)) {
         const cfg = JSON.parse(await readTextFile(last)) as AppConfig;
-        // Sanity: o .db precisa existir (HD pode estar desconectado).
-        if (!(await exists(cfg.dbPath))) {
-          set({
-            ready: false,
-            config: null,
-            configPath: last,
-            errorMessage:
-              "Banco de dados não encontrado no caminho salvo. O HD externo pode estar desconectado.",
-          });
-          return;
-        }
         set({ ready: true, config: cfg, configPath: last, errorMessage: null });
       }
     } catch (err) {
@@ -61,7 +50,7 @@ export const useConfigStore = create<ConfigState>((set) => ({
   },
 
   async setupNew(folder: string) {
-    // cria pastas e arquivos necessários
+    // cria a pasta de anexos e o arquivo de config dentro da pasta escolhida
     if (!(await exists(folder))) {
       await mkdir(folder, { recursive: true });
     }
@@ -69,10 +58,8 @@ export const useConfigStore = create<ConfigState>((set) => ({
     if (!(await exists(uploadsDir))) {
       await mkdir(uploadsDir, { recursive: true });
     }
-    const dbPath = joinPath(folder, "musicgest.db");
-    const configPath = joinPath(folder, "musicgest.config.json");
+    const configPath = joinPath(folder, "vistage.config.json");
     const cfg: AppConfig = {
-      dbPath,
       uploadsDir,
       createdAt: new Date().toISOString(),
     };
@@ -82,11 +69,17 @@ export const useConfigStore = create<ConfigState>((set) => ({
     return cfg;
   },
 
+  /** Aplica um patch parcial ao config e persiste no disco. */
+  async patchConfig(patch: Partial<AppConfig>) {
+    const { config, configPath } = useConfigStore.getState();
+    if (!config || !configPath) return;
+    const next: AppConfig = { ...config, ...patch };
+    await writeTextFile(configPath, JSON.stringify(next, null, 2));
+    set({ config: next });
+  },
+
   async loadExisting(configFile: string) {
     const cfg = JSON.parse(await readTextFile(configFile)) as AppConfig;
-    if (!(await exists(cfg.dbPath))) {
-      throw new Error(`O banco de dados em ${cfg.dbPath} não foi encontrado.`);
-    }
     localStorage.setItem(LS_KEY, configFile);
     set({ ready: true, config: cfg, configPath: configFile, errorMessage: null });
     return cfg;

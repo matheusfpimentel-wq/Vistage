@@ -7,13 +7,13 @@ export type SearchHit = {
     | "task"
     | "transaction"
     | "venue"
+    | "supplier"
     | "fan"
     | "content"
     | "idea"
     | "student"
     | "track"
-    | "party"
-    | "decision";
+    | "party";
   id: number;
   title: string;
   subtitle: string;
@@ -32,7 +32,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, fans, contents, ideas, students, tracks, parties, decisions] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties] = await Promise.all([
     db.select<
       { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
     >(
@@ -78,6 +78,14 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
     >(
       `SELECT id, name, city, capacity FROM venues
         WHERE name LIKE $1 OR city LIKE $1 OR owner_name LIKE $1
+        ORDER BY name LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; category: string | null; city: string | null }[]
+    >(
+      `SELECT id, name, category, city FROM suppliers
+        WHERE name LIKE $1 OR contact_name LIKE $1 OR category LIKE $1 OR notes LIKE $1
         ORDER BY name LIMIT $2`,
       [like, limit]
     ),
@@ -129,14 +137,6 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, title, status, date FROM parties
         WHERE title LIKE $1 OR venue_name LIKE $1 OR description LIKE $1
         ORDER BY date IS NULL, date DESC LIMIT $2`,
-      [like, limit]
-    ),
-    db.select<
-      { id: number; decision_made: string; domain: string; context: string }[]
-    >(
-      `SELECT id, decision_made, domain, context FROM decisions
-        WHERE decision_made LIKE $1 OR context LIKE $1 OR reasoning LIKE $1
-        ORDER BY created_at DESC LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -196,6 +196,15 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/venues",
     });
   }
+  for (const s of suppliers) {
+    hits.push({
+      kind: "supplier",
+      id: s.id,
+      title: s.name,
+      subtitle: [s.category, s.city].filter(Boolean).join(" · ") || "Fornecedor",
+      route: "/fornecedores",
+    });
+  }
   for (const f of fans) {
     hits.push({
       kind: "fan",
@@ -251,16 +260,6 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/festas",
     });
   }
-  for (const d of decisions) {
-    hits.push({
-      kind: "decision",
-      id: d.id,
-      title: d.decision_made,
-      subtitle: `${d.domain} · ${d.context.slice(0, 60)}`,
-      route: "/decisoes",
-    });
-  }
-
   return hits;
 }
 
@@ -270,11 +269,11 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   task: "Tarefa",
   transaction: "Financeiro",
   venue: "Venue",
+  supplier: "Fornecedor",
   fan: "Fã",
   content: "Conteúdo",
   idea: "Ideia",
   student: "Aluno",
   track: "Track",
   party: "Festa",
-  decision: "Decisão",
 };

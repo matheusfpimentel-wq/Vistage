@@ -1,8 +1,18 @@
-export const TRANSACTION_KINDS = ["income", "expense"] as const;
+const TRANSACTION_KINDS = ["income", "expense"] as const;
 export type TransactionKind = (typeof TRANSACTION_KINDS)[number];
 
-export const TRANSACTION_STATUSES = ["Previsto", "Recebido/Pago"] as const;
+export const TRANSACTION_STATUSES = ["Previsto", "Recebido", "Pago"] as const;
 export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
+/** Statuses disponíveis conforme o tipo (income/expense). */
+export function statusesForKind(kind: "income" | "expense"): TransactionStatus[] {
+  return kind === "income" ? ["Previsto", "Recebido"] : ["Previsto", "Pago"];
+}
+
+/** Default status quando cria um lançamento novo. */
+export function defaultStatus(kind: "income" | "expense"): TransactionStatus {
+  return kind === "income" ? "Recebido" : "Pago";
+}
 
 export const PAYMENT_METHODS = [
   "PIX",
@@ -12,10 +22,10 @@ export const PAYMENT_METHODS = [
   "Boleto",
   "Outro",
 ] as const;
-export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const EXPENSE_TYPES = ["Variável", "Fixa"] as const;
-export type ExpenseType = (typeof EXPENSE_TYPES)[number];
+type ExpenseType = (typeof EXPENSE_TYPES)[number];
 
 export const EQUIPMENT_STATES = [
   "Em uso",
@@ -41,12 +51,21 @@ export type FinanceTransaction = {
   category_id: number | null;
   gig_id: number | null;
   contact_id: number | null;
+  class_id: number | null;
+  student_package_id: number | null;
+  track_id: number | null;
+  party_id: number | null;
+  music_cost_id: number | null;
+  gig_sync: number; // 0/1
+  class_sync: number; // 0/1
   status: TransactionStatus;
   payment_method: PaymentMethod | null;
   expense_type: ExpenseType | null;
   receipt_file_path: string | null;
   tax_relevant: number; // 0/1
   recurring_id: number | null;
+  /** Referência externa idempotente (ex.: "royalty:distrokid:2024-01:isrc"). */
+  source_ref: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -57,8 +76,8 @@ export type FinanceTransactionWithCategory = FinanceTransaction & {
 
 export type FinanceTransactionCreateInput = Omit<
   FinanceTransaction,
-  "id" | "created_at" | "updated_at"
->;
+  "id" | "created_at" | "updated_at" | "source_ref"
+> & { source_ref?: string | null };
 export type FinanceTransactionUpdateInput =
   Partial<FinanceTransactionCreateInput> & { id: number };
 
@@ -83,6 +102,9 @@ export type Equipment = {
   state: EquipmentState;
   location: string | null;
   notes: string | null;
+  quantity: number;
+  category: string | null;
+  photo_path: string | null;
 };
 
 export type EquipmentCreateInput = Omit<Equipment, "id">;

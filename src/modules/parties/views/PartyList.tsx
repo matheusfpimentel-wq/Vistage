@@ -1,11 +1,9 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
-
-const formatCurrency = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
 type Props = {
   parties: PartyDeserialized[];
@@ -14,6 +12,7 @@ type Props = {
 };
 
 export function PartyList({ parties, onEdit, onDelete }: Props) {
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(parties);
   if (parties.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -27,17 +26,17 @@ export function PartyList({ parties, onEdit, onDelete }: Props) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Título</th>
-            <th className="px-3 py-2">Data</th>
-            <th className="px-3 py-2">Venue</th>
-            <th className="px-3 py-2 text-right">Capacidade</th>
+            <SortableHeader<PartyDeserialized> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
+            <SortableHeader<PartyDeserialized> col="title" label="Título" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
+            <SortableHeader<PartyDeserialized> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
+            <SortableHeader<PartyDeserialized> col="venue_name" label="Venue" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
+            <SortableHeader<PartyDeserialized> col="expected_capacity" label="Capacidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
             <th className="px-3 py-2 text-right">Receita est.</th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
         <tbody>
-          {parties.map((p) => {
+          {sorted.map((p) => {
             const rev = estimatedRevenue(p);
             return (
               <tr

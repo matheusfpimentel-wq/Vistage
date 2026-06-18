@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type {
   Idea,
   IdeaCategory,
@@ -62,12 +63,6 @@ export async function listIdeas(filters: IdeaFilters = {}): Promise<Idea[]> {
   return rows.map(rowToIdea);
 }
 
-export async function getIdea(id: number): Promise<Idea | null> {
-  const db = getDb();
-  const rows = await db.select<IdeaRow[]>("SELECT * FROM ideas WHERE id = $1", [id]);
-  return rows[0] ? rowToIdea(rows[0]) : null;
-}
-
 export async function createIdea(input: IdeaCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };
@@ -78,7 +73,27 @@ export async function createIdea(input: IdeaCreateInput): Promise<number> {
     `INSERT INTO ideas (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
-  return Number(res.lastInsertId);
+  const id = Number(res.lastInsertId);
+  // Cria tarefa vinculada
+  try {
+    const { createTask } = await import("@/modules/tasks/api");
+    const taskId = await createTask({
+      title: `Ideia: ${input.title}`,
+      description: input.body ?? null,
+      category: "Pessoal",
+      gig_id: null,
+      contact_id: null,
+      priority: "Baixa",
+      status: "A fazer",
+      due_date: null,
+      tags: ["ideia"],
+    });
+    await db.execute("UPDATE ideas SET task_id = $1 WHERE id = $2", [taskId, id]);
+  } catch {
+    /* não interrompe */
+  }
+  emitDataChanged();
+  return id;
 }
 
 export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
@@ -95,14 +110,41 @@ export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
     `UPDATE ideas SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM ideas WHERE id = $1", [id]
+  );
+  const taskId = rows[0]?.task_id;
+  if (taskId) {
+    try {
+      const { updateTask } = await import("@/modules/tasks/api");
+      const taskUpdate: Parameters<typeof updateTask>[0] = { id: taskId };
+      if (input.title) taskUpdate.title = `Ideia: ${input.title}`;
+      if (input.maturation === "Pronta") taskUpdate.status = "Concluída";
+      if (Object.keys(taskUpdate).length > 1) {
+        await updateTask(taskUpdate);
+      }
+    } catch {
+      /* não interrompe */
+    }
+  }
+  emitDataChanged();
 }
 
 export async function deleteIdea(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ task_id: number | null }[]>(
+    "SELECT task_id FROM ideas WHERE id = $1",
+    [id]
+  );
+  const taskId = rows[0]?.task_id ?? null;
   await db.execute("DELETE FROM ideas WHERE id = $1", [id]);
+  if (taskId) {
+    await db.execute("DELETE FROM tasks WHERE id = $1", [taskId]);
+  }
+  emitDataChanged();
 }
 
-/** Marca a ideia como Convertida e guarda o alvo. */
+/** Registra o alvo da conversão. A maturação 'Pronta' acumula as convertidas. */
 export async function markIdeaAsConverted(
   ideaId: number,
   to: IdeaConversion,
@@ -110,7 +152,7 @@ export async function markIdeaAsConverted(
 ): Promise<void> {
   const db = getDb();
   await db.execute(
-    `UPDATE ideas SET converted_to = $1, converted_id = $2, maturation = 'Convertida',
+    `UPDATE ideas SET converted_to = $1, converted_id = $2, maturation = 'Pronta',
                       updated_at = CURRENT_TIMESTAMP
       WHERE id = $3`,
     [to, newId, ideaId]

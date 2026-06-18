@@ -7,6 +7,7 @@ import {
   Unplug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
@@ -32,11 +33,16 @@ import {
   listCalendars,
   loadAuth,
   loadGcalConfig,
+  loadModuleCalendarIds,
   saveGcalConfig,
   setCalendarId,
+  setModuleCalendarId,
   syncAll,
+  GCAL_MODULES,
+  GCAL_MODULE_LABELS,
   type CalendarListItem,
   type GcalConfig,
+  type GcalModule,
 } from "@/lib/gcal";
 import { formatDate } from "@/lib/format";
 
@@ -58,6 +64,12 @@ export function GoogleCalendarSettings() {
   const [cfg, setCfg] = useState<GcalConfig | null>(null);
   const [authConnected, setAuthConnected] = useState(false);
   const [calendarId, setActiveCalendarId] = useState<string | null>(null);
+  const [moduleCalendars, setModuleCalendars] = useState<Record<GcalModule, string | null>>({
+    gigs: null,
+    classes: null,
+    parties: null,
+    okrs: null,
+  });
   const [calendars, setCalendars] = useState<CalendarListItem[]>([]);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -68,6 +80,7 @@ export function GoogleCalendarSettings() {
     setCfg(c);
     setAuthConnected(!!a?.access_token);
     setActiveCalendarId(a?.calendar_id ?? null);
+    setModuleCalendars(await loadModuleCalendarIds());
     if (a?.access_token) {
       setLoadingCalendars(true);
       try {
@@ -102,6 +115,12 @@ export function GoogleCalendarSettings() {
       toast.error("Preencha Client ID e Client Secret antes");
       return;
     }
+    if (!/\.apps\.googleusercontent\.com\s*$/.test(cfg.clientId.trim())) {
+      toast.error(
+        "Client ID inválido. Ele deve terminar com .apps.googleusercontent.com"
+      );
+      return;
+    }
     setConnecting(true);
     try {
       await saveGcalConfig({
@@ -120,7 +139,7 @@ export function GoogleCalendarSettings() {
   }
 
   async function handleDisconnect() {
-    if (!window.confirm("Desconectar do Google Calendar? Os tokens locais serão apagados.")) return;
+    if (!(await confirmDialog("Desconectar do Google Calendar? Os tokens locais serão apagados."))) return;
     await disconnect();
     toast.success("Desconectado");
     await refresh();
@@ -132,6 +151,14 @@ export function GoogleCalendarSettings() {
     toast.success("Calendário definido");
   }
 
+  async function handlePickModuleCalendar(module: GcalModule, value: string) {
+    // "__main__" = usar o calendário principal (fallback)
+    const id = value === "__main__" ? null : value;
+    await setModuleCalendarId(module, id);
+    setModuleCalendars((prev) => ({ ...prev, [module]: id }));
+    toast.success(`Calendário de ${GCAL_MODULE_LABELS[module]} definido`);
+  }
+
   async function handleSync() {
     if (!calendarId) {
       toast.error("Selecione um calendário antes");
@@ -139,8 +166,8 @@ export function GoogleCalendarSettings() {
     }
     setSyncing(true);
     try {
-      const { pushed, pulled } = await syncAll();
-      toast.success(`Sync concluído — enviadas ${pushed}, importadas ${pulled}`);
+      const { pushed } = await syncAll();
+      toast.success(`Sync concluído — ${pushed} GIG(s) enviada(s) ao calendário`);
       await refresh();
     } catch (e) {
       toast.error(`Erro na sync: ${String(e)}`);
@@ -288,7 +315,7 @@ export function GoogleCalendarSettings() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">
-              <Label>Calendário</Label>
+              <Label>Calendário principal (padrão)</Label>
               {loadingCalendars ? (
                 <div className="text-sm text-muted-foreground">Carregando…</div>
               ) : (
@@ -309,7 +336,46 @@ export function GoogleCalendarSettings() {
                   </SelectContent>
                 </Select>
               )}
+              <p className="text-xs text-muted-foreground">
+                Usado para qualquer módulo que não tenha um calendário próprio definido abaixo.
+              </p>
             </div>
+
+            {!loadingCalendars && calendars.length > 0 && (
+              <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Calendário por módulo
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Defina um calendário separado para cada tipo de evento. Deixe em
+                  "Usar principal" para cair no calendário padrão acima.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {GCAL_MODULES.map((module) => (
+                    <div key={module} className="space-y-1">
+                      <Label className="text-xs">{GCAL_MODULE_LABELS[module]}</Label>
+                      <Select
+                        value={moduleCalendars[module] ?? "__main__"}
+                        onValueChange={(v) => handlePickModuleCalendar(module, v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__main__">Usar principal</SelectItem>
+                          {calendars.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.summary}
+                              {c.primary ? " (principal)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center justify-between rounded-md border p-3">
               <div className="text-sm">
@@ -336,7 +402,7 @@ export function GoogleCalendarSettings() {
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               <strong className="text-foreground">Como funciona:</strong> ao
-              salvar/editar uma GIG no MusicGest, o evento correspondente é
+              salvar/editar uma GIG no Vistage, o evento correspondente é
               atualizado no Google Calendar automaticamente. Eventos novos no
               calendário escolhido viram GIGs em <Badge variant="outline">Proposta</Badge>
               {" "}quando você clicar em "Sincronizar".

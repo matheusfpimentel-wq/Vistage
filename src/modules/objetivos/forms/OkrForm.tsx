@@ -22,9 +22,12 @@ import {
   createOkr,
   currentQuarter,
   updateOkr,
+  updateOkrGcalEventId,
   type KeyResult,
   type Okr,
 } from "../api";
+import { loadAuth, pushOkrToCalendar } from "@/lib/gcal";
+import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
   open: boolean;
@@ -53,26 +56,57 @@ function newKr(): KeyResult {
   };
 }
 
+// Quebra "YYYY-Qn" em ano e trimestre.
+function splitQuarter(q: string): { year: string; q: string } {
+  const m = /^(\d{4})-Q([1-4])$/.exec(q);
+  if (m) return { year: m[1], q: m[2] };
+  const now = new Date();
+  return { year: String(now.getFullYear()), q: String(Math.ceil((now.getMonth() + 1) / 3)) };
+}
+
+const QUARTERS = [
+  { value: "1", label: "Q1 · jan–mar" },
+  { value: "2", label: "Q2 · abr–jun" },
+  { value: "3", label: "Q3 · jul–set" },
+  { value: "4", label: "Q4 · out–dez" },
+];
+
 export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
-  const [quarter, setQuarter] = useState(currentQuarter());
+  const initial = splitQuarter(currentQuarter());
+  const [year, setYear] = useState(initial.year);
+  const [quarterNum, setQuarterNum] = useState(initial.q);
   const [objective, setObjective] = useState("");
   const [krs, setKrs] = useState<KeyResult[]>([newKr()]);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
+
+  const quarter = `${year}-Q${quarterNum}`;
+
+  // anos: do atual -1 até +3
+  const baseYear = new Date().getFullYear();
+  const YEARS = Array.from({ length: 5 }, (_, i) => String(baseYear - 1 + i));
 
   useEffect(() => {
     if (okr) {
-      setQuarter(okr.quarter);
+      const s = splitQuarter(okr.quarter);
+      setYear(s.year);
+      setQuarterNum(s.q);
       setObjective(okr.objective);
       setKrs(okr.key_results.length > 0 ? okr.key_results : [newKr()]);
     } else {
-      setQuarter(currentQuarter());
+      const s = splitQuarter(currentQuarter());
+      setYear(s.year);
+      setQuarterNum(s.q);
       setObjective("");
       setKrs([newKr()]);
     }
+    setDirty(false);
   }, [okr, open]);
 
   function updateKr<K extends keyof KeyResult>(idx: number, key: K, value: KeyResult[K]) {
     setKrs((prev) => prev.map((kr, i) => i === idx ? { ...kr, [key]: value } : kr));
+    setDirty(true);
   }
 
   async function handleSave() {
@@ -80,13 +114,34 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
     const validKrs = krs.filter((kr) => kr.description.trim());
     setSaving(true);
     try {
+      let savedId: number | null = null;
       if (okr) {
         await updateOkr({ id: okr.id, quarter, objective, key_results: validKrs });
+        savedId = okr.id;
         toast.success("OKR atualizado");
       } else {
-        await createOkr({ quarter, objective, key_results: validKrs });
+        savedId = await createOkr({ quarter, objective, key_results: validKrs });
         toast.success("OKR criado");
       }
+      // Sync com Google Calendar
+      try {
+        const auth = await loadAuth();
+        if (auth?.access_token && auth.calendar_id && savedId !== null) {
+          const gcalEventId = okr?.gcal_event_id ?? null;
+          const eventId = await pushOkrToCalendar({
+            id: savedId,
+            quarter,
+            objective,
+            gcal_event_id: gcalEventId,
+          });
+          if (!gcalEventId) {
+            await updateOkrGcalEventId(savedId, eventId);
+          }
+        }
+      } catch {
+        // falha no calendário não bloqueia o save
+      }
+      setDirty(false);
       onSaved();
       onOpenChange(false);
     } finally {
@@ -95,7 +150,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{okr ? "Editar OKR" : "Novo OKR"}</DialogTitle>
@@ -104,12 +159,34 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label>Ano</Label>
+              <Select value={year} onValueChange={(v) => { setYear(v); setDirty(true); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {YEARS.map((y) => (
+                    <SelectItem key={y} value={y}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label>Trimestre</Label>
-              <Input
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-                placeholder="2026-Q3"
-              />
+              <Select value={quarterNum} onValueChange={(v) => { setQuarterNum(v); setDirty(true); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {QUARTERS.map((q) => (
+                    <SelectItem key={q.value} value={q.value}>
+                      {q.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -117,7 +194,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
             <Label>Objetivo <span className="text-destructive">*</span></Label>
             <Input
               value={objective}
-              onChange={(e) => setObjective(e.target.value)}
+              onChange={(e) => { setObjective(e.target.value); setDirty(true); }}
               placeholder="Ex: Fortalecer minha presença no mercado nacional"
             />
           </div>
@@ -129,7 +206,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
                 size="sm"
                 variant="outline"
                 type="button"
-                onClick={() => setKrs((prev) => [...prev, newKr()])}
+                onClick={() => { setKrs((prev) => [...prev, newKr()]); setDirty(true); }}
                 disabled={krs.length >= 5}
               >
                 <Plus className="h-3.5 w-3.5" /> Adicionar KR
@@ -144,7 +221,8 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
                     size="icon"
                     variant="ghost"
                     className="ml-auto h-6 w-6"
-                    onClick={() => setKrs((prev) => prev.filter((_, j) => j !== i))}
+                    aria-label="Excluir KR"
+                    onClick={() => { setKrs((prev) => prev.filter((_, j) => j !== i)); setDirty(true); }}
                     disabled={krs.length <= 1}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />

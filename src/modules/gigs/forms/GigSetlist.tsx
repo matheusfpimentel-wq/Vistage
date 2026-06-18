@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, FileMusic, Loader2, Music, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FileMusic, Library, Loader2, Music, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,21 +10,33 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import {
   deleteSetlist,
   detectAndParse,
   getSetlistsForGig,
   saveSetlist,
+  updateSetlistTracks,
   type GigSetlist,
   type ParsedSetlist,
+  type SetlistTrack,
 } from "../setlist";
+import { createTrack } from "@/modules/music/api";
+import { TRACK_KINDS, TRACK_KIND_LABEL, type TrackKind } from "@/modules/music/stages";
 import { cn } from "@/lib/utils";
 
 type Props = { gigId: number };
 
 const FORMAT_LABEL: Record<string, string> = {
   rekordbox_xml: "Rekordbox",
+  rekordbox_txt: "Rekordbox",
   traktor_nml: "Traktor",
   serato_session: "Serato",
   m3u: "M3U",
@@ -32,10 +44,19 @@ const FORMAT_LABEL: Record<string, string> = {
 
 const FORMAT_CLASS: Record<string, string> = {
   rekordbox_xml: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  rekordbox_txt: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   traktor_nml: "bg-blue-500/15 text-blue-400 border-blue-500/30",
   serato_session: "bg-green-500/15 text-green-400 border-green-500/30",
   m3u: "",
 };
+
+/** Decodifica um buffer de texto detectando BOM UTF-16 (Rekordbox TXT) ou UTF-8. */
+function decodeTextBuffer(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes);
+  return new TextDecoder("utf-8").decode(bytes);
+}
 
 function formatDuration(sec: number | null): string {
   if (!sec) return "—";
@@ -50,6 +71,10 @@ export function GigSetlist({ gigId }: Props) {
   const [preview, setPreview] = useState<ParsedSetlist | null>(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Faixa em processo de adição à biblioteca de produção.
+  const [addTarget, setAddTarget] = useState<{ setlistId: number; position: number; track: SetlistTrack } | null>(null);
+  const [addKind, setAddKind] = useState<TrackKind>("edit");
+  const [addingToLib, setAddingToLib] = useState(false);
 
   async function load() {
     setSetlists(await getSetlistsForGig(gigId));
@@ -69,10 +94,16 @@ export function GigSetlist({ gigId }: Props) {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const isBinary = file.name.toLowerCase().endsWith(".session");
+    const name = file.name.toLowerCase();
+    const isBinary = name.endsWith(".session");
+    // TXT/CSV do Rekordbox costumam vir em UTF-16 — lemos os bytes e decodificamos
+    // pelo BOM, senão o conteúdo chega embaralhado.
+    const needsDecode = name.endsWith(".txt") || name.endsWith(".csv");
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const content = ev.target?.result as string;
+      const content = needsDecode
+        ? decodeTextBuffer(ev.target?.result as ArrayBuffer)
+        : (ev.target?.result as string);
       try {
         const parsed = detectAndParse(file.name, content);
         if (parsed.tracks.length === 0) {
@@ -85,6 +116,7 @@ export function GigSetlist({ gigId }: Props) {
       }
     };
     if (isBinary) reader.readAsBinaryString(file);
+    else if (needsDecode) reader.readAsArrayBuffer(file);
     else reader.readAsText(file);
     // reset so same file can be re-imported
     e.target.value = "";
@@ -115,6 +147,54 @@ export function GigSetlist({ gigId }: Props) {
     }
   }
 
+  function openAddToLibrary(setlistId: number, track: SetlistTrack) {
+    setAddKind("edit");
+    setAddTarget({ setlistId, position: track.position, track });
+  }
+
+  async function handleAddToLibrary() {
+    if (!addTarget) return;
+    const { setlistId, position, track } = addTarget;
+    setAddingToLib(true);
+    try {
+      const trackId = await createTrack({
+        project_id: null, // auto-cria projeto
+        kind: addKind,
+        title_working: track.title || "Sem título",
+        title_final: null,
+        bpm: track.bpm,
+        key: track.key,
+        duration_seconds: track.duration_sec,
+        mood_tags: [],
+        genre_primary: track.genre,
+        genre_secondary: null,
+        references: [],
+        constraints: null,
+        concept_narrative: track.artist ? `Tocada na GIG — original de ${track.artist}.` : null,
+        daw_project_path: null,
+        stems_path: null,
+        final_files_path: null,
+        stage_notes: null,
+        creative_block_notes: null,
+      });
+      // Marca a faixa do setlist como vinculada à biblioteca.
+      const sl = setlists.find((s) => s.id === setlistId);
+      if (sl) {
+        const nextTracks = sl.tracks.map((t) =>
+          t.position === position ? { ...t, library_track_id: trackId } : t
+        );
+        await updateSetlistTracks(setlistId, nextTracks);
+      }
+      toast.success("Adicionada à biblioteca de produção");
+      setAddTarget(null);
+      await load();
+    } catch (err) {
+      toast.error(`Erro ao adicionar: ${String(err)}`);
+    } finally {
+      setAddingToLib(false);
+    }
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -129,7 +209,7 @@ export function GigSetlist({ gigId }: Props) {
         <input
           ref={fileRef}
           type="file"
-          accept=".xml,.nml,.m3u,.m3u8,.session"
+          accept=".xml,.nml,.m3u,.m3u8,.session,.txt,.csv"
           className="hidden"
           onChange={handleFileChange}
         />
@@ -138,7 +218,10 @@ export function GigSetlist({ gigId }: Props) {
       {setlists.length === 0 && (
         <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center text-sm text-muted-foreground">
           <Music className="h-8 w-8 opacity-40" />
-          <span>Importe um arquivo do Rekordbox, Traktor, Serato ou M3U</span>
+          <span>
+            Importe o histórico do Rekordbox (.txt / .xml), Traktor (.nml),
+            Serato (.session) ou M3U — exportado direto no pen-drive.
+          </span>
         </div>
       )}
 
@@ -176,32 +259,67 @@ export function GigSetlist({ gigId }: Props) {
           </div>
 
           {expanded.has(sl.id) && (
-            <div className="border-t overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-1.5 text-right w-8">#</th>
-                    <th className="px-3 py-1.5 text-left">Título</th>
-                    <th className="px-3 py-1.5 text-left">Artista</th>
-                    <th className="px-3 py-1.5 text-right">BPM</th>
-                    <th className="px-3 py-1.5 text-center">Key</th>
-                    <th className="px-3 py-1.5 text-right">Duração</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sl.tracks.map((t) => (
-                    <tr key={t.position} className="border-t hover:bg-muted/20">
-                      <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground text-xs">{t.position}</td>
-                      <td className="px-3 py-1.5 font-medium truncate max-w-[200px]">{t.title || "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[160px]">{t.artist || "—"}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-xs">{t.bpm ? Math.round(t.bpm) : "—"}</td>
-                      <td className="px-3 py-1.5 text-center text-xs">{t.key ?? "—"}</td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(t.duration_sec)}</td>
+            <>
+              {(() => {
+                const added = sl.tracks.filter((t) => t.library_track_id);
+                if (added.length === 0) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5 border-t bg-muted/20 px-3 py-2 text-xs">
+                    <Library className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-muted-foreground">Na biblioteca:</span>
+                    {added.map((t) => (
+                      <Badge key={t.position} variant="outline" className="gap-1 text-[11px]">
+                        <Check className="h-3 w-3 text-emerald-500" />
+                        {t.title || "—"}
+                      </Badge>
+                    ))}
+                  </div>
+                );
+              })()}
+              <div className="border-t overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-1.5 text-right w-8">#</th>
+                      <th className="px-3 py-1.5 text-left">Título</th>
+                      <th className="px-3 py-1.5 text-left">Artista</th>
+                      <th className="px-3 py-1.5 text-right">BPM</th>
+                      <th className="px-3 py-1.5 text-center">Key</th>
+                      <th className="px-3 py-1.5 text-right">Duração</th>
+                      <th className="px-3 py-1.5 text-right">Biblioteca</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {sl.tracks.map((t) => (
+                      <tr key={t.position} className="border-t hover:bg-muted/20">
+                        <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground text-xs">{t.position}</td>
+                        <td className="px-3 py-1.5 font-medium truncate max-w-[200px]">{t.title || "—"}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[160px]">{t.artist || "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{t.bpm ? Math.round(t.bpm) : "—"}</td>
+                        <td className="px-3 py-1.5 text-center text-xs">{t.key ?? "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(t.duration_sec)}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          {t.library_track_id ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
+                              <Check className="h-3.5 w-3.5" /> Adicionada
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 gap-1 text-xs"
+                              onClick={() => openAddToLibrary(sl.id, t)}
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Biblioteca
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       ))}
@@ -250,6 +368,47 @@ export function GigSetlist({ gigId }: Props) {
             <Button onClick={handleConfirmImport} disabled={saving}>
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
               Importar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Adicionar faixa do setlist à biblioteca de produção */}
+      <Dialog open={!!addTarget} onOpenChange={(o) => { if (!o) setAddTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Adicionar à biblioteca</DialogTitle>
+            <DialogDescription>
+              <strong>{addTarget?.track.title || "—"}</strong>
+              {addTarget?.track.artist ? ` · ${addTarget.track.artist}` : ""}
+              {addTarget?.track.bpm ? ` · ${Math.round(addTarget.track.bpm)} BPM` : ""}
+              {addTarget?.track.key ? ` · ${addTarget.track.key}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Tipo de produção</label>
+            <Select value={addKind} onValueChange={(v) => setAddKind(v as TrackKind)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRACK_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>{TRACK_KIND_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Cria uma track no módulo de Produção Musical no estágio Ideação, já
+              com BPM, key e gênero preenchidos.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddTarget(null)}>Cancelar</Button>
+            <Button onClick={handleAddToLibrary} disabled={addingToLib}>
+              {addingToLib && <Loader2 className="h-4 w-4 animate-spin" />}
+              Adicionar
             </Button>
           </DialogFooter>
         </DialogContent>

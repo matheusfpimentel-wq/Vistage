@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Play, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
@@ -56,7 +57,7 @@ export function FlowSessionPanel({ trackId }: { trackId: number }) {
   }
 
   async function handleDelete(id: number) {
-    if (!window.confirm("Excluir essa sessão?")) return;
+    if (!(await confirmDialog({ title: "Excluir", description: "Excluir essa sessão?", confirmLabel: "Excluir", destructive: true }))) return;
     await deleteFlowSession(id);
     await refresh();
   }

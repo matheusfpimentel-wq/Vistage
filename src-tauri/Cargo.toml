@@ -1,6 +1,6 @@
 [package]
 name = "musicgest"
-version = "0.1.0"
+version = "1.0.0"
 description = "Sistema de gestão para negócio musical"
 authors = ["Matheus Pimentel"]
 edition = "2021"
@@ -13,11 +13,16 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
-tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+tauri = { version = "2", features = ["macos-private-api"] }
+# libsql como banco LOCAL (new_local) — um arquivo SQLite na máquina, sem nuvem.
+# Mantemos as features default do libsql; as de rede (remote/sync/tls) ficam
+# ociosas agora, mas removê-las é desnecessário e arriscaria o build.
+libsql = "0.9"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
+tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tiny_http = "0.12"
