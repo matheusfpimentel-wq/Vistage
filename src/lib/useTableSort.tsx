@@ -38,20 +38,23 @@ export function useTableSort<T>(rows: T[]) {
 }
 
 export function SortableHeader<T>({
-  col, label, sortKey, sortDir, onSort, className,
+  col, label, sortKey, sortDir, onSort, className, children,
 }: {
   col: keyof T; label: string; sortKey: keyof T | null;
   sortDir: SortDir; onSort: (k: keyof T) => void; className?: string;
+  /** Conteúdo extra posicionado no th (ex.: alça de redimensionamento). */
+  children?: React.ReactNode;
 }) {
   const active = sortKey === col;
   return (
-    <th className={cn("cursor-pointer select-none", className)} onClick={() => onSort(col)}>
-      <span className="inline-flex items-center gap-1">
+    <th className={cn("relative cursor-pointer select-none", className)} onClick={() => onSort(col)}>
+      <span className="inline-flex items-center gap-1 truncate align-middle">
         {label}
-        {active && sortDir === "asc" ? <ChevronUp className="h-3 w-3" />
-          : active && sortDir === "desc" ? <ChevronDown className="h-3 w-3" />
-          : <ChevronsUpDown className="h-3 w-3 opacity-30" />}
+        {active && sortDir === "asc" ? <ChevronUp className="h-3 w-3 shrink-0" />
+          : active && sortDir === "desc" ? <ChevronDown className="h-3 w-3 shrink-0" />
+          : <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-30" />}
       </span>
+      {children}
     </th>
   );
 }

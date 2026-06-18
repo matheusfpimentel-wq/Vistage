@@ -30,6 +30,7 @@ import { formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { PageToolbar } from "@/components/shared/PageToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 
@@ -93,6 +94,16 @@ export function CrmPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(contacts);
+  const cols = useResizableColumns("crm", [
+    { id: "name", width: 220, min: 140 },
+    { id: "type", width: 150 },
+    { id: "city", width: 140 },
+    { id: "last", width: 160 },
+    { id: "rating", width: 130 },
+    { id: "contact", width: 180 },
+    { id: "actions", width: 96, min: 80 },
+  ]);
+  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
 
   function openCreate() {
     setEditing(null);
@@ -227,15 +238,28 @@ export function CrmPage() {
           ))}
         </div>
         <div className="hidden overflow-x-auto rounded-md border sm:block">
-          <table className="w-full text-sm">
+          <table className="table-fixed text-sm" style={{ width: tableWidth, minWidth: "100%" }}>
+            <colgroup>
+              {cols.defs.map((c) => (
+                <col key={c.id} style={cols.colStyle(c.id)} />
+              ))}
+            </colgroup>
             <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <SortableHeader<Contact> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <th className="px-3 py-2 text-left">Tipo</th>
-                <SortableHeader<Contact> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <SortableHeader<Contact> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <SortableHeader<Contact> col="rating" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <th className="px-3 py-2 text-left">Contato</th>
+                <SortableHeader<Contact> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("name")} />
+                </SortableHeader>
+                <th className="relative px-3 py-2 text-left">Tipo<ColResizer {...cols.resizer("type")} /></th>
+                <SortableHeader<Contact> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("city")} />
+                </SortableHeader>
+                <SortableHeader<Contact> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("last")} />
+                </SortableHeader>
+                <SortableHeader<Contact> col="rating" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("rating")} />
+                </SortableHeader>
+                <th className="relative px-3 py-2 text-left">Contato<ColResizer {...cols.resizer("contact")} /></th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>

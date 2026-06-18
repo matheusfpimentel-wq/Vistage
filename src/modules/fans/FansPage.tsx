@@ -71,6 +71,7 @@ import {
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
@@ -104,6 +105,16 @@ export function FansPage() {
   const [view, setView] = useState<ViewMode>("list");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
+  const cols = useResizableColumns("fans", [
+    { id: "name", width: 240, min: 140 },
+    { id: "level", width: 120 },
+    { id: "city", width: 150 },
+    { id: "contact", width: 180 },
+    { id: "last", width: 160 },
+    { id: "interactions", width: 110 },
+    { id: "actions", width: 96, min: 80 },
+  ]);
+  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
 
   const queryFilters: FanFilters = useMemo(
     () => ({
@@ -318,15 +329,28 @@ export function FansPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="table-fixed text-sm" style={{ width: tableWidth, minWidth: "100%" }}>
+            <colgroup>
+              {cols.defs.map((c) => (
+                <col key={c.id} style={cols.colStyle(c.id)} />
+              ))}
+            </colgroup>
             <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground">
               <tr>
-                <SortableHeader<Fan> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <SortableHeader<Fan> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <SortableHeader<Fan> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <th className="px-3 py-2 text-left">Contato</th>
-                <SortableHeader<Fan> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <th className="px-3 py-2 text-left">Interações</th>
+                <SortableHeader<Fan> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("name")} />
+                </SortableHeader>
+                <SortableHeader<Fan> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("level")} />
+                </SortableHeader>
+                <SortableHeader<Fan> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("city")} />
+                </SortableHeader>
+                <th className="relative px-3 py-2 text-left">Contato<ColResizer {...cols.resizer("contact")} /></th>
+                <SortableHeader<Fan> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("last")} />
+                </SortableHeader>
+                <th className="relative px-3 py-2 text-left">Interações<ColResizer {...cols.resizer("interactions")} /></th>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
