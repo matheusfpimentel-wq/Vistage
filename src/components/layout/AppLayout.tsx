@@ -7,7 +7,6 @@ import { FileMenu } from "./FileMenu";
 import { useDocumentStore } from "@/lib/document";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { Toaster } from "@/components/ui/toaster";
-import { SyncIndicator } from "@/components/shared/SyncIndicator";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
@@ -192,7 +191,6 @@ export function AppLayout() {
         <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} />
       </div>
       <Toaster />
-      <SyncIndicator />
 
       {/* Settings modal overlay */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

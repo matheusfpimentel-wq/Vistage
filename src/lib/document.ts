@@ -13,9 +13,8 @@ import { toast } from "@/components/ui/toaster";
 
 // "Documento" no estilo Office: um arquivo .vistage que contém TODOS os dados
 // preenchidos + imagens/arquivos (roteiros, manual de marca, etc.) em um único
-// arquivo portátil. Independe do salvamento em nuvem (Turso). O usuário pode
-// Abrir, Salvar e "Salvar como" — e o caminho atual é lembrado para o "Salvar"
-// gravar por cima sem perguntar.
+// arquivo local e portátil. O usuário pode Abrir, Salvar e "Salvar como" — e o
+// caminho atual é lembrado para o "Salvar" gravar por cima sem perguntar.
 
 const LS_KEY = "vistage.currentDocument";
 

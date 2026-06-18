@@ -37,5 +37,5 @@ uploads/
 musicgest.config.json
 .claude/
 
-# Credenciais reais do Turso — NÃO versionar (use turso-defaults.example.ts)
+# Variáveis de ambiente locais — não versionar
 .env.local

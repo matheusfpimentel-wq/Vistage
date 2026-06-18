@@ -124,9 +124,9 @@ export function GoogleDriveSettings() {
               )}
             </CardTitle>
             <CardDescription>
-              Armazena as imagens e anexos do app no seu Drive. Os dados (texto)
-              são salvos automaticamente na nuvem via Turso. Usa escopo restrito
-              (drive.file) — o app só acessa os arquivos que ele mesmo criou.
+              Armazena as imagens e anexos do app no seu Drive. Usa escopo
+              restrito (drive.file) — o app só acessa os arquivos que ele mesmo
+              criou.
             </CardDescription>
           </div>
           {connected && (

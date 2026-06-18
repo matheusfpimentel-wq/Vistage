@@ -5,9 +5,7 @@ import { appDataDir } from "@tauri-apps/api/path";
 import { exists, mkdir } from "@tauri-apps/plugin-fs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Setup } from "@/pages/Setup";
-import { MigratePage } from "@/pages/MigratePage";
 import { CommandPalette } from "@/components/shared/CommandPalette";
-import { DriveSync } from "@/components/shared/DriveSync";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
@@ -18,7 +16,6 @@ import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
-import { DEFAULT_TURSO_URL, DEFAULT_TURSO_TOKEN } from "@/lib/turso-defaults";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 import {
   hydrateShortcuts,
@@ -129,7 +126,6 @@ function MainApp() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbRetry, setDbRetry] = useState(0);
-  const [needsMigration, setNeedsMigration] = useState(false);
 
   // hidrata config + tema na primeira renderização
   useEffect(() => {
@@ -149,38 +145,21 @@ function MainApp() {
     let cancelled = false;
     (async () => {
       try {
-        // A réplica embarcada do libsql DEVE ficar no diretório local do app
-        // (AppData/Application Support), nunca na pasta do Google Drive ou
-        // OneDrive — arquivos de WAL e mmap são incompatíveis com cloud-sync.
+        // O banco local DEVE ficar no diretório de dados do app
+        // (AppData/Application Support), nunca numa pasta de nuvem (Google
+        // Drive/OneDrive) — arquivos de WAL e mmap não convivem com cloud-sync.
         const dataDir = await appDataDir();
-        // Numa instalação nova esse diretório pode ainda não existir — sem ele,
-        // a criação da réplica falha. Garantimos a pasta antes de abrir o banco.
+        // Numa instalação nova esse diretório pode ainda não existir — garantimos
+        // a pasta antes de abrir o banco.
         if (!(await exists(dataDir))) {
           await mkdir(dataDir, { recursive: true });
         }
         const sep = dataDir.includes("\\") && !dataDir.includes("/") ? "\\" : "/";
         const replicaPath = `${dataDir.replace(/[\\/]+$/, "")}${sep}vistage-replica.db`;
-        const tursoUrl = config.tursoUrl ?? DEFAULT_TURSO_URL;
-        const tursoToken = config.tursoToken ?? DEFAULT_TURSO_TOKEN;
-        const { synced } = await initDatabase(replicaPath, tursoUrl, tursoToken);
+        await initDatabase(replicaPath);
         if (!cancelled) {
-          // Banco legado presente e migração pendente
-          if (config.dbPath && !config.migrated) {
-            setNeedsMigration(true);
-          }
           setDbReady(true);
           setDbError(null);
-          // Avisa quando abrimos SEM puxar o estado mais recente da nuvem: os
-          // dados na tela podem estar desatualizados (ex.: GIGs/aulas criadas em
-          // outra máquina ainda não baixadas). Não bloqueia o uso (offline-first).
-          if (!synced) {
-            void import("@/components/ui/toaster").then(({ toast }) =>
-              toast.error(
-                "Abrimos sem conseguir sincronizar com a nuvem. Os dados podem estar " +
-                  "desatualizados — confira sua internet. O app tentará sincronizar sozinho."
-              )
-            );
-          }
           void autoGenerateRecurringUpToNow().catch(() => {});
           void retroactiveSyncAllLinked().catch(() => {});
           void import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
@@ -244,8 +223,6 @@ function MainApp() {
   }
 
   if (!dbReady) return <FullscreenLoader label="Conectando ao banco…" />;
-
-  if (needsMigration) return <MigratePage onDone={() => setNeedsMigration(false)} />;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -344,7 +321,6 @@ function RoutedApp() {
       </Suspense>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
-      <DriveSync />
       <OpenDocumentDialog />
     </>
   );

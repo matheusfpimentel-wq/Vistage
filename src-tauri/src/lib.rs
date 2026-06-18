@@ -1,8 +1,6 @@
-// Banco de dados via Turso (libsql) com réplica embarcada. As leituras vêm
-// sempre da réplica local (funciona offline) e as escritas vão para a réplica
-// E para o Turso, que sincroniza. A réplica embarcada roda aqui no Rust (não
-// funciona no JS do webview). Os comandos `db_*` expõem a mesma interface que o
-// frontend usava com o tauri-plugin-sql (`select`/`execute`).
+// Banco de dados LOCAL via libsql (um arquivo na máquina, sem nuvem). A réplica
+// embarcada roda aqui no Rust (não funciona no JS do webview). Os comandos
+// `db_*` expõem a mesma interface (`select`/`execute`) que o frontend usa.
 
 mod db;
 mod gcal;
@@ -11,8 +9,6 @@ mod gdrive;
 use db::DbState;
 use gcal::GcalState;
 use gdrive::GdriveState;
-use std::time::Duration;
-use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,42 +19,11 @@ pub fn run() {
         .manage(DbState::default())
         .manage(GcalState::default())
         .manage(GdriveState::default())
-        // Ao fechar a janela principal, tenta empurrar escritas pendentes para o
-        // Turso antes de destruir a janela. O timeout externo (4s) cobre TUDO —
-        // inclusive a espera pelo mutex — garantindo que a janela feche mesmo
-        // offline ou com o mutex travado por outra operação em curso.
-        .on_window_event(|window, event| {
-            if window.label() != "main" {
-                return;
-            }
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let win = window.clone();
-                let app = window.app_handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    let state = app.state::<DbState>();
-                    // Fecha rápido: tenta um sync curtíssimo (1s) e segue pra
-                    // destruição. Os dados já estão na réplica local; o push pro
-                    // Turso é best-effort (o DriveSync já empurra durante a sessão).
-                    let _ = tokio::time::timeout(
-                        Duration::from_secs(1),
-                        db::sync_blocking(&state, 1),
-                    ).await;
-                    let _ = win.destroy();
-                });
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             db::db_init,
             db::db_select,
             db::db_execute,
             db::db_execute_batch,
-            db::db_sync,
-            db::db_reset_replica,
-            db::db_diagnostics,
-            db::db_migrate_from_sqlite,
-            db::db_pull_from_turso,
-            db::db_push_to_turso,
             gcal::gcal_start_oauth,
             gcal::gcal_wait_callback,
             gcal::gcal_exchange_code,

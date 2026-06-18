@@ -202,8 +202,8 @@ async function restoreFiles(
  */
 /**
  * Chaves de app_settings que guardam segredos (client_secret e tokens OAuth do
- * Google/Drive, token do Todoist). NUNCA entram no backup/.vistage nem no push
- * pro Turso — senão vazariam em texto puro no arquivo ou na nuvem.
+ * Google/Drive, token do Todoist). NUNCA entram no backup/.vistage — senão
+ * vazariam em texto puro num arquivo que pode ser compartilhado.
  */
 function isSecretSettingKey(key: unknown): boolean {
   return (

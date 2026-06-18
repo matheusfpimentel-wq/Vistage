@@ -14,12 +14,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
-# Turso (libsql) com réplica embarcada: leituras sempre da réplica local
-# (funciona offline), escritas vão para a réplica E para o Turso; o libsql faz
-# o sync. Usamos as features default (core, replication, remote, sync, tls) —
-# o `tls` (hyper-rustls) é OBRIGATÓRIO para o handshake HTTPS com o Turso, sem
-# ele o build()/sync() trava pra sempre. O conflito de símbolos sqlite3 no
-# Windows era do rusqlite bundled (já removido), não do libsql.
+# libsql como banco LOCAL (new_local) — um arquivo SQLite na máquina, sem nuvem.
+# Mantemos as features default do libsql; as de rede (remote/sync/tls) ficam
+# ociosas agora, mas removê-las é desnecessário e arriscaria o build.
 libsql = "0.9"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time"] }
 tauri-plugin-dialog = "2"

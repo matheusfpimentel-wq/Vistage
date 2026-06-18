@@ -16,14 +16,10 @@ import {
 const LS_KEY = "vistage.lastConfigPath";
 
 export type AppConfig = {
-  dbPath: string;            // caminho absoluto do .db legado (origem da migração)
+  dbPath: string;            // caminho do arquivo de dados na pasta escolhida (o banco ativo mora no AppData)
   uploadsDir: string;        // pasta para anexos
   createdAt: string;         // ISO timestamp
-  syncedFolder?: boolean;    // true quando o banco mora numa pasta sincronizada (Google Drive, etc.)
-  tursoUrl?: string;         // URL do banco Turso (sobrescreve o default)
-  tursoToken?: string;       // token de acesso ao Turso (sobrescreve o default)
-  migrated?: boolean;        // true depois que os dados do .db legado foram migrados para o Turso
-  autoCloudSave?: boolean;   // salva automaticamente na nuvem (Turso) após mudanças; default true
+  syncedFolder?: boolean;    // true quando a pasta de dados é sincronizada (Google Drive, etc.)
 };
 
 type ConfigState = {
@@ -103,8 +99,6 @@ export const useConfigStore = create<ConfigState>((set) => ({
       uploadsDir,
       createdAt: new Date().toISOString(),
       syncedFolder,
-      // Banco novo: não há .db legado com dados, então nada a migrar.
-      migrated: true,
     };
     await writeTextFile(configPath, JSON.stringify(cfg, null, 2));
     localStorage.setItem(LS_KEY, configPath);

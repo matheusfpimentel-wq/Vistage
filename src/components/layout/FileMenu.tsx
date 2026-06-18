@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Menu "Arquivo" no estilo Office: Abrir / Salvar / Salvar como, operando
- * sobre um arquivo .vistage que carrega TODOS os dados e anexos. Independe do
- * salvamento em nuvem (Turso).
+ * sobre um arquivo .vistage local e portátil que carrega TODOS os dados e
+ * anexos.
  */
 export function FileMenu() {
   const { currentName, busy, open, save, saveAs } = useDocumentStore();
