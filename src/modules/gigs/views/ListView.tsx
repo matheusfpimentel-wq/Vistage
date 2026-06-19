@@ -17,9 +17,13 @@ type Props = {
   onDelete: (gig: Gig) => void;
 };
 
-/** Mostra "Debrief" pra GIGs concluídas e "Preparação" pras confirmadas. */
+/**
+ * Debrief só existe para GIGs concluídas; Preparação, para confirmadas. Os dois
+ * são mutuamente exclusivos por status — assim nunca disputam o mesmo lugar
+ * quando uma GIG concluída volta pra "Confirmada".
+ */
 function showDebrief(g: Gig): boolean {
-  return g.status === "Concluída" || g.debrief_pending === 1 || !!g.debrief_completed_at;
+  return g.status === "Concluída";
 }
 
 export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {

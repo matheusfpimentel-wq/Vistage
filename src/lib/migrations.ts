@@ -1753,6 +1753,17 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_tasks_derived ON tasks(derived_type, derived_id);
     `,
   },
+  {
+    version: 121,
+    description:
+      "todoist_tombstones — IDs de tarefas excluídas no Vistage que precisam ser apagadas no Todoist na próxima sync (e nunca reimportadas como 'novas').",
+    sql: `
+      CREATE TABLE IF NOT EXISTS todoist_tombstones (
+        todoist_id TEXT PRIMARY KEY,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 
