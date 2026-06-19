@@ -132,6 +132,29 @@ export type FanGroupCreateInput = Omit<FanGroup, "id" | "created_at" | "updated_
 export type FanGroupUpdateInput = Partial<FanGroupCreateInput> & { id: number };
 
 // ============================================================
+// Listas (ex.: lista da casa pra mandar antes da GIG)
+// ============================================================
+
+export type FanList = {
+  id: number;
+  name: string;
+  gig_id: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FanListMember = {
+  id: number;
+  list_id: number;
+  fan_id: number | null;
+  name: string | null;
+  created_at: string;
+};
+
+export type FanListCreateInput = Omit<FanList, "id" | "created_at" | "updated_at">;
+
+// ============================================================
 // Perks / VIP / brindes — clube de fãs
 // ============================================================
 

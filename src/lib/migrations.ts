@@ -1709,6 +1709,28 @@ const MIGRATIONS: Migration[] = [
     description: "contacts.birthday — data de nascimento (YYYY-MM-DD), pra ação automática de aniversário.",
     sql: `ALTER TABLE contacts ADD COLUMN birthday TEXT;`,
   },
+  {
+    version: 118,
+    description: "fan_lists / fan_list_members — montar listas (ex.: lista da casa) pra mandar antes da GIG.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fan_lists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS fan_list_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        list_id INTEGER NOT NULL REFERENCES fan_lists(id) ON DELETE CASCADE,
+        fan_id INTEGER REFERENCES fans(id) ON DELETE SET NULL,
+        name TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_fan_list_members_list ON fan_list_members(list_id);
+    `,
+  },
 ];
 
 
