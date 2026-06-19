@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -298,10 +297,6 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{pkg ? "Editar pacote" : "Novo pacote"}</DialogTitle>
-          <DialogDescription>
-            Template reutilizável baseado em carga horária. Ao vincular para um
-            aluno, é gerada uma instância com o saldo e status Ativo.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="dados">
@@ -331,9 +326,6 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Calculada automaticamente pela soma da carga dos itens da ementa.
-              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -371,11 +363,6 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
           </TabsContent>
 
           <TabsContent value="ementa" className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              Cada item tem título, carga em minutos e detalhamento. Arraste
-              pela alça ⠿ para reordenar. A soma das cargas define a carga
-              horária total do pacote.
-            </p>
             {state.syllabus_items.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                 Nenhum item ainda.
