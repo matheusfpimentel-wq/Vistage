@@ -105,11 +105,14 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .seg-scroll button { flex: 0 0 auto; white-space: nowrap; padding: 0.5rem 0.85rem; }
 .item.col { flex-direction: column; align-items: stretch; gap: 0.5rem; cursor: pointer; }
 .item-head { display: flex; align-items: center; gap: 0.6rem; }
-.detail { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid var(--border); padding-top: 0.55rem; }
-.detail > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
-.detail dt { color: var(--muted); }
-.detail dd { margin: 0; text-align: right; min-width: 0; }
-.detail-empty { margin: 0; font-size: 0.85rem; }
+.detail { display: flex; flex-direction: column; gap: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.55rem; }
+.detail-rows { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.detail-rows > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
+.detail-rows dt { color: var(--muted); }
+.detail-rows dd { margin: 0; text-align: right; min-width: 0; }
+.anotar { display: flex; flex-direction: column; gap: 0.4rem; }
+.anotar textarea { font-size: 0.9rem; }
+.anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
 .bars { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .bars li { display: flex; justify-content: space-between; font-size: 0.85rem; }

@@ -467,6 +467,60 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
        VALUES ($1, $2, $3, $4, 'A fazer', $5)`,
       [s("title") ?? "Tarefa", s("description"), s("category"), s("priority") ?? "Média", s("due_date")]
     );
+  } else if (kind === "contact") {
+    // Nova pessoa criada no celular (aditivo).
+    const { createContact } = await import("@/modules/crm/api");
+    await createContact({
+      name: s("name") ?? "Sem nome",
+      types: [],
+      relationship_types: [],
+      relationship_data: {},
+      phone: s("phone"),
+      email: s("email"),
+      instagram: s("instagram"),
+      city: s("city"),
+      tags: [],
+      notes: s("notes"),
+      rating: null,
+      photo_path: null,
+      follower_count: null,
+      venue_id: null,
+      company: s("company"),
+      birthday: null,
+    });
+  } else if (kind === "gig") {
+    // Nova GIG criada no celular (aditivo). createGig monta o INSERT só com as
+    // colunas passadas; o resto usa os defaults da tabela.
+    const { createGig } = await import("@/modules/gigs/api");
+    await createGig({
+      date: s("date") ?? todayISO(),
+      venue_name: s("venue_name") ?? "GIG",
+      venue_city: s("city"),
+      cache_amount: n("cache_amount"),
+      general_notes: s("notes"),
+      status: "Proposta",
+    } as unknown as Parameters<typeof createGig>[0]);
+  } else if (kind === "append_note") {
+    // "Anotar em" um item do catálogo (pessoa/GIG/música/venue): só ACRESCENTA.
+    const targetKind = s("target_kind");
+    const targetId = s("target_id");
+    const text = s("text");
+    const map: Record<string, { table: string; col: string }> = {
+      contact: { table: "contacts", col: "notes" },
+      gig: { table: "gigs", col: "general_notes" },
+      track: { table: "tracks", col: "stage_notes" },
+      venue: { table: "venues", col: "notes" },
+    };
+    const tc = targetKind ? map[targetKind] : undefined;
+    if (tc && targetId && text) {
+      const stamped = `[celular ${todayISO()}] ${text}`;
+      await db.execute(
+        `UPDATE ${tc.table}
+            SET ${tc.col} = TRIM(COALESCE(${tc.col} || char(10), '') || $1)
+          WHERE id = $2`,
+        [stamped, Number(targetId)]
+      );
+    }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }

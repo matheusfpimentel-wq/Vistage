@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../supabase";
+import { sendCapture } from "../capture";
 
 type Kind = "all" | "gig" | "track" | "contact" | "venue";
 type Row = {
@@ -161,15 +162,58 @@ function Detail({ r }: { r: Row }) {
     if (loc) out.push(["Local", loc]);
   }
 
-  if (out.length === 0) return <p className="muted detail-empty">Sem mais detalhes.</p>;
   return (
-    <dl className="detail">
-      {out.map(([k, v], i) => (
-        <div key={i}>
-          <dt>{k}</dt>
-          <dd>{v}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="detail">
+      {out.length > 0 && (
+        <dl className="detail-rows">
+          {out.map(([k, v], i) => (
+            <div key={i}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      <AnotarBox r={r} />
+    </div>
+  );
+}
+
+/** Acrescenta uma anotação ao item (vai como captura aditiva pro desktop). */
+function AnotarBox({ r }: { r: Row }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+
+  async function anotar() {
+    const text = note.trim();
+    if (!text) return;
+    setBusy(true);
+    try {
+      await sendCapture("append_note", { target_kind: r.kind, target_id: r.source_id, text });
+      setNote("");
+      setDone(true);
+    } catch {
+      /* silencioso: tenta de novo */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="anotar" onClick={(e) => e.stopPropagation()}>
+      <textarea
+        rows={2}
+        value={note}
+        placeholder="Anotar algo neste item…"
+        onChange={(e) => {
+          setNote(e.target.value);
+          setDone(false);
+        }}
+      />
+      <button className="ghost" disabled={busy || !note.trim()} onClick={() => void anotar()}>
+        {busy ? "Enviando…" : done ? "Enviado ✓" : "Anotar"}
+      </button>
+    </div>
   );
 }
