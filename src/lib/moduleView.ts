@@ -1,8 +1,10 @@
 import { useCallback, useState } from "react";
+import { persistDocSetting } from "./docSettings";
 
 /**
  * View persistente por módulo: lembra a escolha do usuário (lista/cards/etc.)
- * entre aberturas, via localStorage. `key` identifica o módulo.
+ * entre aberturas. Grava no cache local (síncrono) e no document_settings, então
+ * a escolha viaja com o .vistage. `key` identifica o módulo.
  */
 export function useModuleView<T extends string>(
   key: string,
@@ -18,11 +20,7 @@ export function useModuleView<T extends string>(
   });
   const set = useCallback(
     (v: T) => {
-      try {
-        localStorage.setItem(storageKey, v);
-      } catch {
-        /* ignore */
-      }
+      persistDocSetting(storageKey, v);
       setValue(v);
     },
     [storageKey]

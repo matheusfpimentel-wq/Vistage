@@ -211,6 +211,13 @@ function MainApp() {
           }
         }
 
+        // Carrega as preferências de view (abas lista/cards, larguras de coluna,
+        // filtros) do documento pro cache local ANTES de liberar as páginas, pra
+        // elas já montarem com o layout salvo no .vistage.
+        await import("@/lib/docSettings").then(({ hydrateViewPrefsFromDocument }) =>
+          hydrateViewPrefsFromDocument()
+        ).catch(() => {});
+
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
