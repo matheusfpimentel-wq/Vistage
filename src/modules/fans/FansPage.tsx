@@ -44,6 +44,7 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
+import { FanListsPanel } from "./components/FanListsPanel";
 import {
   addFanGroupMember,
   createFanGroup,
@@ -413,6 +414,8 @@ export function FansPage() {
       />
 
       <FanGroupsPanel fans={fans} />
+
+      <FanListsPanel fans={fans} />
 
       <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
 

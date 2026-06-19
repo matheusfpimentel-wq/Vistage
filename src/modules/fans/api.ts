@@ -8,6 +8,9 @@ import type {
   FanGroupCreateInput,
   FanGroupMember,
   FanGroupUpdateInput,
+  FanList,
+  FanListCreateInput,
+  FanListMember,
   FanInteraction,
   FanInteractionType,
   FanLevel,
@@ -547,6 +550,75 @@ export async function addFanGroupMember(
 export async function removeFanGroupMember(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fan_group_members WHERE id = $1", [id]);
+}
+
+// ===== Listas (lista da casa pra mandar antes da GIG) =====
+
+export async function listFanLists(): Promise<FanList[]> {
+  const db = getDb();
+  return db.select<FanList[]>("SELECT * FROM fan_lists ORDER BY created_at DESC");
+}
+
+export async function createFanList(input: FanListCreateInput): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    "INSERT INTO fan_lists (name, gig_id, notes) VALUES ($1, $2, $3)",
+    [input.name, input.gig_id, input.notes]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updateFanList(input: {
+  id: number;
+  name?: string;
+  gig_id?: number | null;
+  notes?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = [...cols.map((k) => (rest as Record<string, unknown>)[k]), id];
+  await db.execute(
+    `UPDATE fan_lists SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+    values
+  );
+  emitDataChanged();
+}
+
+export async function deleteFanList(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM fan_lists WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+export async function listFanListMembers(listId: number): Promise<FanListMember[]> {
+  const db = getDb();
+  return db.select<FanListMember[]>(
+    "SELECT * FROM fan_list_members WHERE list_id = $1 ORDER BY id ASC",
+    [listId]
+  );
+}
+
+export async function addFanListMember(
+  listId: number,
+  fanId: number | null,
+  name: string | null
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "INSERT INTO fan_list_members (list_id, fan_id, name) VALUES ($1, $2, $3)",
+    [listId, fanId, name]
+  );
+  emitDataChanged();
+}
+
+export async function removeFanListMember(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM fan_list_members WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== GIG presence (gig_fans) =====
