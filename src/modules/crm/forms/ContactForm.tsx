@@ -25,12 +25,14 @@ import {
 } from "@/components/ui/select";
 import {
   CONTACT_PRIORITIES,
+  CONTACT_RELATIONSHIP_TYPES,
   CONTACT_TYPES,
   priorityToRating,
   ratingToPriority,
   type Contact,
   type ContactCreateInput,
   type ContactPriority,
+  type ContactRelationshipType,
   type ContactType,
 } from "../types";
 import {
@@ -56,6 +58,8 @@ type FormState = ContactCreateInput;
 const EMPTY: FormState = {
   name: "",
   types: [],
+  relationship_types: [],
+  relationship_data: {},
   phone: null,
   email: null,
   instagram: null,
@@ -73,6 +77,8 @@ function contactToState(c: Contact): FormState {
   return {
     name: c.name,
     types: c.types,
+    relationship_types: c.relationship_types,
+    relationship_data: c.relationship_data,
     phone: c.phone,
     email: c.email,
     instagram: c.instagram,
@@ -135,6 +141,18 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
         s.types.includes(type) ? s.types.filter((t) => t !== type) : [...s.types, type]
       ),
     }));
+  }
+
+  function toggleRelType(type: ContactRelationshipType) {
+    setState((s) => {
+      const cur = s.relationship_types ?? [];
+      return {
+        ...s,
+        relationship_types: cur.includes(type)
+          ? cur.filter((t) => t !== type)
+          : [...cur, type],
+      };
+    });
   }
 
   function addCustomType() {
@@ -232,7 +250,34 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tipo (selecione um ou mais)</Label>
+            <Label>Tipo de relação (pode marcar mais de um)</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {CONTACT_RELATIONSHIP_TYPES.map((type) => {
+                const active = (state.relationship_types ?? []).includes(type);
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => toggleRelType(type)}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-xs transition",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input bg-background hover:bg-accent"
+                    )}
+                  >
+                    {type}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Fornecedor é gerenciado pela aba Serviços, no detalhe da pessoa.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Categoria / tipo detalhado</Label>
             <div className="flex flex-wrap gap-1.5">
               {CONTACT_TYPES.map((type) => {
                 const active = state.types.includes(type);

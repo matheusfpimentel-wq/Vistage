@@ -39,8 +39,16 @@ import { useModuleView } from "@/lib/moduleView";
 import { useImageUrl } from "@/lib/uploads";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
+import { RELATIONSHIP_TYPES, type RelationshipType } from "@/modules/crm/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-type Role = "Contato" | "Fornecedor";
+type Role = RelationshipType;
 type RoleFilter = "Todos" | Role;
 
 /** Pessoa unificada: um contato, um fornecedor, ou ambos (papel duplo). */
@@ -105,7 +113,10 @@ export function PessoasPage() {
           email: c.email,
           phone: c.phone,
           instagram: c.instagram,
-          roles: supId != null ? ["Contato", "Fornecedor"] : ["Contato"],
+          roles: [
+            ...c.relationship_types,
+            ...(supId != null ? (["Fornecedor"] as Role[]) : []),
+          ],
         });
       }
       for (const s of suppliers) {
@@ -146,7 +157,7 @@ export function PessoasPage() {
     }
     if (supId && !Number.isNaN(Number(supId))) setSupplierDetailId(Number(supId));
     const r = searchParams.get("role");
-    if (r === "Contato" || r === "Fornecedor") setRole(r);
+    if (r && (RELATIONSHIP_TYPES as readonly string[]).includes(r)) setRole(r as Role);
     if (openId || supId) setSearchParams({}, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -290,7 +301,19 @@ export function PessoasPage() {
         }}
         viewToggle={
           <div className="flex flex-wrap items-center gap-2">
-            <RoleTabs value={role} onChange={setRole} />
+            <Select value={role} onValueChange={(v) => setRole(v as RoleFilter)}>
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos os papéis</SelectItem>
+                {RELATIONSHIP_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <ViewToggle
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
@@ -399,48 +422,17 @@ export function PessoasPage() {
   );
 }
 
-function RoleTabs({
-  value,
-  onChange,
-}: {
-  value: RoleFilter;
-  onChange: (v: RoleFilter) => void;
-}) {
-  const opts: RoleFilter[] = ["Todos", "Contato", "Fornecedor"];
-  return (
-    <div className="inline-flex rounded-md border bg-muted/30 p-0.5">
-      {opts.map((o) => (
-        <button
-          key={o}
-          type="button"
-          onClick={() => onChange(o)}
-          className={cn(
-            "rounded px-2.5 py-1 text-xs font-medium transition",
-            value === o
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {o === "Contato" ? "Contatos" : o === "Fornecedor" ? "Fornecedores" : "Todos"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function RoleBadges({ roles }: { roles: Role[] }) {
+  if (roles.length === 0)
+    return <span className="text-xs text-muted-foreground">Pessoa</span>;
   return (
     <div className="flex flex-wrap gap-1">
-      {roles.includes("Contato") && (
-        <Badge variant="secondary" className="gap-1">
-          <User className="h-3 w-3" /> Contato
+      {roles.map((r) => (
+        <Badge key={r} variant={r === "Fornecedor" ? "outline" : "secondary"} className="gap-1">
+          {r === "Fornecedor" && <Store className="h-3 w-3" />}
+          {r}
         </Badge>
-      )}
-      {roles.includes("Fornecedor") && (
-        <Badge variant="outline" className="gap-1">
-          <Store className="h-3 w-3" /> Fornecedor
-        </Badge>
-      )}
+      ))}
     </div>
   );
 }

@@ -1,25 +1,39 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig } from "@/modules/gigs/types";
-import type {
-  Contact,
-  ContactCreateInput,
-  ContactInteraction,
-  ContactStats,
-  ContactType,
-  ContactUpdateInput,
+import {
+  deriveRelationshipTypes,
+  type Contact,
+  type ContactCreateInput,
+  type ContactInteraction,
+  type ContactRelationshipType,
+  type ContactStats,
+  type ContactType,
+  type ContactUpdateInput,
+  type RelationshipData,
 } from "./types";
 
-type ContactRow = Omit<Contact, "types" | "tags"> & {
+type ContactRow = Omit<Contact, "types" | "tags" | "relationship_types" | "relationship_data"> & {
   types: string | null;
   tags: string | null;
+  relationship_types: string | null;
+  relationship_data: string | null;
 };
 
 function rowToContact(r: ContactRow): Contact {
+  const types = r.types ? (safeParse<ContactType[]>(r.types) ?? []) : [];
+  const relationship_types =
+    r.relationship_types != null
+      ? (safeParse<ContactRelationshipType[]>(r.relationship_types) ?? [])
+      : deriveRelationshipTypes(types);
   return {
     ...r,
-    types: r.types ? (safeParse<ContactType[]>(r.types) ?? []) : [],
+    types,
     tags: r.tags ? (safeParse<string[]>(r.tags) ?? []) : [],
+    relationship_types,
+    relationship_data: r.relationship_data
+      ? (safeParse<RelationshipData>(r.relationship_data) ?? {})
+      : {},
   };
 }
 
@@ -86,6 +100,8 @@ export async function createContact(input: ContactCreateInput): Promise<number> 
     ...input,
     types: JSON.stringify(input.types ?? []),
     tags: JSON.stringify(input.tags ?? []),
+    relationship_types: JSON.stringify(input.relationship_types ?? []),
+    relationship_data: JSON.stringify(input.relationship_data ?? {}),
   };
   const cols = Object.keys(payload);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
@@ -105,6 +121,10 @@ export async function updateContact(input: ContactUpdateInput): Promise<void> {
   const payload: Record<string, unknown> = { ...rest };
   if (Array.isArray(payload.types)) payload.types = JSON.stringify(payload.types);
   if (Array.isArray(payload.tags)) payload.tags = JSON.stringify(payload.tags);
+  if (Array.isArray(payload.relationship_types))
+    payload.relationship_types = JSON.stringify(payload.relationship_types);
+  if (payload.relationship_data && typeof payload.relationship_data === "object")
+    payload.relationship_data = JSON.stringify(payload.relationship_data);
   const cols = Object.keys(payload);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
