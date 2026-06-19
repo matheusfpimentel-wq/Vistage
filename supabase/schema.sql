@@ -76,9 +76,14 @@ create table if not exists public.capture_inbox (
   payload     jsonb not null,                      -- corpo da captura
   client_ref  text,                                -- id gerado no celular (idempotência)
   created_at  timestamptz not null default now(),
-  consumed_at timestamptz,
+  consumed_at timestamptz,                         -- fundida no arquivo local
+  discarded_at timestamptz,                        -- descartada (recuperável no Backup)
   unique (user_id, client_ref)
 );
+-- pending = consumed_at IS NULL AND discarded_at IS NULL.
+alter table public.capture_inbox add column if not exists discarded_at timestamptz;
+create index if not exists idx_inbox_discarded on public.capture_inbox (user_id, discarded_at)
+  where consumed_at is null and discarded_at is not null;
 
 -- ── Detecção de mudança barata (o "ETag" da nuvem) ──────────────────────────
 -- Um contador `rev` por conta; um trigger incrementa a cada mudança nas tabelas

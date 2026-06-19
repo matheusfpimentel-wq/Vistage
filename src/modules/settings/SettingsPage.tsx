@@ -12,6 +12,7 @@ import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
+import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
 import { TodoistSettings } from "./TodoistSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 
@@ -57,6 +58,8 @@ export function SettingsPage() {
       <TabsContent value="backup" className="space-y-6">
         {/* Importação/Exportação CSV */}
         <CsvImportExport />
+        {/* Capturas do celular descartadas (recuperáveis) */}
+        <DiscardedCapturesCard />
       </TabsContent>
 
       {/* ─── Integrações ─────────────────────────────────────── */}
