@@ -143,11 +143,13 @@ export async function deleteSupplier(id: number): Promise<void> {
 
 /**
  * Remove o papel de fornecedor de uma pessoa (apaga o fornecedor espelho).
- * Só permitido se a aba Serviços estiver vazia — espelha a regra de negócio:
- * "ao esvaziar Serviços, dá pra tirar a pessoa da categoria Fornecedor".
+ * Por padrão só é permitido se a aba Serviços estiver vazia. Com `force`, apaga
+ * também os serviços cadastrados (cascata) — usado quando o usuário confirma o
+ * aviso de que remover a relação Fornecedor apaga tudo da aba Serviços.
  */
 export async function removeSupplierForContact(
-  contactId: number
+  contactId: number,
+  opts?: { force?: boolean }
 ): Promise<{ ok: boolean; reason?: string }> {
   const db = getDb();
   const rows = await db.select<{ id: number }[]>(
@@ -156,16 +158,19 @@ export async function removeSupplierForContact(
   );
   if (!rows[0]) return { ok: true };
   const supplierId = rows[0].id;
-  const svc = await db.select<{ n: number }[]>(
-    "SELECT COUNT(*) AS n FROM supplier_services WHERE supplier_id = $1",
-    [supplierId]
-  );
-  if ((svc[0]?.n ?? 0) > 0) {
-    return {
-      ok: false,
-      reason: "Há serviços cadastrados. Esvazie a aba Serviços antes de remover o papel de fornecedor.",
-    };
+  if (!opts?.force) {
+    const svc = await db.select<{ n: number }[]>(
+      "SELECT COUNT(*) AS n FROM supplier_services WHERE supplier_id = $1",
+      [supplierId]
+    );
+    if ((svc[0]?.n ?? 0) > 0) {
+      return {
+        ok: false,
+        reason: "Há serviços cadastrados. Esvazie a aba Serviços antes de remover o papel de fornecedor.",
+      };
+    }
   }
+  // supplier_services tem ON DELETE CASCADE, então deleteSupplier limpa os serviços.
   await deleteSupplier(supplierId);
   return { ok: true };
 }

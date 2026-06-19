@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  CalendarRange,
-  DollarSign,
-  Instagram,
-  Mail,
-  MapPin,
-  Pencil,
-  Phone,
-  Plus,
-} from "lucide-react";
+import { CalendarRange, DollarSign, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -23,22 +17,52 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ratingToPriority } from "../types";
+import { AttachmentField } from "@/components/shared/AttachmentField";
+import { confirmDialog } from "@/components/ui/confirm";
+import { toast } from "@/components/ui/toaster";
+import { useUnsavedConfirm } from "@/lib/dirty";
+import { cn } from "@/lib/utils";
+import {
+  CONTACT_PRIORITIES,
+  CONTACT_RELATIONSHIP_TYPES,
+  priorityToRating,
+  ratingToPriority,
+  type Contact,
+  type ContactPriority,
+  type ContactRelationshipType,
+  type ContactStats,
+  type RelationshipData,
+} from "../types";
 import { TypeBadges } from "../components/TypeBadges";
 import { InteractionList } from "../components/InteractionList";
 import {
   getContact,
   getContactStats,
+  getMirrorState,
   listGigsByContact,
+  removeFanForContact,
+  removeStudentForContact,
+  updateContact,
+  upsertFanMirror,
+  upsertStudentMirror,
+  upsertSupplierMirror,
 } from "../api";
-import type { Contact, ContactStats } from "../types";
+import {
+  getSupplierIdForContact,
+  removeSupplierForContact,
+} from "@/modules/suppliers/api";
 import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useImageUrl } from "@/lib/uploads";
-import { getSupplierIdForContact } from "@/modules/suppliers/api";
 import {
   RELATION_TAB_LABEL,
   RelationshipTabContent,
@@ -49,52 +73,235 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactId: number | null;
-  onEdit: (contact: Contact) => void;
   onCreateGig: (contact: Contact) => void;
 };
+
+/** Campos base editáveis inline na aba Informações. */
+type BaseForm = {
+  name: string;
+  company: string | null;
+  phone: string | null;
+  email: string | null;
+  instagram: string | null;
+  city: string | null;
+  birthday: string | null;
+  tags: string[];
+  notes: string | null;
+  rating: number | null;
+  photo_path: string | null;
+};
+
+function toBaseForm(c: Contact): BaseForm {
+  return {
+    name: c.name,
+    company: c.company ?? null,
+    phone: c.phone,
+    email: c.email,
+    instagram: c.instagram,
+    city: c.city,
+    birthday: c.birthday ?? null,
+    tags: c.tags,
+    notes: c.notes,
+    rating: c.rating,
+    photo_path: c.photo_path,
+  };
+}
 
 export function ContactDetail({
   open,
   onOpenChange,
   contactId,
-  onEdit,
   onCreateGig,
 }: Props) {
   const [contact, setContact] = useState<Contact | null>(null);
   const [stats, setStats] = useState<ContactStats | null>(null);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [supplierId, setSupplierId] = useState<number | null>(null);
+  const [mirror, setMirror] = useState({ fan: false, student: false });
   const [loading, setLoading] = useState(false);
+  const [tab, setTab] = useState("info");
 
-  async function refresh() {
+  // edição inline dos campos base (aba Informações)
+  const [form, setForm] = useState<BaseForm | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [savingBase, setSavingBase] = useState(false);
+  const [tagInput, setTagInput] = useState("");
+  const confirmClose = useUnsavedConfirm(dirty);
+
+  async function refresh(opts?: { reseedForm?: boolean }) {
     if (!contactId) return;
     setLoading(true);
     try {
-      const [c, s, g, sup] = await Promise.all([
+      const [c, s, g, sup, m] = await Promise.all([
         getContact(contactId),
         getContactStats(contactId),
         listGigsByContact(contactId),
         getSupplierIdForContact(contactId),
+        getMirrorState(contactId),
       ]);
       setContact(c);
       setStats(s);
       setGigs(g);
       setSupplierId(sup);
+      setMirror({ fan: m.fan, student: m.student });
+      if (c && (opts?.reseedForm ?? false)) {
+        setForm(toBaseForm(c));
+        setDirty(false);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (open && contactId) void refresh();
+    if (open && contactId) {
+      setTab("info");
+      void refresh({ reseedForm: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, contactId]);
 
   if (!contactId) return null;
 
+  const relTypes = contact?.relationship_types ?? [];
+
+  const setF = (patch: Partial<BaseForm>) => {
+    setForm((f) => (f ? { ...f, ...patch } : f));
+    setDirty(true);
+  };
+
+  // ── Relação: seleção aplica na hora; remoção avisa e apaga a aba ───────────
+  async function toggleRelType(type: ContactRelationshipType) {
+    if (!contact) return;
+    const active = relTypes.includes(type);
+    if (active) {
+      const data = (contact.relationship_data[type] ?? {}) as Record<string, unknown>;
+      const hasData = Object.values(data).some(
+        (v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)
+      );
+      if (hasData) {
+        const ok = await confirmDialog({
+          title: `Remover relação ${type}`,
+          description: `Isso vai apagar tudo da aba "${RELATION_TAB_LABEL[type]}" desta pessoa. Tem certeza?`,
+          confirmLabel: "Remover",
+          destructive: true,
+        });
+        if (!ok) return;
+      }
+      const nextData: RelationshipData = { ...contact.relationship_data };
+      delete nextData[type];
+      await updateContact({
+        id: contact.id,
+        relationship_types: relTypes.filter((t) => t !== type),
+        relationship_data: nextData,
+      });
+      if (tab === `rel-${type}`) setTab("info");
+      await refresh();
+    } else {
+      await updateContact({
+        id: contact.id,
+        relationship_types: [...relTypes, type],
+      });
+      await refresh();
+      setTab(`rel-${type}`);
+    }
+  }
+
+  async function toggleSupplier() {
+    if (!contact) return;
+    if (supplierId == null) {
+      await upsertSupplierMirror(contact);
+      await refresh();
+      setTab("servicos");
+      toast.success("Fornecedor adicionado");
+    } else {
+      const ok = await confirmDialog({
+        title: "Remover relação Fornecedor",
+        description:
+          'Isso vai apagar a aba "Serviços" e todos os serviços cadastrados desta pessoa. Tem certeza?',
+        confirmLabel: "Remover",
+        destructive: true,
+      });
+      if (!ok) return;
+      const res = await removeSupplierForContact(contact.id, { force: true });
+      if (!res.ok) {
+        toast.error(res.reason ?? "Não foi possível remover o papel de fornecedor");
+        return;
+      }
+      if (tab === "servicos") setTab("info");
+      await refresh();
+    }
+  }
+
+  async function toggleMirror(kind: "fan" | "student") {
+    if (!contact) return;
+    const label = kind === "fan" ? "fã" : "aluno";
+    if (!mirror[kind]) {
+      if (kind === "fan") await upsertFanMirror(contact);
+      else await upsertStudentMirror(contact);
+      await refresh();
+      toast.success(`Perfil de ${label} criado`);
+    } else {
+      const ok = await confirmDialog({
+        title: `Remover perfil de ${label}`,
+        description: `Isso vai excluir o perfil paralelo de ${label} desta pessoa. Tem certeza?`,
+        confirmLabel: "Remover",
+        destructive: true,
+      });
+      if (!ok) return;
+      if (kind === "fan") await removeFanForContact(contact.id);
+      else await removeStudentForContact(contact.id);
+      await refresh();
+    }
+  }
+
+  // ── Campos base ────────────────────────────────────────────────────────────
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t || !form) return;
+    if (form.tags.includes(t)) {
+      setTagInput("");
+      return;
+    }
+    setF({ tags: [...form.tags, t] });
+    setTagInput("");
+  }
+
+  async function saveBase() {
+    if (!contact || !form) return;
+    if (!form.name.trim()) {
+      toast.error("O nome é obrigatório");
+      return;
+    }
+    setSavingBase(true);
+    try {
+      await updateContact({
+        id: contact.id,
+        name: form.name.trim(),
+        company: form.company,
+        phone: form.phone,
+        email: form.email,
+        instagram: form.instagram,
+        city: form.city,
+        birthday: form.birthday,
+        tags: form.tags,
+        notes: form.notes,
+        rating: form.rating,
+        photo_path: form.photo_path,
+      });
+      toast.success("Salvo");
+      await refresh({ reseedForm: true });
+    } catch (e) {
+      toast.error(`Erro ao salvar: ${String(e)}`);
+    } finally {
+      setSavingBase(false);
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-3xl">
-        {loading || !contact ? (
+        {loading || !contact || !form ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
             Carregando…
           </div>
@@ -102,29 +309,14 @@ export function ContactDetail({
           <>
             <DialogHeader>
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <ContactPhotoCircle contact={contact} />
-                  <div className="space-y-1">
-                    <DialogTitle>{contact.name}</DialogTitle>
-                    <div className="flex items-center gap-2">
-                      <TypeBadges types={contact.types} />
-                    </div>
-                  </div>
+                <div className="space-y-1">
+                  <DialogTitle>{contact.name}</DialogTitle>
+                  <TypeBadges types={contact.types} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEdit(contact)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
-                  </Button>
-                  <Button size="sm" onClick={() => onCreateGig(contact)}>
-                    <Plus className="h-3.5 w-3.5" />
-                    Nova GIG com este contato
-                  </Button>
-                </div>
+                <Button size="sm" onClick={() => onCreateGig(contact)}>
+                  <Plus className="h-3.5 w-3.5" />
+                  Nova GIG
+                </Button>
               </div>
             </DialogHeader>
 
@@ -137,86 +329,19 @@ export function ContactDetail({
               <Stat
                 icon={<DollarSign className="h-4 w-4" />}
                 label="Já gerou"
-                value={
-                  stats ? formatCurrency(stats.totalRevenue ?? 0) : "—"
-                }
+                value={stats ? formatCurrency(stats.totalRevenue ?? 0) : "—"}
               />
               <Stat
                 icon={<CalendarRange className="h-4 w-4" />}
                 label="Última GIG"
-                value={
-                  stats?.lastGigDate ? formatDate(stats.lastGigDate) : "—"
-                }
+                value={stats?.lastGigDate ? formatDate(stats.lastGigDate) : "—"}
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 rounded-md border p-3 text-sm sm:grid-cols-2">
-              <Row
-                icon={<Phone className="h-3.5 w-3.5" />}
-                label="Telefone"
-                value={contact.phone}
-              />
-              <Row
-                icon={<Mail className="h-3.5 w-3.5" />}
-                label="Email"
-                value={contact.email}
-              />
-              <Row
-                icon={<Instagram className="h-3.5 w-3.5" />}
-                label="Instagram"
-                value={contact.instagram}
-              />
-              <Row
-                icon={<MapPin className="h-3.5 w-3.5" />}
-                label="Cidade"
-                value={contact.city}
-              />
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                  Prioridade
-                </span>
-                <Badge
-                  variant={
-                    ratingToPriority(contact.rating) === "Alta"
-                      ? "destructive"
-                      : ratingToPriority(contact.rating) === "Média"
-                      ? "warning"
-                      : "secondary"
-                  }
-                >
-                  {ratingToPriority(contact.rating) ?? "—"}
-                </Badge>
-              </div>
-              {contact.last_interaction_at && (
-                <Row
-                  icon={<CalendarRange className="h-3.5 w-3.5" />}
-                  label="Última interação"
-                  value={formatDate(contact.last_interaction_at)}
-                />
-              )}
-            </div>
-
-            {contact.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {contact.tags.map((t) => (
-                  <Badge key={t} variant="outline">
-                    {t}
-                  </Badge>
-                ))}
-              </div>
-            )}
-
-            {contact.notes && (
-              <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
-                {contact.notes}
-              </div>
-            )}
-
-            <Tabs defaultValue="gigs">
+            <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="flex-wrap">
-                <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
-                <TabsTrigger value="interactions">Interações</TabsTrigger>
-                {contact.relationship_types.map((t) => (
+                <TabsTrigger value="info">Informações</TabsTrigger>
+                {relTypes.map((t) => (
                   <TabsTrigger key={t} value={`rel-${t}`}>
                     {RELATION_TAB_LABEL[t]}
                   </TabsTrigger>
@@ -224,14 +349,176 @@ export function ContactDetail({
                 {supplierId != null && (
                   <TabsTrigger value="servicos">Serviços</TabsTrigger>
                 )}
+                <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
+                <TabsTrigger value="interactions">Interações</TabsTrigger>
               </TabsList>
 
-              {contact.relationship_types.map((t) => (
+              {/* ── Informações (editável) ── */}
+              <TabsContent value="info" className="space-y-4 pt-2">
+                <AttachmentField
+                  label="Foto"
+                  value={form.photo_path}
+                  onChange={(v) => setF({ photo_path: v })}
+                  subdir="contacts"
+                  variant="image"
+                />
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>
+                      Nome <span className="text-destructive">*</span>
+                    </Label>
+                    <Input value={form.name} onChange={(e) => setF({ name: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Empresa</Label>
+                    <Input
+                      placeholder="Nome da empresa / produtora…"
+                      value={form.company ?? ""}
+                      onChange={(e) => setF({ company: e.target.value || null })}
+                    />
+                  </div>
+                </div>
+
+                {/* Relação — seleção cria a aba; remoção avisa antes de apagar */}
+                <div className="space-y-1.5">
+                  <Label>Relação</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CONTACT_RELATIONSHIP_TYPES.map((type) => (
+                      <RelButton
+                        key={type}
+                        label={type}
+                        active={relTypes.includes(type)}
+                        onClick={() => void toggleRelType(type)}
+                      />
+                    ))}
+                    <RelButton
+                      label="Fornecedor"
+                      active={supplierId != null}
+                      onClick={() => void toggleSupplier()}
+                    />
+                    <RelButton
+                      label="Fã"
+                      active={mirror.fan}
+                      onClick={() => void toggleMirror("fan")}
+                    />
+                    <RelButton
+                      label="Aluno"
+                      active={mirror.student}
+                      onClick={() => void toggleMirror("student")}
+                    />
+                  </div>
+                  {(mirror.fan || mirror.student) && (
+                    <p className="text-xs text-muted-foreground">
+                      {mirror.fan && mirror.student
+                        ? "Perfis paralelos de fã e aluno criados"
+                        : mirror.fan
+                          ? "Perfil paralelo de fã criado"
+                          : "Perfil paralelo de aluno criado"}
+                      {" "}— editável no módulo correspondente.
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label>Telefone</Label>
+                    <Input value={form.phone ?? ""} onChange={(e) => setF({ phone: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Email</Label>
+                    <Input type="email" value={form.email ?? ""} onChange={(e) => setF({ email: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Redes sociais</Label>
+                    <Input placeholder="@usuario" value={form.instagram ?? ""} onChange={(e) => setF({ instagram: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Cidade</Label>
+                    <Input value={form.city ?? ""} onChange={(e) => setF({ city: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Aniversário</Label>
+                    <Input type="date" value={form.birthday ?? ""} onChange={(e) => setF({ birthday: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Prioridade</Label>
+                    <Select
+                      value={ratingToPriority(form.rating) ?? "none"}
+                      onValueChange={(v) =>
+                        setF({ rating: v === "none" ? null : priorityToRating(v as ContactPriority) })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Nenhuma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma</SelectItem>
+                        {CONTACT_PRIORITIES.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Tags</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {form.tags.map((t) => (
+                      <Badge key={t} variant="outline" className="gap-1 pr-1">
+                        {t}
+                        <button
+                          type="button"
+                          onClick={() => setF({ tags: form.tags.filter((x) => x !== t) })}
+                          className="rounded p-0.5 hover:bg-accent"
+                          aria-label="Remover tag"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nova tag (Enter para adicionar)"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTag();
+                        }
+                      }}
+                    />
+                    <Button type="button" variant="outline" onClick={addTag}>
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Notas</Label>
+                  <Textarea rows={3} value={form.notes ?? ""} onChange={(e) => setF({ notes: e.target.value || null })} />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={() => void saveBase()} disabled={savingBase || !dirty}>
+                    {savingBase && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Salvar
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* ── Abas por relação ── */}
+              {relTypes.map((t) => (
                 <TabsContent key={t} value={`rel-${t}`}>
                   <RelationshipTabContent
                     type={t}
                     contact={contact}
-                    onSaved={refresh}
+                    onSaved={() => void refresh()}
                     onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
                   />
                 </TabsContent>
@@ -242,6 +529,7 @@ export function ContactDetail({
                 </TabsContent>
               )}
 
+              {/* ── GIGs ── */}
               <TabsContent value="gigs">
                 {gigs.length === 0 ? (
                   <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -256,7 +544,7 @@ export function ContactDetail({
                       >
                         <div>
                           <div className="font-medium">
-                            <Link to={`/gigs?open=${g.id}`} className="hover:underline text-primary">
+                            <Link to={`/gigs?open=${g.id}`} className="text-primary hover:underline">
                               {gigDisplayName(g)}
                             </Link>
                           </div>
@@ -276,17 +564,40 @@ export function ContactDetail({
                 )}
               </TabsContent>
 
+              {/* ── Interações ── */}
               <TabsContent value="interactions">
-                <InteractionList
-                  contactId={contact.id}
-                  onChange={refresh}
-                />
+                <InteractionList contactId={contact.id} onChange={() => void refresh()} />
               </TabsContent>
             </Tabs>
           </>
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function RelButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-md border px-2.5 py-1 text-xs transition",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-input bg-background hover:bg-accent"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -307,37 +618,5 @@ function Stat({
       </div>
       <div className="mt-1 text-xl font-semibold tabular-nums">{value}</div>
     </div>
-  );
-}
-
-function Row({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | null;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
-        {icon}
-        {label}
-      </span>
-      <span className="truncate">{value ?? "—"}</span>
-    </div>
-  );
-}
-
-function ContactPhotoCircle({ contact }: { contact: Contact }) {
-  const url = useImageUrl(contact.photo_path);
-  if (!url) return null;
-  return (
-    <img
-      src={url}
-      alt={contact.name}
-      className="h-16 w-16 rounded-full object-cover"
-    />
   );
 }

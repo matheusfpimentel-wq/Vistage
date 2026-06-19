@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderOpen, Loader2, Moon, Save, SaveAll, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useThemeStore, ACCENTS } from "@/lib/theme";
-import { useDocumentStore, reloadKeepingData } from "@/lib/document";
+import { reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
@@ -18,7 +18,6 @@ import { MobileSyncSettings } from "./MobileSyncSettings";
 export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
-  const doc = useDocumentStore();
   const { theme, accent, setTheme, setAccent } = useThemeStore();
 
   useEffect(() => {
@@ -47,42 +46,15 @@ export function SettingsPage() {
   }
 
   return (
-    <Tabs defaultValue="salvamento" className="space-y-4">
+    <Tabs defaultValue="backup" className="space-y-4">
       <TabsList className="w-full justify-start">
-        <TabsTrigger value="salvamento">Salvamento</TabsTrigger>
+        <TabsTrigger value="backup">Backup</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
       </TabsList>
 
-      {/* ─── Salvamento ──────────────────────────────────────── */}
-      <TabsContent value="salvamento" className="space-y-6">
-        {/* Documento local (.vistage) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Documento (.vistage)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => void doc.open()} disabled={doc.busy}>
-                <FolderOpen className="h-4 w-4" />
-                Abrir…
-              </Button>
-              <Button variant="outline" onClick={() => void doc.save()} disabled={doc.busy}>
-                <Save className="h-4 w-4" />
-                Salvar
-              </Button>
-              <Button variant="outline" onClick={() => void doc.saveAs()} disabled={doc.busy}>
-                <SaveAll className="h-4 w-4" />
-                Salvar como…
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Abrir um documento substitui todos os dados atuais. Atalho:{" "}
-              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">Ctrl S</kbd> salva.
-            </p>
-          </CardContent>
-        </Card>
-
+      {/* ─── Backup (CSV) ────────────────────────────────────── */}
+      <TabsContent value="backup" className="space-y-6">
         {/* Importação/Exportação CSV */}
         <CsvImportExport />
       </TabsContent>

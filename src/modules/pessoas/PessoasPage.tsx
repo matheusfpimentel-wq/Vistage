@@ -19,7 +19,6 @@ import {
   deleteContact,
   getContact,
   listContacts,
-  upsertSupplierMirror,
 } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 // Fornecedores
@@ -33,7 +32,6 @@ import {
 } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
-import { removeSupplierForContact } from "@/modules/suppliers/api";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { useModuleView } from "@/lib/moduleView";
 import { useImageUrl } from "@/lib/uploads";
@@ -191,24 +189,13 @@ export function PessoasPage() {
     else if (p.supplierId != null) setSupplierDetailId(p.supplierId);
   }
 
+  // Editar abre o mesmo diálogo de detalhe (agora editável, com abas por relação).
   function editPerson(p: Person) {
     if (p.contact) {
-      setEditingContact(p.contact);
-      setContactFormOpen(true);
+      setContactDetailId(p.contact.id);
     } else if (p.supplier) {
       setEditingSupplier(p.supplier);
       setSupplierFormOpen(true);
-    }
-  }
-
-  async function makeSupplier(p: Person) {
-    if (!p.contact) return;
-    try {
-      await upsertSupplierMirror(p.contact);
-      toast.success(`${p.contact.name} agora também é fornecedor`);
-      await refresh();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
     }
   }
 
@@ -239,18 +226,6 @@ export function PessoasPage() {
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
-  }
-
-  // Remove o papel de fornecedor (só se a aba Serviços estiver vazia).
-  async function removeFornecedor(p: Person) {
-    if (!p.contact || p.supplierId == null) return;
-    const res = await removeSupplierForContact(p.contact.id);
-    if (!res.ok) {
-      toast.error(res.reason ?? "Não foi possível remover o papel de fornecedor");
-      return;
-    }
-    toast.success(`${p.contact.name} não é mais fornecedor`);
-    await refresh();
   }
 
   async function handleDelete(p: Person) {
@@ -346,9 +321,7 @@ export function PessoasPage() {
               person={p}
               onOpen={() => openPerson(p)}
               onEdit={() => editPerson(p)}
-              onMakeSupplier={() => void makeSupplier(p)}
               onMakeContact={() => void makeContact(p)}
-              onRemoveSupplier={() => void removeFornecedor(p)}
               onDelete={() => void handleDelete(p)}
             />
           ))}
@@ -361,9 +334,7 @@ export function PessoasPage() {
           onSort={handleSort}
           onOpen={openPerson}
           onEdit={editPerson}
-          onMakeSupplier={(p) => void makeSupplier(p)}
           onMakeContact={(p) => void makeContact(p)}
-          onRemoveSupplier={(p) => void removeFornecedor(p)}
           onDelete={(p) => void handleDelete(p)}
         />
       )}
@@ -383,13 +354,13 @@ export function PessoasPage() {
 
       <ContactDetail
         open={contactDetailId != null}
-        onOpenChange={(v) => !v && setContactDetailId(null)}
-        contactId={contactDetailId}
-        onEdit={(c) => {
-          setContactDetailId(null);
-          setEditingContact(c);
-          setContactFormOpen(true);
+        onOpenChange={(v) => {
+          if (!v) {
+            setContactDetailId(null);
+            void refresh();
+          }
         }}
+        contactId={contactDetailId}
         onCreateGig={startGigWithContact}
       />
       <SupplierDetail
@@ -434,38 +405,22 @@ function RoleBadges({ roles }: { roles: Role[] }) {
 
 type RowHandlers = {
   onEdit: () => void;
-  onMakeSupplier: () => void;
   onMakeContact: () => void;
-  onRemoveSupplier: () => void;
   onDelete: () => void;
 };
 
-/** Ações de uma pessoa (toggle de papel aplicável + editar + excluir). */
+/** Ações de uma pessoa (editar + excluir; promover fornecedor puro a contato). */
 function PersonActions({
   person: p,
   onEdit,
-  onMakeSupplier,
   onMakeContact,
-  onRemoveSupplier,
   onDelete,
   buttonClass,
 }: { person: Person; buttonClass?: string } & RowHandlers) {
-  const canBecomeSupplier = p.contact != null && p.supplierId == null;
-  const isContactSupplier = p.contact != null && p.supplierId != null;
   const canBecomeContact = p.contact == null && p.supplier != null;
   const cls = buttonClass ?? "";
   return (
     <>
-      {canBecomeSupplier && (
-        <Button size="icon" variant="ghost" className={cls} aria-label="Tornar fornecedor" title="Tornar também fornecedor" onClick={onMakeSupplier}>
-          <Store className="h-4 w-4" />
-        </Button>
-      )}
-      {isContactSupplier && (
-        <Button size="icon" variant="ghost" className={cls} aria-label="Remover fornecedor" title="Remover papel de fornecedor" onClick={onRemoveSupplier}>
-          <Store className="h-4 w-4 text-primary" />
-        </Button>
-      )}
       {canBecomeContact && (
         <Button size="icon" variant="ghost" className={cls} aria-label="Tornar contato" title="Tornar também contato" onClick={onMakeContact}>
           <UserPlus className="h-4 w-4" />
@@ -550,9 +505,7 @@ function PersonTable({
   onSort: (k: keyof Person) => void;
   onOpen: (p: Person) => void;
   onEdit: (p: Person) => void;
-  onMakeSupplier: (p: Person) => void;
   onMakeContact: (p: Person) => void;
-  onRemoveSupplier: (p: Person) => void;
   onDelete: (p: Person) => void;
 }) {
   const cols = useResizableColumns("pessoas", [
@@ -606,9 +559,7 @@ function PersonTable({
                   <PersonActions
                     person={p}
                     onEdit={() => handlers.onEdit(p)}
-                    onMakeSupplier={() => handlers.onMakeSupplier(p)}
                     onMakeContact={() => handlers.onMakeContact(p)}
-                    onRemoveSupplier={() => handlers.onRemoveSupplier(p)}
                     onDelete={() => handlers.onDelete(p)}
                   />
                 </div>
