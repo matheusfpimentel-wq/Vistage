@@ -3,18 +3,13 @@ import { useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
   ChevronUp,
-  Crown,
-  Flame,
   Gift,
   Heart,
   LayoutGrid,
   List,
   Pencil,
   Plus,
-  Search,
   Settings2,
-  Sparkles,
-  UserPlus,
   Trash2,
   User,
 } from "lucide-react";
@@ -42,7 +37,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { toast } from "@/components/ui/toaster";
 import { LevelBadge } from "./components/LevelBadge";
@@ -54,7 +48,6 @@ import {
   deleteFan,
   deleteFanGroup,
   getFan,
-  getFanStats,
   listFanGroupMembers,
   listFanGroups,
   listFanInteractionCounts,
@@ -66,7 +59,6 @@ import {
   saveFanUpgradeRules,
   topFansByPresence,
   type FanFilters,
-  type FanStats,
 } from "./api";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
@@ -75,7 +67,7 @@ import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 
 type LevelFilter = FanLevel | "Todos";
@@ -85,7 +77,6 @@ export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [fans, setFans] = useState<Fan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<FanStats | null>(null);
   const [topPresence, setTopPresence] = useState<
     { fan_id: number; name: string; gigs: number }[]
   >([]);
@@ -128,15 +119,13 @@ export function FansPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, s, top, counts, perks] = await Promise.all([
+      const [data, top, counts, perks] = await Promise.all([
         listFans(queryFilters),
-        getFanStats(),
         topFansByPresence(5).catch(() => []),
         listFanInteractionCounts().catch(() => new Map<number, number>()),
         listFanPerkCounts().catch(() => new Map<number, number>()),
       ]);
       setFans(data);
-      setStats(s);
       setTopPresence(top ?? []);
       setInteractionCounts(counts);
       setPerkCounts(perks);
@@ -193,34 +182,6 @@ export function FansPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard
-          icon={<Crown className="h-4 w-4 text-amber-500" />}
-          label="Embaixadores"
-          value={stats?.embaixador ?? 0}
-        />
-        <StatCard
-          icon={<Flame className="h-4 w-4 text-emerald-500" />}
-          label="Superfãs"
-          value={stats?.superfa ?? 0}
-        />
-        <StatCard
-          icon={<Heart className="h-4 w-4 text-sky-400" />}
-          label="Fãs"
-          value={stats?.fa ?? 0}
-        />
-        <StatCard
-          icon={<UserPlus className="h-4 w-4 text-violet-400" />}
-          label="Quase fãs"
-          value={stats?.quaseFa ?? 0}
-        />
-        <StatCard
-          icon={<Sparkles className="h-4 w-4 text-muted-foreground" />}
-          label="Possíveis fãs"
-          value={stats?.possivelFa ?? 0}
-        />
-      </div>
-
       {topPresence.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -243,68 +204,70 @@ export function FansPage() {
         </Card>
       )}
 
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Novo fã
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Novo fã", icon: Plus, onClick: openCreate }}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar nome, @, email, telefone…",
+        }}
+        filtersActiveCount={
+          (filters.level !== "Todos" ? 1 : 0) + (filters.city.trim() ? 1 : 0)
         }
-      >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar nome, @, email, telefone…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-72 pl-8"
+        filters={
+          <>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Nível</label>
+              <Select
+                value={filters.level}
+                onValueChange={(v) => setFilters((f) => ({ ...f, level: v as LevelFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todos">Todos os níveis</SelectItem>
+                  {FAN_LEVELS.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Cidade</label>
+              <Input
+                placeholder="Cidade"
+                value={filters.city}
+                onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+              />
+            </div>
+          </>
+        }
+        viewToggle={
+          <div className="flex items-center gap-2">
+            <ViewToggle
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "list", label: "Lista", icon: List },
+              ]}
+              value={view}
+              onChange={setView}
             />
+            <Button
+              variant="outline"
+              size="icon"
+              aria-label="Configurar pontuação de fãs"
+              onClick={() => setUpgradeRulesOpen(true)}
+            >
+              <Settings2 className="h-4 w-4" />
+            </Button>
           </div>
-          <Select
-            value={filters.level}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, level: v as LevelFilter }))
-            }
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todos">Todos os níveis</SelectItem>
-              {FAN_LEVELS.map((l) => (
-                <SelectItem key={l} value={l}>
-                  {l}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Cidade"
-            value={filters.city}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, city: e.target.value }))
-            }
-            className="w-40"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <ViewToggle
-            options={[
-              { value: "cards", label: "Cards", icon: LayoutGrid },
-              { value: "list", label: "Lista", icon: List },
-            ]}
-            value={view}
-            onChange={setView}
-          />
-          <Button variant="outline" size="icon" aria-label="Configurar pontuação de fãs" onClick={() => setUpgradeRulesOpen(true)}>
-            <Settings2 className="h-4 w-4" />
-          </Button>
-        </div>
-        </div>
-      </PageToolbar>
+        }
+        resultCount={fans.length}
+        resultLabel="fãs"
+      />
 
       {loading ? (
         <SkeletonCards />
@@ -454,28 +417,6 @@ export function FansPage() {
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardDescription className="flex items-center gap-2 text-xs">
-          {icon}
-          {label}
-        </CardDescription>
-        <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
-      </CardHeader>
-      <CardContent />
-    </Card>
-  );
-}
 
 function FanListAvatar({ fan: f }: { fan: Fan }) {
   const photoUrl = useImageUrl(f.photo_path);
