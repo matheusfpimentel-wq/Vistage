@@ -63,9 +63,6 @@ const MindMapPage = lazy(() =>
 const GigsPage = lazy(() =>
   import("@/modules/gigs/GigsPage").then((m) => ({ default: m.GigsPage }))
 );
-const CrmPage = lazy(() =>
-  import("@/modules/crm/CrmPage").then((m) => ({ default: m.CrmPage }))
-);
 const PessoasPage = lazy(() =>
   import("@/modules/pessoas/PessoasPage").then((m) => ({ default: m.PessoasPage }))
 );
@@ -117,9 +114,6 @@ const FinancePage = lazy(() =>
 );
 const SettingsPage = lazy(() =>
   import("@/modules/settings/SettingsPage").then((m) => ({ default: m.SettingsPage }))
-);
-const SuppliersPage = lazy(() =>
-  import("@/modules/suppliers/SuppliersPage").then((m) => ({ default: m.SuppliersPage }))
 );
 const CareerWrappedPage = lazy(() =>
   import("@/modules/dashboard/CareerWrappedPage").then((m) => ({ default: m.CareerWrappedPage }))
@@ -372,9 +366,9 @@ function RoutedApp() {
             <Route path="gigs" element={<GigsPage />} />
             <Route path="venues" element={<VenuesPage />} />
             <Route path="pessoas" element={<PessoasPage />} />
-            {/* Mantidos para deep-links e compatibilidade; a navegação agora é "Pessoas". */}
-            <Route path="crm" element={<CrmPage />} />
-            <Route path="fornecedores" element={<SuppliersPage />} />
+            {/* Páginas antigas aposentadas → redirecionam para a visão unificada Pessoas. */}
+            <Route path="crm" element={<Navigate to="/pessoas" replace />} />
+            <Route path="fornecedores" element={<Navigate to="/pessoas" replace />} />
             <Route path="fas" element={<FansPage />} />
             <Route path="aulas" element={<ClassesPage />} />
             <Route path="musica" element={<MusicPage />} />
