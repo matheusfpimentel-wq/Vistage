@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
+import { buildFocusBody, clearFocusNotification, showFocusNotification } from "../push";
 
 const ACTIVITIES = ["Criação musical", "Aulas", "Conteúdo", "Admin", "Estudo", "Outro"];
 
@@ -164,10 +165,13 @@ export function Foco() {
     timerRef.current = window.setInterval(() => {
       setElapsed(Date.now() - (startRef.current ?? Date.now()));
     }, 1000);
+    // Modo foco: notificação persistente com as pendências.
+    void buildFocusBody().then(showFocusNotification);
   }
 
   function stop() {
     if (timerRef.current) window.clearInterval(timerRef.current);
+    void clearFocusNotification();
     setRunning(false);
     const end = Date.now();
     setDone({

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
+import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 
 type Agenda = { id: string; source: string; title: string; start_at: string | null; location: string | null };
 type Finance = { month: string; balance: number; to_receive: number };
@@ -154,9 +155,70 @@ export function Hoje() {
         <p className="muted">Sem sessões esta semana.</p>
       )}
 
+      <h2>Notificações</h2>
+      <NotificationsCard />
+
       <button className="ghost full" onClick={() => void load()}>
         Atualizar
       </button>
     </div>
+  );
+}
+
+function NotificationsCard() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void isPushEnabled().then(setEnabled);
+  }, []);
+
+  if (!pushSupported()) {
+    return <p className="muted">Este navegador não suporta notificações.</p>;
+  }
+
+  async function enable() {
+    setBusy(true);
+    setMsg(null);
+    const r = await enablePush();
+    setBusy(false);
+    if (r.ok) {
+      setEnabled(true);
+      setMsg("Notificações ativadas. Resumo diário às 8h.");
+    } else {
+      setMsg(r.reason ?? "Não consegui ativar.");
+    }
+  }
+
+  async function test() {
+    setBusy(true);
+    setMsg(null);
+    const r = await sendTestPush();
+    setBusy(false);
+    setMsg(r.ok ? "Resumo enviado — deve chegar em instantes." : r.reason ?? "Falhou.");
+  }
+
+  return (
+    <section className="card">
+      <div className="row">
+        <div>
+          <span className="label">Resumo diário + lembretes</span>
+          <strong>{enabled == null ? "…" : enabled ? "Ativas" : "Desativadas"}</strong>
+        </div>
+        <div className="right">
+          {enabled ? (
+            <button className="ghost" disabled={busy} onClick={() => void test()}>
+              {busy ? "…" : "Testar"}
+            </button>
+          ) : (
+            <button className="primary" disabled={busy} onClick={() => void enable()}>
+              {busy ? "…" : "Ativar"}
+            </button>
+          )}
+        </div>
+      </div>
+      {msg && <p className="muted stage-sub" style={{ marginBottom: 0, marginTop: "0.5rem" }}>{msg}</p>}
+    </section>
   );
 }
