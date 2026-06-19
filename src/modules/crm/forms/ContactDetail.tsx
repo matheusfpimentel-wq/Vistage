@@ -122,8 +122,11 @@ export function ContactDetail({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("info");
 
-  // edição inline dos campos base (aba Informações)
+  // edição inline dos campos base (aba Informações) + rascunho das abas de relação
   const [form, setForm] = useState<BaseForm | null>(null);
+  // Rascunho compartilhado dos dados de cada relação — editado nas abas e gravado
+  // junto com os campos base num único "Salvar".
+  const [relDraft, setRelDraft] = useState<RelationshipData>({});
   const [dirty, setDirty] = useState(false);
   const [savingBase, setSavingBase] = useState(false);
   const [tagInput, setTagInput] = useState("");
@@ -147,6 +150,7 @@ export function ContactDetail({
       setMirror({ fan: m.fan, student: m.student });
       if (c && (opts?.reseedForm ?? false)) {
         setForm(toBaseForm(c));
+        setRelDraft(c.relationship_data ?? {});
         setDirty(false);
       }
     } finally {
@@ -171,12 +175,18 @@ export function ContactDetail({
     setDirty(true);
   };
 
+  // Atualiza o rascunho de uma relação (vindo de uma aba) e marca como sujo.
+  const setRelField = (type: ContactRelationshipType, d: Record<string, unknown>) => {
+    setRelDraft((prev) => ({ ...prev, [type]: d }) as RelationshipData);
+    setDirty(true);
+  };
+
   // ── Relação: seleção aplica na hora; remoção avisa e apaga a aba ───────────
   async function toggleRelType(type: ContactRelationshipType) {
     if (!contact) return;
     const active = relTypes.includes(type);
     if (active) {
-      const data = (contact.relationship_data[type] ?? {}) as Record<string, unknown>;
+      const data = (relDraft[type] ?? {}) as Record<string, unknown>;
       const hasData = Object.values(data).some(
         (v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)
       );
@@ -189,8 +199,11 @@ export function ContactDetail({
         });
         if (!ok) return;
       }
-      const nextData: RelationshipData = { ...contact.relationship_data };
+      // Constrói a partir do RASCUNHO pra não descartar edições não salvas de
+      // outras abas; mantém DB e rascunho em sincronia.
+      const nextData: RelationshipData = { ...relDraft };
       delete nextData[type];
+      setRelDraft(nextData);
       await updateContact({
         id: contact.id,
         relationship_types: relTypes.filter((t) => t !== type),
@@ -268,7 +281,10 @@ export function ContactDetail({
     setTagInput("");
   }
 
-  async function saveBase() {
+  // Único "Salvar" do diálogo: grava os campos base E o rascunho de todas as
+  // relações de uma vez, depois fecha. Assim dá pra editar várias abas e salvar
+  // tudo junto no fim, sem perder nada.
+  async function saveAll() {
     if (!contact || !form) return;
     if (!form.name.trim()) {
       toast.error("O nome é obrigatório");
@@ -289,10 +305,10 @@ export function ContactDetail({
         notes: form.notes,
         rating: form.rating,
         photo_path: form.photo_path,
+        relationship_data: relDraft,
       });
       toast.success("Salvo");
-      await refresh({ reseedForm: true });
-      // Salvar fecha a janela (dirty já está limpo — sem aviso de não-salvo).
+      setDirty(false); // limpa antes de fechar — sem aviso de não-salvo
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
@@ -511,13 +527,6 @@ export function ContactDetail({
                   <Label>Notas</Label>
                   <Textarea rows={3} value={form.notes ?? ""} onChange={(e) => setF({ notes: e.target.value || null })} />
                 </div>
-
-                <div className="flex justify-end">
-                  <Button onClick={() => void saveBase()} disabled={savingBase || !dirty}>
-                    {savingBase && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Salvar
-                  </Button>
-                </div>
               </TabsContent>
 
               {/* ── Abas por relação ── */}
@@ -525,8 +534,9 @@ export function ContactDetail({
                 <TabsContent key={t} value={`rel-${t}`}>
                   <RelationshipTabContent
                     type={t}
-                    contact={contact}
-                    onSaved={() => onOpenChange(false)}
+                    contactId={contact.id}
+                    data={(relDraft[t] ?? {}) as Record<string, unknown>}
+                    onChange={(d) => setRelField(t, d)}
                     onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
                   />
                 </TabsContent>
@@ -577,6 +587,20 @@ export function ContactDetail({
                 <InteractionList contactId={contact.id} onChange={() => void refresh()} />
               </TabsContent>
             </Tabs>
+
+            {/* Salvar único: grava Informações + todas as relações de uma vez. */}
+            <div className="flex items-center justify-end gap-2 border-t pt-3">
+              {dirty && (
+                <span className="mr-auto text-xs text-muted-foreground">Alterações não salvas</span>
+              )}
+              <Button variant="outline" onClick={() => confirmClose(false, () => onOpenChange(false))}>
+                Fechar
+              </Button>
+              <Button onClick={() => void saveAll()} disabled={savingBase || !dirty}>
+                {savingBase && <Loader2 className="h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
+            </div>
           </>
         )}
       </DialogContent>

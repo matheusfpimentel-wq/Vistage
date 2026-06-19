@@ -12,14 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { updateContact } from "@/modules/crm/api";
 import {
   ALVO_ESTAGIOS,
   PARCERIA_SITUACOES,
   RELATIONSHIP_CATEGORIES,
-  type Contact,
   type ContactRelationshipType,
-  type RelationshipData,
 } from "@/modules/crm/types";
 import {
   createService,
@@ -70,50 +67,35 @@ function CategoriaSelect({
   );
 }
 
-/** Aba de uma relação: edita os campos específicos (relationship_data[type]). */
+/**
+ * Aba de uma relação: edita os campos específicos (relationship_data[type]).
+ * CONTROLADA pelo pai (ContactDetail): os campos vivem num rascunho compartilhado
+ * e só são gravados quando o usuário clica no único "Salvar" do diálogo — assim
+ * dá pra editar várias abas antes de salvar, sem perder nada ao trocar de aba.
+ */
 export function RelationshipTabContent({
   type,
-  contact,
-  onSaved,
+  contactId,
+  data,
+  onChange,
   onCreateGig,
 }: {
   type: ContactRelationshipType;
-  contact: Contact;
-  onSaved: () => void;
+  contactId: number;
+  data: Record<string, unknown>;
+  onChange: (data: Record<string, unknown>) => void;
   onCreateGig?: () => void;
 }) {
-  const [data, setData] = useState<Record<string, unknown>>(
-    (contact.relationship_data[type] as Record<string, unknown>) ?? {}
-  );
-  const [saving, setSaving] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   useEffect(() => {
-    setData((contact.relationship_data[type] as Record<string, unknown>) ?? {});
-  }, [contact, type]);
-
-  useEffect(() => {
     if (type === "Contratante") {
-      void listMeetingsForContact(contact.id).then(setMeetings).catch(() => setMeetings([]));
+      void listMeetingsForContact(contactId).then(setMeetings).catch(() => setMeetings([]));
     }
-  }, [type, contact.id]);
+  }, [type, contactId]);
 
-  const set = (key: string, value: unknown) => setData((d) => ({ ...d, [key]: value }));
+  const set = (key: string, value: unknown) => onChange({ ...data, [key]: value });
   const str = (key: string) => (data[key] as string | undefined) ?? "";
-
-  async function save() {
-    setSaving(true);
-    try {
-      const next: RelationshipData = { ...contact.relationship_data, [type]: data };
-      await updateContact({ id: contact.id, relationship_data: next });
-      toast.success("Salvo");
-      onSaved();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div className="space-y-3 pt-2">
@@ -260,12 +242,6 @@ export function RelationshipTabContent({
       <div className="space-y-1.5">
         <Label>Observações</Label>
         <Textarea rows={3} value={str("notas")} onChange={(e) => set("notas", e.target.value)} />
-      </div>
-
-      <div className="flex justify-end">
-        <Button size="sm" onClick={save} disabled={saving}>
-          {saving ? "Salvando…" : "Salvar"}
-        </Button>
       </div>
     </div>
   );
