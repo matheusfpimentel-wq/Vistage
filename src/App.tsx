@@ -200,6 +200,11 @@ function MainApp() {
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
+          // Aparência salva NO documento (.vistage) e intenção de notificações.
+          void useThemeStore.getState().hydrateFromDocument();
+          void import("@/lib/notify").then(({ restoreNotificationPreference }) =>
+            restoreNotificationPreference()
+          );
           // Escritas automáticas de boot (recorrências, vínculos, follow-ups).
           // Elas emitem "data-changed", então só liberamos o controle de
           // "alterações não salvas" DEPOIS que todas terminam — senão o app

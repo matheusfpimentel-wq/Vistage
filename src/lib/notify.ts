@@ -8,6 +8,33 @@ import { computeAlerts } from "@/modules/revisao/alerts";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
+import { getDb } from "@/lib/db";
+
+// Lembra a INTENÇÃO do usuário (por máquina, em app_settings). Assim, depois de
+// ativar uma vez, o app re-estabelece sozinho a cada boot — sem ficar pedindo
+// autorização toda hora.
+const PREF_KEY = "notifications_enabled";
+async function setNotifPref(on: boolean): Promise<void> {
+  try {
+    await getDb().execute(
+      "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+      [PREF_KEY, on ? "1" : "0"]
+    );
+  } catch {
+    /* banco não pronto */
+  }
+}
+async function getNotifPref(): Promise<boolean> {
+  try {
+    const rows = await getDb().select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [PREF_KEY]
+    );
+    return rows[0]?.value === "1";
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Notificações locais do sistema para alertas CRÍTICOS, via o plugin de
@@ -36,10 +63,31 @@ export async function enableNotifications(): Promise<boolean> {
     if (!granted) {
       granted = (await requestPermission()) === "granted";
     }
-    if (granted) void syncAlertNotifications();
+    if (granted) {
+      void setNotifPref(true);
+      void syncAlertNotifications();
+    }
     return granted;
   } catch {
     return false;
+  }
+}
+
+/**
+ * No boot: se o usuário já ativou notificações antes, re-estabelece sem precisar
+ * clicar de novo. Silencioso se a permissão do SO ainda estiver concedida; se o
+ * SO tiver revogado, o prompt aparece uma vez automaticamente.
+ */
+export async function restoreNotificationPreference(): Promise<void> {
+  if (!(await getNotifPref())) return;
+  try {
+    if (await isPermissionGranted()) {
+      void syncAlertNotifications();
+    } else {
+      await enableNotifications();
+    }
+  } catch {
+    /* best-effort */
   }
 }
 
