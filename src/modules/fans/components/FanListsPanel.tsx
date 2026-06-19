@@ -26,8 +26,8 @@ import type { Gig } from "@/modules/gigs/types";
 import { formatDate } from "@/lib/format";
 
 /**
- * "Listas" — monta uma lista de nomes (ex.: lista da casa) opcionalmente ligada
- * a uma GIG e exporta em texto pra mandar pra casa antes do show.
+ * "Listas VIP" — monta uma lista de nomes (ex.: convidados/VIP) opcionalmente
+ * ligada a uma GIG e exporta em texto pronto pra enviar.
  */
 export function FanListsPanel({ fans }: { fans: Fan[] }) {
   const [open, setOpen] = useState(false);
@@ -125,7 +125,7 @@ export function FanListsPanel({ fans }: { fans: Fan[] }) {
     const text = lines.join("\n");
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Lista copiada — cola e manda pra casa");
+      toast.success("Lista VIP copiada");
     } catch {
       toast.error("Não consegui copiar. Texto:\n" + text);
     }
@@ -138,7 +138,7 @@ export function FanListsPanel({ fans }: { fans: Fan[] }) {
         className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
         onClick={() => setOpen((v) => !v)}
       >
-        <span>Listas (pra mandar pra casa)</span>
+        <span>Listas VIP</span>
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
 

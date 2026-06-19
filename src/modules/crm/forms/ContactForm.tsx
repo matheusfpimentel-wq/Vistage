@@ -323,6 +323,16 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                 </button>
               ))}
             </div>
+            {(alsoFan || alsoStudent) && (
+              <p className="text-xs text-muted-foreground">
+                {alsoFan && alsoStudent
+                  ? "Perfis paralelos de fã e aluno serão criados"
+                  : alsoFan
+                    ? "Um perfil paralelo de fã será criado"
+                    : "Um perfil paralelo de aluno será criado"}
+                {" "}ao salvar — editável no módulo correspondente.
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
