@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Lightbulb, Plus, Search, Zap } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Lightbulb, Plus, Zap } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -35,7 +33,7 @@ import {
   type IdeaMaturation,
 } from "./types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 type CategoryFilter = IdeaCategory | "Todas";
 type MaturationFilter = IdeaMaturation | "Todas";
@@ -131,87 +129,86 @@ export function IdeasPage() {
 
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
+      <ModuleToolbar
+        primaryAction={{ label: "Nova ideia", icon: Plus, onClick: openCreate }}
+        secondaryActions={[{ label: "Captura rápida", icon: Zap, onClick: () => setQuickOpen(true) }]}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar título, corpo…",
+        }}
+        resultCount={items.length}
+        resultLabel="ideias"
+        filtersActiveCount={
+          (filters.category !== "Todas" ? 1 : 0) +
+          (filters.maturation !== "Todas" ? 1 : 0) +
+          (filters.heat !== "all" ? 1 : 0)
+        }
+        filters={
           <>
-            <Button variant="outline" onClick={() => setQuickOpen(true)}>
-              <Zap className="h-4 w-4" /> Captura rápida
-            </Button>
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" /> Nova ideia
-            </Button>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+              <Select
+                value={filters.category}
+                onValueChange={(v) => setFilters((f) => ({ ...f, category: v as CategoryFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas categorias</SelectItem>
+                  {IDEA_CATEGORIES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Maturação</label>
+              <Select
+                value={filters.maturation}
+                onValueChange={(v) => setFilters((f) => ({ ...f, maturation: v as MaturationFilter }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Todas">Todas maturações</SelectItem>
+                  {IDEA_MATURATIONS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Calor</label>
+              <Select
+                value={filters.heat.toString()}
+                onValueChange={(v) =>
+                  setFilters((f) => ({
+                    ...f,
+                    heat: v === "all" ? "all" : (Number(v) as IdeaHeat),
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Calor: todos</SelectItem>
+                  <SelectItem value="3">Quente</SelectItem>
+                  <SelectItem value="2">Morna</SelectItem>
+                  <SelectItem value="1">Fria</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </>
         }
-      >
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar título, corpo…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-72 pl-8"
-            />
-          </div>
-          <Select
-            value={filters.category}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, category: v as CategoryFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas categorias</SelectItem>
-              {IDEA_CATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.maturation}
-            onValueChange={(v) =>
-              setFilters((f) => ({ ...f, maturation: v as MaturationFilter }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Todas">Todas maturações</SelectItem>
-              {IDEA_MATURATIONS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.heat.toString()}
-            onValueChange={(v) =>
-              setFilters((f) => ({
-                ...f,
-                heat: v === "all" ? "all" : (Number(v) as IdeaHeat),
-              }))
-            }
-          >
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Calor: todos</SelectItem>
-              <SelectItem value="3">Quente</SelectItem>
-              <SelectItem value="2">Morna</SelectItem>
-              <SelectItem value="1">Fria</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </PageToolbar>
+      />
 
       {items.length === 0 && filters.search === "" ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">

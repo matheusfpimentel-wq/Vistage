@@ -42,7 +42,7 @@ import {
   type Meeting,
   type MeetingStatus,
 } from "./types";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 function formatWhen(m: Meeting): string {
   if (!m.date) return "Sem data";
@@ -109,25 +109,28 @@ export function MeetingsPage() {
 
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova reunião
-          </Button>
+      <ModuleToolbar
+        primaryAction={{ label: "Nova reunião", icon: Plus, onClick: openCreate }}
+        resultCount={visible.length}
+        resultLabel="reuniões"
+        filtersActiveCount={statusFilter !== "Todas" ? 1 : 0}
+        filters={
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Status</label>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as MeetingStatus | "Todas")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todas">Todas</SelectItem>
+                {MEETING_STATUSES.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
-      >
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as MeetingStatus | "Todas")}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Todas">Todas</SelectItem>
-            {MEETING_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </PageToolbar>
+      />
 
       {visible.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
