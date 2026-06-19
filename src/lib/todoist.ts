@@ -212,6 +212,63 @@ async function closeTodoistTask(token: string, todoistId: string): Promise<void>
   await api(token, "POST", `/tasks/${todoistId}/close`);
 }
 
+/** Apaga DE VEZ a tarefa no Todoist. 404 é tratado como sucesso (já não existe). */
+async function deleteTodoistTask(token: string, todoistId: string): Promise<void> {
+  try {
+    await api(token, "DELETE", `/tasks/${todoistId}`);
+  } catch (e) {
+    if (e instanceof Error && /\b404\b/.test(e.message)) return; // já apagada
+    throw e;
+  }
+}
+
+// ────────────────────────────────────────────────
+// Tombstones — exclusões a propagar para o Todoist
+// ────────────────────────────────────────────────
+
+/**
+ * Marca um todoist_id como "excluído no Vistage". Tenta apagar imediatamente no
+ * Todoist; se conseguir, não deixa lápide. Se falhar (offline, sem token), grava
+ * a lápide pra próxima sync apagar e, principalmente, pra a sync NÃO reimportar
+ * a tarefa como se fosse nova (era esse o bug: excluir aqui e ela voltar).
+ */
+export async function tombstoneTodoistTask(todoistId: string): Promise<void> {
+  const db = getDb();
+  const { token } = await getTodoistConfig();
+  if (token) {
+    try {
+      await deleteTodoistTask(token, todoistId);
+      return; // apagada no Todoist — sem necessidade de lápide
+    } catch {
+      /* cai pra lápide abaixo */
+    }
+  }
+  await db
+    .execute(
+      "INSERT OR IGNORE INTO todoist_tombstones (todoist_id) VALUES ($1)",
+      [todoistId]
+    )
+    .catch(() => {});
+}
+
+/** Processa as lápides pendentes: apaga no Todoist e limpa as resolvidas. */
+async function flushTombstones(token: string): Promise<Set<string>> {
+  const db = getDb();
+  const rows = await db
+    .select<{ todoist_id: string }[]>("SELECT todoist_id FROM todoist_tombstones")
+    .catch(() => [] as { todoist_id: string }[]);
+  const ids = new Set(rows.map((r) => r.todoist_id));
+  for (const todoistId of ids) {
+    try {
+      await deleteTodoistTask(token, todoistId);
+      await db.execute("DELETE FROM todoist_tombstones WHERE todoist_id = $1", [todoistId]);
+    } catch {
+      /* mantém a lápide pra tentar de novo na próxima sync */
+    }
+  }
+  return ids; // usados pra não reimportar nesta mesma sync
+}
+
 // ────────────────────────────────────────────────
 // Mapeamento de prioridades
 // ────────────────────────────────────────────────
@@ -280,6 +337,11 @@ export async function syncTodoist(): Promise<SyncResult> {
   const db = getDb();
   const result: SyncResult = { pushed: 0, pulled: 0, updated: 0, completed: 0 };
 
+  // Antes de tudo: propaga exclusões feitas no Vistage (lápides) pro Todoist.
+  // O conjunto retornado é usado pra NÃO reimportar uma tarefa recém-excluída
+  // que ainda apareça na resposta da API por timing.
+  const tombstoned = await flushTombstones(token);
+
   // Busca tarefas locais (não canceladas) e tarefas do Todoist em paralelo
   const [localTasks, todoistTasks] = await Promise.all([
     db.select<LocalTask[]>(
@@ -301,6 +363,7 @@ export async function syncTodoist(): Promise<SyncResult> {
   // ── 1. Puxa tarefas do Todoist que não existem localmente ──────────────────
   for (const tt of todoistTasks) {
     if (localByTodoistId.has(tt.id)) continue;
+    if (tombstoned.has(tt.id)) continue; // excluída aqui — não ressuscita
     if (tt.is_completed) continue; // não importa concluídas sem vínculo local
 
     const priority = todoistPriorityToVistage(tt.priority);

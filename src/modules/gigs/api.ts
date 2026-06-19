@@ -224,6 +224,15 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   if ("status" in rest && rest.status === "Cancelada") {
     await syncGigLinkedTasksStatus(id, "Cancelada").catch(() => {});
   }
+  // Saiu de "Concluída" (ex.: voltou pra Confirmada por engano): o debrief deixa
+  // de fazer sentido. Limpa a pendência pra não competir com a "Preparação" na
+  // lista nem aparecer como debrief pendente no dashboard. O histórico já
+  // preenchido (debrief_completed_at) é preservado.
+  if ("status" in rest && rest.status !== "Concluída") {
+    await db
+      .execute("UPDATE gigs SET debrief_pending = 0 WHERE id = $1 AND debrief_pending = 1", [id])
+      .catch(() => {});
+  }
   // Mantém o Financeiro sincronizado quando payment_status ou cache_amount mudam.
   // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se
   // já existia sincronização (para refletir mudanças no valor do cachê).

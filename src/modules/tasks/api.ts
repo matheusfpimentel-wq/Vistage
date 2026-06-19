@@ -206,6 +206,21 @@ export async function updateTask(input: TaskUpdateInput): Promise<void> {
 
 export async function deleteTask(id: number): Promise<void> {
   const db = getDb();
+  // Se a tarefa estava espelhada no Todoist, propaga a EXCLUSÃO pra lá — senão a
+  // próxima sync a veria "órfã" e a reimportaria como se fosse nova.
+  try {
+    const rows = await db.select<{ todoist_id: string | null }[]>(
+      "SELECT todoist_id FROM tasks WHERE id = $1",
+      [id]
+    );
+    const todoistId = rows[0]?.todoist_id;
+    if (todoistId) {
+      const { tombstoneTodoistTask } = await import("@/lib/todoist");
+      await tombstoneTodoistTask(todoistId);
+    }
+  } catch {
+    /* não impede a exclusão local */
+  }
   // "Não quero a tarefa": limpa o backlink na origem (não recria, não mexe nela).
   try {
     const { clearTaskBacklinks } = await import("./derived");
