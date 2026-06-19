@@ -1704,6 +1704,11 @@ const MIGRATIONS: Migration[] = [
     description: "meetings.contact_ids — vincula reuniões a pessoas (JSON array de contact ids).",
     sql: `ALTER TABLE meetings ADD COLUMN contact_ids TEXT;`,
   },
+  {
+    version: 117,
+    description: "contacts.birthday — data de nascimento (YYYY-MM-DD), pra ação automática de aniversário.",
+    sql: `ALTER TABLE contacts ADD COLUMN birthday TEXT;`,
+  },
 ];
 
 

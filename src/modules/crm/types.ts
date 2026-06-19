@@ -105,6 +105,8 @@ export type Contact = {
   follower_count: number | null;
   venue_id: number | null;
   company: string | null;
+  /** Data de nascimento (YYYY-MM-DD) — gera tarefa automática no aniversário. */
+  birthday: string | null;
   relationship_types: ContactRelationshipType[];
   relationship_data: RelationshipData;
   created_at: string;
@@ -113,9 +115,10 @@ export type Contact = {
 
 export type ContactCreateInput = Omit<
   Contact,
-  "id" | "created_at" | "updated_at" | "last_interaction_at" | "relationship_types" | "relationship_data"
+  "id" | "created_at" | "updated_at" | "last_interaction_at" | "relationship_types" | "relationship_data" | "birthday"
 > & {
   last_interaction_at?: string | null;
+  birthday?: string | null;
   relationship_types?: ContactRelationshipType[];
   relationship_data?: RelationshipData;
 };

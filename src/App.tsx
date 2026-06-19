@@ -209,6 +209,9 @@ function MainApp() {
             import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
               syncSuperfanFollowupTasks()
             ),
+            import("@/modules/crm/api").then(({ syncBirthdayTasks }) =>
+              syncBirthdayTasks()
+            ),
           ]).then(() => {
             useDocumentStore.getState().settleBoot();
           });
