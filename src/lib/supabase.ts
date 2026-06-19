@@ -34,3 +34,54 @@ export async function currentSession(): Promise<Session | null> {
   const { data } = await supabase.auth.getSession();
   return data.session ?? null;
 }
+
+/**
+ * Sessão "portátil" que viaja DENTRO do .vistage — só o suficiente pra
+ * reconectar o mesmo usuário de sincronização numa máquina nova sem digitar a
+ * senha de novo. O refresh_token é o que importa (o access_token expira em
+ * minutos e é renovado a partir do refresh). É uma credencial: por isso o
+ * arquivo .vistage carrega um aviso de "não compartilhe".
+ */
+export type PortableSession = {
+  refresh_token: string;
+  access_token: string;
+  email?: string | null;
+};
+
+/** Captura a sessão atual do Supabase pra embutir no documento (ou null). */
+export async function getPortableSession(): Promise<PortableSession | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    const s = data.session;
+    if (!s?.refresh_token || !s.access_token) return null;
+    return {
+      refresh_token: s.refresh_token,
+      access_token: s.access_token,
+      email: s.user?.email ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reestabelece a sessão de sincronização a partir do que veio no .vistage.
+ * Não sobrescreve um login já ativo nesta máquina. Retorna true se reconectou.
+ */
+export async function restorePortableSession(
+  sess: PortableSession | null | undefined
+): Promise<boolean> {
+  if (!sess?.refresh_token || !sess.access_token) return false;
+  try {
+    // Já há login ativo aqui? Respeita a sessão local — não troca de conta.
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return false;
+    const { error } = await supabase.auth.setSession({
+      access_token: sess.access_token,
+      refresh_token: sess.refresh_token,
+    });
+    return !error;
+  } catch {
+    return false;
+  }
+}

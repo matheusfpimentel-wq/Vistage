@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -56,6 +56,17 @@ export function SettingsPage() {
 
       {/* ─── Backup (CSV) ────────────────────────────────────── */}
       <TabsContent value="backup" className="space-y-6">
+        {/* Aviso: o .vistage carrega credenciais em texto puro */}
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="leading-snug">
+            <span className="font-medium">Cuidado ao compartilhar.</span> Para o
+            arquivo abrir pronto em outra máquina, o <code>.vistage</code> guarda
+            tudo — inclusive suas senhas, tokens das integrações (Google,
+            Todoist) e o login de sincronização. Trate-o como uma senha: não
+            envie para terceiros.
+          </p>
+        </div>
         {/* Importação/Exportação CSV */}
         <CsvImportExport />
         {/* Capturas do celular descartadas (recuperáveis) */}

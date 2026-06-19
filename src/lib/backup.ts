@@ -2,6 +2,8 @@ import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
+import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
+import { persistAppearanceToDocument } from "./theme";
 
 /** Versão do formato de backup. Bump se mudar o schema de exportação. */
 const BACKUP_VERSION = 2;
@@ -81,6 +83,12 @@ export type Backup = {
   files?: Record<string, string>;
   /** uploadsDir do sistema de origem — usado para relativizar e restaurar caminhos. */
   uploadsDir?: string;
+  /**
+   * Sessão de sincronização (Supabase) embutida pra reconectar o mesmo usuário
+   * numa máquina nova sem redigitar a senha. É uma credencial — por isso o
+   * .vistage carrega o aviso "não compartilhe". Ausente se não houver login.
+   */
+  session?: PortableSession;
 };
 
 // Colunas que armazenam caminhos de arquivos (caminho absoluto ou relativo).
@@ -200,34 +208,23 @@ async function restoreFiles(
 /**
  * Lê todas as tabelas do banco e gera um objeto Backup completo.
  * Inclui os arquivos de anexo como base64 (v2+) — fotos, flyers, etc.
+ *
+ * PORTABILIDADE TOTAL: por opção do usuário, o .vistage carrega TUDO — inclusive
+ * segredos das integrações (client_secret e tokens OAuth do Google, token do
+ * Todoist em app_settings; tokens do Calendar em gcal_auth) e a sessão de
+ * sincronização do Supabase. Assim, abrir o arquivo numa máquina nova já
+ * reconecta as integrações e o usuário de sync. O preço é que o arquivo passa a
+ * conter credenciais em texto puro — a UI exibe um aviso de "não compartilhe".
  */
-/**
- * Chaves de app_settings que guardam segredos (client_secret e tokens OAuth do
- * Google/Drive, token do Todoist). NUNCA entram no backup/.vistage — senão
- * vazariam em texto puro num arquivo que pode ser compartilhado.
- */
-function isSecretSettingKey(key: unknown): boolean {
-  return (
-    typeof key === "string" &&
-    (key.includes("client_secret") ||
-      key.includes("access_token") ||
-      key.includes("refresh_token") ||
-      key === "todoist_token")
-  );
-}
-
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
+  // Garante que a aparência atual (tema/cor) esteja gravada no documento antes
+  // de lê-lo — assim o .vistage sempre carrega a aparência, mesmo logo após um
+  // boot em branco em que document_settings ainda não foi tocado.
+  await persistAppearanceToDocument().catch(() => {});
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
-    if (t === "gcal_auth") {
-      tables[t] = []; // tokens do Google Calendar nunca entram no backup
-      continue;
-    }
-    let rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
-    if (t === "app_settings") {
-      rows = rows.filter((r) => !isSecretSettingKey(r.key));
-    }
+    const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
     tables[t] = rows;
   }
   const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
@@ -239,6 +236,7 @@ export async function buildBackup(): Promise<Backup> {
       // não bloqueia o backup se a leitura de arquivos falhar
     }
   }
+  const session = (await getPortableSession()) ?? undefined;
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -246,13 +244,32 @@ export async function buildBackup(): Promise<Backup> {
     tables,
     files,
     uploadsDir,
+    ...(session ? { session } : {}),
   };
 }
 
-// Tabelas de configuração POR MÁQUINA — não são "documento". Integrações
-// (tokens do Google/Todoist em app_settings, tokens do Calendar em gcal_auth),
-// tema e atalhos. Ficam de fora do "abre em branco" pra não desconectar o
-// usuário a cada inicialização.
+/**
+ * Reconecta a sessão de sincronização (Supabase) que veio embutida no .vistage.
+ * Chamado depois de abrir/mesclar um documento. No-op se o arquivo não tiver
+ * sessão ou se já houver login ativo nesta máquina. Não bloqueia o fluxo.
+ */
+export async function restoreBackupSession(backup: Backup): Promise<void> {
+  try {
+    await restorePortableSession(backup.session);
+  } catch {
+    // reconexão é best-effort — o usuário sempre pode logar manualmente
+  }
+}
+
+// Tabelas que SOBREVIVEM ao "abre em branco": integrações e preferências da
+// máquina (tokens do Google/Todoist em app_settings, tokens do Calendar em
+// gcal_auth, atalhos, intenção de notificação). NÃO são zeradas a cada boot —
+// senão o app desconectaria as integrações toda vez que iniciasse em branco.
+//
+// Atenção: "sobrevive ao boot" ≠ "fica fora do documento". O conteúdo destas
+// tabelas TAMBÉM viaja dentro do .vistage (ver buildBackup) pra reconectar as
+// integrações numa máquina nova. Aqui elas só são poupadas do wipe de boot e
+// não contam como "dados de documento" em hasAnyDocumentData.
 const MACHINE_TABLES: TableName[] = ["app_settings", "gcal_auth"];
 
 /**
