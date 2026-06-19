@@ -5,6 +5,10 @@ import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
 import { persistViewPrefsToDocument } from "./docSettings";
+import { decryptString, encryptString, isEncryptedRaw } from "./crypto";
+import { getDocPassword, setDocPassword } from "./docPassword";
+import { promptPassword } from "./passwordPrompt";
+import { toast } from "@/components/ui/toaster";
 
 /** Versão do formato de backup. Bump se mudar o schema de exportação. */
 const BACKUP_VERSION = 2;
@@ -339,16 +343,56 @@ export function parseBackupRaw(raw: string): Backup {
   return parsed as Backup;
 }
 
+/**
+ * Serializa o backup e grava no caminho — cifrando com a senha do documento se
+ * houver uma definida (ver docPassword). Único ponto de escrita: garante que
+ * "Salvar", "Salvar como" e exportações respeitem a proteção por senha.
+ */
+export async function writeBackupFile(path: string, backup: Backup): Promise<void> {
+  const json = JSON.stringify(backup, null, 2);
+  const pw = getDocPassword();
+  const out = pw ? await encryptString(json, pw) : json;
+  await writeTextFile(path, out);
+}
+
 /** Grava o backup atual num caminho específico (usado por "Salvar"). */
 export async function saveBackupToPath(path: string): Promise<void> {
   const backup = await buildBackup();
-  await writeTextFile(path, JSON.stringify(backup, null, 2));
+  await writeBackupFile(path, backup);
 }
 
 /** Lê e valida um arquivo de documento a partir do caminho. */
 export async function readBackupFromPath(path: string): Promise<Backup> {
   const raw = await readTextFile(path);
   return parseBackupRaw(raw);
+}
+
+/**
+ * Lê um arquivo que PODE estar cifrado: se estiver, pede a senha e decifra
+ * (lembrando-a para os próximos "Salvar"); se não, limpa a senha do documento.
+ * Retorna o Backup, ou null se o usuário cancelar / a senha estiver errada.
+ */
+async function readMaybeEncrypted(path: string): Promise<Backup | null> {
+  const raw = await readTextFile(path);
+  if (!isEncryptedRaw(raw)) {
+    setDocPassword(null); // documento sem senha
+    return parseBackupRaw(raw);
+  }
+  const pw = await promptPassword({
+    title: "Documento protegido",
+    description: "Este arquivo .vistage está protegido por senha. Digite-a para abrir.",
+    confirmLabel: "Abrir",
+  });
+  if (pw == null) return null; // cancelou
+  let text: string;
+  try {
+    text = await decryptString(raw, pw);
+  } catch (e) {
+    toast.error((e as Error).message ?? "Não foi possível decifrar o arquivo.");
+    return null;
+  }
+  setDocPassword(pw); // lembra pra re-cifrar nos próximos Salvar
+  return parseBackupRaw(text);
 }
 
 /** Abre o diálogo "Salvar como" e grava o documento. Retorna o caminho. */
@@ -361,11 +405,11 @@ export async function exportBackupToFile(): Promise<string | null> {
     filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
   });
   if (!path) return null;
-  await writeTextFile(path, JSON.stringify(backup, null, 2));
+  await writeBackupFile(path, backup);
   return path;
 }
 
-/** Abre o diálogo de seleção e retorna o documento + caminho. */
+/** Abre o diálogo de seleção e retorna o documento + caminho (decifrando se preciso). */
 export async function pickBackupFile(): Promise<{ backup: Backup; path: string } | null> {
   const file = await openDialog({
     multiple: false,
@@ -375,7 +419,8 @@ export async function pickBackupFile(): Promise<{ backup: Backup; path: string }
     ],
   });
   if (!file || typeof file !== "string") return null;
-  const backup = await readBackupFromPath(file);
+  const backup = await readMaybeEncrypted(file);
+  if (!backup) return null;
   return { backup, path: file };
 }
 
