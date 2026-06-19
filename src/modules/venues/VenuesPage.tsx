@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Search, Trash2, Users } from "lucide-react";
+import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 
 const VenueMap = lazy(() =>
@@ -21,7 +21,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { cn } from "@/lib/utils";
-import { PageToolbar } from "@/components/shared/PageToolbar";
+import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 
 type ViewMode = "cards" | "list" | "map";
@@ -157,36 +157,25 @@ export function VenuesPage() {
 
   return (
     <div className="space-y-4">
-      <PageToolbar
-        actions={
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Novo venue
-          </Button>
-        }
-      >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <ModuleToolbar
+        primaryAction={{ label: "Novo venue", icon: Plus, onClick: openCreate }}
+        search={{
+          value: filters.search,
+          onChange: (v) => setFilters((f) => ({ ...f, search: v })),
+          placeholder: "Buscar venue, dono, notas…",
+        }}
+        filtersActiveCount={filters.city.trim() ? 1 : 0}
+        filters={
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Cidade</label>
             <Input
-              placeholder="Buscar venue, dono, notas…"
-              value={filters.search}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, search: e.target.value }))
-              }
-              className="w-72 pl-8"
+              placeholder="Cidade"
+              value={filters.city}
+              onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
             />
           </div>
-          <Input
-            placeholder="Cidade"
-            value={filters.city}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, city: e.target.value }))
-            }
-            className="w-40"
-          />
-        </div>
-        <div className="flex items-center gap-2">
+        }
+        viewToggle={
           <ViewToggle
             options={[
               { value: "cards", label: "Cards", icon: LayoutGrid },
@@ -196,9 +185,10 @@ export function VenuesPage() {
             value={view}
             onChange={setView}
           />
-        </div>
-        </div>
-      </PageToolbar>
+        }
+        resultCount={venues.length}
+        resultLabel="venues"
+      />
 
       {view === "map" ? (
         <Suspense
