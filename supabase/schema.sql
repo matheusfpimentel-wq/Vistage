@@ -219,3 +219,48 @@ create policy "own rows" on public.user_preferences
 drop trigger if exists trg_bump on public.catalog_mirror;
 create trigger trg_bump after insert or update or delete on public.catalog_mirror
   for each row execute function public.bump_sync_rev();
+
+-- ============================================================================
+-- Web push (resumo diário + lembretes + foco) — Fase 4
+-- ============================================================================
+-- Pipeline: PWA inscreve via PushManager → push_subscriptions. A Edge Function
+-- `send-push` (verify_jwt=false, auth própria) monta o resumo do dia a partir do
+-- espelho (agenda_mirror/contact_today) e envia via web-push usando as chaves
+-- VAPID. Um cron diário (pg_cron + pg_net) chama a função com o header
+-- x-cron-secret. As chaves VAPID e o cron_secret ficam em app_secrets (somente
+-- service_role) e NUNCA no repositório.
+
+-- Inscrições de web-push (uma por dispositivo/endpoint).
+create table if not exists public.push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  endpoint    text not null,
+  p256dh      text not null,
+  auth        text not null,
+  user_agent  text,
+  created_at  timestamptz not null default now(),
+  unique (user_id, endpoint)
+);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "own rows" on public.push_subscriptions;
+create policy "own rows" on public.push_subscriptions
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- Segredos do servidor (VAPID, cron). RLS ligado e SEM policy: nenhum cliente
+-- lê; só a Edge Function (service_role) acessa. Os VALORES são inseridos fora do
+-- versionamento (via SQL direto), nunca commitados.
+create table if not exists public.app_secrets (
+  key         text primary key,
+  value       text not null,
+  updated_at  timestamptz not null default now()
+);
+alter table public.app_secrets enable row level security;
+
+-- Cron diário (08:00 BRT ≈ 11:00 UTC), criado fora do versionamento:
+--   select cron.schedule('vistage-daily-push', '0 11 * * *', $$
+--     select net.http_post(
+--       url := 'https://<ref>.supabase.co/functions/v1/send-push',
+--       headers := jsonb_build_object('Content-Type','application/json',
+--         'x-cron-secret', (select value from public.app_secrets where key='cron_secret')),
+--       body := '{}'::jsonb);
+--   $$);
