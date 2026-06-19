@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Pencil, Plus, Store, Trash2, User, UserPlus, Users } from "lucide-react";
+import { LayoutGrid, List, Pencil, Plus, Store, Trash2, User, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -33,6 +33,12 @@ import {
 } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
+import { removeSupplierForContact } from "@/modules/suppliers/api";
+import { ViewToggle } from "@/components/shared/ViewToggle";
+import { useModuleView } from "@/lib/moduleView";
+import { useImageUrl } from "@/lib/uploads";
+import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 
 type Role = "Contato" | "Fornecedor";
 type RoleFilter = "Todos" | Role;
@@ -61,6 +67,7 @@ export function PessoasPage() {
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
   const [role, setRole] = useState<RoleFilter>("Todos");
+  const [view, setView] = useModuleView<"cards" | "list">("pessoas", "cards");
 
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -160,6 +167,8 @@ export function PessoasPage() {
     });
   }, [persons, role, city, search]);
 
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(filtered);
+
   function newContact() {
     setEditingContact(null);
     setContactFormOpen(true);
@@ -225,6 +234,18 @@ export function PessoasPage() {
     }
   }
 
+  // Remove o papel de fornecedor (só se a aba Serviços estiver vazia).
+  async function removeFornecedor(p: Person) {
+    if (!p.contact || p.supplierId == null) return;
+    const res = await removeSupplierForContact(p.contact.id);
+    if (!res.ok) {
+      toast.error(res.reason ?? "Não foi possível remover o papel de fornecedor");
+      return;
+    }
+    toast.success(`${p.contact.name} não é mais fornecedor`);
+    await refresh();
+  }
+
   async function handleDelete(p: Person) {
     if (p.contact) {
       const ok = await confirmDialog({
@@ -267,7 +288,19 @@ export function PessoasPage() {
           onChange: setSearch,
           placeholder: "Buscar nome, @, email, telefone…",
         }}
-        viewToggle={<RoleTabs value={role} onChange={setRole} />}
+        viewToggle={
+          <div className="flex flex-wrap items-center gap-2">
+            <RoleTabs value={role} onChange={setRole} />
+            <ViewToggle
+              options={[
+                { value: "cards", label: "Cards", icon: LayoutGrid },
+                { value: "list", label: "Lista", icon: List },
+              ]}
+              value={view}
+              onChange={setView}
+            />
+          </div>
+        }
         resultCount={filtered.length}
         resultLabel="pessoas"
         filtersActiveCount={city.trim() ? 1 : 0}
@@ -287,20 +320,34 @@ export function PessoasPage() {
           title="Nenhuma pessoa encontrada"
           description="Crie um contato ou fornecedor, ou ajuste a busca/filtros."
         />
-      ) : (
-        <div className="divide-y overflow-hidden rounded-md border">
-          {filtered.map((p) => (
-            <PersonRow
+      ) : view === "cards" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sorted.map((p) => (
+            <PersonCard
               key={p.key}
               person={p}
               onOpen={() => openPerson(p)}
               onEdit={() => editPerson(p)}
               onMakeSupplier={() => void makeSupplier(p)}
               onMakeContact={() => void makeContact(p)}
+              onRemoveSupplier={() => void removeFornecedor(p)}
               onDelete={() => void handleDelete(p)}
             />
           ))}
         </div>
+      ) : (
+        <PersonTable
+          persons={sorted}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={handleSort}
+          onOpen={openPerson}
+          onEdit={editPerson}
+          onMakeSupplier={(p) => void makeSupplier(p)}
+          onMakeContact={(p) => void makeContact(p)}
+          onRemoveSupplier={(p) => void removeFornecedor(p)}
+          onDelete={(p) => void handleDelete(p)}
+        />
       )}
 
       <ContactForm
@@ -398,24 +445,82 @@ function RoleBadges({ roles }: { roles: Role[] }) {
   );
 }
 
-function PersonRow({
-  person: p,
-  onOpen,
-  onEdit,
-  onMakeSupplier,
-  onMakeContact,
-  onDelete,
-}: {
-  person: Person;
-  onOpen: () => void;
+type RowHandlers = {
   onEdit: () => void;
   onMakeSupplier: () => void;
   onMakeContact: () => void;
+  onRemoveSupplier: () => void;
   onDelete: () => void;
-}) {
-  const sub = p.email ?? p.phone ?? p.instagram ?? p.city ?? "—";
+};
+
+/** Ações de uma pessoa (toggle de papel aplicável + editar + excluir). */
+function PersonActions({
+  person: p,
+  onEdit,
+  onMakeSupplier,
+  onMakeContact,
+  onRemoveSupplier,
+  onDelete,
+  buttonClass,
+}: { person: Person; buttonClass?: string } & RowHandlers) {
   const canBecomeSupplier = p.contact != null && p.supplierId == null;
+  const isContactSupplier = p.contact != null && p.supplierId != null;
   const canBecomeContact = p.contact == null && p.supplier != null;
+  const cls = buttonClass ?? "";
+  return (
+    <>
+      {canBecomeSupplier && (
+        <Button size="icon" variant="ghost" className={cls} aria-label="Tornar fornecedor" title="Tornar também fornecedor" onClick={onMakeSupplier}>
+          <Store className="h-4 w-4" />
+        </Button>
+      )}
+      {isContactSupplier && (
+        <Button size="icon" variant="ghost" className={cls} aria-label="Remover fornecedor" title="Remover papel de fornecedor" onClick={onRemoveSupplier}>
+          <Store className="h-4 w-4 text-primary" />
+        </Button>
+      )}
+      {canBecomeContact && (
+        <Button size="icon" variant="ghost" className={cls} aria-label="Tornar contato" title="Tornar também contato" onClick={onMakeContact}>
+          <UserPlus className="h-4 w-4" />
+        </Button>
+      )}
+      <Button size="icon" variant="ghost" className={cls} aria-label="Editar" onClick={onEdit}>
+        <Pencil className="h-4 w-4" />
+      </Button>
+      <Button size="icon" variant="ghost" className={cls} aria-label="Excluir" onClick={onDelete}>
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </>
+  );
+}
+
+/** Avatar (foto do contato) + nome — usado no card e na tabela. */
+function PersonAvatarName({ person: p, size = "sm" }: { person: Person; size?: "sm" | "lg" }) {
+  const photoUrl = useImageUrl(p.contact?.photo_path ?? null);
+  const initials = p.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const dim = size === "lg" ? "h-14 w-14 text-lg" : "h-10 w-10 text-sm";
+  return (
+    <div className="flex items-center gap-2">
+      <div className={cn("relative shrink-0 overflow-hidden rounded-full bg-muted", dim)}>
+        {photoUrl ? (
+          <img src={photoUrl} alt={p.name} className="h-full w-full object-cover object-top" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center font-semibold text-muted-foreground">
+            {initials || (p.contact ? <User className="h-1/2 w-1/2" /> : <Store className="h-1/2 w-1/2" />)}
+          </div>
+        )}
+      </div>
+      {size === "sm" && <span className="truncate font-medium">{p.name}</span>}
+    </div>
+  );
+}
+
+function PersonCard({
+  person: p,
+  onOpen,
+  ...handlers
+}: { person: Person; onOpen: () => void } & RowHandlers) {
+  const sub = p.email ?? p.phone ?? p.instagram ?? "—";
   return (
     <div
       role="button"
@@ -424,51 +529,107 @@ function PersonRow({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
-      className="group flex cursor-pointer items-center gap-3 px-3 py-2.5 transition hover:bg-muted/40"
+      className="group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        {p.contact ? <User className="h-4 w-4" /> : <Store className="h-4 w-4" />}
+      <div
+        className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <PersonActions person={p} buttonClass="h-7 w-7 bg-card shadow-sm" {...handlers} />
       </div>
-      <div className="min-w-0 flex-1">
+      <PersonAvatarName person={p} size="lg" />
+      <div className="min-w-0 flex-1 space-y-1">
         <div className="truncate font-medium leading-tight">{p.name}</div>
-        <div className="truncate text-xs text-muted-foreground">{sub}</div>
-      </div>
-      <div className="hidden sm:block">
         <RoleBadges roles={p.roles} />
+        <div className="truncate text-[11px] text-muted-foreground">
+          {(p.city ?? "—") + " · " + sub}
+        </div>
       </div>
-      <div className="hidden w-28 shrink-0 truncate text-xs text-muted-foreground md:block">
-        {p.city ?? ""}
-      </div>
-      <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
-        {canBecomeSupplier && (
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Tornar fornecedor"
-            title="Tornar também fornecedor"
-            onClick={onMakeSupplier}
-          >
-            <Store className="h-4 w-4" />
-          </Button>
-        )}
-        {canBecomeContact && (
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Tornar contato"
-            title="Tornar também contato"
-            onClick={onMakeContact}
-          >
-            <UserPlus className="h-4 w-4" />
-          </Button>
-        )}
-        <Button size="icon" variant="ghost" aria-label="Editar" onClick={onEdit}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button size="icon" variant="ghost" aria-label="Excluir" onClick={onDelete}>
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </Button>
-      </div>
+    </div>
+  );
+}
+
+function PersonTable({
+  persons,
+  sortKey,
+  sortDir,
+  onSort,
+  onOpen,
+  ...handlers
+}: {
+  persons: Person[];
+  sortKey: keyof Person | null;
+  sortDir: "asc" | "desc" | null;
+  onSort: (k: keyof Person) => void;
+  onOpen: (p: Person) => void;
+  onEdit: (p: Person) => void;
+  onMakeSupplier: (p: Person) => void;
+  onMakeContact: (p: Person) => void;
+  onRemoveSupplier: (p: Person) => void;
+  onDelete: (p: Person) => void;
+}) {
+  const cols = useResizableColumns("pessoas", [
+    { id: "name", width: 260, min: 160 },
+    { id: "roles", width: 200 },
+    { id: "city", width: 150 },
+    { id: "contact", width: 200 },
+    { id: "actions", width: 130, min: 110 },
+  ]);
+  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+        <colgroup>
+          {cols.defs.map((c) => (
+            <col key={c.id} style={cols.colStyle(c.id)} />
+          ))}
+        </colgroup>
+        <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <SortableHeader<Person> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("name")} />
+            </SortableHeader>
+            <th className="relative px-3 py-2 text-left">Papéis<ColResizer {...cols.resizer("roles")} /></th>
+            <SortableHeader<Person> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("city")} />
+            </SortableHeader>
+            <th className="relative px-3 py-2 text-left">Contato<ColResizer {...cols.resizer("contact")} /></th>
+            <th className="px-3 py-2 text-right">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {persons.map((p) => (
+            <tr
+              key={p.key}
+              className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+              onClick={() => onOpen(p)}
+            >
+              <td className="px-3 py-2">
+                <PersonAvatarName person={p} />
+              </td>
+              <td className="px-3 py-2">
+                <RoleBadges roles={p.roles} />
+              </td>
+              <td className="px-3 py-2 text-muted-foreground">{p.city ?? "—"}</td>
+              <td className="truncate px-3 py-2 text-muted-foreground">
+                {p.email ?? p.phone ?? p.instagram ?? "—"}
+              </td>
+              <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-end gap-1">
+                  <PersonActions
+                    person={p}
+                    onEdit={() => handlers.onEdit(p)}
+                    onMakeSupplier={() => handlers.onMakeSupplier(p)}
+                    onMakeContact={() => handlers.onMakeContact(p)}
+                    onRemoveSupplier={() => handlers.onRemoveSupplier(p)}
+                    onDelete={() => handlers.onDelete(p)}
+                  />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

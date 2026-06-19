@@ -238,7 +238,7 @@ export function CrmPage() {
           ))}
         </div>
         <div className="hidden overflow-x-auto rounded-md border sm:block">
-          <table className="table-fixed text-sm" style={{ width: tableWidth, minWidth: "100%" }}>
+          <table className="table-fixed text-sm" style={{ width: tableWidth }}>
             <colgroup>
               {cols.defs.map((c) => (
                 <col key={c.id} style={cols.colStyle(c.id)} />
