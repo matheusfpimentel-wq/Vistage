@@ -38,6 +38,12 @@ import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
+import { getSupplierIdForContact } from "@/modules/suppliers/api";
+import {
+  RELATION_TAB_LABEL,
+  RelationshipTabContent,
+  ServicesTabContent,
+} from "@/modules/pessoas/RelationshipTabs";
 
 type Props = {
   open: boolean;
@@ -57,20 +63,23 @@ export function ContactDetail({
   const [contact, setContact] = useState<Contact | null>(null);
   const [stats, setStats] = useState<ContactStats | null>(null);
   const [gigs, setGigs] = useState<Gig[]>([]);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
     if (!contactId) return;
     setLoading(true);
     try {
-      const [c, s, g] = await Promise.all([
+      const [c, s, g, sup] = await Promise.all([
         getContact(contactId),
         getContactStats(contactId),
         listGigsByContact(contactId),
+        getSupplierIdForContact(contactId),
       ]);
       setContact(c);
       setStats(s);
       setGigs(g);
+      setSupplierId(sup);
     } finally {
       setLoading(false);
     }
@@ -204,10 +213,29 @@ export function ContactDetail({
             )}
 
             <Tabs defaultValue="gigs">
-              <TabsList>
+              <TabsList className="flex-wrap">
                 <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
+                {contact.relationship_types.map((t) => (
+                  <TabsTrigger key={t} value={`rel-${t}`}>
+                    {RELATION_TAB_LABEL[t]}
+                  </TabsTrigger>
+                ))}
+                {supplierId != null && (
+                  <TabsTrigger value="servicos">Serviços</TabsTrigger>
+                )}
               </TabsList>
+
+              {contact.relationship_types.map((t) => (
+                <TabsContent key={t} value={`rel-${t}`}>
+                  <RelationshipTabContent type={t} contact={contact} onSaved={refresh} />
+                </TabsContent>
+              ))}
+              {supplierId != null && (
+                <TabsContent value="servicos">
+                  <ServicesTabContent supplierId={supplierId} />
+                </TabsContent>
+              )}
 
               <TabsContent value="gigs">
                 {gigs.length === 0 ? (

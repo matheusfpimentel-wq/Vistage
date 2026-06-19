@@ -27,6 +27,16 @@ export async function listSupplierContactLinks(): Promise<
   );
 }
 
+/** id do fornecedor espelho de um contato, se existir (papel Fornecedor). */
+export async function getSupplierIdForContact(contactId: number): Promise<number | null> {
+  const db = getDb();
+  const rows = await db.select<{ id: number }[]>(
+    "SELECT id FROM suppliers WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  return rows[0]?.id ?? null;
+}
+
 /** Vincula um fornecedor a um contato (papel duplo na visão Pessoas). */
 export async function setSupplierContact(
   supplierId: number,
