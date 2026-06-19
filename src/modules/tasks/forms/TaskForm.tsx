@@ -190,7 +190,7 @@ export function TaskForm({
           <DialogTitle>{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {isDerived && (
             <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span> —

@@ -62,6 +62,12 @@ function applyAccent(accent: Accent, theme: Theme) {
   s.setProperty("--primary", primary);
   s.setProperty("--primary-glow", dark ? def.glowDark : def.glowLight);
   s.setProperty("--ring", primary);
+  // O hover dos menus/botões usa --accent. Sem atualizar aqui, ele fica SEMPRE
+  // violeta (o default do index.css) mesmo trocando a cor de destaque. Fazemos
+  // o hover (e seu texto) seguirem o mesmo matiz do destaque escolhido.
+  const hue = primary.split(" ")[0];
+  s.setProperty("--accent", dark ? `${hue} 35% 22%` : `${hue} 60% 95%`);
+  s.setProperty("--accent-foreground", dark ? `${hue} 20% 96%` : `${hue} 50% 25%`);
 }
 
 function applyToDom(theme: Theme, accent: Accent) {
