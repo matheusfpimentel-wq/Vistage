@@ -7,6 +7,7 @@ import { StageBadge } from "../components/StageBadge";
 import { trackDisplayName, type TrackWithProject } from "../types";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 
 const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
 
@@ -21,16 +22,36 @@ export function ListView({
 }) {
   const navigate = useNavigate();
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(tracks);
+  const cols = useResizableColumns("music", [
+    { id: "track", width: 220, min: 140 },
+    { id: "project", width: 180, min: 100 },
+    { id: "kind", width: 120, min: 80 },
+    { id: "stage", width: 190, min: 120 },
+    { id: "days", width: 130, min: 90 },
+    { id: "actions", width: 110, min: 90 },
+  ]);
+  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-sm">
+      <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+        <colgroup>
+          {cols.defs.map((c) => (
+            <col key={c.id} style={cols.colStyle(c.id)} />
+          ))}
+        </colgroup>
         <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
           <tr>
-            <th className="px-3 py-2 text-left">Track</th>
-            <SortableHeader<TrackWithProject> col="project_title" label="Projeto" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-            <SortableHeader<TrackWithProject> col="kind" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-            <SortableHeader<TrackWithProject> col="current_stage" label="Stage" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-            <th className="px-3 py-2 text-right">Tempo no stage</th>
+            <th className="relative px-3 py-2 text-left">Track<ColResizer {...cols.resizer("track")} /></th>
+            <SortableHeader<TrackWithProject> col="project_title" label="Projeto" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("project")} />
+            </SortableHeader>
+            <SortableHeader<TrackWithProject> col="kind" label="Tipo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("kind")} />
+            </SortableHeader>
+            <SortableHeader<TrackWithProject> col="current_stage" label="Stage" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("stage")} />
+            </SortableHeader>
+            <th className="relative px-3 py-2 text-right">Tempo no stage<ColResizer {...cols.resizer("days")} /></th>
             <th className="px-3 py-2" />
           </tr>
         </thead>
@@ -47,12 +68,12 @@ export function ListView({
                   <button
                     type="button"
                     onClick={() => onEdit(t)}
-                    className="font-medium hover:text-primary"
+                    className="block max-w-full truncate text-left font-medium hover:text-primary"
                   >
                     {trackDisplayName(t)}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">
+                <td className="truncate px-3 py-2 text-muted-foreground">
                   {t.project_title}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">

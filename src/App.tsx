@@ -14,7 +14,7 @@ import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ConfirmProvider, confirmDialog } from "@/components/ui/confirm";
+import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
@@ -338,22 +338,10 @@ function RoutedApp() {
   // Supabase): ao abrir, a cada 3 min e via Realtime quando o celular captura.
   useEffect(() => startAutoSync(), []);
 
-  // Mensagem única da transição para o modelo "abre em branco": avisa onde os
-  // dados anteriores foram salvos automaticamente. O atraso garante que o
-  // provider de diálogos já esteja montado.
+  // Limpa silenciosamente a marca da transição antiga (o aviso "abre em branco"
+  // não é mais mostrado — esse já é o comportamento normal).
   useEffect(() => {
-    const path = localStorage.getItem(TRANSITION_BACKUP_KEY);
-    if (!path) return;
     localStorage.removeItem(TRANSITION_BACKUP_KEY);
-    const t = setTimeout(() => {
-      void confirmDialog({
-        title: "O Vistage agora abre em branco",
-        description: `A cada inicialização o app começa vazio — seus dados ficam em arquivos .vistage. Salvamos seus dados anteriores em "${path}". Use Arquivo → Abrir… para carregá-los.`,
-        confirmLabel: "Entendi",
-        cancelLabel: "Fechar",
-      });
-    }, 600);
-    return () => clearTimeout(t);
   }, []);
 
   return (
