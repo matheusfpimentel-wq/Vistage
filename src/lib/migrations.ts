@@ -1691,6 +1691,14 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_fan_perks_status ON fan_perks(status);
     `,
   },
+  {
+    version: 115,
+    description: "contacts.relationship_types / relationship_data — tipo de relação (multi) e dados por tipo na visão Pessoas.",
+    sql: `
+      ALTER TABLE contacts ADD COLUMN relationship_types TEXT;
+      ALTER TABLE contacts ADD COLUMN relationship_data TEXT;
+    `,
+  },
 ];
 
 
