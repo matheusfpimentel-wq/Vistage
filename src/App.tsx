@@ -239,6 +239,9 @@ function MainApp() {
             import("@/modules/crm/api").then(({ syncBirthdayTasks }) =>
               syncBirthdayTasks()
             ),
+            import("@/modules/crm/api").then(({ autoPausePartnerships }) =>
+              autoPausePartnerships()
+            ),
             import("@/modules/tasks/derived").then(({ syncDerivedTaskMarkers }) =>
               syncDerivedTaskMarkers()
             ),

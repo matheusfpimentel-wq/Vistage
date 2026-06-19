@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toaster";
 import { updateContact } from "@/modules/crm/api";
 import {
   ALVO_ESTAGIOS,
+  PARCERIA_SITUACOES,
   RELATIONSHIP_CATEGORIES,
   type Contact,
   type ContactRelationshipType,
@@ -194,8 +195,22 @@ export function RelationshipTabContent({
       {type === "Parceiro" && (
         <>
           <div className="space-y-1.5">
-            <Label>Situação da parceria</Label>
-            <Input placeholder="Ativa, em negociação, pausada…" value={str("situacao")} onChange={(e) => set("situacao", e.target.value)} />
+            <Label>Situação</Label>
+            <Select value={str("situacao") || undefined} onValueChange={(v) => set("situacao", v)}>
+              <SelectTrigger className="max-w-xs">
+                <SelectValue placeholder="Selecionar…" />
+              </SelectTrigger>
+              <SelectContent>
+                {PARCERIA_SITUACOES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Vira "Pausada" sozinha quando não há GIG vinculada à pessoa há mais de 60 dias.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Projetos / colaborações</Label>

@@ -237,6 +237,54 @@ export async function syncBirthdayTasks(): Promise<void> {
   }
 }
 
+/**
+ * Pausa automaticamente parcerias "esfriadas": para cada contato com relação
+ * Parceiro e situação "Ativa", se não há GIG vinculada (promoter_contact_id) há
+ * mais de 60 dias — usando a data da última GIG, ou a criação do contato se ele
+ * nunca teve GIG —, marca a situação como "Pausada". Só mexe em "Ativa" (não
+ * sobrescreve "Em negociação"/"Encerrada"). Idempotente. Roda no boot.
+ */
+export async function autoPausePartnerships(): Promise<number> {
+  try {
+    const db = getDb();
+    const rows = await db.select<ContactRow[]>(
+      "SELECT * FROM contacts WHERE relationship_types LIKE '%Parceiro%'"
+    );
+    if (rows.length === 0) return 0;
+
+    const gigRows = await db.select<{ pid: number; last: string | null }[]>(
+      `SELECT promoter_contact_id AS pid, MAX(date) AS last
+         FROM gigs WHERE promoter_contact_id IS NOT NULL
+        GROUP BY promoter_contact_id`
+    );
+    const lastGigByContact = new Map<number, string>();
+    for (const g of gigRows) if (g.last) lastGigByContact.set(g.pid, g.last);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 60);
+    const cutoffISO = cutoff.toISOString().slice(0, 10);
+
+    let paused = 0;
+    for (const row of rows) {
+      const c = rowToContact(row);
+      if (!c.relationship_types.includes("Parceiro")) continue;
+      const p = c.relationship_data.Parceiro;
+      if (!p || p.situacao !== "Ativa") continue;
+      const ref = lastGigByContact.get(c.id) ?? (c.created_at ? c.created_at.slice(0, 10) : null);
+      if (!ref || ref >= cutoffISO) continue; // sem referência ou atividade recente
+      const nextData: RelationshipData = {
+        ...c.relationship_data,
+        Parceiro: { ...p, situacao: "Pausada" },
+      };
+      await updateContact({ id: c.id, relationship_data: nextData });
+      paused++;
+    }
+    return paused;
+  } catch {
+    return 0; // ação automática não pode quebrar o boot
+  }
+}
+
 // ============================================================
 // Interações
 // ============================================================

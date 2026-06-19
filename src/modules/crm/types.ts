@@ -47,6 +47,14 @@ export type RelationshipType = (typeof RELATIONSHIP_TYPES)[number];
 export const CONTACT_RELATIONSHIP_TYPES = ["Contratante", "Parceiro", "Alvo", "Músico"] as const;
 export type ContactRelationshipType = (typeof CONTACT_RELATIONSHIP_TYPES)[number];
 
+/**
+ * Situação de uma parceria (campo fixo da aba Parceria). "Pausada" pode ser
+ * marcada automaticamente quando não há GIG vinculada à pessoa há mais de 60
+ * dias (ver autoPausePartnerships).
+ */
+export const PARCERIA_SITUACOES = ["Ativa", "Em negociação", "Pausada", "Encerrada"] as const;
+export type ParceriaSituacao = (typeof PARCERIA_SITUACOES)[number];
+
 /** Dados específicos por tipo de relação (aba de cada relação). */
 export type RelationshipData = {
   Contratante?: { categoria?: string; cacheReferencia?: number | null; notas?: string };

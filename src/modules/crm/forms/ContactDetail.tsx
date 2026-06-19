@@ -40,8 +40,9 @@ import {
   type ContactRelationshipType,
   type ContactStats,
   type RelationshipData,
+  type RelationshipType,
 } from "../types";
-import { TypeBadges } from "../components/TypeBadges";
+import { RELATIONSHIP_ICON } from "../relationMeta";
 import { InteractionList } from "../components/InteractionList";
 import {
   getContact,
@@ -291,6 +292,8 @@ export function ContactDetail({
       });
       toast.success("Salvo");
       await refresh({ reseedForm: true });
+      // Salvar fecha a janela (dirty já está limpo — sem aviso de não-salvo).
+      onOpenChange(false);
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
     } finally {
@@ -311,7 +314,12 @@ export function ContactDetail({
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <DialogTitle>{contact.name}</DialogTitle>
-                  <TypeBadges types={contact.types} />
+                  <RoleIconBadges
+                    roles={[
+                      ...relTypes,
+                      ...(supplierId != null ? (["Fornecedor"] as RelationshipType[]) : []),
+                    ]}
+                  />
                 </div>
                 <Button size="sm" onClick={() => onCreateGig(contact)}>
                   <Plus className="h-3.5 w-3.5" />
@@ -518,7 +526,7 @@ export function ContactDetail({
                   <RelationshipTabContent
                     type={t}
                     contact={contact}
-                    onSaved={() => void refresh()}
+                    onSaved={() => onOpenChange(false)}
                     onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
                   />
                 </TabsContent>
@@ -573,6 +581,24 @@ export function ContactDetail({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Badges com ícone dos papéis da pessoa (substitui os tipos do modelo antigo). */
+function RoleIconBadges({ roles }: { roles: RelationshipType[] }) {
+  if (roles.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {roles.map((r) => {
+        const Icon = RELATIONSHIP_ICON[r];
+        return (
+          <Badge key={r} variant="outline" className="gap-1">
+            {Icon && <Icon className="h-3 w-3" />}
+            {r}
+          </Badge>
+        );
+      })}
+    </div>
   );
 }
 
