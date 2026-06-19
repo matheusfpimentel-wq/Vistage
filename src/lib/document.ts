@@ -7,6 +7,7 @@ import {
   pickBackupFile,
   restoreBackup,
   restoreBackupFiles,
+  restoreBackupSession,
   saveBackupToPath,
   type Backup,
 } from "./backup";
@@ -145,6 +146,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
       if (mode === "merge") {
         await mergeBackup(picked.backup);
+        // Reconecta o usuário de sincronização que veio no arquivo (se houver).
+        // Persiste na sessão do webview e sobrevive ao reload abaixo.
+        await restoreBackupSession(picked.backup);
         localStorage.setItem(LS_KEY, picked.path);
         set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
         toast.success(`Documento mesclado: ${fileName(picked.path)}. Recarregando…`);
@@ -152,6 +156,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       } else {
         // overwrite
         await restoreBackup(picked.backup);
+        await restoreBackupSession(picked.backup);
         localStorage.setItem(LS_KEY, picked.path);
         set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
         toast.success(`Documento aberto: ${fileName(picked.path)}. Recarregando…`);

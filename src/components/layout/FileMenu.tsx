@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, FolderOpen, Loader2, Save, SaveAll } from "lucide-react";
+import { FileText, FolderOpen, Loader2, Save, SaveAll, ShieldAlert } from "lucide-react";
 import { useDocumentStore, displayDocName } from "@/lib/document";
 import { hasAnyDocumentData } from "@/lib/backup";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -92,6 +92,13 @@ export function FileMenu() {
               void saveAs();
             }}
           />
+          <div className="flex items-start gap-1.5 border-t bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+            <ShieldAlert className="mt-px h-3.5 w-3.5 shrink-0" />
+            <span>
+              O arquivo .vistage guarda suas senhas e tokens das integrações.
+              Não compartilhe.
+            </span>
+          </div>
         </div>
       )}
     </div>

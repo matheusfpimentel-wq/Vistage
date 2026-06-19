@@ -21,6 +21,18 @@ async function saveDocSetting(key: string, value: string): Promise<void> {
   }
 }
 
+/**
+ * Grava a aparência atual (tema + cor de destaque) em document_settings — a
+ * fonte da verdade que viaja no .vistage. Chamado antes de exportar o documento
+ * pra garantir que a aparência SEMPRE acompanhe o arquivo, mesmo logo após um
+ * boot em branco em que document_settings ainda não tenha sido escrito.
+ */
+export async function persistAppearanceToDocument(): Promise<void> {
+  const { theme, accent } = useThemeStore.getState();
+  await saveDocSetting("theme", theme);
+  await saveDocSetting("accent", accent);
+}
+
 type AccentDef = {
   id: Accent;
   label: string;
