@@ -146,6 +146,16 @@ button { font-family: inherit; cursor: pointer; }
 .seg button { flex: 1; background: none; border: none; color: var(--muted); padding: 0.55rem; border-radius: 9px; font-weight: 600; }
 .seg button.active { background: var(--surface-2); color: var(--text); }
 
+/* ── Palco (stage) ─────────────────────────────── */
+.foco .stage { width: 100%; border-color: var(--accent); }
+.stage-live { box-shadow: 0 0 0 1px var(--accent); }
+.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.stage-title { font-size: 1.3rem; display: block; margin-top: 0.15rem; }
+.stage-sub { font-size: 0.85rem; margin-bottom: 0.5rem; }
+.stage-timing { font-size: 0.72rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.stage-timing.live { color: var(--pos); }
+.stage-rows { margin-top: 0.25rem; }
+
 /* ── Foco ──────────────────────────────────────── */
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }
 .timer { font-size: 3.4rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
