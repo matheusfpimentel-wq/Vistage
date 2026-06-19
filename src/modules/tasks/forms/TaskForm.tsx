@@ -24,6 +24,7 @@ import { SubtaskList } from "../components/SubtaskList";
 import { LinkPicker, type PendingLink } from "../components/LinkPicker";
 import {
   TASK_CATEGORIES,
+  TASK_DERIVED_LABELS,
   TASK_PRIORITIES,
   TASK_RECURRENCES,
   TASK_RECURRENCE_LABEL,
@@ -95,6 +96,12 @@ export function TaskForm({
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
+
+  // Tarefa LEGADA de outra origem: título e tags são geridos pela origem.
+  const isDerived = !!task?.derived_type;
+  const derivedLabel = task?.derived_type
+    ? TASK_DERIVED_LABELS[task.derived_type] ?? "origem vinculada"
+    : null;
 
   useEffect(() => {
     if (task) setState(taskToInput(task));
@@ -184,13 +191,21 @@ export function TaskForm({
         </DialogHeader>
 
         <div className="space-y-4">
+          {isDerived && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span> —
+              o título e as tags são geridos pela origem. Você pode mudar status, prioridade e prazo,
+              ou excluir se não quiser esta tarefa.
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>
               Título <span className="text-destructive">*</span>
             </Label>
             <Input
-              autoFocus
+              autoFocus={!isDerived}
               value={state.title}
+              disabled={isDerived}
               onChange={(e) => {
                 set("title", e.target.value);
                 if (titleError) setTitleError(null);
@@ -365,36 +380,43 @@ export function TaskForm({
           <div className="space-y-1.5">
             <Label>Tags</Label>
             <div className="flex flex-wrap gap-1">
+              {state.tags.length === 0 && isDerived && (
+                <span className="text-xs text-muted-foreground">Sem tags.</span>
+              )}
               {state.tags.map((t) => (
                 <Badge key={t} variant="outline" className="gap-1 pr-1">
                   {t}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(t)}
-                    className="rounded p-0.5 hover:bg-accent"
-                    aria-label="Remover tag"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  {!isDerived && (
+                    <button
+                      type="button"
+                      onClick={() => removeTag(t)}
+                      className="rounded p-0.5 hover:bg-accent"
+                      aria-label="Remover tag"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
                 </Badge>
               ))}
             </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nova tag (Enter)"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" onClick={addTag}>
-                Adicionar
-              </Button>
-            </div>
+            {!isDerived && (
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nova tag (Enter)"
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={addTag}>
+                  Adicionar
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
