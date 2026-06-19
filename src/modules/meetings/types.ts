@@ -8,6 +8,7 @@ export type Meeting = {
   time: string | null;          // HH:MM
   location: string | null;      // local físico ou link
   participants: string[];       // nomes dos participantes
+  contact_ids: number[];        // pessoas (contacts) vinculadas
   agenda: string | null;        // pauta
   notes: string | null;         // ata / anotações
   outcomes: string | null;      // decisões / encaminhamentos

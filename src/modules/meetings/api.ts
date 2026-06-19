@@ -15,19 +15,27 @@ import type {
   MeetingUpdateInput,
 } from "./types";
 
-type MeetingRow = Omit<Meeting, "participants"> & { participants: string | null };
+type MeetingRow = Omit<Meeting, "participants" | "contact_ids"> & {
+  participants: string | null;
+  contact_ids: string | null;
+};
+
+function parseJsonArray<T>(s: string | null): T[] {
+  if (!s) return [];
+  try {
+    const parsed = JSON.parse(s);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 function rowToMeeting(r: MeetingRow): Meeting {
-  let participants: string[] = [];
-  if (r.participants) {
-    try {
-      const parsed = JSON.parse(r.participants);
-      if (Array.isArray(parsed)) participants = parsed as string[];
-    } catch {
-      participants = [];
-    }
-  }
-  return { ...r, participants };
+  return {
+    ...r,
+    participants: parseJsonArray<string>(r.participants),
+    contact_ids: parseJsonArray<number>(r.contact_ids),
+  };
 }
 
 /** Título da tarefa-lembrete derivada de uma reunião. */
@@ -50,6 +58,19 @@ export async function listMeetings(): Promise<Meeting[]> {
         time ASC`
   );
   return rows.map(rowToMeeting);
+}
+
+/** Reuniões vinculadas a uma pessoa (contact), mais recentes primeiro. */
+export async function listMeetingsForContact(contactId: number): Promise<Meeting[]> {
+  const db = getDb();
+  const rows = await db.select<MeetingRow[]>(
+    `SELECT * FROM meetings
+      WHERE contact_ids LIKE $1
+      ORDER BY CASE WHEN date IS NULL THEN 1 ELSE 0 END, date DESC, time DESC`,
+    [`%${contactId}%`]
+  );
+  // o LIKE é grosseiro (ex.: 1 casaria com 11); filtra de fato pelo array.
+  return rows.map(rowToMeeting).filter((m) => m.contact_ids.includes(contactId));
 }
 
 async function getMeeting(id: number): Promise<Meeting | null> {
@@ -84,14 +105,15 @@ export async function createMeeting(input: MeetingCreateInput): Promise<number> 
   }
   const res = await db.execute(
     `INSERT INTO meetings
-       (title, date, time, location, participants, agenda, notes, outcomes, status, task_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+       (title, date, time, location, participants, contact_ids, agenda, notes, outcomes, status, task_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
     [
       input.title,
       input.date,
       input.time,
       input.location,
       JSON.stringify(input.participants ?? []),
+      JSON.stringify(input.contact_ids ?? []),
       input.agenda,
       input.notes,
       input.outcomes,
@@ -117,6 +139,7 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
     ...current,
     ...input,
     participants: input.participants ?? current.participants,
+    contact_ids: input.contact_ids ?? current.contact_ids,
   };
 
   // Sincroniza a tarefa-lembrete vinculada.
@@ -136,15 +159,16 @@ export async function updateMeeting(input: MeetingUpdateInput): Promise<void> {
   await db.execute(
     `UPDATE meetings SET
        title = $1, date = $2, time = $3, location = $4, participants = $5,
-       agenda = $6, notes = $7, outcomes = $8, status = $9,
+       contact_ids = $6, agenda = $7, notes = $8, outcomes = $9, status = $10,
        updated_at = CURRENT_TIMESTAMP
-     WHERE id = $10`,
+     WHERE id = $11`,
     [
       next.title,
       next.date,
       next.time,
       next.location,
       JSON.stringify(next.participants),
+      JSON.stringify(next.contact_ids ?? []),
       next.agenda,
       next.notes,
       next.outcomes,

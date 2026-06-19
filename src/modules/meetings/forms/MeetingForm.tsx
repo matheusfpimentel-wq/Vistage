@@ -54,6 +54,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
   const [time, setTime] = useState("");
   const [location, setLocation] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
+  const [contactIds, setContactIds] = useState<number[]>([]);
   const [participantDraft, setParticipantDraft] = useState("");
   const [agenda, setAgenda] = useState("");
   const [notes, setNotes] = useState("");
@@ -72,6 +73,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
       setTime(meeting.time ?? "");
       setLocation(meeting.location ?? "");
       setParticipants(meeting.participants);
+      setContactIds(meeting.contact_ids ?? []);
       setAgenda(meeting.agenda ?? "");
       setNotes(meeting.notes ?? "");
       setOutcomeItems(splitOutcomes(meeting.outcomes));
@@ -82,6 +84,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
       setTime("");
       setLocation("");
       setParticipants([]);
+      setContactIds([]);
       setAgenda("");
       setNotes("");
       setOutcomeItems([]);
@@ -112,6 +115,8 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
 
   function removeParticipant(name: string) {
     setParticipants((prev) => prev.filter((p) => p !== name));
+    const c = contacts.find((x) => x.name === name);
+    if (c) setContactIds((prev) => prev.filter((id) => id !== c.id));
     setDirty(true);
   }
 
@@ -142,6 +147,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
         time: time || null,
         location: location.trim() || null,
         participants,
+        contact_ids: contactIds,
         agenda: agenda.trim() || null,
         notes: notes.trim() || null,
         outcomes: outcomeItems.join("\n").trim() || null,
@@ -251,26 +257,32 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
             {contacts.length > 0 && (
               <Select
                 value=""
-                onValueChange={(name) => {
-                  if (name && !participants.includes(name)) {
-                    setParticipants((prev) => [...prev, name]);
-                    setDirty(true);
-                  }
+                onValueChange={(idStr) => {
+                  const c = contacts.find((x) => String(x.id) === idStr);
+                  if (!c) return;
+                  setParticipants((prev) => (prev.includes(c.name) ? prev : [...prev, c.name]));
+                  setContactIds((prev) => (prev.includes(c.id) ? prev : [...prev, c.id]));
+                  setDirty(true);
                 }}
               >
                 <SelectTrigger className="mt-1.5">
-                  <SelectValue placeholder="+ Adicionar do CRM" />
+                  <SelectValue placeholder="+ Vincular pessoa (CRM)" />
                 </SelectTrigger>
                 <SelectContent>
                   {contacts
-                    .filter((c) => !participants.includes(c.name))
+                    .filter((c) => !contactIds.includes(c.id))
                     .map((c) => (
-                      <SelectItem key={c.id} value={c.name}>
+                      <SelectItem key={c.id} value={String(c.id)}>
                         {c.name}
                       </SelectItem>
                     ))}
                 </SelectContent>
               </Select>
+            )}
+            {contactIds.length > 0 && (
+              <p className="pt-1 text-[11px] text-muted-foreground">
+                {contactIds.length} pessoa(s) vinculada(s) — a reunião aparece no perfil delas.
+              </p>
             )}
             {participants.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
