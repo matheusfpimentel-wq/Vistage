@@ -171,22 +171,43 @@ export async function updateTask(input: TaskUpdateInput): Promise<void> {
     values
   );
   emitDataChanged();
-  // Caminho inverso: concluir a tarefa de etapa de uma track ("Mixar X") avança
-  // a track para o próximo stage automaticamente.
-  if (rest.status === "Concluída" && id != null) {
+  if (rest.status != null && id != null) {
+    // Caminho inverso: concluir a tarefa de etapa de uma track ("Mixar X")
+    // avança a track para o próximo stage automaticamente.
+    if (rest.status === "Concluída") {
+      try {
+        const { advanceTrackForCompletedStageTask } = await import("@/modules/music/api");
+        await advanceTrackForCompletedStageTask(id);
+      } catch {
+        /* não interrompe a conclusão da tarefa */
+      }
+    }
+    // Espelho de status → origem (ex.: concluir preparação marca a GIG pronta).
     try {
-      const { advanceTrackForCompletedStageTask } = await import(
-        "@/modules/music/api"
+      const rows = await db.select<{ derived_type: string | null; derived_id: number | null }[]>(
+        "SELECT derived_type, derived_id FROM tasks WHERE id = $1",
+        [id]
       );
-      await advanceTrackForCompletedStageTask(id);
+      const d = rows[0];
+      if (d?.derived_type && d.derived_id != null) {
+        const { mirrorDerivedStatusToSource } = await import("./derived");
+        await mirrorDerivedStatusToSource(d.derived_type, d.derived_id, rest.status as string);
+      }
     } catch {
-      /* não interrompe a conclusão da tarefa */
+      /* não interrompe */
     }
   }
 }
 
 export async function deleteTask(id: number): Promise<void> {
   const db = getDb();
+  // "Não quero a tarefa": limpa o backlink na origem (não recria, não mexe nela).
+  try {
+    const { clearTaskBacklinks } = await import("./derived");
+    await clearTaskBacklinks(id);
+  } catch {
+    /* ignora */
+  }
   await db.execute("DELETE FROM tasks WHERE id = $1", [id]);
   emitDataChanged();
 }

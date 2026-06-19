@@ -249,6 +249,8 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
       status: "A fazer",
       due_date: null,
       tags: ["música"],
+      derived_type: "track",
+      derived_id: id,
     });
     await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
   } catch {
@@ -293,6 +295,20 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
       try {
         const { updateTask } = await import("@/modules/tasks/api");
         await updateTask({ id: taskId, due_date: rest.date as string | null });
+      } catch { /* não interrompe */ }
+    }
+  }
+  // Renomear a track atualiza a tarefa correspondente ("{título} ({estágio})").
+  if ("title_working" in rest || "title_final" in rest) {
+    const rows = await db.select<
+      { task_id: number | null; title_working: string; title_final: string | null; current_stage: string }[]
+    >("SELECT task_id, title_working, title_final, current_stage FROM tracks WHERE id = $1", [id]);
+    const r = rows[0];
+    if (r?.task_id) {
+      const display = (r.title_final && r.title_final.trim()) || r.title_working;
+      try {
+        const { updateTask } = await import("@/modules/tasks/api");
+        await updateTask({ id: r.task_id, title: `${display} (${r.current_stage})` });
       } catch { /* não interrompe */ }
     }
   }

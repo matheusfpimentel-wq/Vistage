@@ -31,6 +31,34 @@ export const TASK_RECURRENCE_LABEL: Record<TaskRecurrence, string> = {
 const EISENHOWER_QUADRANTS = ["do", "schedule", "delegate", "eliminate"] as const;
 export type EisenhowerQuadrant = (typeof EISENHOWER_QUADRANTS)[number];
 
+/**
+ * Tarefas LEGADAS de outra origem (criadas automaticamente a partir de uma
+ * track/GIG/etc.). Nelas o título e as tags são geridos pela origem (travados na
+ * UI); excluir é "não quero a tarefa"; e o status é espelho de duas vias.
+ */
+export const TASK_DERIVED_TYPES = [
+  "gig_prep",
+  "gig_debrief",
+  "gig_payment",
+  "track",
+  "content",
+  "class",
+  "party",
+  "meeting",
+] as const;
+export type TaskDerivedType = (typeof TASK_DERIVED_TYPES)[number];
+
+export const TASK_DERIVED_LABELS: Record<string, string> = {
+  gig_prep: "Preparação de GIG",
+  gig_debrief: "Debrief de GIG",
+  gig_payment: "Cobrança de GIG",
+  track: "Música",
+  content: "Conteúdo",
+  class: "Aula",
+  party: "Festa",
+  meeting: "Reunião",
+};
+
 export type Task = {
   id: number;
   title: string;
@@ -45,17 +73,29 @@ export type Task = {
   recurrence: TaskRecurrence | null;
   eisenhower_quadrant: EisenhowerQuadrant | null;
   energy_required: number | null;
+  /** Origem da tarefa, quando legada (ver TASK_DERIVED_TYPES). */
+  derived_type: string | null;
+  derived_id: number | null;
   created_at: string;
   updated_at: string;
 };
 
 export type TaskCreateInput = Omit<
   Task,
-  "id" | "created_at" | "updated_at" | "recurrence" | "eisenhower_quadrant" | "energy_required"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "recurrence"
+  | "eisenhower_quadrant"
+  | "energy_required"
+  | "derived_type"
+  | "derived_id"
 > & {
   recurrence?: TaskRecurrence | null;
   eisenhower_quadrant?: EisenhowerQuadrant | null;
   energy_required?: number | null;
+  derived_type?: string | null;
+  derived_id?: number | null;
 };
 export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
 

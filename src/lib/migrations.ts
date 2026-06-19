@@ -1743,6 +1743,16 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 120,
+    description:
+      "tasks.derived_type / derived_id — marca tarefas LEGADAS de outra origem (track/GIG/etc.) para travar título+tag e espelhar status de duas vias.",
+    sql: `
+      ALTER TABLE tasks ADD COLUMN derived_type TEXT;
+      ALTER TABLE tasks ADD COLUMN derived_id INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_tasks_derived ON tasks(derived_type, derived_id);
+    `,
+  },
 ];
 
 

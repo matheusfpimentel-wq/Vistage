@@ -218,6 +218,9 @@ function MainApp() {
             import("@/modules/crm/api").then(({ syncBirthdayTasks }) =>
               syncBirthdayTasks()
             ),
+            import("@/modules/tasks/derived").then(({ syncDerivedTaskMarkers }) =>
+              syncDerivedTaskMarkers()
+            ),
           ]).then(() => {
             useDocumentStore.getState().settleBoot();
           });
