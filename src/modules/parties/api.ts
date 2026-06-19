@@ -551,7 +551,10 @@ export async function syncTeamBudgetItems(
       projected_amount: m.amount_cents > 0 ? m.amount_cents / 100 : 0,
       actual_amount: null,
       supplier_note: null,
-      supplier_id: null,
+      // Mantém o vínculo com o fornecedor — assim o gasto aparece ligado a ele
+      // (getSupplierSpend / Festas do fornecedor). Antes ia sempre null, o que
+      // "desligava" o fornecedor do orçamento da festa.
+      supplier_id: m.supplier_id ?? null,
       status: "projetado",
       date_paid: null,
     });

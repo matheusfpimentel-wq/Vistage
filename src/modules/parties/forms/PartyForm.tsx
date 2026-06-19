@@ -32,8 +32,8 @@ import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
 import { listContent, createContent, listContentPromoting } from "@/modules/content/api";
 import { CONTENT_FORMATS, CONTENT_NETWORKS, type Content } from "@/modules/content/types";
-import { listSuppliers } from "@/modules/suppliers/api";
-import type { Supplier } from "@/modules/suppliers/types";
+import { listServices, listSuppliers } from "@/modules/suppliers/api";
+import type { Supplier, SupplierService } from "@/modules/suppliers/types";
 import { listVenues } from "@/modules/venues/api";
 import type { Venue } from "@/modules/venues/types";
 import { listGigs } from "@/modules/gigs/api";
@@ -143,6 +143,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [teamName, setTeamName] = useState("");
   const [teamRole, setTeamRole] = useState("");
   const [teamAmount, setTeamAmount] = useState("");
+  // Serviços do fornecedor selecionado — escolher um preenche função + valor.
+  const [teamServices, setTeamServices] = useState<SupplierService[]>([]);
 
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
@@ -309,6 +311,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     };
     set("team", [...state.team, member]);
     setTeamSupplierId(null);
+    setTeamServices([]);
     setTeamName("");
     setTeamRole("");
     setTeamAmount("");
@@ -824,9 +827,13 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   onValueChange={(v) => {
                     const id = v === "none" ? null : Number(v);
                     setTeamSupplierId(id);
+                    setTeamServices([]);
                     if (id !== null) {
                       const sup = suppliers.find((s) => s.id === id);
                       if (sup) setTeamName(sup.name);
+                      // Puxa a tabela de serviços desse fornecedor pra preencher
+                      // função + valor com um clique.
+                      void listServices(id).then(setTeamServices).catch(() => setTeamServices([]));
                     } else {
                       setTeamName("");
                     }
@@ -844,6 +851,30 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                     ))}
                   </SelectContent>
                 </Select>
+                {teamServices.length > 0 && (
+                  <Select
+                    // remonta (reseta) quando troca de fornecedor
+                    key={teamSupplierId ?? "none"}
+                    onValueChange={(v) => {
+                      const svc = teamServices.find((s) => s.id === Number(v));
+                      if (!svc) return;
+                      setTeamRole(svc.description);
+                      if (svc.price != null) setTeamAmount(String(svc.price));
+                    }}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Puxar serviço…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teamServices.map((s) => (
+                        <SelectItem key={s.id} value={s.id.toString()}>
+                          {s.description}
+                          {s.price != null ? ` — ${formatCurrency(s.price)}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Input
                   placeholder="Nome"
                   value={teamName}
