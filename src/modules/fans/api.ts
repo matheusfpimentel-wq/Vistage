@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
 import type {
+  FanClubConfig,
   Fan,
   FanCreateInput,
   FanGroup,
@@ -323,6 +324,53 @@ export async function loadFanUpgradeRules(): Promise<FanUpgradeRules> {
   } catch {
     return {};
   }
+}
+
+// ============================================================
+// Configuração do clube (ações rápidas + catálogo de perks)
+// ============================================================
+
+export const DEFAULT_FAN_CLUB_CONFIG: FanClubConfig = {
+  actions: [
+    { id: "reativar", label: "Reativar fã", titleTemplate: "Reativar contato com {nome}" },
+    { id: "agradecer", label: "Agradecer presença", titleTemplate: "Agradecer presença de {nome} no show" },
+    { id: "convidar", label: "Convidar p/ próximo show", titleTemplate: "Convidar {nome} para o próximo show" },
+    { id: "brinde", label: "Enviar brinde", titleTemplate: "Enviar brinde para {nome}" },
+    { id: "aniversario", label: "Mensagem de aniversário", titleTemplate: "Mensagem de aniversário para {nome}" },
+  ],
+  perks: [
+    { id: "vinil", category: "Brinde", name: "Vinil autografado" },
+    { id: "vip", category: "VIP", name: "Lista VIP no próximo show" },
+    { id: "meet", category: "Acesso", name: "Meet & greet" },
+    { id: "cortesia", category: "Cortesia", name: "Par de ingressos" },
+  ],
+};
+
+export async function loadFanClubConfig(): Promise<FanClubConfig> {
+  const db = getDb();
+  const rows = await db.select<{ value: string }[]>(
+    `SELECT value FROM app_settings WHERE key = 'fan_club_config'`
+  );
+  if (!rows[0]) return DEFAULT_FAN_CLUB_CONFIG;
+  try {
+    const parsed = JSON.parse(rows[0].value) as Partial<FanClubConfig>;
+    return {
+      actions: parsed.actions ?? DEFAULT_FAN_CLUB_CONFIG.actions,
+      perks: parsed.perks ?? DEFAULT_FAN_CLUB_CONFIG.perks,
+    };
+  } catch {
+    return DEFAULT_FAN_CLUB_CONFIG;
+  }
+}
+
+export async function saveFanClubConfig(cfg: FanClubConfig): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `INSERT INTO app_settings (key, value) VALUES ('fan_club_config', $1)
+     ON CONFLICT(key) DO UPDATE SET value = $1`,
+    [JSON.stringify(cfg)]
+  );
+  emitDataChanged();
 }
 
 export async function getFanInteractionCounts(fanId: number): Promise<{

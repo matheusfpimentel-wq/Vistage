@@ -1,19 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  CalendarHeart,
-  Gift,
-  HandHeart,
-  ListTodo,
-  PartyPopper,
-  Plus,
-  RefreshCw,
-} from "lucide-react";
+import { ListTodo, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import { DATA_CHANGED } from "@/lib/events";
-import { createFanTask } from "../api";
+import { createFanTask, loadFanClubConfig } from "../api";
+import type { FanClubAction } from "../types";
 import { listTasksLinkedTo } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
 import { formatDate } from "@/lib/format";
@@ -23,50 +16,20 @@ type Props = {
   fanName: string;
 };
 
-type Preset = {
-  key: string;
-  label: string;
-  icon: typeof Gift;
-  title: (name: string) => string;
-};
-
-const PRESETS: Preset[] = [
-  {
-    key: "reativar",
-    label: "Reativar fã",
-    icon: RefreshCw,
-    title: (n) => `Reativar contato com ${n}`,
-  },
-  {
-    key: "agradecer",
-    label: "Agradecer presença",
-    icon: HandHeart,
-    title: (n) => `Agradecer presença de ${n} no show`,
-  },
-  {
-    key: "convidar",
-    label: "Convidar p/ próximo show",
-    icon: PartyPopper,
-    title: (n) => `Convidar ${n} para o próximo show`,
-  },
-  {
-    key: "brinde",
-    label: "Enviar brinde",
-    icon: Gift,
-    title: (n) => `Enviar brinde para ${n}`,
-  },
-  {
-    key: "aniversario",
-    label: "Mensagem de aniversário",
-    icon: CalendarHeart,
-    title: (n) => `Mensagem de aniversário para ${n}`,
-  },
-];
+/** Aplica o nome do fã ao template (`{nome}`). */
+function fillTemplate(template: string, name: string): string {
+  return template.replace(/\{nome\}/g, name);
+}
 
 export function FanQuickActions({ fanId, fanName }: Props) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [actions, setActions] = useState<FanClubAction[]>([]);
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void loadFanClubConfig().then((c) => setActions(c.actions));
+  }, []);
 
   async function refresh() {
     const all = await listTasksLinkedTo("fan", fanId);
@@ -102,20 +65,17 @@ export function FanQuickActions({ fanId, fanName }: Props) {
           e no histórico do fã.
         </p>
         <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => {
-            const Icon = p.icon;
-            return (
-              <Button
-                key={p.key}
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => void create(p.title(fanName))}
-              >
-                <Icon className="h-3.5 w-3.5" /> {p.label}
-              </Button>
-            );
-          })}
+          {actions.map((a) => (
+            <Button
+              key={a.id}
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void create(fillTemplate(a.titleTemplate, fanName))}
+            >
+              {a.label}
+            </Button>
+          ))}
         </div>
       </div>
 

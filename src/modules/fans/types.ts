@@ -163,3 +163,16 @@ export type FanPerk = {
 
 export type FanPerkCreateInput = Omit<FanPerk, "id" | "created_at" | "updated_at">;
 export type FanPerkUpdateInput = Partial<FanPerkCreateInput> & { id: number };
+
+// ============================================================
+// Configuração do clube de fãs (ações rápidas + catálogo de perks)
+// ============================================================
+
+/** Ação rápida configurável: vira tarefa do fã. `{nome}` é trocado pelo nome. */
+export type FanClubAction = { id: string; label: string; titleTemplate: string };
+/** Perk pré-definido do catálogo (atalho na aba Perks do fã). */
+export type FanClubPerkTemplate = { id: string; category: FanPerkCategory; name: string };
+export type FanClubConfig = {
+  actions: FanClubAction[];
+  perks: FanClubPerkTemplate[];
+};

@@ -17,10 +17,12 @@ import {
   addFanPerk,
   deleteFanPerk,
   listFanPerks,
+  loadFanClubConfig,
   markFanPerkDelivered,
 } from "../api";
 import {
   FAN_PERK_CATEGORIES,
+  type FanClubPerkTemplate,
   type FanPerk,
   type FanPerkCategory,
 } from "../types";
@@ -56,6 +58,7 @@ export function FanPerksList({ fanId, onChange }: Props) {
   const [name, setName] = useState("");
   const [date, setDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [catalog, setCatalog] = useState<FanClubPerkTemplate[]>([]);
 
   async function refresh() {
     setItems(await listFanPerks(fanId));
@@ -64,6 +67,17 @@ export function FanPerksList({ fanId, onChange }: Props) {
   useEffect(() => {
     void refresh();
   }, [fanId]);
+
+  useEffect(() => {
+    void loadFanClubConfig().then((c) => setCatalog(c.perks));
+  }, []);
+
+  async function quickAdd(p: FanClubPerkTemplate) {
+    await addFanPerk({ fan_id: fanId, category: p.category, name: p.name, status: "Planejado", date: null, notes: null });
+    await refresh();
+    onChange?.();
+    toast.success("Perk adicionado");
+  }
 
   async function handleAdd() {
     if (!name.trim()) {
@@ -130,6 +144,22 @@ export function FanPerksList({ fanId, onChange }: Props) {
           <strong className="text-emerald-500">{delivered}</strong> entregue(s)
         </span>
       </div>
+
+      {catalog.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {catalog.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => void quickAdd(p)}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs text-muted-foreground transition hover:border-primary hover:text-foreground"
+              title={`Adicionar "${p.name}" (${p.category})`}
+            >
+              <Plus className="h-3 w-3" /> {p.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-md border p-3">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[140px_1fr_150px_auto] sm:items-end">

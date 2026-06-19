@@ -7,6 +7,7 @@ import {
   Heart,
   LayoutGrid,
   List,
+  Megaphone,
   Pencil,
   Plus,
   Settings2,
@@ -42,6 +43,7 @@ import { toast } from "@/components/ui/toaster";
 import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
+import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
 import {
   addFanGroupMember,
   createFanGroup,
@@ -95,6 +97,7 @@ export function FansPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useState<ViewMode>("list");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
+  const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
   const cols = useResizableColumns("fans", [
     { id: "name", width: 240, min: 140 },
@@ -263,6 +266,9 @@ export function FansPage() {
             >
               <Settings2 className="h-4 w-4" />
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setClubConfigOpen(true)}>
+              <Megaphone className="h-4 w-4" /> Ações do clube
+            </Button>
           </div>
         }
         resultCount={fans.length}
@@ -413,6 +419,8 @@ export function FansPage() {
       <FanGroupsPanel fans={fans} />
 
       <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
+
+      <FanClubConfigDialog open={clubConfigOpen} onOpenChange={setClubConfigOpen} />
     </div>
   );
 }
