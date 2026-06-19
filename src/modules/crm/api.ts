@@ -137,6 +137,53 @@ export async function updateContact(input: ContactUpdateInput): Promise<void> {
   emitDataChanged();
 }
 
+/** Cria/atualiza o fã espelho de um contato (idempotente por contact_id). */
+export async function upsertFanMirror(contact: Contact): Promise<void> {
+  const db = getDb();
+  const existing = await db.select<{ id: number }[]>(
+    "SELECT id FROM fans WHERE contact_id = $1 LIMIT 1",
+    [contact.id]
+  );
+  if (existing[0]) {
+    await db.execute(
+      `UPDATE fans SET name = $1, instagram = $2, email = $3, phone = $4, city = $5,
+         updated_at = CURRENT_TIMESTAMP WHERE id = $6`,
+      [contact.name, contact.instagram ?? null, contact.email ?? null, contact.phone ?? null, contact.city ?? null, existing[0].id]
+    );
+  } else {
+    await db.execute(
+      `INSERT INTO fans (name, instagram, email, phone, city, notes, tags, contact_id)
+       VALUES ($1, $2, $3, $4, $5, $6, '[]', $7)`,
+      [contact.name, contact.instagram ?? null, contact.email ?? null, contact.phone ?? null, contact.city ?? null, contact.notes ?? null, contact.id]
+    );
+  }
+  emitDataChanged();
+}
+
+/** Remove o fã espelho de um contato (desselecionar o papel Fã). */
+export async function removeFanForContact(contactId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<{ id: number }[]>(
+    "SELECT id FROM fans WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  if (!rows[0]) return;
+  const { deleteFan } = await import("@/modules/fans/api");
+  await deleteFan(rows[0].id);
+}
+
+/** Remove o aluno espelho de um contato (desselecionar o papel Aluno). */
+export async function removeStudentForContact(contactId: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<{ id: number }[]>(
+    "SELECT id FROM students WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  if (!rows[0]) return;
+  const { deleteStudent } = await import("@/modules/classes/api");
+  await deleteStudent(rows[0].id);
+}
+
 export async function deleteContact(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM contacts WHERE id = $1", [id]);
@@ -227,7 +274,7 @@ export async function listGigsByContact(contactId: number): Promise<Gig[]> {
 /** Indica se o contato já possui personas espelho criadas. */
 export async function getMirrorState(
   contactId: number
-): Promise<{ supplier: boolean; student: boolean }> {
+): Promise<{ supplier: boolean; student: boolean; fan: boolean }> {
   const db = getDb();
   const sup = await db.select<{ id: number }[]>(
     "SELECT id FROM suppliers WHERE contact_id = $1 LIMIT 1",
@@ -237,7 +284,11 @@ export async function getMirrorState(
     "SELECT id FROM students WHERE contact_id = $1 LIMIT 1",
     [contactId]
   );
-  return { supplier: sup.length > 0, student: stu.length > 0 };
+  const fan = await db.select<{ id: number }[]>(
+    "SELECT id FROM fans WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  return { supplier: sup.length > 0, student: stu.length > 0, fan: fan.length > 0 };
 }
 
 /**
