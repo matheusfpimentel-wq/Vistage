@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
   buildBackup,
   hasAnyDocumentData,
@@ -9,6 +8,7 @@ import {
   restoreBackupFiles,
   restoreBackupSession,
   saveBackupToPath,
+  writeBackupFile,
   type Backup,
 } from "./backup";
 import { getDb } from "./db";
@@ -199,7 +199,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       });
       if (!path) return false;
       const backup = await buildBackup();
-      await writeTextFile(path, JSON.stringify(backup, null, 2));
+      await writeBackupFile(path, backup);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
       toast.success(`Salvo como ${fileName(path)}`);

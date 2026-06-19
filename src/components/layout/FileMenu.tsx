@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, FolderOpen, Loader2, Save, SaveAll, ShieldAlert } from "lucide-react";
+import { FileText, FolderOpen, Loader2, Lock, LockOpen, Save, SaveAll, ShieldAlert } from "lucide-react";
 import { useDocumentStore, displayDocName } from "@/lib/document";
 import { hasAnyDocumentData } from "@/lib/backup";
+import { useDocPassword, setDocPassword } from "@/lib/docPassword";
+import { promptPassword } from "@/lib/passwordPrompt";
 import { confirmDialog } from "@/components/ui/confirm";
+import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,8 +15,39 @@ import { cn } from "@/lib/utils";
  */
 export function FileMenu() {
   const { currentName, busy, dirty, open, save, saveAs } = useDocumentStore();
+  const isProtected = useDocPassword((s) => s.password != null);
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Define uma senha e grava o documento já cifrado.
+  async function handleProtect() {
+    setMenuOpen(false);
+    const pw = await promptPassword({
+      title: "Proteger com senha",
+      description: "Defina uma senha — ela será pedida toda vez que este arquivo for aberto.",
+      confirmLabel: "Proteger",
+      requireConfirm: true,
+    });
+    if (!pw) return;
+    setDocPassword(pw);
+    const saved = await save();
+    if (saved) toast.success("Documento protegido por senha.");
+  }
+
+  // Remove a proteção e regrava o documento em texto puro.
+  async function handleRemovePassword() {
+    setMenuOpen(false);
+    const ok = await confirmDialog({
+      title: "Remover senha",
+      description: "O arquivo deixará de ser protegido e poderá ser aberto sem senha. Continuar?",
+      confirmLabel: "Remover",
+      destructive: true,
+    });
+    if (!ok) return;
+    setDocPassword(null);
+    const saved = await save();
+    if (saved) toast.success("Senha removida.");
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -64,6 +98,9 @@ export function FileMenu() {
         <span className="hidden sm:inline max-w-[160px] truncate">
           {displayDocName(currentName) ?? "Arquivo"}
         </span>
+        {isProtected && (
+          <Lock className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Protegido por senha" />
+        )}
         {dirty && (
           <span
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
@@ -92,6 +129,20 @@ export function FileMenu() {
               void saveAs();
             }}
           />
+          <div className="border-t" />
+          {isProtected ? (
+            <MenuItem
+              icon={<LockOpen className="h-4 w-4" />}
+              label="Remover senha"
+              onClick={() => void handleRemovePassword()}
+            />
+          ) : (
+            <MenuItem
+              icon={<Lock className="h-4 w-4" />}
+              label="Proteger com senha…"
+              onClick={() => void handleProtect()}
+            />
+          )}
           <div className="flex items-start gap-1.5 border-t bg-amber-50 px-3 py-2 text-[11px] leading-snug text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
             <ShieldAlert className="mt-px h-3.5 w-3.5 shrink-0" />
             <span>
