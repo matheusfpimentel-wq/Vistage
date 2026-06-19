@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { loadAndApplyPrefs } from "./theme";
 import { Login } from "./screens/Login";
 import { Hoje } from "./screens/Hoje";
+import { Buscar } from "./screens/Buscar";
 import { Foco } from "./screens/Foco";
 import { Capturar } from "./screens/Capturar";
 
-type Tab = "hoje" | "foco" | "capturar";
+type Tab = "hoje" | "buscar" | "foco" | "capturar";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -17,8 +19,12 @@ export function App() {
     void supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setReady(true);
+      if (data.session) void loadAndApplyPrefs();
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+      if (s) void loadAndApplyPrefs();
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -41,12 +47,16 @@ export function App() {
       </header>
       <main className="content">
         {tab === "hoje" && <Hoje />}
+        {tab === "buscar" && <Buscar />}
         {tab === "foco" && <Foco />}
         {tab === "capturar" && <Capturar />}
       </main>
-      <nav className="tabbar">
+      <nav className="tabbar tabbar-4">
         <button className={tab === "hoje" ? "active" : ""} onClick={() => setTab("hoje")}>
           Hoje
+        </button>
+        <button className={tab === "buscar" ? "active" : ""} onClick={() => setTab("buscar")}>
+          Buscar
         </button>
         <button className={tab === "foco" ? "active" : ""} onClick={() => setTab("foco")}>
           Foco

@@ -181,17 +181,139 @@ async function buildFocus(uid: string) {
   return { user_id: uid, week, payload };
 }
 
+// ── Catálogo pesquisável (consulta no celular) ──────────────────────────────
+type CatalogRow = {
+  user_id: string;
+  kind: string; // 'gig' | 'track' | 'contact' | 'venue'
+  source_id: string;
+  title: string;
+  subtitle: string | null;
+  search_text: string;
+  meta: Record<string, unknown>;
+};
+
+function lc(...parts: (string | number | null | undefined)[]): string {
+  return parts.filter((p) => p != null && p !== "").join(" ").toLowerCase();
+}
+
+async function buildCatalog(uid: string): Promise<CatalogRow[]> {
+  const db = getDb();
+  const rows: CatalogRow[] = [];
+
+  // GIGs — inclui passadas (consulta), com contato do dia e contratante pra
+  // alimentar o modo foco/palco depois. Cachê é da própria conta (RLS).
+  const gigs = await db.select<{
+    id: number; date: string; start_time: string | null; end_time: string | null;
+    venue_name: string; venue_city: string | null; status: string; cache_amount: number | null;
+    day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
+  }[]>(
+    `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.venue_city, g.status,
+            g.cache_amount, g.day_contact_name, g.day_contact_phone, pc.name AS promoter_name
+       FROM gigs g
+       LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
+      ORDER BY g.date DESC LIMIT 800`,
+    []
+  );
+  for (const g of gigs)
+    rows.push({
+      user_id: uid, kind: "gig", source_id: String(g.id),
+      title: g.venue_name,
+      subtitle: [g.date, g.venue_city, g.status].filter(Boolean).join(" · "),
+      search_text: lc(g.venue_name, g.venue_city, g.status, g.date, g.promoter_name, g.day_contact_name),
+      meta: {
+        date: g.date, start_time: g.start_time, end_time: g.end_time, city: g.venue_city,
+        status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
+        day_contact_name: g.day_contact_name, day_contact_phone: g.day_contact_phone,
+      },
+    });
+
+  // Músicas (tracks) — título final ou de trabalho; estágio/projeto/gênero.
+  const tracks = await db.select<{
+    id: number; title_working: string; title_final: string | null; current_stage: string;
+    bpm: number | null; key: string | null; genre_primary: string | null; project: string | null;
+  }[]>(
+    `SELECT t.id, t.title_working, t.title_final, t.current_stage, t.bpm, t.key,
+            t.genre_primary, mp.title AS project
+       FROM tracks t
+       LEFT JOIN music_projects mp ON mp.id = t.project_id
+      ORDER BY t.updated_at DESC LIMIT 800`,
+    []
+  );
+  for (const t of tracks) {
+    const title = (t.title_final && t.title_final.trim()) || t.title_working;
+    rows.push({
+      user_id: uid, kind: "track", source_id: String(t.id),
+      title,
+      subtitle: [t.current_stage, t.project].filter(Boolean).join(" · "),
+      search_text: lc(title, t.project, t.current_stage, t.genre_primary, t.key),
+      meta: { stage: t.current_stage, bpm: t.bpm, key: t.key, genre: t.genre_primary, project: t.project },
+    });
+  }
+
+  // Pessoas (contatos) — diretório pesquisável.
+  const contacts = await db.select<{
+    id: number; name: string; city: string | null; phone: string | null; email: string | null;
+    instagram: string | null; company: string | null; relationship_types: string | null;
+  }[]>(
+    `SELECT id, name, city, phone, email, instagram, company, relationship_types
+       FROM contacts ORDER BY name LIMIT 2000`,
+    []
+  );
+  for (const c of contacts) {
+    let roles: string[] = [];
+    try { roles = c.relationship_types ? (JSON.parse(c.relationship_types) as string[]) : []; } catch { roles = []; }
+    rows.push({
+      user_id: uid, kind: "contact", source_id: String(c.id),
+      title: c.name,
+      subtitle: [c.city, c.company, roles.join(", ")].filter(Boolean).join(" · ") || null,
+      search_text: lc(c.name, c.city, c.company, c.phone, c.email, c.instagram, roles.join(" ")),
+      meta: { city: c.city, phone: c.phone, email: c.email, instagram: c.instagram, company: c.company, roles },
+    });
+  }
+
+  // Venues.
+  const venues = await db.select<{ id: number; name: string; city: string | null; state: string | null; capacity: number | null }[]>(
+    `SELECT id, name, city, state, capacity FROM venues ORDER BY name LIMIT 800`,
+    []
+  );
+  for (const v of venues)
+    rows.push({
+      user_id: uid, kind: "venue", source_id: String(v.id),
+      title: v.name,
+      subtitle: [v.city, v.state].filter(Boolean).join(", ") || null,
+      search_text: lc(v.name, v.city, v.state),
+      meta: { city: v.city, state: v.state, capacity: v.capacity },
+    });
+
+  return rows;
+}
+
+/** Tema/acento do desktop (localStorage do renderer) → espelho pro celular. */
+function buildPreferences(uid: string): { user_id: string; theme: string; accent: string } | null {
+  if (typeof localStorage === "undefined") return null;
+  const theme = localStorage.getItem("vistage.theme") === "light" ? "light" : "dark";
+  const accent = localStorage.getItem("vistage.accent") ?? "violet";
+  return { user_id: uid, theme, accent };
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 // ── PUSH ────────────────────────────────────────────────────────────────────
 export async function pushMirror(): Promise<void> {
   const user = await currentUser();
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, contacts, focus] = await Promise.all([
+  const [agenda, finance, contacts, focus, catalog] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
     buildContacts(uid),
     buildFocus(uid),
+    buildCatalog(uid),
   ]);
 
   // agenda e contato do dia: snapshot (apaga as próprias linhas e reinsere o set atual).
@@ -212,6 +334,18 @@ export async function pushMirror(): Promise<void> {
   }
   {
     const { error } = await supabase.from("focus_metrics").upsert(focus, { onConflict: "user_id,week" });
+    if (error) throw error;
+  }
+  // catálogo de consulta: snapshot (apaga as próprias linhas e reinsere em lotes).
+  await supabase.from("catalog_mirror").delete().eq("user_id", uid);
+  for (const part of chunk(catalog, 500)) {
+    const { error } = await supabase.from("catalog_mirror").insert(part);
+    if (error) throw error;
+  }
+  // aparência: tema/acento do desktop → 1 linha por conta.
+  const prefs = buildPreferences(uid);
+  if (prefs) {
+    const { error } = await supabase.from("user_preferences").upsert(prefs, { onConflict: "user_id" });
     if (error) throw error;
   }
 }
