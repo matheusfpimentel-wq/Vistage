@@ -170,3 +170,47 @@ begin
     alter publication supabase_realtime add table public.capture_inbox;
   end if;
 end $$;
+
+-- ============================================================================
+-- Consulta no celular: catálogo pesquisável + preferências de aparência
+-- ============================================================================
+
+-- ── Leitura: catálogo pesquisável (GIGs / músicas / pessoas / venues) ────────
+-- Espelho enxuto pra CONSULTA no celular. Snapshot reconstruído a cada push do
+-- desktop. search_text = concatenação minúscula pra busca ilike.
+create table if not exists public.catalog_mirror (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  kind        text not null,                       -- 'gig' | 'track' | 'contact' | 'venue'
+  source_id   text not null,                       -- id local
+  title       text not null,
+  subtitle    text,
+  search_text text,                                -- lower(concat) pra busca ilike
+  meta        jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now(),
+  unique (user_id, kind, source_id)
+);
+create index if not exists idx_catalog_user_kind on public.catalog_mirror (user_id, kind);
+
+-- ── Preferências de aparência (tema/acento) espelhadas do desktop ────────────
+create table if not exists public.user_preferences (
+  user_id     uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  theme       text,                                -- 'light' | 'dark'
+  accent      text,                                -- 'violet' | 'blue' | ...
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.catalog_mirror   enable row level security;
+alter table public.user_preferences enable row level security;
+
+drop policy if exists "own rows" on public.catalog_mirror;
+drop policy if exists "own rows" on public.user_preferences;
+
+create policy "own rows" on public.catalog_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy "own rows" on public.user_preferences
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop trigger if exists trg_bump on public.catalog_mirror;
+create trigger trg_bump after insert or update or delete on public.catalog_mirror
+  for each row execute function public.bump_sync_rev();
