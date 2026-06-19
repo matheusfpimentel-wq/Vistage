@@ -140,6 +140,20 @@ function MainApp() {
     hydrateTheme();
     (async () => {
       await hydrate();
+      // Sem config ainda? Cria um padrão na pasta de dados do app e segue —
+      // o app abre EM BRANCO, sem assistente de pasta/JSON. (A tela de Setup
+      // fica só como fallback caso isso falhe.) Pra carregar dados, o usuário
+      // usa Arquivo → Abrir… e escolhe um .vistage.
+      if (!useConfigStore.getState().ready) {
+        try {
+          const dir = await appDataDir();
+          const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+          const folder = `${dir.replace(/[\\/]+$/, "")}${sep}vistage`;
+          await useConfigStore.getState().setupNew(folder);
+        } catch (e) {
+          console.error("Falha ao criar config padrão:", e);
+        }
+      }
       setBooting(false);
     })();
   }, [hydrate, hydrateTheme]);
