@@ -35,19 +35,34 @@ import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 import { useModuleView } from "@/lib/moduleView";
 import { useImageUrl } from "@/lib/uploads";
+import { persistDocSetting } from "@/lib/docSettings";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
-import { RELATIONSHIP_TYPES, type RelationshipType } from "@/modules/crm/types";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  RELATIONSHIP_TYPES,
+  ratingToPriority,
+  type ContactPriority,
+  type RelationshipType,
+} from "@/modules/crm/types";
+import { RELATIONSHIP_ICON } from "@/modules/crm/relationMeta";
 
 type Role = RelationshipType;
-type RoleFilter = "Todos" | Role;
+
+const ROLE_FILTER_KEY = "vistage.filter.pessoas.roles";
+
+function loadRoleFilter(): Role[] {
+  try {
+    const raw = localStorage.getItem(ROLE_FILTER_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr))
+        return arr.filter((x): x is Role => (RELATIONSHIP_TYPES as readonly string[]).includes(x));
+    }
+  } catch {
+    /* ignora json inválido */
+  }
+  return [];
+}
 
 /** Pessoa unificada: um contato, um fornecedor, ou ambos (papel duplo). */
 type Person = {
@@ -64,6 +79,7 @@ type Person = {
   phone: string | null;
   instagram: string | null;
   roles: Role[];
+  priority: ContactPriority | null;
 };
 
 export function PessoasPage() {
@@ -72,8 +88,17 @@ export function PessoasPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [city, setCity] = useState("");
-  const [role, setRole] = useState<RoleFilter>("Todos");
+  const [roleFilter, setRoleFilter] = useState<Role[]>(loadRoleFilter);
   const [view, setView] = useModuleView<"cards" | "list">("pessoas", "cards");
+
+  // Filtro de papéis por ícones (multi-seleção). Persiste no .vistage.
+  function toggleRoleFilter(t: Role) {
+    setRoleFilter((prev) => {
+      const next = prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t];
+      persistDocSetting(ROLE_FILTER_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
 
   const [contactFormOpen, setContactFormOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -115,6 +140,7 @@ export function PessoasPage() {
             ...c.relationship_types,
             ...(supId != null ? (["Fornecedor"] as Role[]) : []),
           ],
+          priority: ratingToPriority(c.rating),
         });
       }
       for (const s of suppliers) {
@@ -130,6 +156,7 @@ export function PessoasPage() {
           phone: s.phone,
           instagram: s.instagram,
           roles: ["Fornecedor"],
+          priority: ratingToPriority(s.rating),
         });
       }
       list.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
@@ -155,7 +182,7 @@ export function PessoasPage() {
     }
     if (supId && !Number.isNaN(Number(supId))) setSupplierDetailId(Number(supId));
     const r = searchParams.get("role");
-    if (r && (RELATIONSHIP_TYPES as readonly string[]).includes(r)) setRole(r as Role);
+    if (r && (RELATIONSHIP_TYPES as readonly string[]).includes(r)) setRoleFilter([r as Role]);
     if (openId || supId) setSearchParams({}, { replace: true });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -163,7 +190,8 @@ export function PessoasPage() {
     const q = search.trim().toLowerCase();
     const cq = city.trim().toLowerCase();
     return persons.filter((p) => {
-      if (role !== "Todos" && !p.roles.includes(role)) return false;
+      // multi-seleção: mostra quem tem QUALQUER um dos papéis marcados (OU).
+      if (roleFilter.length > 0 && !p.roles.some((r) => roleFilter.includes(r))) return false;
       if (cq && !(p.city ?? "").toLowerCase().includes(cq)) return false;
       if (q) {
         const hay = [p.name, p.city, p.email, p.phone, p.instagram]
@@ -174,7 +202,7 @@ export function PessoasPage() {
       }
       return true;
     });
-  }, [persons, role, city, search]);
+  }, [persons, roleFilter, city, search]);
 
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(filtered);
 
@@ -271,19 +299,44 @@ export function PessoasPage() {
         }}
         viewToggle={
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={role} onValueChange={(v) => setRole(v as RoleFilter)}>
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Todos">Todos os papéis</SelectItem>
-                {RELATIONSHIP_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Filtro por papel via ícones clicáveis (multi-seleção, persistente). */}
+            <div className="flex items-center gap-1 rounded-md border p-0.5">
+              {RELATIONSHIP_TYPES.map((t) => {
+                const Icon = RELATIONSHIP_ICON[t];
+                const active = roleFilter.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    title={t}
+                    aria-label={t}
+                    aria-pressed={active}
+                    onClick={() => toggleRoleFilter(t)}
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded transition",
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                );
+              })}
+              {roleFilter.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRoleFilter([]);
+                    persistDocSetting(ROLE_FILTER_KEY, "[]");
+                  }}
+                  className="ml-0.5 px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  title="Limpar filtro de papéis"
+                >
+                  limpar
+                </button>
+              )}
+            </div>
             <ViewToggle
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
@@ -388,18 +441,49 @@ export function PessoasPage() {
   );
 }
 
-function RoleBadges({ roles }: { roles: Role[] }) {
+/** Badges dos papéis — todos com ícone próprio, no estilo "branco com ícone". */
+function RoleBadges({ roles, iconOnly = false }: { roles: Role[]; iconOnly?: boolean }) {
   if (roles.length === 0)
     return <span className="text-xs text-muted-foreground">Pessoa</span>;
   return (
     <div className="flex flex-wrap gap-1">
-      {roles.map((r) => (
-        <Badge key={r} variant={r === "Fornecedor" ? "outline" : "secondary"} className="gap-1">
-          {r === "Fornecedor" && <Store className="h-3 w-3" />}
-          {r}
-        </Badge>
-      ))}
+      {roles.map((r) => {
+        const Icon = RELATIONSHIP_ICON[r];
+        return (
+          <Badge
+            key={r}
+            variant="outline"
+            className={cn("gap-1", iconOnly && "px-1.5")}
+            title={iconOnly ? r : undefined}
+          >
+            <Icon className="h-3 w-3" />
+            {!iconOnly && r}
+          </Badge>
+        );
+      })}
     </div>
+  );
+}
+
+const PRIORITY_CLASS: Record<ContactPriority, string> = {
+  Alta: "bg-red-500/15 text-red-600 dark:text-red-400",
+  "Média": "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  Baixa: "bg-muted text-muted-foreground",
+};
+
+/** Selo compacto de prioridade da pessoa (some quando não definida). */
+function PriorityBadge({ priority }: { priority: ContactPriority | null }) {
+  if (!priority) return null;
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+        PRIORITY_CLASS[priority]
+      )}
+      title={`Prioridade ${priority}`}
+    >
+      {priority}
+    </span>
   );
 }
 
@@ -462,7 +546,8 @@ function PersonCard({
   onOpen,
   ...handlers
 }: { person: Person; onOpen: () => void } & RowHandlers) {
-  const sub = p.email ?? p.phone ?? p.instagram ?? "—";
+  // Cidade sai do card; @ e prioridade entram (preferência do usuário).
+  const sub = p.instagram ?? p.email ?? p.phone ?? null;
   return (
     <div
       role="button"
@@ -481,11 +566,12 @@ function PersonCard({
       </div>
       <PersonAvatarName person={p} size="lg" />
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="truncate font-medium leading-tight">{p.name}</div>
-        <RoleBadges roles={p.roles} />
-        <div className="truncate text-[11px] text-muted-foreground">
-          {(p.city ?? "—") + " · " + sub}
+        <div className="flex items-center gap-1.5">
+          <span className="truncate font-medium leading-tight">{p.name}</span>
+          <PriorityBadge priority={p.priority} />
         </div>
+        <RoleBadges roles={p.roles} />
+        {sub && <div className="truncate text-[11px] text-muted-foreground">{sub}</div>}
       </div>
     </div>
   );
@@ -509,10 +595,11 @@ function PersonTable({
   onDelete: (p: Person) => void;
 }) {
   const cols = useResizableColumns("pessoas", [
-    { id: "name", width: 260, min: 160 },
-    { id: "roles", width: 200 },
-    { id: "city", width: 150 },
-    { id: "contact", width: 200 },
+    { id: "name", width: 240, min: 160 },
+    { id: "roles", width: 190 },
+    { id: "priority", width: 100, min: 80 },
+    { id: "city", width: 140 },
+    { id: "contact", width: 190 },
     { id: "actions", width: 130, min: 110 },
   ]);
   const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
@@ -530,6 +617,7 @@ function PersonTable({
               <ColResizer {...cols.resizer("name")} />
             </SortableHeader>
             <th className="relative px-3 py-2 text-left">Papéis<ColResizer {...cols.resizer("roles")} /></th>
+            <th className="relative px-3 py-2 text-left">Prioridade<ColResizer {...cols.resizer("priority")} /></th>
             <SortableHeader<Person> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="px-3 py-2 text-left">
               <ColResizer {...cols.resizer("city")} />
             </SortableHeader>
@@ -549,6 +637,9 @@ function PersonTable({
               </td>
               <td className="px-3 py-2">
                 <RoleBadges roles={p.roles} />
+              </td>
+              <td className="px-3 py-2">
+                {p.priority ? <PriorityBadge priority={p.priority} /> : <span className="text-muted-foreground">—</span>}
               </td>
               <td className="px-3 py-2 text-muted-foreground">{p.city ?? "—"}</td>
               <td className="truncate px-3 py-2 text-muted-foreground">
