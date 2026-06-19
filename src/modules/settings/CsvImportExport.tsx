@@ -3,7 +3,6 @@ import { Download, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -120,9 +119,6 @@ export function CsvImportExport() {
             <FileSpreadsheet className="h-4 w-4" />
             Exportar / Importar CSV
           </CardTitle>
-          <CardDescription>
-            Por entidade. Útil pra planilha, contador, importação em massa.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Select value={entity} onValueChange={(v) => setEntity(v as CsvEntityKey)}>
@@ -162,8 +158,7 @@ export function CsvImportExport() {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            O cabeçalho do CSV precisa bater com as colunas da tabela. Exporte
-            uma vez pra ver o formato exato.
+            O cabeçalho do CSV precisa bater com as colunas da tabela.
           </p>
 
           <div className="border-t pt-3">
@@ -180,8 +175,7 @@ export function CsvImportExport() {
               Exportar tudo em CSV
             </Button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Gera um arquivo CSV por tabela numa pasta à sua escolha —
-              portabilidade total dos dados de uma vez.
+              Gera um arquivo CSV por tabela numa pasta à sua escolha.
             </p>
           </div>
         </CardContent>

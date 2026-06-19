@@ -1,5 +1,7 @@
 /**
- * Integração bidirecional com o Todoist (REST API v2).
+ * Integração bidirecional com o Todoist (API v1 unificada).
+ * As antigas REST v2 / Sync v9 foram descontinuadas (HTTP 410) e migraram pra
+ * o prefixo /api/v1; os endpoints de lista agora são paginados ({results,...}).
  * Token pessoal + projeto específico, armazenados em app_settings.
  * Usa o fetch do plugin HTTP do Tauri (passa pela camada Rust) — o fetch nativo
  * do webview falha por CORS, já que a API do Todoist não libera origem de browser.
@@ -66,10 +68,10 @@ export async function clearTodoistConfig(): Promise<void> {
 }
 
 // ────────────────────────────────────────────────
-// Todoist REST API v2
+// Todoist API v1 (unificada)
 // ────────────────────────────────────────────────
 
-const BASE = "https://api.todoist.com/rest/v2";
+const BASE = "https://api.todoist.com/api/v1";
 
 type TodoistTask = {
   id: string;
@@ -108,21 +110,82 @@ async function api<T>(
   return res.json() as Promise<T>;
 }
 
+/**
+ * Endpoints de LISTA na API v1 são paginados: devolvem { results, next_cursor }
+ * em vez de um array puro. Seguimos o cursor até o fim (com fallback caso a
+ * resposta ainda venha como array).
+ */
+async function apiList<T>(token: string, path: string): Promise<T[]> {
+  const out: T[] = [];
+  let cursor: string | null = null;
+  do {
+    const sep = path.includes("?") ? "&" : "?";
+    const url: string = cursor
+      ? `${path}${sep}cursor=${encodeURIComponent(cursor)}`
+      : path;
+    const page = await api<{ results: T[]; next_cursor: string | null } | T[]>(
+      token,
+      "GET",
+      url
+    );
+    if (Array.isArray(page)) {
+      out.push(...page);
+      break;
+    }
+    out.push(...(page.results ?? []));
+    cursor = page.next_cursor ?? null;
+  } while (cursor);
+  return out;
+}
+
+type RawTask = {
+  id: string | number;
+  content?: string;
+  description?: string;
+  project_id?: string | number;
+  due?: { date?: string } | null;
+  priority?: number;
+  is_completed?: boolean;
+  checked?: boolean;
+  completed_at?: string | null;
+  created_at?: string;
+  added_at?: string;
+  updated_at?: string;
+  labels?: string[];
+};
+
+/** Normaliza a tarefa da API v1 pro shape que a sync usa (campos defensivos). */
+function normalizeTask(t: RawTask): TodoistTask {
+  return {
+    id: String(t.id),
+    content: t.content ?? "",
+    description: t.description ?? "",
+    project_id: String(t.project_id ?? ""),
+    due: t.due?.date ? { date: t.due.date } : null,
+    priority: (t.priority ?? 1) as 1 | 2 | 3 | 4,
+    is_completed: Boolean(t.is_completed ?? t.checked ?? t.completed_at != null),
+    created_at: t.created_at ?? t.added_at ?? new Date().toISOString(),
+    updated_at: t.updated_at,
+    labels: t.labels ?? [],
+  };
+}
+
 export async function listTodoistProjects(
   token: string
 ): Promise<TodoistProject[]> {
-  return api<TodoistProject[]>(token, "GET", "/projects");
+  const raw = await apiList<{ id: string | number; name: string }>(token, "/projects");
+  return raw.map((p) => ({ id: String(p.id), name: p.name }));
 }
 
 async function fetchProjectTasks(
   token: string,
   projectId: string
 ): Promise<TodoistTask[]> {
-  return api<TodoistTask[]>(
+  const raw = await apiList<RawTask>(
     token,
-    "GET",
     `/tasks?project_id=${encodeURIComponent(projectId)}`
   );
+  return raw.map(normalizeTask);
 }
 
 async function createTodoistTask(
@@ -130,10 +193,11 @@ async function createTodoistTask(
   projectId: string,
   task: { content: string; description: string; due_date?: string; priority: number }
 ): Promise<TodoistTask> {
-  return api<TodoistTask>(token, "POST", "/tasks", {
+  const raw = await api<RawTask>(token, "POST", "/tasks", {
     ...task,
     project_id: projectId,
   });
+  return normalizeTask(raw);
 }
 
 async function updateTodoistTask(

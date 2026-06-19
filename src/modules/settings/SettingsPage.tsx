@@ -74,7 +74,6 @@ export function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Aparência</CardTitle>
-            <CardDescription>Tema e cor de destaque do app.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
@@ -121,17 +120,6 @@ export function SettingsPage() {
 
         <ShortcutSettings />
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Outras teclas</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <Shortcut keys={["Ctrl/Cmd", "S"]} label="Salvar documento (.vistage)" />
-            <Shortcut keys={["Ctrl/Cmd", "Enter"]} label="Salvar (dentro de modais)" />
-            <Shortcut keys={["Esc"]} label="Fecha modais e diálogos" />
-          </CardContent>
-        </Card>
-
         {canSeed && (
           <Card className="border-primary/30">
             <CardHeader>
@@ -159,23 +147,5 @@ export function SettingsPage() {
         )}
       </TabsContent>
     </Tabs>
-  );
-}
-
-function Shortcut({ keys, label }: { keys: string[]; label: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1">
-        {keys.map((k, i) => (
-          <span key={i} className="flex items-center gap-1">
-            {i > 0 && <span className="text-muted-foreground">+</span>}
-            <kbd className="inline-block rounded border bg-muted px-1.5 py-0.5 text-xs">
-              {k}
-            </kbd>
-          </span>
-        ))}
-      </div>
-    </div>
   );
 }
