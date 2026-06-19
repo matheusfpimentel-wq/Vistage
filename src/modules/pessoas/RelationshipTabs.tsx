@@ -28,7 +28,10 @@ import {
   updateSupplier,
 } from "@/modules/suppliers/api";
 import { SUPPLIER_CATEGORIES, type SupplierService } from "@/modules/suppliers/types";
-import { formatCurrency } from "@/lib/format";
+import { listMeetingsForContact } from "@/modules/meetings/api";
+import type { Meeting } from "@/modules/meetings/types";
+import { Link } from "react-router-dom";
+import { formatCurrency, formatDate } from "@/lib/format";
 
 /** Rótulo da aba de cada tipo de relação. */
 export const RELATION_TAB_LABEL: Record<ContactRelationshipType, string> = {
@@ -82,10 +85,17 @@ export function RelationshipTabContent({
     (contact.relationship_data[type] as Record<string, unknown>) ?? {}
   );
   const [saving, setSaving] = useState(false);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   useEffect(() => {
     setData((contact.relationship_data[type] as Record<string, unknown>) ?? {});
   }, [contact, type]);
+
+  useEffect(() => {
+    if (type === "Contratante") {
+      void listMeetingsForContact(contact.id).then(setMeetings).catch(() => setMeetings([]));
+    }
+  }, [type, contact.id]);
 
   const set = (key: string, value: unknown) => setData((d) => ({ ...d, [key]: value }));
   const str = (key: string) => (data[key] as string | undefined) ?? "";
@@ -129,6 +139,31 @@ export function RelationshipTabContent({
               value={(data.cacheReferencia as number | undefined) ?? ""}
               onChange={(e) => set("cacheReferencia", e.target.value ? Number(e.target.value) : null)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Reuniões</Label>
+              <Link to="/reunioes" className="text-xs text-primary hover:underline">
+                Ir para Reuniões
+              </Link>
+            </div>
+            {meetings.length === 0 ? (
+              <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+                Nenhuma reunião vinculada. Em Reuniões, use "+ Vincular pessoa".
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {meetings.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                    <span className="truncate">{m.title}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {m.date ? formatDate(m.date) : "sem data"} · {m.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

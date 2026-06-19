@@ -1699,6 +1699,11 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE contacts ADD COLUMN relationship_data TEXT;
     `,
   },
+  {
+    version: 116,
+    description: "meetings.contact_ids — vincula reuniões a pessoas (JSON array de contact ids).",
+    sql: `ALTER TABLE meetings ADD COLUMN contact_ids TEXT;`,
+  },
 ];
 
 
