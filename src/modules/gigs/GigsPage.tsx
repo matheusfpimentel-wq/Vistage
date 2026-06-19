@@ -36,6 +36,9 @@ import {
 import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { TaskForm } from "@/modules/tasks/forms/TaskForm";
+import { getTask } from "@/modules/tasks/api";
+import type { Task } from "@/modules/tasks/types";
 
 type StatusFilter = GigStatus | "Todas";
 
@@ -54,6 +57,9 @@ export function GigsPage() {
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [debriefGig, setDebriefGig] = useState<Gig | null>(null);
   const [debriefRequired, setDebriefRequired] = useState(false);
+
+  const [prepTask, setPrepTask] = useState<Task | null>(null);
+  const [prepOpen, setPrepOpen] = useState(false);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -168,6 +174,20 @@ export function GigsPage() {
     setDebriefOpen(true);
   }
 
+  // Preparação: abre a tarefa de preparo (checklist) da GIG. Sem ela ainda
+  // (GIG confirmada antes do recurso), cai pra edição da GIG.
+  async function openPrep(gig: Gig) {
+    if (gig.prep_task_id) {
+      const t = await getTask(gig.prep_task_id);
+      if (t) {
+        setPrepTask(t);
+        setPrepOpen(true);
+        return;
+      }
+    }
+    openEdit(gig);
+  }
+
   async function handleDelete(gig: Gig) {
     const ok = await confirmDialog({
       title: "Excluir",
@@ -277,6 +297,7 @@ export function GigsPage() {
           <ListView
             gigs={gigs}
             onEdit={openEdit}
+            onPrep={openPrep}
             onDebrief={openDebrief}
             onDelete={handleDelete}
           />
@@ -320,6 +341,13 @@ export function GigsPage() {
           onCompleted={() => void refresh()}
         />
       )}
+
+      <TaskForm
+        open={prepOpen}
+        onOpenChange={setPrepOpen}
+        task={prepTask}
+        onSaved={() => void refresh()}
+      />
 
     </div>
   );

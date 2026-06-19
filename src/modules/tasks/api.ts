@@ -142,6 +142,11 @@ export async function listTasks(filters: TaskFilters = {}): Promise<Task[]> {
   return rows.map(rowToTask);
 }
 
+export async function getTask(id: number): Promise<Task | null> {
+  const rows = await getDb().select<TaskRow[]>("SELECT * FROM tasks WHERE id = $1", [id]);
+  return rows[0] ? rowToTask(rows[0]) : null;
+}
+
 export async function createTask(input: TaskCreateInput): Promise<number> {
   const db = getDb();
   const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };

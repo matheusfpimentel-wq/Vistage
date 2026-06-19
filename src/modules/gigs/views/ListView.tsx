@@ -7,16 +7,32 @@ import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate, formatRating } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 
 type Props = {
   gigs: Gig[];
   onEdit: (gig: Gig) => void;
+  onPrep: (gig: Gig) => void;
   onDebrief: (gig: Gig) => void;
   onDelete: (gig: Gig) => void;
 };
 
-export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
+/** Mostra "Debrief" pra GIGs concluídas e "Preparação" pras confirmadas. */
+function showDebrief(g: Gig): boolean {
+  return g.status === "Concluída" || g.debrief_pending === 1 || !!g.debrief_completed_at;
+}
+
+export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
+  const cols = useResizableColumns("gigs", [
+    { id: "date", width: 110, min: 90 },
+    { id: "name", width: 300, min: 160 },
+    { id: "status", width: 180, min: 120 },
+    { id: "cache", width: 120, min: 90 },
+    { id: "rating", width: 110, min: 80 },
+    { id: "actions", width: 190, min: 150 },
+  ]);
+  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
 
   if (sorted.length === 0) {
     return (
@@ -28,7 +44,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
     );
   }
 
-  const cols: { key: keyof Gig; label: string }[] = [
+  const sortCols: { key: keyof Gig; label: string }[] = [
     { key: "date", label: "Data" },
     { key: "status", label: "Status" },
     { key: "cache_amount", label: "Cachê" },
@@ -42,7 +58,7 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
           <ArrowUpDown className="h-3.5 w-3.5" />
           <span>Ordenar:</span>
           <div className="flex flex-wrap gap-1">
-            {cols.map((col) => (
+            {sortCols.map((col) => (
               <button
                 key={col.key}
                 onClick={() => handleSort(col.key)}
@@ -99,9 +115,12 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
                 )}
               </div>
               <div className="flex justify-end gap-1 border-t pt-2">
-                {(g.status === "Concluída" ||
-                  g.debrief_pending === 1 ||
-                  g.debrief_completed_at) && (
+                {g.status === "Confirmada" && (
+                  <Button size="sm" variant="ghost" onClick={() => onPrep(g)}>
+                    Preparação
+                  </Button>
+                )}
+                {showDebrief(g) && (
                   <Button
                     size="sm"
                     variant={g.debrief_pending === 1 ? "default" : "ghost"}
@@ -122,108 +141,107 @@ export function ListView({ gigs, onEdit, onDebrief, onDelete }: Props) {
         })}
       </div>
 
-      {/* Desktop: tabela. */}
+      {/* Desktop: tabela com colunas redimensionáveis (arraste a alça; 2 cliques reseta). */}
       <div className="hidden overflow-x-auto rounded-md border sm:block">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-          <tr>
-            <SortableHeader<Gig> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
-            <th className="px-3 py-2 text-left">Show / Venue</th>
-            <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
-            <SortableHeader<Gig> col="cache_amount" label="Cachê" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground" />
-            <th className="px-3 py-2 text-right">Avaliação</th>
-            <th className="px-3 py-2 text-right">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((g) => {
-            const avg = averageRating(g);
-            return (
-              <tr
-                key={g.id}
-                className="border-t transition-colors hover:bg-muted/40"
-              >
-                <td className="px-3 py-2 whitespace-nowrap tabular-nums">
-                  {formatDate(g.date)}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="font-medium flex items-center gap-1.5">
-                    {gigDisplayName(g)}
-                    {g.status === "Concluída" &&
-                      (g.cache_amount ?? 0) > 0 &&
-                      g.payment_status !== "Pago integralmente" && (
-                        <span
-                          className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
-                          title="Cachê não recebido"
-                        >
-                          !
-                        </span>
+        <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+          <colgroup>
+            {cols.defs.map((c) => (
+              <col key={c.id} style={cols.colStyle(c.id)} />
+            ))}
+          </colgroup>
+          <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <SortableHeader<Gig> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground">
+                <ColResizer {...cols.resizer("date")} />
+              </SortableHeader>
+              <th className="relative px-3 py-2 text-left">Show / Venue<ColResizer {...cols.resizer("name")} /></th>
+              <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground">
+                <ColResizer {...cols.resizer("status")} />
+              </SortableHeader>
+              <SortableHeader<Gig> col="cache_amount" label="Cachê" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground">
+                <ColResizer {...cols.resizer("cache")} />
+              </SortableHeader>
+              <th className="relative px-3 py-2 text-right">Avaliação<ColResizer {...cols.resizer("rating")} /></th>
+              <th className="px-3 py-2 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((g) => {
+              const avg = averageRating(g);
+              return (
+                <tr key={g.id} className="border-t transition-colors hover:bg-muted/40">
+                  <td className="px-3 py-2 whitespace-nowrap tabular-nums">
+                    {formatDate(g.date)}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="font-medium flex items-center gap-1.5">
+                      <span className="truncate">{gigDisplayName(g)}</span>
+                      {g.status === "Concluída" &&
+                        (g.cache_amount ?? 0) > 0 &&
+                        g.payment_status !== "Pago integralmente" && (
+                          <span
+                            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                            title="Cachê não recebido"
+                          >
+                            !
+                          </span>
+                        )}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      {g.venue_name}
+                      {g.venue_city && ` · ${g.venue_city}`}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={g.status} />
+                      {g.debrief_pending === 1 && (
+                        <Badge variant="warning" className="gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          Debrief pendente
+                        </Badge>
                       )}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {g.venue_name}
-                    {g.venue_city && ` · ${g.venue_city}`}
-                  </div>
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={g.status} />
-                    {g.debrief_pending === 1 && (
-                      <Badge variant="warning" className="gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Debrief pendente
-                      </Badge>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {formatCurrency(g.cache_amount)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {avg !== null ? (
+                      <span className="text-amber-500">{formatRating(avg)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
                     )}
-                  </div>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {formatCurrency(g.cache_amount)}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {avg !== null ? (
-                    <span className="text-amber-500">{formatRating(avg)}</span>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-1">
-                    {(g.status === "Concluída" ||
-                      g.debrief_pending === 1 ||
-                      g.debrief_completed_at) && (
-                      <Button
-                        size="sm"
-                        variant={
-                          g.debrief_pending === 1 ? "default" : "ghost"
-                        }
-                        onClick={() => onDebrief(g)}
-                      >
-                        Debrief
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex justify-end gap-1">
+                      {g.status === "Confirmada" && (
+                        <Button size="sm" variant="ghost" onClick={() => onPrep(g)}>
+                          Preparação
+                        </Button>
+                      )}
+                      {showDebrief(g) && (
+                        <Button
+                          size="sm"
+                          variant={g.debrief_pending === 1 ? "default" : "ghost"}
+                          onClick={() => onDebrief(g)}
+                        >
+                          Debrief
+                        </Button>
+                      )}
+                      <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onEdit(g)}
-                      aria-label="Editar"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onDelete(g)}
-                      aria-label="Excluir"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                      <Button size="icon" variant="ghost" onClick={() => onDelete(g)} aria-label="Excluir">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </>
   );

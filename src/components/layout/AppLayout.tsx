@@ -182,7 +182,7 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-accent"
               aria-label="Configurações"
               title="Configurações"
             >
