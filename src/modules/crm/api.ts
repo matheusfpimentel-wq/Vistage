@@ -194,6 +194,49 @@ export async function deleteContact(id: number): Promise<void> {
   emitDataChanged();
 }
 
+/**
+ * Ação automática de aniversário: cria uma tarefa "🎂 Feliz aniversário: Nome"
+ * (vencendo hoje, vinculada ao contato) para cada pessoa cujo aniversário é
+ * hoje. Idempotente por ano: não duplica se já existe a tarefa do ano.
+ * Roda no boot do app (App.tsx).
+ */
+export async function syncBirthdayTasks(): Promise<void> {
+  try {
+    const db = getDb();
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const year = now.getFullYear();
+    const rows = await db.select<{ id: number; name: string }[]>(
+      `SELECT id, name FROM contacts
+        WHERE birthday IS NOT NULL AND substr(birthday, 6, 5) = $1`,
+      [`${mm}-${dd}`]
+    );
+    for (const c of rows) {
+      const title = `🎂 Feliz aniversário: ${c.name}`;
+      const existing = await db.select<{ id: number }[]>(
+        `SELECT id FROM tasks WHERE title = $1 AND due_date LIKE $2`,
+        [title, `${year}-%`]
+      );
+      if (existing.length > 0) continue;
+      const { createTask } = await import("@/modules/tasks/api");
+      await createTask({
+        title,
+        description: null,
+        category: "Pessoal",
+        priority: "Média",
+        status: "A fazer",
+        due_date: `${year}-${mm}-${dd}`,
+        gig_id: null,
+        contact_id: c.id,
+        tags: ["aniversário"],
+      });
+    }
+  } catch {
+    // silently skip — ação automática não pode quebrar o boot
+  }
+}
+
 // ============================================================
 // Interações
 // ============================================================

@@ -73,6 +73,7 @@ const EMPTY: FormState = {
   follower_count: null,
   venue_id: null,
   company: null,
+  birthday: null,
 };
 
 function contactToState(c: Contact): FormState {
@@ -92,6 +93,7 @@ function contactToState(c: Contact): FormState {
     follower_count: c.follower_count ?? null,
     venue_id: c.venue_id ?? null,
     company: c.company ?? null,
+    birthday: c.birthday ?? null,
   };
 }
 
@@ -355,6 +357,15 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                 value={state.city ?? ""}
                 onChange={(e) =>
                   setState((s) => ({ ...s, city: e.target.value || null }))
+                }
+              />
+            </Field>
+            <Field label="Aniversário">
+              <Input
+                type="date"
+                value={state.birthday ?? ""}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, birthday: e.target.value || null }))
                 }
               />
             </Field>
