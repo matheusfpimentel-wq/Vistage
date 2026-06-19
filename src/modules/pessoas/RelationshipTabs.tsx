@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { CalendarPlus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toaster";
 import { updateContact } from "@/modules/crm/api";
 import {
   ALVO_ESTAGIOS,
+  RELATIONSHIP_CATEGORIES,
   type Contact,
   type ContactRelationshipType,
   type RelationshipData,
@@ -22,9 +23,11 @@ import {
 import {
   createService,
   deleteService,
+  getSupplier,
   listServices,
+  updateSupplier,
 } from "@/modules/suppliers/api";
-import type { SupplierService } from "@/modules/suppliers/types";
+import { SUPPLIER_CATEGORIES, type SupplierService } from "@/modules/suppliers/types";
 import { formatCurrency } from "@/lib/format";
 
 /** Rótulo da aba de cada tipo de relação. */
@@ -35,15 +38,45 @@ export const RELATION_TAB_LABEL: Record<ContactRelationshipType, string> = {
   "Músico": "Música",
 };
 
+function CategoriaSelect({
+  type,
+  value,
+  onChange,
+}: {
+  type: ContactRelationshipType;
+  value: string | undefined;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label>Categoria</Label>
+      <Select value={value ?? ""} onValueChange={onChange}>
+        <SelectTrigger className="max-w-xs">
+          <SelectValue placeholder="Selecionar…" />
+        </SelectTrigger>
+        <SelectContent>
+          {RELATIONSHIP_CATEGORIES[type].map((c) => (
+            <SelectItem key={c} value={c}>
+              {c}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 /** Aba de uma relação: edita os campos específicos (relationship_data[type]). */
 export function RelationshipTabContent({
   type,
   contact,
   onSaved,
+  onCreateGig,
 }: {
   type: ContactRelationshipType;
   contact: Contact;
   onSaved: () => void;
+  onCreateGig?: () => void;
 }) {
   const [data, setData] = useState<Record<string, unknown>>(
     (contact.relationship_data[type] as Record<string, unknown>) ?? {}
@@ -54,16 +87,13 @@ export function RelationshipTabContent({
     setData((contact.relationship_data[type] as Record<string, unknown>) ?? {});
   }, [contact, type]);
 
-  const set = (key: string, value: unknown) =>
-    setData((d) => ({ ...d, [key]: value }));
+  const set = (key: string, value: unknown) => setData((d) => ({ ...d, [key]: value }));
+  const str = (key: string) => (data[key] as string | undefined) ?? "";
 
   async function save() {
     setSaving(true);
     try {
-      const next: RelationshipData = {
-        ...contact.relationship_data,
-        [type]: data,
-      };
+      const next: RelationshipData = { ...contact.relationship_data, [type]: data };
       await updateContact({ id: contact.id, relationship_data: next });
       toast.success("Salvo");
       onSaved();
@@ -76,11 +106,20 @@ export function RelationshipTabContent({
 
   return (
     <div className="space-y-3 pt-2">
+      <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
+
       {type === "Contratante" && (
         <>
-          <p className="text-xs text-muted-foreground">
-            As estatísticas de GIGs (quantas, faturamento, última) aparecem no topo deste perfil.
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {onCreateGig && (
+              <Button size="sm" variant="outline" onClick={onCreateGig}>
+                <CalendarPlus className="h-4 w-4" /> Nova GIG com esta pessoa
+              </Button>
+            )}
+            <span className="text-xs text-muted-foreground">
+              GIGs anteriores e faturamento aparecem no topo e na aba GIGs.
+            </span>
+          </div>
           <div className="space-y-1.5">
             <Label>Cachê de referência (R$)</Label>
             <Input
@@ -94,23 +133,38 @@ export function RelationshipTabContent({
         </>
       )}
 
+      {type === "Músico" && (
+        <>
+          <div className="space-y-1.5">
+            <Label>O que faz</Label>
+            <Input placeholder="Ex: DJ/produtor, cantora, baixista…" value={str("oQueFaz")} onChange={(e) => set("oQueFaz", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Onde toca</Label>
+            <Input placeholder="Casas, festivais, circuito…" value={str("ondeToca")} onChange={(e) => set("ondeToca", e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Instrumentos</Label>
+              <Input placeholder="Sax, vocal, guitarra…" value={str("instrumentos")} onChange={(e) => set("instrumentos", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Gêneros</Label>
+              <Input placeholder="House, MPB, techno…" value={str("generos")} onChange={(e) => set("generos", e.target.value)} />
+            </div>
+          </div>
+        </>
+      )}
+
       {type === "Parceiro" && (
         <>
           <div className="space-y-1.5">
-            <Label>Tipo de parceria</Label>
-            <Input
-              placeholder="Selo, coletivo, produção, B2B…"
-              value={(data.tipo as string | undefined) ?? ""}
-              onChange={(e) => set("tipo", e.target.value)}
-            />
+            <Label>Situação da parceria</Label>
+            <Input placeholder="Ativa, em negociação, pausada…" value={str("situacao")} onChange={(e) => set("situacao", e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Projetos / colaborações</Label>
-            <Textarea
-              rows={2}
-              value={(data.projetos as string | undefined) ?? ""}
-              onChange={(e) => set("projetos", e.target.value)}
-            />
+            <Textarea rows={2} value={str("projetos")} onChange={(e) => set("projetos", e.target.value)} />
           </div>
         </>
       )}
@@ -120,10 +174,7 @@ export function RelationshipTabContent({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Estágio</Label>
-              <Select
-                value={(data.estagio as string | undefined) ?? "Lead"}
-                onValueChange={(v) => set("estagio", v)}
-              >
+              <Select value={(data.estagio as string | undefined) ?? "Lead"} onValueChange={(v) => set("estagio", v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -138,52 +189,27 @@ export function RelationshipTabContent({
             </div>
             <div className="space-y-1.5">
               <Label>Data do próximo passo</Label>
-              <Input
-                type="date"
-                value={(data.proximoPassoData as string | undefined) ?? ""}
-                onChange={(e) => set("proximoPassoData", e.target.value || null)}
-              />
+              <Input type="date" value={str("proximoPassoData")} onChange={(e) => set("proximoPassoData", e.target.value || null)} />
             </div>
           </div>
           <div className="space-y-1.5">
+            <Label>Objetivo com esta pessoa</Label>
+            <Input placeholder="Ex: fechar residência, tocar no festival X…" value={str("objetivos")} onChange={(e) => set("objetivos", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Forma de abordagem</Label>
+            <Textarea rows={2} placeholder="Como pretende chegar nessa pessoa" value={str("abordagem")} onChange={(e) => set("abordagem", e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
             <Label>Próximo passo</Label>
-            <Input
-              placeholder="Ex: mandar press kit, marcar call…"
-              value={(data.proximoPasso as string | undefined) ?? ""}
-              onChange={(e) => set("proximoPasso", e.target.value)}
-            />
+            <Input placeholder="Ex: mandar press kit, marcar call…" value={str("proximoPasso")} onChange={(e) => set("proximoPasso", e.target.value)} />
           </div>
         </>
       )}
 
-      {type === "Músico" && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Instrumentos</Label>
-            <Input
-              placeholder="Sax, vocal, guitarra…"
-              value={(data.instrumentos as string | undefined) ?? ""}
-              onChange={(e) => set("instrumentos", e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Gêneros</Label>
-            <Input
-              placeholder="House, MPB, techno…"
-              value={(data.generos as string | undefined) ?? ""}
-              onChange={(e) => set("generos", e.target.value)}
-            />
-          </div>
-        </div>
-      )}
-
       <div className="space-y-1.5">
         <Label>Observações</Label>
-        <Textarea
-          rows={3}
-          value={(data.notas as string | undefined) ?? ""}
-          onChange={(e) => set("notas", e.target.value)}
-        />
+        <Textarea rows={3} value={str("notas")} onChange={(e) => set("notas", e.target.value)} />
       </div>
 
       <div className="flex justify-end">
@@ -195,20 +221,28 @@ export function RelationshipTabContent({
   );
 }
 
-/** Aba Serviços do Fornecedor: tabela de preços (esvaziar libera tirar o papel). */
+/** Aba Serviços do Fornecedor: categoria + tabela de preços (esvaziar libera tirar o papel). */
 export function ServicesTabContent({ supplierId }: { supplierId: number }) {
   const [services, setServices] = useState<SupplierService[]>([]);
+  const [category, setCategory] = useState<string>("");
   const [description, setDescription] = useState("");
   const [unit, setUnit] = useState("");
   const [price, setPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
   async function refresh() {
-    setServices(await listServices(supplierId));
+    const [svcs, sup] = await Promise.all([listServices(supplierId), getSupplier(supplierId)]);
+    setServices(svcs);
+    setCategory(sup?.category ?? "");
   }
   useEffect(() => {
     void refresh();
   }, [supplierId]);
+
+  async function saveCategory(v: string) {
+    setCategory(v);
+    await updateSupplier({ id: supplierId, category: v as never });
+  }
 
   async function add() {
     if (!description.trim()) {
@@ -238,8 +272,24 @@ export function ServicesTabContent({ supplierId }: { supplierId: number }) {
 
   return (
     <div className="space-y-3 pt-2">
+      <div className="space-y-1.5">
+        <Label>Categoria</Label>
+        <Select value={category} onValueChange={saveCategory}>
+          <SelectTrigger className="max-w-xs">
+            <SelectValue placeholder="Selecionar…" />
+          </SelectTrigger>
+          <SelectContent>
+            {SUPPLIER_CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>
+                {c}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <p className="text-xs text-muted-foreground">
-        Informações exclusivas de fornecedor. Esvazie esta lista para poder tirar o papel de Fornecedor.
+        Tabela de preços. Esvazie a lista para poder tirar o papel de Fornecedor.
       </p>
 
       {services.length > 0 && (
@@ -262,13 +312,7 @@ export function ServicesTabContent({ supplierId }: { supplierId: number }) {
                     {s.price != null ? formatCurrency(s.price) : "—"}
                   </td>
                   <td className="px-2 py-2 text-right">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      aria-label="Remover serviço"
-                      onClick={() => void remove(s.id)}
-                    >
+                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Remover serviço" onClick={() => void remove(s.id)}>
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </Button>
                   </td>

@@ -49,14 +49,22 @@ export type ContactRelationshipType = (typeof CONTACT_RELATIONSHIP_TYPES)[number
 
 /** Dados específicos por tipo de relação (aba de cada relação). */
 export type RelationshipData = {
-  Contratante?: { cacheReferencia?: number | null; notas?: string };
-  Parceiro?: { tipo?: string; projetos?: string; notas?: string };
-  Alvo?: { estagio?: AlvoEstagio; proximoPasso?: string; proximoPassoData?: string | null; notas?: string };
-  "Músico"?: { instrumentos?: string; generos?: string; notas?: string };
+  Contratante?: { categoria?: string; cacheReferencia?: number | null; notas?: string };
+  Parceiro?: { categoria?: string; situacao?: string; projetos?: string; status?: string; notas?: string };
+  Alvo?: { categoria?: string; estagio?: AlvoEstagio; objetivos?: string; abordagem?: string; proximoPasso?: string; proximoPassoData?: string | null; notas?: string };
+  "Músico"?: { categoria?: string; oQueFaz?: string; ondeToca?: string; instrumentos?: string; generos?: string; notas?: string };
 };
 
 export const ALVO_ESTAGIOS = ["Lead", "Em conversa", "Proposta enviada", "Fechado", "Perdido"] as const;
 export type AlvoEstagio = (typeof ALVO_ESTAGIOS)[number];
+
+/** Categorias por relação (cada relação tem o seu conjunto). */
+export const RELATIONSHIP_CATEGORIES: Record<ContactRelationshipType, readonly string[]> = {
+  Contratante: ["Casa/Club", "Produtora", "Festival", "Bar/Restaurante", "Corporativo", "Particular", "Público/Prefeitura", "Outro"],
+  Parceiro: ["Selo", "Coletivo", "Produtor", "DJ", "Agência/Booking", "Mídia", "Marca", "Outro"],
+  Alvo: ["Casa/Club", "Festival", "Selo", "Booker/Agência", "Marca", "Mídia", "Outro"],
+  "Músico": ["Vocalista", "Instrumentista", "Banda", "Produtor musical", "Beatmaker", "Outro"],
+};
 
 /** Mapeia os `types` legados para o tipo de relação, pra contatos antigos já aparecerem com papéis. */
 const LEGACY_TYPE_MAP: Record<string, ContactRelationshipType> = {

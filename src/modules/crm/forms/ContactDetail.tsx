@@ -228,7 +228,12 @@ export function ContactDetail({
 
               {contact.relationship_types.map((t) => (
                 <TabsContent key={t} value={`rel-${t}`}>
-                  <RelationshipTabContent type={t} contact={contact} onSaved={refresh} />
+                  <RelationshipTabContent
+                    type={t}
+                    contact={contact}
+                    onSaved={refresh}
+                    onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
+                  />
                 </TabsContent>
               ))}
               {supplierId != null && (
