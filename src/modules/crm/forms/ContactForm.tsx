@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,14 +26,12 @@ import {
 import {
   CONTACT_PRIORITIES,
   CONTACT_RELATIONSHIP_TYPES,
-  CONTACT_TYPES,
   priorityToRating,
   ratingToPriority,
   type Contact,
   type ContactCreateInput,
   type ContactPriority,
   type ContactRelationshipType,
-  type ContactType,
 } from "../types";
 import {
   createContact,
@@ -48,7 +46,6 @@ import {
 } from "../api";
 import { removeSupplierForContact } from "@/modules/suppliers/api";
 import { confirmDialog } from "@/components/ui/confirm";
-import { sortContactTypes } from "../components/TypeBadges";
 import { listVenues } from "@/modules/venues/api";
 
 type Props = {
@@ -102,8 +99,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   const [state, setStateRaw] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [tagInput, setTagInput] = useState("");
-  const [customTypeInput, setCustomTypeInput] = useState("");
-  const [showCustomTypeInput, setShowCustomTypeInput] = useState(false);
   const [venues, setVenues] = useState<{ id: number; name: string }[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
   const [alsoSupplier, setAlsoSupplier] = useState(false);
@@ -128,8 +123,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     if (contact) setStateRaw(contactToState(contact));
     else setStateRaw(EMPTY);
     setTagInput("");
-    setCustomTypeInput("");
-    setShowCustomTypeInput(false);
     setNameError(null);
     setAlsoSupplier(false);
     setAlsoStudent(false);
@@ -145,15 +138,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     }
     setDirty(false);
   }, [contact, open]);
-
-  function toggleType(type: ContactType) {
-    setState((s) => ({
-      ...s,
-      types: sortContactTypes(
-        s.types.includes(type) ? s.types.filter((t) => t !== type) : [...s.types, type]
-      ),
-    }));
-  }
 
   function toggleRelType(type: ContactRelationshipType) {
     setState((s) => {
@@ -184,16 +168,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     }
     setter(!current);
     setDirty(true);
-  }
-
-  function addCustomType() {
-    const t = customTypeInput.trim();
-    if (!t) return;
-    if (!state.types.includes(t)) {
-      setState((s) => ({ ...s, types: sortContactTypes([...s.types, t]) }));
-    }
-    setCustomTypeInput("");
-    setShowCustomTypeInput(false);
   }
 
   function addTag() {
@@ -346,65 +320,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                   {label}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Categoria</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {CONTACT_TYPES.map((type) => {
-                const active = state.types.includes(type);
-                return (
-                  <button
-                    key={type}
-                    type="button"
-                    onClick={() => toggleType(type)}
-                    className={cn(
-                      "rounded-md border px-2.5 py-1 text-xs transition",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-background hover:bg-accent"
-                    )}
-                  >
-                    {type}
-                  </button>
-                );
-              })}
-              {state.types.filter((t) => !CONTACT_TYPES.includes(t as (typeof CONTACT_TYPES)[number])).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => toggleType(t)}
-                  className="rounded-md border border-primary bg-primary px-2.5 py-1 text-xs text-primary-foreground transition"
-                >
-                  {t} <X className="inline h-3 w-3 ml-1" />
-                </button>
-              ))}
-              {showCustomTypeInput ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    autoFocus
-                    className="h-7 w-28 text-xs"
-                    placeholder="Novo tipo"
-                    value={customTypeInput}
-                    onChange={(e) => setCustomTypeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); addCustomType(); }
-                      if (e.key === "Escape") { setShowCustomTypeInput(false); setCustomTypeInput(""); }
-                    }}
-                  />
-                  <Button type="button" size="sm" className="h-7 text-xs px-2" onClick={addCustomType}>OK</Button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowCustomTypeInput(true)}
-                  className="rounded-md border border-dashed border-input bg-background px-2.5 py-1 text-xs text-muted-foreground transition hover:bg-accent"
-                >
-                  <Plus className="inline h-3 w-3 mr-0.5" />
-                  Outro
-                </button>
-              )}
             </div>
           </div>
 
