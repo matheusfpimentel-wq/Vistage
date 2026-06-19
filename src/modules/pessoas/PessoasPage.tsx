@@ -184,10 +184,6 @@ export function PessoasPage() {
     setEditingContact(null);
     setContactFormOpen(true);
   }
-  function newSupplier() {
-    setEditingSupplier(null);
-    setSupplierFormOpen(true);
-  }
   useNewItemShortcut(newContact);
 
   function openPerson(p: Person) {
@@ -292,8 +288,7 @@ export function PessoasPage() {
   return (
     <div className="space-y-4">
       <ModuleToolbar
-        primaryAction={{ label: "Novo contato", icon: Plus, onClick: newContact }}
-        secondaryActions={[{ label: "Novo fornecedor", icon: Store, onClick: newSupplier }]}
+        primaryAction={{ label: "Nova pessoa", icon: Plus, onClick: newContact }}
         search={{
           value: search,
           onChange: setSearch,

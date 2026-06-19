@@ -39,10 +39,15 @@ import {
   createContact,
   getContact,
   getMirrorState,
+  removeFanForContact,
+  removeStudentForContact,
   updateContact,
+  upsertFanMirror,
   upsertStudentMirror,
   upsertSupplierMirror,
 } from "../api";
+import { removeSupplierForContact } from "@/modules/suppliers/api";
+import { confirmDialog } from "@/components/ui/confirm";
 import { sortContactTypes } from "../components/TypeBadges";
 import { listVenues } from "@/modules/venues/api";
 
@@ -103,6 +108,9 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
   const [nameError, setNameError] = useState<string | null>(null);
   const [alsoSupplier, setAlsoSupplier] = useState(false);
   const [alsoStudent, setAlsoStudent] = useState(false);
+  const [alsoFan, setAlsoFan] = useState(false);
+  // estado inicial dos perfis paralelos (pra confirmar exclusão ao desmarcar)
+  const [hadMirror, setHadMirror] = useState({ supplier: false, student: false, fan: false });
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
@@ -125,10 +133,14 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     setNameError(null);
     setAlsoSupplier(false);
     setAlsoStudent(false);
+    setAlsoFan(false);
+    setHadMirror({ supplier: false, student: false, fan: false });
     if (contact) {
       void getMirrorState(contact.id).then((m) => {
         setAlsoSupplier(m.supplier);
         setAlsoStudent(m.student);
+        setAlsoFan(m.fan);
+        setHadMirror(m);
       });
     }
     setDirty(false);
@@ -153,6 +165,25 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           : [...cur, type],
       };
     });
+  }
+
+  // Fornecedor/Fã/Aluno: papéis que criam um perfil paralelo. Desmarcar um
+  // perfil de fã/aluno já existente pede confirmação (exclui ao salvar).
+  async function toggleParallel(kind: "supplier" | "fan" | "student") {
+    const current = kind === "supplier" ? alsoSupplier : kind === "fan" ? alsoFan : alsoStudent;
+    const setter = kind === "supplier" ? setAlsoSupplier : kind === "fan" ? setAlsoFan : setAlsoStudent;
+    if (current && hadMirror[kind] && kind !== "supplier") {
+      const label = kind === "fan" ? "fã" : "aluno";
+      const ok = await confirmDialog({
+        title: "Remover perfil paralelo",
+        description: `Isso vai excluir o perfil de ${label} desta pessoa ao salvar. Tem certeza?`,
+        confirmLabel: "Remover",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    setter(!current);
+    setDirty(true);
   }
 
   function addCustomType() {
@@ -191,14 +222,38 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
       const id = contact
         ? (await updateContact({ id: contact.id, ...state }), contact.id)
         : await createContact(state);
-      if (alsoSupplier || alsoStudent) {
-        const saved = await getContact(id);
-        if (saved) {
-          if (alsoSupplier) await upsertSupplierMirror(saved);
-          if (alsoStudent) await upsertStudentMirror(saved);
+      const saved = await getContact(id);
+      const created: string[] = [];
+      if (saved) {
+        // Fornecedor
+        if (alsoSupplier) {
+          await upsertSupplierMirror(saved);
+        } else if (hadMirror.supplier) {
+          const res = await removeSupplierForContact(saved.id);
+          if (!res.ok) toast.error(res.reason ?? "Não foi possível remover o fornecedor");
+        }
+        // Fã (perfil paralelo)
+        if (alsoFan) {
+          if (!hadMirror.fan) created.push("fã");
+          await upsertFanMirror(saved);
+        } else if (hadMirror.fan) {
+          await removeFanForContact(saved.id);
+        }
+        // Aluno (perfil paralelo)
+        if (alsoStudent) {
+          if (!hadMirror.student) created.push("aluno");
+          await upsertStudentMirror(saved);
+        } else if (hadMirror.student) {
+          await removeStudentForContact(saved.id);
         }
       }
-      toast.success(contact ? "Contato atualizado" : "Contato criado");
+      toast.success(
+        created.length > 0
+          ? `Pessoa salva — perfil de ${created.join(" e ")} criado`
+          : contact
+            ? "Contato atualizado"
+            : "Contato criado"
+      );
       onSaved(id);
       onOpenChange(false);
     } catch (e) {
@@ -212,7 +267,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{contact ? "Editar contato" : "Novo contato"}</DialogTitle>
+          <DialogTitle>{contact ? "Editar pessoa" : "Nova pessoa"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -250,7 +305,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tipo de relação (pode marcar mais de um)</Label>
+            <Label>Relação</Label>
             <div className="flex flex-wrap gap-1.5">
               {CONTACT_RELATIONSHIP_TYPES.map((type) => {
                 const active = (state.relationship_types ?? []).includes(type);
@@ -270,14 +325,32 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                   </button>
                 );
               })}
+              {(
+                [
+                  ["supplier", "Fornecedor", alsoSupplier],
+                  ["fan", "Fã", alsoFan],
+                  ["student", "Aluno", alsoStudent],
+                ] as const
+              ).map(([kind, label, active]) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => void toggleParallel(kind)}
+                  className={cn(
+                    "rounded-md border px-2.5 py-1 text-xs transition",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-input bg-background hover:bg-accent"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Fornecedor é gerenciado pela aba Serviços, no detalhe da pessoa.
-            </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Categoria / tipo detalhado</Label>
+            <Label>Categoria</Label>
             <div className="flex flex-wrap gap-1.5">
               {CONTACT_TYPES.map((type) => {
                 const active = state.types.includes(type);
@@ -475,38 +548,6 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
               </SelectContent>
             </Select>
           </div>
-
-          <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-            <Label>Também é</Label>
-            <p className="text-xs text-muted-foreground">
-              Cria uma persona espelho com os dados deste contato. Desmarcar não
-              remove o registro já existente.
-            </p>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={alsoSupplier}
-                onChange={(e) => {
-                  setAlsoSupplier(e.target.checked);
-                  setDirty(true);
-                }}
-                className="h-4 w-4"
-              />
-              <span className="text-sm">Também fornecedor</span>
-            </label>
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
-                checked={alsoStudent}
-                onChange={(e) => {
-                  setAlsoStudent(e.target.checked);
-                  setDirty(true);
-                }}
-                className="h-4 w-4"
-              />
-              <span className="text-sm">Também aluno</span>
-            </label>
-          </div>
         </div>
 
         <DialogFooter className="gap-2">
@@ -519,7 +560,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           </Button>
           <Button onClick={handleSubmit} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {contact ? "Salvar alterações" : "Criar contato"}
+            {contact ? "Salvar alterações" : "Criar pessoa"}
           </Button>
         </DialogFooter>
       </DialogContent>
