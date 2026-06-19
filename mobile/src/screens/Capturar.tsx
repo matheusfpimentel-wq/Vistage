@@ -1,48 +1,92 @@
 import { useState } from "react";
-import { supabase } from "../supabase";
+import { sendCapture } from "../capture";
 
-type Kind = "highlight" | "task" | "note";
+type Kind = "highlight" | "task" | "note" | "contact" | "gig";
 const KINDS: { id: Kind; label: string }[] = [
   { id: "highlight", label: "Destaque" },
   { id: "task", label: "Tarefa" },
   { id: "note", label: "Nota" },
+  { id: "contact", label: "Pessoa" },
+  { id: "gig", label: "GIG" },
 ];
+
+type Form = {
+  title: string;
+  body: string;
+  name: string;
+  phone: string;
+  email: string;
+  instagram: string;
+  city: string;
+  venue_name: string;
+  date: string;
+  cache: string;
+};
+const EMPTY: Form = {
+  title: "", body: "", name: "", phone: "", email: "", instagram: "",
+  city: "", venue_name: "", date: "", cache: "",
+};
 
 export function Capturar() {
   const [kind, setKind] = useState<Kind>("highlight");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
+  const [f, setF] = useState<Form>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const needsTitle = kind !== "note";
-  const canSend = needsTitle ? title.trim().length > 0 : body.trim().length > 0;
+  const set = (patch: Partial<Form>) => setF((cur) => ({ ...cur, ...patch }));
+
+  function canSend(): boolean {
+    if (kind === "note") return f.body.trim().length > 0;
+    if (kind === "contact") return f.name.trim().length > 0;
+    if (kind === "gig") return f.venue_name.trim().length > 0;
+    return f.title.trim().length > 0; // highlight, task
+  }
+
+  function buildPayload(): Record<string, unknown> {
+    switch (kind) {
+      case "task":
+        return { title: f.title, description: f.body || null };
+      case "note":
+        return { body: f.body };
+      case "contact":
+        return {
+          name: f.name,
+          phone: f.phone || null,
+          email: f.email || null,
+          instagram: f.instagram || null,
+          city: f.city || null,
+          notes: f.body || null,
+        };
+      case "gig":
+        return {
+          venue_name: f.venue_name,
+          date: f.date || null,
+          city: f.city || null,
+          cache_amount: f.cache ? Number(f.cache) : null,
+          notes: f.body || null,
+        };
+      default: // highlight
+        return { title: f.title, body: f.body || null };
+    }
+  }
 
   async function submit() {
     setBusy(true);
     setMsg(null);
-    const { data: u } = await supabase.auth.getUser();
-    const payload: Record<string, unknown> =
-      kind === "task" ? { title } : kind === "note" ? { body } : { title, body };
-    const { error } = await supabase.from("capture_inbox").insert({
-      user_id: u.user?.id,
-      kind,
-      client_ref: crypto.randomUUID(),
-      payload,
-    });
-    setBusy(false);
-    if (error) {
-      setMsg("Erro: " + error.message);
-    } else {
-      setMsg("Enviado! Aparece no PC na próxima sincronização.");
-      setTitle("");
-      setBody("");
+    try {
+      await sendCapture(kind, buildPayload());
+      setMsg("Enviado! Revise no PC pra adicionar ao arquivo.");
+      setF(EMPTY);
+    } catch (e) {
+      setMsg("Erro: " + ((e as Error).message ?? String(e)));
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="screen">
-      <div className="seg">
+      <div className="seg seg-scroll">
         {KINDS.map((k) => (
           <button
             key={k.id}
@@ -58,21 +102,74 @@ export function Capturar() {
       </div>
 
       <section className="card form">
-        {needsTitle && (
+        {(kind === "highlight" || kind === "task") && (
           <label>
             Título
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={f.title}
+              onChange={(e) => set({ title: e.target.value })}
               placeholder={kind === "task" ? "O que fazer" : "Título"}
             />
           </label>
         )}
+
+        {kind === "contact" && (
+          <>
+            <label>
+              Nome
+              <input value={f.name} onChange={(e) => set({ name: e.target.value })} placeholder="Nome da pessoa" />
+            </label>
+            <label>
+              Telefone
+              <input value={f.phone} onChange={(e) => set({ phone: e.target.value })} inputMode="tel" placeholder="Opcional" />
+            </label>
+            <label>
+              Instagram
+              <input value={f.instagram} onChange={(e) => set({ instagram: e.target.value })} placeholder="@ (opcional)" />
+            </label>
+            <label>
+              Email
+              <input value={f.email} onChange={(e) => set({ email: e.target.value })} inputMode="email" placeholder="Opcional" />
+            </label>
+            <label>
+              Cidade
+              <input value={f.city} onChange={(e) => set({ city: e.target.value })} placeholder="Opcional" />
+            </label>
+          </>
+        )}
+
+        {kind === "gig" && (
+          <>
+            <label>
+              Local / casa
+              <input value={f.venue_name} onChange={(e) => set({ venue_name: e.target.value })} placeholder="Nome da casa/evento" />
+            </label>
+            <label>
+              Data
+              <input type="date" value={f.date} onChange={(e) => set({ date: e.target.value })} />
+            </label>
+            <label>
+              Cidade
+              <input value={f.city} onChange={(e) => set({ city: e.target.value })} placeholder="Opcional" />
+            </label>
+            <label>
+              Cachê (R$)
+              <input value={f.cache} onChange={(e) => set({ cache: e.target.value })} inputMode="numeric" placeholder="Opcional" />
+            </label>
+          </>
+        )}
+
         <label>
-          {kind === "note" ? "Nota" : "Detalhe"}
-          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="Opcional" />
+          {kind === "note" ? "Nota" : kind === "contact" || kind === "gig" ? "Observações" : "Detalhe"}
+          <textarea
+            value={f.body}
+            onChange={(e) => set({ body: e.target.value })}
+            rows={kind === "note" ? 5 : 3}
+            placeholder={kind === "note" ? "" : "Opcional"}
+          />
         </label>
-        <button className="primary" disabled={busy || !canSend} onClick={() => void submit()}>
+
+        <button className="primary" disabled={busy || !canSend()} onClick={() => void submit()}>
           {busy ? "Enviando…" : "Enviar pro PC"}
         </button>
         {msg && <p className="muted">{msg}</p>}

@@ -105,11 +105,14 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .seg-scroll button { flex: 0 0 auto; white-space: nowrap; padding: 0.5rem 0.85rem; }
 .item.col { flex-direction: column; align-items: stretch; gap: 0.5rem; cursor: pointer; }
 .item-head { display: flex; align-items: center; gap: 0.6rem; }
-.detail { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; border-top: 1px solid var(--border); padding-top: 0.55rem; }
-.detail > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
-.detail dt { color: var(--muted); }
-.detail dd { margin: 0; text-align: right; min-width: 0; }
-.detail-empty { margin: 0; font-size: 0.85rem; }
+.detail { display: flex; flex-direction: column; gap: 0.6rem; border-top: 1px solid var(--border); padding-top: 0.55rem; }
+.detail-rows { margin: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.detail-rows > div { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
+.detail-rows dt { color: var(--muted); }
+.detail-rows dd { margin: 0; text-align: right; min-width: 0; }
+.anotar { display: flex; flex-direction: column; gap: 0.4rem; }
+.anotar textarea { font-size: 0.9rem; }
+.anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
 .bars { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .bars li { display: flex; justify-content: space-between; font-size: 0.85rem; }
@@ -142,6 +145,16 @@ button { font-family: inherit; cursor: pointer; }
 }
 .seg button { flex: 1; background: none; border: none; color: var(--muted); padding: 0.55rem; border-radius: 9px; font-weight: 600; }
 .seg button.active { background: var(--surface-2); color: var(--text); }
+
+/* ── Palco (stage) ─────────────────────────────── */
+.foco .stage { width: 100%; border-color: var(--accent); }
+.stage-live { box-shadow: 0 0 0 1px var(--accent); }
+.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.stage-title { font-size: 1.3rem; display: block; margin-top: 0.15rem; }
+.stage-sub { font-size: 0.85rem; margin-bottom: 0.5rem; }
+.stage-timing { font-size: 0.72rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.stage-timing.live { color: var(--pos); }
+.stage-rows { margin-top: 0.25rem; }
 
 /* ── Foco ──────────────────────────────────────── */
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }

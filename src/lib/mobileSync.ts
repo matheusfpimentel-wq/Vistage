@@ -6,6 +6,7 @@
 // PULL: lê a capture_inbox não consumida, cria os registros locais e marca como
 //       consumida. RLS garante que tudo é da própria conta (user_id = auth.uid()).
 
+import { create } from "zustand";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
 
@@ -350,43 +351,98 @@ export async function pushMirror(): Promise<void> {
   }
 }
 
-// ── PULL (capturas do celular → banco local) ────────────────────────────────
-type CaptureRow = { id: string; kind: string; payload: Record<string, unknown> };
+// ── Capturas do celular: REVISÃO no desktop (fundir / descartar) ─────────────
+// O celular insere em capture_inbox; o desktop NÃO aplica sozinho — mostra um
+// aviso pra FUNDIR tudo (ingerir no banco local) ou DESCARTAR. O descartado fica
+// recuperável no Backup. pending = consumed_at NULL AND discarded_at NULL.
+export type PendingCapture = {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
 
-let pulling = false;
-export async function pullCaptures(): Promise<number> {
-  if (pulling) return 0; // evita pulls concorrentes (intervalo + realtime)
-  pulling = true;
-  try {
-    const { data, error } = await supabase
-      .from("capture_inbox")
-      .select("id, kind, payload")
-      .is("consumed_at", null);
-    if (error) throw error;
-    const captures = (data ?? []) as CaptureRow[];
-    if (!captures.length) return 0;
+/** Store React: capturas aguardando revisão (alimenta o diálogo global). */
+export const useMobileChanges = create<{
+  pending: PendingCapture[];
+  setPending: (c: PendingCapture[]) => void;
+  refresh: () => Promise<void>;
+}>((set) => ({
+  pending: [],
+  setPending: (pending) => set({ pending }),
+  refresh: async () => {
+    try {
+      set({ pending: await fetchPendingCaptures() });
+    } catch {
+      /* sem login / offline → ignora */
+    }
+  },
+}));
 
-    const db = getDb();
-    const done: string[] = [];
-    for (const c of captures) {
-      try {
-        await ingest(db, c.kind, c.payload);
-        done.push(c.id);
-      } catch (e) {
-        console.error("Falha ao ingerir captura", c.id, e);
-      }
+export async function fetchPendingCaptures(): Promise<PendingCapture[]> {
+  const { data, error } = await supabase
+    .from("capture_inbox")
+    .select("id, kind, payload, created_at")
+    .is("consumed_at", null)
+    .is("discarded_at", null)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as PendingCapture[];
+}
+
+export async function listDiscardedCaptures(): Promise<PendingCapture[]> {
+  const { data, error } = await supabase
+    .from("capture_inbox")
+    .select("id, kind, payload, created_at")
+    .is("consumed_at", null)
+    .not("discarded_at", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PendingCapture[];
+}
+
+/** Funde: ingere no banco local as capturas dadas e marca como consumidas. */
+export async function ingestCaptures(ids: string[]): Promise<number> {
+  if (!ids.length) return 0;
+  const { data, error } = await supabase
+    .from("capture_inbox")
+    .select("id, kind, payload")
+    .in("id", ids);
+  if (error) throw error;
+  const caps = (data ?? []) as { id: string; kind: string; payload: Record<string, unknown> }[];
+  const db = getDb();
+  const done: string[] = [];
+  for (const c of caps) {
+    try {
+      await ingest(db, c.kind, c.payload);
+      done.push(c.id);
+    } catch (e) {
+      console.error("Falha ao ingerir captura", c.id, e);
     }
-    if (done.length) {
-      const { error: upErr } = await supabase
-        .from("capture_inbox")
-        .update({ consumed_at: new Date().toISOString() })
-        .in("id", done);
-      if (upErr) throw upErr;
-    }
-    return done.length;
-  } finally {
-    pulling = false;
   }
+  if (done.length) {
+    const { error: upErr } = await supabase
+      .from("capture_inbox")
+      .update({ consumed_at: new Date().toISOString(), discarded_at: null })
+      .in("id", done);
+    if (upErr) throw upErr;
+  }
+  return done.length;
+}
+
+/** Descarta (recuperável): marca discarded_at, sem aplicar nada no banco local. */
+export async function discardCaptures(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const { error } = await supabase
+    .from("capture_inbox")
+    .update({ discarded_at: new Date().toISOString() })
+    .in("id", ids);
+  if (error) throw error;
+}
+
+/** Recuperar (do Backup) = aplicar de fato o que tinha sido descartado. */
+export async function recoverCaptures(ids: string[]): Promise<number> {
+  return ingestCaptures(ids);
 }
 
 async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise<void> {
@@ -411,17 +467,73 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
        VALUES ($1, $2, $3, $4, 'A fazer', $5)`,
       [s("title") ?? "Tarefa", s("description"), s("category"), s("priority") ?? "Média", s("due_date")]
     );
+  } else if (kind === "contact") {
+    // Nova pessoa criada no celular (aditivo).
+    const { createContact } = await import("@/modules/crm/api");
+    await createContact({
+      name: s("name") ?? "Sem nome",
+      types: [],
+      relationship_types: [],
+      relationship_data: {},
+      phone: s("phone"),
+      email: s("email"),
+      instagram: s("instagram"),
+      city: s("city"),
+      tags: [],
+      notes: s("notes"),
+      rating: null,
+      photo_path: null,
+      follower_count: null,
+      venue_id: null,
+      company: s("company"),
+      birthday: null,
+    });
+  } else if (kind === "gig") {
+    // Nova GIG criada no celular (aditivo). createGig monta o INSERT só com as
+    // colunas passadas; o resto usa os defaults da tabela.
+    const { createGig } = await import("@/modules/gigs/api");
+    await createGig({
+      date: s("date") ?? todayISO(),
+      venue_name: s("venue_name") ?? "GIG",
+      venue_city: s("city"),
+      cache_amount: n("cache_amount"),
+      general_notes: s("notes"),
+      status: "Proposta",
+    } as unknown as Parameters<typeof createGig>[0]);
+  } else if (kind === "append_note") {
+    // "Anotar em" um item do catálogo (pessoa/GIG/música/venue): só ACRESCENTA.
+    const targetKind = s("target_kind");
+    const targetId = s("target_id");
+    const text = s("text");
+    const map: Record<string, { table: string; col: string }> = {
+      contact: { table: "contacts", col: "notes" },
+      gig: { table: "gigs", col: "general_notes" },
+      track: { table: "tracks", col: "stage_notes" },
+      venue: { table: "venues", col: "notes" },
+    };
+    const tc = targetKind ? map[targetKind] : undefined;
+    if (tc && targetId && text) {
+      const stamped = `[celular ${todayISO()}] ${text}`;
+      await db.execute(
+        `UPDATE ${tc.table}
+            SET ${tc.col} = TRIM(COALESCE(${tc.col} || char(10), '') || $1)
+          WHERE id = $2`,
+        [stamped, Number(targetId)]
+      );
+    }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }
 }
 
 // ── Orquestração ────────────────────────────────────────────────────────────
-export async function syncNow(): Promise<{ pulled: number }> {
+// Sobe o espelho e atualiza a contagem de capturas aguardando revisão — NÃO
+// aplica nada sozinho: quem decide fundir/descartar é o usuário pelo diálogo.
+export async function syncNow(): Promise<{ pending: number }> {
   await pushMirror();
-  const pulled = await pullCaptures();
   await setSetting(K.lastSyncAt, new Date().toISOString());
-  return { pulled };
+  await useMobileChanges.getState().refresh();
+  return { pending: useMobileChanges.getState().pending.length };
 }
 
 // ── Auto-sync (enquanto o app está aberto) ──────────────────────────────────
@@ -442,7 +554,7 @@ export function startAutoSync(): () => void {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "capture_inbox" },
         () => {
-          void pullCaptures().catch(() => {});
+          void useMobileChanges.getState().refresh();
         }
       )
       .subscribe();

@@ -8,6 +8,7 @@ import { Setup } from "@/pages/Setup";
 import { CommandPalette } from "@/components/shared/CommandPalette";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { UnsavedCloseGuard } from "@/components/shared/UnsavedCloseGuard";
+import { MobileChangesDialog } from "@/modules/settings/MobileChangesDialog";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
@@ -397,6 +398,7 @@ function RoutedApp() {
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
       <OpenDocumentDialog />
       <UnsavedCloseGuard />
+      <MobileChangesDialog />
     </>
   );
 }

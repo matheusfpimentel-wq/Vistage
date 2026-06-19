@@ -50,11 +50,11 @@ export function MobileSyncSettings() {
   async function handleSync() {
     setBusy(true);
     try {
-      const { pulled } = await syncNow();
+      const { pending } = await syncNow();
       setLastSync(await getLastSyncAt());
       toast.success(
-        pulled > 0
-          ? `Sincronizado. ${pulled} captura(s) do celular importada(s).`
+        pending > 0
+          ? `Sincronizado. ${pending} novidade(s) do celular aguardando revisão.`
           : "Sincronizado."
       );
     } catch (e) {
@@ -81,9 +81,10 @@ export function MobileSyncSettings() {
           <Cloud className="h-4 w-4" /> Sincronização mobile
         </CardTitle>
         <CardDescription>
-          Espelha agenda, saldo, contato do dia e foco para você consultar no
-          celular (PWA), e importa as capturas feitas no telefone. Finanças
-          detalhadas nunca saem do computador.
+          Espelha agenda, saldo, catálogo e aparência para você consultar no
+          celular (PWA). As novidades feitas no telefone chegam aqui pra você
+          revisar (fundir ou descartar). Finanças detalhadas nunca saem do
+          computador.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
