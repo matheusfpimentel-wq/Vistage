@@ -292,7 +292,7 @@ export function FansPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-md border">
-          <table className="table-fixed text-sm" style={{ width: tableWidth, minWidth: "100%" }}>
+          <table className="table-fixed text-sm" style={{ width: tableWidth }}>
             <colgroup>
               {cols.defs.map((c) => (
                 <col key={c.id} style={cols.colStyle(c.id)} />
