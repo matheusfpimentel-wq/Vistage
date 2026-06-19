@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -17,15 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
-import { AttachmentField } from "@/components/shared/AttachmentField";
-import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { LevelBadge } from "../components/LevelBadge";
+import { FanFields } from "./FanFields";
 import { addFanGroupMember, createFan, listFanGroups, updateFan } from "../api";
-import { FAN_LEVELS, type Fan, type FanCreateInput, type FanGroup, type FanLevel } from "../types";
+import { type Fan, type FanCreateInput, type FanGroup } from "../types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 
@@ -69,7 +64,6 @@ function fanToState(f: Fan): FanCreateInput {
 export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
   const [state, setStateRaw] = useState<FanCreateInput>(EMPTY);
   const [saving, setSaving] = useState(false);
-  const [tagInput, setTagInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [groups, setGroups] = useState<FanGroup[]>([]);
@@ -86,27 +80,12 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
     if (!open) return;
     if (fan) setStateRaw(fanToState(fan));
     else setStateRaw(EMPTY);
-    setTagInput("");
     setNameError(null);
     setDirty(false);
     setSelectedGroupId(null);
     void listFanGroups().then(setGroups).catch(() => {});
     void listContacts().then(setContacts).catch(() => {});
   }, [fan, open]);
-
-  function addTag() {
-    const t = tagInput.trim();
-    if (!t || state.tags.includes(t)) {
-      setTagInput("");
-      return;
-    }
-    setState((s) => ({ ...s, tags: [...s.tags, t] }));
-    setTagInput("");
-  }
-
-  function removeTag(tag: string) {
-    setState((s) => ({ ...s, tags: s.tags.filter((t) => t !== tag) }));
-  }
 
   async function handleSubmit() {
     if (!state.name.trim()) {
@@ -140,28 +119,13 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <AttachmentField
-            label="Foto"
-            value={state.photo_path}
-            onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
-            subdir="fans"
-            variant="image"
+          <FanFields
+            state={state}
+            setState={setState}
+            contacts={contacts}
+            nameError={nameError}
+            clearNameError={() => setNameError(null)}
           />
-
-          <div className="space-y-1.5">
-            <Label>
-              Nome <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              autoFocus
-              value={state.name}
-              onChange={(e) => {
-                setState((s) => ({ ...s, name: e.target.value }));
-                if (nameError) setNameError(null);
-              }}
-            />
-            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
-          </div>
 
           {!fan && groups.length > 0 && (
             <div className="space-y-1.5">
@@ -183,150 +147,6 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label>Nível</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {FAN_LEVELS.map((level) => {
-                const active = state.level === level;
-                return (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() =>
-                      setState((s) => ({
-                        ...s,
-                        level,
-                        is_ambassador: level === "Embaixador" ? 1 : 0,
-                      }))
-                    }
-                    className={cn(
-                      "rounded-md border px-2.5 py-1 text-xs transition",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-input bg-background hover:bg-accent"
-                    )}
-                  >
-                    {level}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Atual: <LevelBadge level={state.level as FanLevel} />
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Possível fã → Superfã são calculados pela pontuação.{" "}
-              <strong>Embaixador</strong> é um destaque manual (fica imune ao recálculo).
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Instagram">
-              <Input
-                placeholder="@fan"
-                value={state.instagram ?? ""}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, instagram: e.target.value || null }))
-                }
-              />
-            </Field>
-            <Field label="Telefone">
-              <Input
-                value={state.phone ?? ""}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, phone: e.target.value || null }))
-                }
-              />
-            </Field>
-            <Field label="Email">
-              <Input
-                type="email"
-                value={state.email ?? ""}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, email: e.target.value || null }))
-                }
-              />
-            </Field>
-            <Field label="Cidade">
-              <Input
-                value={state.city ?? ""}
-                onChange={(e) =>
-                  setState((s) => ({ ...s, city: e.target.value || null }))
-                }
-              />
-            </Field>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Vincular a contato (CRM)</Label>
-            <Select
-              value={state.contact_id != null ? String(state.contact_id) : "none"}
-              onValueChange={(v) =>
-                setState((s) => ({
-                  ...s,
-                  contact_id: v === "none" ? null : Number(v),
-                }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Nenhum contato" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum contato</SelectItem>
-                {contacts.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Tags</Label>
-            <div className="flex flex-wrap gap-1">
-              {state.tags.map((t) => (
-                <Badge key={t} variant="outline" className="gap-1 pr-1">
-                  {t}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(t)}
-                    className="rounded p-0.5 hover:bg-accent"
-                    aria-label="Remover"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Nova tag (Enter)"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" onClick={addTag}>
-                Adicionar
-              </Button>
-            </div>
-          </div>
-
-          <Field label="Notas">
-            <Textarea
-              rows={3}
-              placeholder="Como conheceu, gostos musicais, momento marcante…"
-              value={state.notes ?? ""}
-              onChange={(e) =>
-                setState((s) => ({ ...s, notes: e.target.value || null }))
-              }
-            />
-          </Field>
         </div>
 
         <DialogFooter className="gap-2">
@@ -344,20 +164,5 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
-    </div>
   );
 }

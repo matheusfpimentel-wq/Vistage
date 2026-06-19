@@ -410,10 +410,6 @@ export function FansPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         fanId={detailId}
-        onEdit={(f) => {
-          setDetailOpen(false);
-          openEdit(f);
-        }}
       />
 
       <FanGroupsPanel fans={fans} />
