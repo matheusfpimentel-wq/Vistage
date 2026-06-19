@@ -1731,6 +1731,18 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_fan_list_members_list ON fan_list_members(list_id);
     `,
   },
+  {
+    version: 119,
+    description:
+      "document_settings — preferências ligadas ao DOCUMENTO (.vistage), ex.: tema/acento. Portável (viaja com o arquivo), diferente de app_settings (por máquina).",
+    sql: `
+      CREATE TABLE IF NOT EXISTS document_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 

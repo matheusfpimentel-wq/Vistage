@@ -10,6 +10,7 @@ const TABLES = [
   // ── sem dependências ──────────────────────────────────────────────────────
   "app_settings",
   "gcal_auth",
+  "document_settings", // tema/acento — viaja com o .vistage (NÃO é máquina)
   "venues",          // contacts.venue_id → venues  (deve vir antes de contacts)
   "fans",
   "fan_groups",

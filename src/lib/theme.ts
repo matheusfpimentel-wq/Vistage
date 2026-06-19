@@ -1,10 +1,25 @@
 import { create } from "zustand";
+import { getDb } from "./db";
 
 export type Theme = "light" | "dark";
 export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan";
 
+// Cache local pra pintar sem flash no boot; a FONTE DA VERDADE é a tabela
+// document_settings (viaja com o .vistage).
 const LS_THEME = "vistage.theme";
 const LS_ACCENT = "vistage.accent";
+
+async function saveDocSetting(key: string, value: string): Promise<void> {
+  try {
+    await getDb().execute(
+      `INSERT INTO document_settings (key, value, updated_at) VALUES ($1, $2, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = datetime('now')`,
+      [key, value]
+    );
+  } catch {
+    /* banco ainda não pronto: o cache local cobre até o hydrateFromDocument */
+  }
+}
 
 type AccentDef = {
   id: Accent;
@@ -35,6 +50,7 @@ type ThemeState = {
   setAccent: (a: Accent) => void;
   toggle: () => void;
   hydrate: () => void;
+  hydrateFromDocument: () => Promise<void>;
 };
 
 function applyAccent(accent: Accent, theme: Theme) {
@@ -58,11 +74,13 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   accent: "violet",
   setTheme(t) {
     localStorage.setItem(LS_THEME, t);
+    void saveDocSetting("theme", t);
     applyToDom(t, get().accent);
     set({ theme: t });
   },
   setAccent(a) {
     localStorage.setItem(LS_ACCENT, a);
+    void saveDocSetting("accent", a);
     applyAccent(a, get().theme);
     set({ accent: a });
   },
@@ -79,5 +97,28 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       : "violet";
     applyToDom(theme, accent);
     set({ theme, accent });
+  },
+  /**
+   * Aplica o tema salvo NO DOCUMENTO (document_settings). Chamado após o banco
+   * abrir / ao abrir um .vistage — assim a aparência viaja com o arquivo. Se o
+   * documento não definir nada, mantém o que já está (cache local / default).
+   */
+  async hydrateFromDocument() {
+    try {
+      const rows = await getDb().select<{ key: string; value: string }[]>(
+        "SELECT key, value FROM document_settings WHERE key IN ('theme','accent')"
+      );
+      const map = new Map(rows.map((r) => [r.key, r.value]));
+      const dt = map.get("theme");
+      const da = map.get("accent");
+      const theme: Theme = dt === "light" || dt === "dark" ? dt : get().theme;
+      const accent: Accent = ACCENTS.some((a) => a.id === da) ? (da as Accent) : get().accent;
+      localStorage.setItem(LS_THEME, theme);
+      localStorage.setItem(LS_ACCENT, accent);
+      applyToDom(theme, accent);
+      set({ theme, accent });
+    } catch {
+      /* sem document_settings (banco antigo) — ignora */
+    }
   },
 }));

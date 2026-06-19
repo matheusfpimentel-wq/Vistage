@@ -289,11 +289,24 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   return rows;
 }
 
-/** Tema/acento do desktop (localStorage do renderer) → espelho pro celular. */
-function buildPreferences(uid: string): { user_id: string; theme: string; accent: string } | null {
-  if (typeof localStorage === "undefined") return null;
-  const theme = localStorage.getItem("vistage.theme") === "light" ? "light" : "dark";
-  const accent = localStorage.getItem("vistage.accent") ?? "violet";
+/** Tema/acento do DOCUMENTO (document_settings) → espelho pro celular. */
+async function buildPreferences(uid: string): Promise<{ user_id: string; theme: string; accent: string }> {
+  let theme = "dark";
+  let accent = "violet";
+  try {
+    const rows = await getDb().select<{ key: string; value: string }[]>(
+      "SELECT key, value FROM document_settings WHERE key IN ('theme','accent')"
+    );
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+    const dt = map.get("theme");
+    if (dt === "light" || dt === "dark") theme = dt;
+    if (map.get("accent")) accent = map.get("accent")!;
+  } catch {
+    if (typeof localStorage !== "undefined") {
+      theme = localStorage.getItem("vistage.theme") === "light" ? "light" : "dark";
+      accent = localStorage.getItem("vistage.accent") ?? "violet";
+    }
+  }
   return { user_id: uid, theme, accent };
 }
 
@@ -343,9 +356,9 @@ export async function pushMirror(): Promise<void> {
     const { error } = await supabase.from("catalog_mirror").insert(part);
     if (error) throw error;
   }
-  // aparência: tema/acento do desktop → 1 linha por conta.
-  const prefs = buildPreferences(uid);
-  if (prefs) {
+  // aparência: tema/acento do documento → 1 linha por conta.
+  const prefs = await buildPreferences(uid);
+  {
     const { error } = await supabase.from("user_preferences").upsert(prefs, { onConflict: "user_id" });
     if (error) throw error;
   }
