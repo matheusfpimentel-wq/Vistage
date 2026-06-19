@@ -4,6 +4,7 @@ import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists } from 
 import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
+import { persistViewPrefsToDocument } from "./docSettings";
 
 /** Versão do formato de backup. Bump se mudar o schema de exportação. */
 const BACKUP_VERSION = 2;
@@ -218,10 +219,12 @@ async function restoreFiles(
  */
 export async function buildBackup(): Promise<Backup> {
   const db = getDb();
-  // Garante que a aparência atual (tema/cor) esteja gravada no documento antes
-  // de lê-lo — assim o .vistage sempre carrega a aparência, mesmo logo após um
-  // boot em branco em que document_settings ainda não foi tocado.
+  // Garante que a aparência (tema/cor) e as preferências de view (abas, larguras
+  // de coluna, filtros) estejam gravadas no documento antes de lê-lo — assim o
+  // .vistage sempre carrega o layout atual, mesmo logo após um boot em branco em
+  // que document_settings ainda não foi tocado.
   await persistAppearanceToDocument().catch(() => {});
+  await persistViewPrefsToDocument().catch(() => {});
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
     const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);

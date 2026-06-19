@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { persistDocSetting } from "@/lib/docSettings";
 
 export type ColumnDef = {
   /** identificador estável da coluna (usado na persistência) */
@@ -49,11 +50,9 @@ export function useResizableColumns(key: string, columns: ColumnDef[]) {
   latest.current = widths;
 
   const persist = useCallback(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(latest.current));
-    } catch {
-      /* storage cheio/indisponível — ignora */
-    }
+    // Write-through: cache local (síncrono) + document_settings (viaja no
+    // .vistage), pra largura de coluna acompanhar o arquivo entre máquinas.
+    persistDocSetting(storageKey, JSON.stringify(latest.current));
   }, [storageKey]);
 
   useEffect(() => {
