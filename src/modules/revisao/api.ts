@@ -17,6 +17,7 @@ export type WeekStats = {
   pendingDebriefs: number;
   // sinais críticos adicionais (item 13)
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
+  hotIdeasStuckIds: number[]; // ids p/ link direto à ideia quando houver só uma
   stalledTracks: number;
   stalledParties: number;
   stalledContent: number;
@@ -28,6 +29,7 @@ export type WeekStats = {
   gigsUnprepared: number; // GIGs em <=72h com prep musical incompleta
   okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
   gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
+  gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
 };
 
@@ -153,9 +155,9 @@ async function computeWeekStats(): Promise<WeekStats> {
       `SELECT rating_charisma, rating_technique, rating_repertoire FROM gigs WHERE date >= $1 AND date <= $2 AND status = 'Concluída'`,
       [start, end]
     ), []),
-    // ideias quentes (heat 3) presas em Embrião há +15 dias
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM ideas
+    // ideias quentes (heat 3) presas em Embrião há +15 dias (com id p/ link direto)
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM ideas
         WHERE heat = 3 AND maturation = 'Embrião' AND substr(updated_at, 1, 10) < $1`,
       [cut15]
     ), []),
@@ -211,14 +213,20 @@ async function computeWeekStats(): Promise<WeekStats> {
         WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
       [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10); })()]
     ), []),
-    // GIGs concluídas há +48h com pagamento ainda não integral
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM gigs
+    // GIGs concluídas com cachê pendente. Sem previsão de pagamento, usa a regra
+    // das 48h (data já passou +2 dias). COM previsão (payment_due_date), ignora as
+    // 48h e só alerta se a previsão já venceu — assim uma GIG com pagamento
+    // agendado pra frente não vira alerta antes da hora.
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM gigs
         WHERE status = 'Concluída'
-          AND date < $1
           AND (payment_status IS NULL OR payment_status != 'Pago integralmente')
-          AND cache_amount IS NOT NULL AND cache_amount > 0`,
-      [(() => { const d = new Date(today); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); })()]
+          AND cache_amount IS NOT NULL AND cache_amount > 0
+          AND (
+            (payment_due_date IS NULL AND date < $1)
+            OR (payment_due_date IS NOT NULL AND payment_due_date < $2)
+          )`,
+      [(() => { const d = new Date(today); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); })(), today]
     ), []),
     // tracks em standby com data de retorno já vencida
     safeSelect<{ id: number; title: string }>(() => db.select(
@@ -292,7 +300,8 @@ async function computeWeekStats(): Promise<WeekStats> {
     tracksStalled,
     avgGigRating,
     pendingDebriefs: debriefRows[0]?.c ?? 0,
-    hotIdeasStuck: hotIdeasRows[0]?.c ?? 0,
+    hotIdeasStuck: (hotIdeasRows as { id: number }[]).length,
+    hotIdeasStuckIds: (hotIdeasRows as { id: number }[]).map((r) => r.id),
     stalledTracks,
     stalledParties: stalledPartiesRows[0]?.c ?? 0,
     stalledContent: stalledContentRows[0]?.c ?? 0,
@@ -303,7 +312,8 @@ async function computeWeekStats(): Promise<WeekStats> {
     superfasSemInteracao: superfasRows[0]?.c ?? 0,
     gigsUnprepared,
     okrsLagging,
-    gigsUnpaidAfter48h: gigsUnpaidRows[0]?.c ?? 0,
+    gigsUnpaidAfter48h: (gigsUnpaidRows as { id: number }[]).length,
+    gigsUnpaidIds: (gigsUnpaidRows as { id: number }[]).map((r) => r.id),
     tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],
   };
 }
