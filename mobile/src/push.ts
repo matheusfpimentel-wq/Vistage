@@ -85,17 +85,27 @@ export async function buildFocusBody(): Promise<string> {
   return "Pendências: " + tasks.map((t) => t.title).join(" · ");
 }
 
-export async function showFocusNotification(body: string): Promise<void> {
+export async function showFocusNotification(
+  body: string,
+  opts?: { title?: string; renotify?: boolean }
+): Promise<void> {
   if (!pushSupported() || Notification.permission !== "granted") return;
   const reg = await navigator.serviceWorker.getRegistration();
   if (!reg) return;
-  await reg.showNotification("Modo foco ativo", {
+  // tag "foco" mantém UMA notificação que vai sendo atualizada (tempo correndo);
+  // renotify só quando vence o tempo previsto, pra dar o alerta. data.url faz o
+  // toque trazer o app de volta (o service worker foca a janela).
+  // renotify é válido em runtime (o service worker usa), mas falta no lib.dom.
+  const options: NotificationOptions & { renotify?: boolean } = {
     body,
     tag: "foco",
+    renotify: opts?.renotify ?? false,
     requireInteraction: true,
     icon: "./icon-192.png",
     badge: "./icon-192.png",
-  });
+    data: { url: "./" },
+  };
+  await reg.showNotification(opts?.title ?? "Modo foco ativo", options);
 }
 
 export async function clearFocusNotification(): Promise<void> {

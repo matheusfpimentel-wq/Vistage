@@ -197,6 +197,46 @@ function lc(...parts: (string | number | null | undefined)[]): string {
   return parts.filter((p) => p != null && p !== "").join(" ").toLowerCase();
 }
 
+/** Períodos de set (time_slots) pro espelho — alimenta o palco no modo foco. */
+function parseMirrorSlots(time_slots: string | null, start: string | null, end: string | null): { start: string; end: string }[] {
+  try {
+    const arr = time_slots ? (JSON.parse(time_slots) as unknown) : null;
+    if (Array.isArray(arr)) {
+      const slots = arr
+        .filter((s): s is { start?: string; end?: string } => !!s && typeof s === "object")
+        .map((s) => ({ start: String(s.start ?? ""), end: String(s.end ?? "") }))
+        .filter((s) => s.start || s.end);
+      if (slots.length > 0) return slots;
+    }
+  } catch {
+    /* cai no fallback */
+  }
+  if (start || end) return [{ start: start ?? "", end: end ?? "" }];
+  return [];
+}
+
+/** Ideias de música (gig_research) pro espelho — alimenta o palco no modo foco. */
+function parseMirrorIdeas(gig_research: string | null): string[] {
+  try {
+    const arr = gig_research ? (JSON.parse(gig_research) as unknown) : null;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((r) => {
+        if (r && typeof r === "object") {
+          const o = r as { title?: unknown; artist?: unknown };
+          const t = typeof o.title === "string" ? o.title : "";
+          const a = typeof o.artist === "string" ? o.artist : "";
+          return [t, a].filter(Boolean).join(" · ");
+        }
+        return typeof r === "string" ? r : "";
+      })
+      .filter((x) => x.trim().length > 0)
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
 async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   const db = getDb();
   const rows: CatalogRow[] = [];
@@ -207,9 +247,11 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     id: number; date: string; start_time: string | null; end_time: string | null;
     venue_name: string; venue_city: string | null; status: string; cache_amount: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
+    time_slots: string | null; gig_research: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.venue_city, g.status,
-            g.cache_amount, g.day_contact_name, g.day_contact_phone, pc.name AS promoter_name
+            g.cache_amount, g.day_contact_name, g.day_contact_phone, pc.name AS promoter_name,
+            g.time_slots, g.gig_research
        FROM gigs g
        LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
       ORDER BY g.date DESC LIMIT 800`,
@@ -225,6 +267,9 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         date: g.date, start_time: g.start_time, end_time: g.end_time, city: g.venue_city,
         status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
         day_contact_name: g.day_contact_name, day_contact_phone: g.day_contact_phone,
+        // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
+        set_periods: parseMirrorSlots(g.time_slots, g.start_time, g.end_time),
+        ideas: parseMirrorIdeas(g.gig_research),
       },
     });
 
@@ -232,9 +277,10 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   const tracks = await db.select<{
     id: number; title_working: string; title_final: string | null; current_stage: string;
     bpm: number | null; key: string | null; genre_primary: string | null; project: string | null;
+    concept_narrative: string | null;
   }[]>(
     `SELECT t.id, t.title_working, t.title_final, t.current_stage, t.bpm, t.key,
-            t.genre_primary, mp.title AS project
+            t.genre_primary, mp.title AS project, t.concept_narrative
        FROM tracks t
        LEFT JOIN music_projects mp ON mp.id = t.project_id
       ORDER BY t.updated_at DESC LIMIT 800`,
@@ -247,7 +293,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       title,
       subtitle: [t.current_stage, t.project].filter(Boolean).join(" · "),
       search_text: lc(title, t.project, t.current_stage, t.genre_primary, t.key),
-      meta: { stage: t.current_stage, bpm: t.bpm, key: t.key, genre: t.genre_primary, project: t.project },
+      // concept: conceito da faixa pro modo foco/música no celular.
+      meta: { stage: t.current_stage, bpm: t.bpm, key: t.key, genre: t.genre_primary, project: t.project, concept: t.concept_narrative },
     });
   }
 
@@ -465,9 +512,9 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
   if (kind === "session") {
     const now = new Date().toISOString();
     await db.execute(
-      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes")]
+      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes")]
     );
   } else if (kind === "highlight" || kind === "note") {
     await db.execute(
