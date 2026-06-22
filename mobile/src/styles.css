@@ -181,9 +181,28 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Foco ──────────────────────────────────────── */
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }
-.timer { font-size: 3.4rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
 .big-btn { width: 100%; max-width: 320px; padding: 1.1rem; font-size: 1.1rem; }
 .foco .form { width: 100%; }
+
+/* Círculo do foco: anel de progresso + play/pause no centro. */
+.focus-ring {
+  position: relative; background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
+}
+.focus-ring-svg { display: block; transform: rotate(-90deg); }
+.focus-ring-prog { transition: stroke-dasharray 0.6s linear; }
+.focus-ring-prog.pulse { animation: ringpulse 1.2s ease-in-out infinite; }
+@keyframes ringpulse { 50% { opacity: 0.45; } }
+.focus-ring-center {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 0.25rem; pointer-events: none;
+}
+.focus-ring-time { font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--text); }
+.focus-ring-time.expired { color: #f59e0b; }
+.focus-ring-sub { font-size: 0.78rem; color: var(--muted); }
+.focus-expired { color: #f59e0b; font-weight: 600; font-size: 0.85rem; margin: 0; }
+.focus-ideas { list-style: none; margin: 0.3rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+.focus-concept { font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; margin: 0.3rem 0 0; color: var(--text); }
 
 /* ── Login / utilidades ────────────────────────── */
 .center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; }
