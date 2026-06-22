@@ -173,45 +173,58 @@ function SlotsEditor({
   function update(i: number, patch: Partial<GigTimeSlot>) {
     onChange(slots.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
   }
+  const addSlot = () => onChange([...slots, { start: "", end: "" }]);
   return (
     <div className="space-y-2">
-      {slots.map((slot, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <Input
-            type="time"
-            value={slot.start}
-            onChange={(e) => update(i, { start: e.target.value })}
-            className="w-28"
-            aria-label={`Início do intervalo ${i + 1}`}
-          />
-          <span className="text-sm text-muted-foreground">às</span>
-          <Input
-            type="time"
-            value={slot.end}
-            onChange={(e) => update(i, { end: e.target.value })}
-            className="w-28"
-            aria-label={`Fim do intervalo ${i + 1}`}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            onClick={() => onChange(slots.filter((_, idx) => idx !== i))}
-            aria-label="Remover intervalo"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => onChange([...slots, { start: "", end: "" }])}
-      >
-        <Plus className="h-3.5 w-3.5" /> Adicionar intervalo
-      </Button>
+      {slots.length === 0 ? (
+        <Button type="button" variant="outline" size="sm" onClick={addSlot}>
+          <Plus className="h-3.5 w-3.5" /> Adicionar intervalo
+        </Button>
+      ) : (
+        slots.map((slot, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Input
+              type="time"
+              value={slot.start}
+              onChange={(e) => update(i, { start: e.target.value })}
+              className="w-28"
+              aria-label={`Início do intervalo ${i + 1}`}
+            />
+            <span className="text-sm text-muted-foreground">às</span>
+            <Input
+              type="time"
+              value={slot.end}
+              onChange={(e) => update(i, { end: e.target.value })}
+              className="w-28"
+              aria-label={`Fim do intervalo ${i + 1}`}
+            />
+            {/* "+" compacto só na última linha — antes da lixeira, sem ocupar
+                uma linha inteira como o botão anterior. */}
+            {i === slots.length - 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-primary hover:text-primary"
+                onClick={addSlot}
+                aria-label="Adicionar intervalo"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              onClick={() => onChange(slots.filter((_, idx) => idx !== i))}
+              aria-label="Remover intervalo"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -574,7 +587,8 @@ export function GigForm({
           <TabsList className="flex w-full justify-start overflow-x-auto">
             <TabsTrigger value="geral">Geral</TabsTrigger>
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
-            <TabsTrigger value="prep">{showDebrief ? "Debrief" : "Preparação"}</TabsTrigger>
+            <TabsTrigger value="prep">Preparação</TabsTrigger>
+            <TabsTrigger value="debrief">Debrief</TabsTrigger>
             <TabsTrigger value="setlist">Setlist</TabsTrigger>
           </TabsList>
 
@@ -973,17 +987,10 @@ export function GigForm({
           )}
           </TabsContent>
 
-          {/* forceMount: mantém o debrief embutido montado mesmo fora da aba, pra
-              não perder o que foi digitado ao trocar de aba antes de salvar. */}
-          <TabsContent value="prep" className="space-y-4" forceMount>
-          {showDebrief && gig ? (
-            <DebriefForm
-              ref={debriefRef}
-              embedded
-              gig={gig}
-              onCompleted={() => onSaved({ id: gig.id, statusChanged: false, isNew: false })}
-            />
-          ) : state.status === "Proposta" ? (
+          {/* Preparação em aba própria — NÃO some quando a GIG conclui (o debrief
+              tem aba separada agora), então os dados de preparação não se perdem. */}
+          <TabsContent value="prep" className="space-y-4">
+          {state.status === "Proposta" ? (
             <ProposalHint />
           ) : (
           <Section
@@ -1105,6 +1112,31 @@ export function GigForm({
               )}
             </div>
           </Section>
+          )}
+          </TabsContent>
+
+          {/* Debrief em aba PRÓPRIA. forceMount mantém o formulário montado pra
+              não perder o que foi digitado ao trocar de aba; o Radix, porém,
+              deixa conteúdo forceMount sempre visível (present=true → hidden=false),
+              então sem o data-[state=inactive]:hidden o debrief vazava pra aba Geral. */}
+          <TabsContent value="debrief" className="space-y-4 data-[state=inactive]:hidden" forceMount>
+          {!gig ? (
+            <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              Salve a GIG primeiro para registrar o debrief.
+            </div>
+          ) : showDebrief ? (
+            <DebriefForm
+              ref={debriefRef}
+              embedded
+              gig={gig}
+              onCompleted={() => onSaved({ id: gig.id, statusChanged: false, isNew: false })}
+            />
+          ) : (
+            <div className="rounded-md border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              O debrief fica disponível quando a GIG for marcada como
+              <strong className="mx-1">Concluída</strong>. Os dados preenchidos
+              continuam aqui mesmo se ela voltar pra Confirmada.
+            </div>
           )}
           </TabsContent>
 

@@ -51,6 +51,10 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   const [editValue, setEditValue] = useState("");
   const [sel, setSel] = useState<Sel>(null);
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Pilha de desfazer (Ctrl+Z): cada alteração guarda o valor anterior por célula
+  // (em lote para Delete/colar-limpar, que mexem em várias de uma vez).
+  const undoStack = useRef<{ gigId: number; key: keyof Gig; before: string }[][]>([]);
 
   // Sorting
   const [sortCol, setSortCol] = useState<keyof Gig | null>(null);
@@ -108,16 +112,67 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     const gig = sortedGigs[rowIdx];
     const col = visibleCols[colIdx];
     if (!gig || !col) return;
+    const before = col.read(gig);
     const parsed = col.parse(raw);
     if (parsed === null && (col.key === "status" || col.key === "venue_name")) {
       if (col.key === "status") { toast.error("Status inválido"); return; }
     }
-    if (col.read(gig) === raw) return;
+    if (before === raw) return;
     try {
       await updateGig({ id: gig.id, ...gigUpdatePatch(col.key, parsed) } as Parameters<typeof updateGig>[0]);
+      pushUndo([{ gigId: gig.id, key: col.key, before }]);
       await onRefresh();
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
+    }
+  }
+
+  function pushUndo(batch: { gigId: number; key: keyof Gig; before: string }[]) {
+    if (batch.length === 0) return;
+    undoStack.current.push(batch);
+    if (undoStack.current.length > 50) undoStack.current.shift();
+  }
+
+  /** Desfaz a última alteração (ou o último lote de Delete/colar). */
+  async function undo() {
+    const batch = undoStack.current.pop();
+    if (!batch || batch.length === 0) return;
+    let restored = 0;
+    for (const entry of batch) {
+      const col = COLS.find((c) => c.key === entry.key);
+      if (!col) continue;
+      try {
+        await updateGig({ id: entry.gigId, ...gigUpdatePatch(entry.key, col.parse(entry.before)) } as Parameters<typeof updateGig>[0]);
+        restored++;
+      } catch { /* ignora célula */ }
+    }
+    if (restored > 0) {
+      await onRefresh();
+      toast.success("Alteração desfeita.");
+    }
+  }
+
+  /** Limpa as células da seleção. Status e Local são obrigatórios — não esvazia. */
+  async function clearSelection() {
+    if (!sel) return;
+    const batch: { gigId: number; key: keyof Gig; before: string }[] = [];
+    for (let r = sel.r0; r <= sel.r1; r++) {
+      for (let c = sel.c0; c <= sel.c1; c++) {
+        const gig = sortedGigs[r];
+        const col = visibleCols[c];
+        if (!gig || !col) continue;
+        if (col.key === "status" || col.key === "venue_name") continue;
+        const before = col.read(gig);
+        if (before === "") continue;
+        try {
+          await updateGig({ id: gig.id, ...gigUpdatePatch(col.key, col.parse("")) } as Parameters<typeof updateGig>[0]);
+          batch.push({ gigId: gig.id, key: col.key, before });
+        } catch { /* ignora célula */ }
+      }
+    }
+    if (batch.length > 0) {
+      pushUndo(batch);
+      await onRefresh();
     }
   }
 
@@ -126,11 +181,18 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
     setEditValue(grid[r]?.[c] ?? "");
   }
 
+  /** Type-to-edit: começa a edição já semeada com o caractere digitado. */
+  function startEditWith(r: number, c: number, ch: string) {
+    setEditing({ r, c });
+    setEditValue(ch);
+  }
+
   async function commitEdit() {
     if (!editing) return;
     const { r, c } = editing;
     setEditing(null);
     await persist(r, c, editValue);
+    containerRef.current?.focus();
   }
 
   function onCellMouseDown(r: number, c: number, e: React.MouseEvent) {
@@ -195,25 +257,57 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
 
   function handleContainerKeyDown(e: React.KeyboardEvent) {
     if (editing) return;
-    const arrows = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
-    if (!arrows.includes(e.key)) return;
-    e.preventDefault();
 
     const maxR = sortedGigs.length - 1;
     const maxC = visibleCols.length - 1;
     if (maxR < 0 || maxC < 0) return;
-
     const cur = anchor ?? { r: 0, c: 0 };
-    let nr = cur.r;
-    let nc = cur.c;
 
-    if (e.key === "ArrowUp") nr = Math.max(0, nr - 1);
-    if (e.key === "ArrowDown") nr = Math.min(maxR, nr + 1);
-    if (e.key === "ArrowLeft") nc = Math.max(0, nc - 1);
-    if (e.key === "ArrowRight") nc = Math.min(maxC, nc + 1);
+    // Ctrl/Cmd+Z desfaz a última alteração.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      void undo();
+      return;
+    }
+    // Deixa copiar/colar e demais atalhos do sistema passarem.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-    setAnchor({ r: nr, c: nc });
-    setSel({ r0: nr, c0: nc, r1: nr, c1: nc });
+    // Navegação por setas.
+    if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      let nr = cur.r;
+      let nc = cur.c;
+      if (e.key === "ArrowUp") nr = Math.max(0, nr - 1);
+      if (e.key === "ArrowDown") nr = Math.min(maxR, nr + 1);
+      if (e.key === "ArrowLeft") nc = Math.max(0, nc - 1);
+      if (e.key === "ArrowRight") nc = Math.min(maxC, nc + 1);
+      setAnchor({ r: nr, c: nc });
+      setSel({ r0: nr, c0: nc, r1: nr, c1: nc });
+      return;
+    }
+
+    if (!sel) return;
+
+    // Delete/Backspace limpa as células selecionadas.
+    if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      void clearSelection();
+      return;
+    }
+
+    // Enter/F2 abrem a edição da célula ativa (com o valor atual).
+    if (e.key === "Enter" || e.key === "F2") {
+      e.preventDefault();
+      startEdit(cur.r, cur.c);
+      return;
+    }
+
+    // Type-to-edit: qualquer caractere imprimível começa a edição já com ele —
+    // sem precisar clicar duas vezes na célula primeiro.
+    if (e.key.length === 1) {
+      e.preventDefault();
+      startEditWith(cur.r, cur.c, e.key);
+    }
   }
 
   function handleHeaderClick(key: keyof Gig) {
@@ -295,6 +389,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
         </div>
       </div>
       <div
+        ref={containerRef}
         className="overflow-auto rounded-md border"
         tabIndex={0}
         onCopy={handleCopy}
@@ -347,7 +442,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
                           onBlur={() => void commitEdit()}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") { e.preventDefault(); void commitEdit(); }
-                            if (e.key === "Escape") { setEditing(null); }
+                            if (e.key === "Escape") { setEditing(null); containerRef.current?.focus(); }
                           }}
                         />
                       ) : (

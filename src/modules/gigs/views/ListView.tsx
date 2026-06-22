@@ -5,7 +5,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
-import { formatCurrency, formatDate, formatRating } from "@/lib/format";
+import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 
@@ -24,6 +24,19 @@ type Props = {
  */
 function showDebrief(g: Gig): boolean {
   return g.status === "Concluída";
+}
+
+/**
+ * "!" de cachê só quando está de fato ATRASADO: GIG concluída, com cachê, não
+ * pago integralmente — e SEM previsão futura de recebimento. Com previsão pra
+ * frente (payment_due_date >= hoje) não está atrasado, então não alerta.
+ */
+function cacheOverdue(g: Gig): boolean {
+  if (g.status !== "Concluída") return false;
+  if ((g.cache_amount ?? 0) <= 0) return false;
+  if (g.payment_status === "Pago integralmente") return false;
+  if (g.payment_due_date && g.payment_due_date >= todayISO()) return false;
+  return true;
 }
 
 export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
@@ -86,16 +99,14 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-medium">
                     <span className="truncate">{gigDisplayName(g)}</span>
-                    {g.status === "Concluída" &&
-                      (g.cache_amount ?? 0) > 0 &&
-                      g.payment_status !== "Pago integralmente" && (
-                        <span
-                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
-                          title="Cachê não recebido"
-                        >
-                          !
-                        </span>
-                      )}
+                    {cacheOverdue(g) && (
+                      <span
+                        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                        title="Cachê não recebido"
+                      >
+                        !
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {formatDate(g.date)}
@@ -180,16 +191,14 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                   <td className="px-3 py-2">
                     <div className="font-medium flex items-center gap-1.5">
                       <span className="truncate">{gigDisplayName(g)}</span>
-                      {g.status === "Concluída" &&
-                        (g.cache_amount ?? 0) > 0 &&
-                        g.payment_status !== "Pago integralmente" && (
-                          <span
-                            className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
-                            title="Cachê não recebido"
-                          >
-                            !
-                          </span>
-                        )}
+                      {cacheOverdue(g) && (
+                        <span
+                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                          title="Cachê não recebido"
+                        >
+                          !
+                        </span>
+                      )}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
                       {g.venue_name}

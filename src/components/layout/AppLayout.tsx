@@ -12,7 +12,7 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { requestNewItemAt, triggerNewItem } from "@/lib/shortcuts";
+import { requestNewItemAt, triggerNewItem, useShortcutsConfig } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 const CREATE_ITEMS = [
@@ -34,6 +34,10 @@ export function AppLayout() {
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const createRef = useRef<HTMLDivElement>(null);
+  // Atalho de busca personalizável — reflete a tecla escolhida em Configurações
+  // (antes ficava fixo em "Ctrl K" mesmo após o usuário trocar).
+  const shortcuts = useShortcutsConfig();
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform);
 
   // Fecha o drawer mobile sempre que a rota muda.
   useEffect(() => {
@@ -158,9 +162,8 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => {
-                const isMac = /Mac|iPhone|iPad/i.test(navigator.platform);
                 const ev = new KeyboardEvent("keydown", {
-                  key: "k",
+                  key: shortcuts.search,
                   ctrlKey: !isMac,
                   metaKey: isMac,
                   bubbles: true,
@@ -173,7 +176,7 @@ export function AppLayout() {
               <Search className="h-3.5 w-3.5" />
               <span>Buscar…</span>
               <kbd className="ml-2 rounded border bg-background px-1.5 py-0.5 text-[10px]">
-                Ctrl K
+                {isMac ? "⌘" : "Ctrl"} {shortcuts.search.toUpperCase()}
               </kbd>
             </button>
             {/* Notificações */}
