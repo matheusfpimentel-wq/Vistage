@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Square, X } from "lucide-react";
 import { emit } from "@tauri-apps/api/event";
 import { readOverlayParams } from "./overlay";
+import { applyAccent, type Accent } from "@/lib/theme";
 
 function elapsed(startedAt: string, pauseOffset: number): string {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime() - pauseOffset) / 1000);
@@ -27,15 +28,14 @@ export function SessionOverlay() {
   const pauseStartRef = useRef<number | null>(null);
   const pauseOffsetRef = useRef(0);
 
-  // Apply theme
+  // Apply theme + accent (a personalização viaja na URL; sem isso a janela
+  // ficava sempre no violeta default do index.css).
   useEffect(() => {
     if (!params) return;
-    if (params.theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [params?.theme]);
+    const theme = params.theme === "dark" ? "dark" : "light";
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    applyAccent(params.accent as Accent, theme);
+  }, [params?.theme, params?.accent]);
 
   useEffect(() => {
     if (!params) return;
