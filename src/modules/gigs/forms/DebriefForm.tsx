@@ -201,30 +201,9 @@ export function DebriefForm({
       ? new Date(gig.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
       : "";
 
-    // One idea per "pontos fracos" line
-    if (state.debrief_weaknesses) {
-      const lines = state.debrief_weaknesses
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-      for (const line of lines) {
-        try {
-          await createIdea({
-            title: `Dificuldade GIG: ${gig.venue_name} — ${line.slice(0, 60)}`,
-            body: line,
-            category: "GIG",
-            maturation: "Embrião",
-            heat: 2,
-            tags: ["debrief", "ponto-fraco"],
-            converted_to: null,
-            converted_id: null,
-          });
-          count++;
-        } catch {
-          /* não interrompe */
-        }
-      }
-    }
+    // As dificuldades (pontos fracos) NÃO viram ideia — passam a aparecer como
+    // insight no "dado de insights" (lê debrief_weaknesses), pra refletir sem
+    // poluir o módulo Ideias.
 
     // Overall learnings
     if (state.debrief_learnings && state.debrief_learnings.trim()) {
