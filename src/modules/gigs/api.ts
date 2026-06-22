@@ -232,6 +232,40 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     await db
       .execute("UPDATE gigs SET debrief_pending = 0 WHERE id = $1 AND debrief_pending = 1", [id])
       .catch(() => {});
+    // Remove a tarefa de debrief auto-criada — sem isso ela fica "órfã" na lista
+    // de tarefas como se a GIG ainda estivesse concluída. (Os campos já
+    // preenchidos do debrief, se houver, continuam na GIG.)
+    try {
+      const drow = await db.select<{ debrief_task_id: number | null }[]>(
+        "SELECT debrief_task_id FROM gigs WHERE id = $1",
+        [id]
+      );
+      const dtid = drow[0]?.debrief_task_id;
+      if (dtid) {
+        const { deleteTask } = await import("@/modules/tasks/api");
+        await deleteTask(dtid).catch(() => {});
+        await db.execute("UPDATE gigs SET debrief_task_id = NULL WHERE id = $1", [id]).catch(() => {});
+      }
+    } catch { /* não interrompe */ }
+  }
+  // Debrief finalizado → conclui a tarefa "Debrief: ..." (não faz sentido ela
+  // continuar aberta depois que o debrief foi preenchido).
+  if ("debrief_completed_at" in rest && rest.debrief_completed_at) {
+    try {
+      const drow = await db.select<{ debrief_task_id: number | null }[]>(
+        "SELECT debrief_task_id FROM gigs WHERE id = $1",
+        [id]
+      );
+      const dtid = drow[0]?.debrief_task_id;
+      if (dtid) {
+        await db
+          .execute(
+            "UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'",
+            [dtid]
+          )
+          .catch(() => {});
+      }
+    } catch { /* não interrompe */ }
   }
   // Mantém o Financeiro sincronizado quando payment_status ou cache_amount mudam.
   // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se

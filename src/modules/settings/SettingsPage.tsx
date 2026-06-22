@@ -47,11 +47,11 @@ export function SettingsPage() {
   }
 
   return (
-    <Tabs defaultValue="backup" className="space-y-4">
+    <Tabs defaultValue="personalizacao" className="space-y-4">
       <TabsList className="w-full justify-start">
-        <TabsTrigger value="backup">Backup</TabsTrigger>
-        <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
+        <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+        <TabsTrigger value="backup">Backup</TabsTrigger>
       </TabsList>
 
       {/* ─── Backup (CSV) ────────────────────────────────────── */}

@@ -74,24 +74,8 @@ export async function createIdea(input: IdeaCreateInput): Promise<number> {
     values
   );
   const id = Number(res.lastInsertId);
-  // Cria tarefa vinculada
-  try {
-    const { createTask } = await import("@/modules/tasks/api");
-    const taskId = await createTask({
-      title: `Ideia: ${input.title}`,
-      description: input.body ?? null,
-      category: "Pessoal",
-      gig_id: null,
-      contact_id: null,
-      priority: "Baixa",
-      status: "A fazer",
-      due_date: null,
-      tags: ["ideia"],
-    });
-    await db.execute("UPDATE ideas SET task_id = $1 WHERE id = $2", [taskId, id]);
-  } catch {
-    /* não interrompe */
-  }
+  // Ideias NÃO geram tarefa automática — a criação de tarefa(s) é manual, pela
+  // opção que aparece quando a ideia está em "Desenvolvendo" (ver IdeaForm).
   emitDataChanged();
   return id;
 }
