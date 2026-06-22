@@ -74,17 +74,21 @@ export async function enableNotifications(): Promise<boolean> {
 }
 
 /**
- * No boot: se o usuário já ativou notificações antes, re-estabelece sem precisar
- * clicar de novo. Silencioso se a permissão do SO ainda estiver concedida; se o
- * SO tiver revogado, o prompt aparece uma vez automaticamente.
+ * No boot: se o usuário já ativou notificações antes, re-estabelece SÓ se a
+ * permissão do SO ainda estiver de pé — em silêncio, sem clique.
+ *
+ * Importante: NÃO re-pedimos a permissão automaticamente. Em alguns cenários o
+ * SO "esquece" a autorização a cada abertura — clássico no macOS quando o app
+ * roda via App Translocation (aberto de dentro do .dmg ou da pasta Downloads,
+ * fora de /Aplicativos) ou sem assinatura Developer ID. Re-pedir ali jogaria o
+ * prompt do sistema na cara do usuário TODA vez que abre. Quando a permissão
+ * cai, deixamos o re-ativar como ação explícita no sininho.
  */
 export async function restoreNotificationPreference(): Promise<void> {
   if (!(await getNotifPref())) return;
   try {
     if (await isPermissionGranted()) {
       void syncAlertNotifications();
-    } else {
-      await enableNotifications();
     }
   } catch {
     /* best-effort */
