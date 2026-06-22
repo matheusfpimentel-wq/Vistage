@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Plus, Search, Target, Trash2, X } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
-import { DebriefForm } from "./DebriefForm";
+import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
 import { RecurringFestField } from "./RecurringFestField";
@@ -225,6 +225,8 @@ export function GigForm({
   initialTab,
 }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
+  // Handle do debrief embutido — o "Salvar" finaliza o debrief por aqui.
+  const debriefRef = useRef<DebriefHandle>(null);
   // Debrief é relevante quando a GIG (salva) já está concluída / pendente.
   const showDebrief =
     !!gig && (gig.status === "Concluída" || gig.debrief_pending === 1 || !!gig.debrief_completed_at);
@@ -482,6 +484,16 @@ export function GigForm({
       }
 
       await setGigTracks(savedId, setListTrackIds);
+
+      // Finaliza o debrief embutido (quando a aba está ativa para esta GIG) —
+      // assim o "Salvar alterações" grava o debrief junto, sem botão separado.
+      if (gig && showDebrief) {
+        try {
+          await debriefRef.current?.commit();
+        } catch {
+          /* não interrompe o salvamento da GIG */
+        }
+      }
 
       onSaved({
         id: savedId,
@@ -961,9 +973,12 @@ export function GigForm({
           )}
           </TabsContent>
 
-          <TabsContent value="prep" className="space-y-4">
+          {/* forceMount: mantém o debrief embutido montado mesmo fora da aba, pra
+              não perder o que foi digitado ao trocar de aba antes de salvar. */}
+          <TabsContent value="prep" className="space-y-4" forceMount>
           {showDebrief && gig ? (
             <DebriefForm
+              ref={debriefRef}
               embedded
               gig={gig}
               onCompleted={() => onSaved({ id: gig.id, statusChanged: false, isNew: false })}
