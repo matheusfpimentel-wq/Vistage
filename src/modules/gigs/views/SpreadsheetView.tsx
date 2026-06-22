@@ -9,7 +9,7 @@ type Props = {
   onRefresh: () => Promise<void> | void;
 };
 
-/** Coluna editável da planilha. */
+/** Coluna da planilha. */
 type Col = {
   key: keyof Gig;
   label: string;
@@ -18,6 +18,12 @@ type Col = {
   /** Converte o texto da célula para o valor a persistir (ou null para inválido). */
   parse: (raw: string) => unknown;
   width?: string;
+  /**
+   * Coluna só-leitura: exibe mas não edita pela planilha. Usada no Contratante,
+   * que é uma FK pra um contato — definir por texto livre seria frágil; a edição
+   * fica no seletor do formulário da GIG e na aba Lote.
+   */
+  readOnly?: boolean;
 };
 
 const COLS: Col[] = [
@@ -27,6 +33,7 @@ const COLS: Col[] = [
   { key: "event_name", label: "Evento", read: (g) => gigDisplayName(g), parse: (v) => v.trim() || null, width: "180px" },
   { key: "venue_name", label: "Local", read: (g) => g.venue_name ?? "", parse: (v) => v.trim(), width: "180px" },
   { key: "venue_city", label: "Cidade", read: (g) => g.venue_city ?? "", parse: (v) => v.trim() || null, width: "140px" },
+  { key: "promoter_contact_id", label: "Contratante", read: (g) => g.promoter_contact_name ?? "", parse: (v) => v, width: "180px", readOnly: true },
   { key: "status", label: "Status", read: (g) => g.status, parse: (v) => (GIG_STATUSES as readonly string[]).includes(v.trim()) ? v.trim() : null, width: "120px" },
   { key: "estimated_audience", label: "Público", read: (g) => g.estimated_audience?.toString() ?? "", parse: (v) => v.trim() === "" ? null : Number(v) || null, width: "100px" },
   { key: "cache_amount", label: "Cachê", read: (g) => g.cache_amount?.toString() ?? "", parse: (v) => v.trim() === "" ? null : Number(v.replace(",", ".")) || null, width: "110px" },
@@ -111,7 +118,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   async function persist(rowIdx: number, colIdx: number, raw: string) {
     const gig = sortedGigs[rowIdx];
     const col = visibleCols[colIdx];
-    if (!gig || !col) return;
+    if (!gig || !col || col.readOnly) return;
     const before = col.read(gig);
     const parsed = col.parse(raw);
     if (parsed === null && (col.key === "status" || col.key === "venue_name")) {
@@ -161,7 +168,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
         const gig = sortedGigs[r];
         const col = visibleCols[c];
         if (!gig || !col) continue;
-        if (col.key === "status" || col.key === "venue_name") continue;
+        if (col.readOnly || col.key === "status" || col.key === "venue_name") continue;
         const before = col.read(gig);
         if (before === "") continue;
         try {
@@ -177,12 +184,14 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   }
 
   function startEdit(r: number, c: number) {
+    if (visibleCols[c]?.readOnly) return;
     setEditing({ r, c });
     setEditValue(grid[r]?.[c] ?? "");
   }
 
   /** Type-to-edit: começa a edição já semeada com o caractere digitado. */
   function startEditWith(r: number, c: number, ch: string) {
+    if (visibleCols[c]?.readOnly) return;
     setEditing({ r, c });
     setEditValue(ch);
   }
@@ -239,6 +248,7 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
         if (c >= visibleCols.length) break;
         const gig = sortedGigs[r];
         const col = visibleCols[c];
+        if (col.readOnly) continue;
         const raw = matrix[i][j];
         if (col.read(gig) === raw) continue;
         const parsed = col.parse(raw);
@@ -446,7 +456,13 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
                           }}
                         />
                       ) : (
-                        <span className="block min-h-[1.1rem] cursor-cell whitespace-pre-wrap break-words">
+                        <span
+                          className={
+                            "block min-h-[1.1rem] whitespace-pre-wrap break-words " +
+                            (col.readOnly ? "cursor-default text-muted-foreground" : "cursor-cell")
+                          }
+                          title={col.readOnly ? "Contratante é definido no formulário da GIG ou na aba Lote" : undefined}
+                        >
                           {grid[r]?.[c]}
                         </span>
                       )}

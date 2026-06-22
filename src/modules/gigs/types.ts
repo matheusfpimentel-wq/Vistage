@@ -32,6 +32,12 @@ export type Gig = {
   /** JSON array com IDs de fãs presentes (preenchido no debrief). */
   fans_present: string | null;
   promoter_contact_id: number | null;
+  /**
+   * Nome do contratante, resolvido por LEFT JOIN em `listGigs` (NÃO é coluna da
+   * tabela `gigs`). Fica `undefined` em consultas que não fazem o join (ex.:
+   * getGig). Excluído de GigCreateInput pra nunca entrar num INSERT/UPDATE.
+   */
+  promoter_contact_name?: string | null;
   day_contact_name: string | null;
   day_contact_phone: string | null;
   estimated_audience: number | null;
@@ -101,7 +107,12 @@ export type Gig = {
 /** Payload aceito ao criar uma GIG (subset do `Gig`). */
 export type GigCreateInput = Omit<
   Gig,
-  "id" | "created_at" | "updated_at" | "debrief_pending" | "debrief_completed_at"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "debrief_pending"
+  | "debrief_completed_at"
+  | "promoter_contact_name"
 > & {
   debrief_pending?: number;
   debrief_completed_at?: string | null;
