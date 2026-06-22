@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Film, Heart, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Film, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -101,21 +101,26 @@ function isComplete(state: DebriefState): boolean {
   );
 }
 
-export function DebriefForm({
+/** Permite ao GigForm finalizar o debrief embutido pelo seu próprio "Salvar". */
+export type DebriefHandle = { commit: () => Promise<void> };
+
+export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm({
   gig,
   onCompleted,
   embedded = false,
   open: openProp,
   onOpenChange,
   required = false,
-}: Props) {
+}: Props, ref) {
   const navigate = useNavigate();
   // No modo embutido está sempre "aberto" (a aba do GigForm controla a montagem).
   const open = embedded ? true : openProp ?? false;
   const [state, setState] = useState<DebriefState>(() => gigToDebrief(gig));
   const [saving, setSaving] = useState(false);
-  const [registeringFans, setRegisteringFans] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  // Garante que os insights só sejam gerados UMA vez por sessão (o "Salvar" do
+  // GigForm pode finalizar o debrief várias vezes — não pode duplicar ideias).
+  const insightsFlushed = useRef(false);
   const [tasksToCreate, setTasksToCreate] = useState<PendingDebriefTask[]>([]);
   const [fansPresent, setFansPresent] = useState<number[]>(() => {
     try {
@@ -132,6 +137,7 @@ export function DebriefForm({
   useEffect(() => {
     if (!open) return;
     skipNextSave.current = true;
+    insightsFlushed.current = false;
     setTasksToCreate([]);
     try {
       setFansPresent(
@@ -249,16 +255,60 @@ export function DebriefForm({
   const complete = useMemo(() => isComplete(state), [state]);
   const avg = useMemo(() => averageRating(state), [state]);
 
+  /** Registra (silenciosamente) a presença dos fãs marcados — dedup por fã+GIG. */
+  async function registerFansPresence() {
+    if (fansPresent.length === 0) return;
+    const date = (gig.date ?? new Date().toISOString()).slice(0, 10);
+    const where = gig.event_name || gig.venue_name || "GIG";
+    const note = `Presença em GIG: ${where}`;
+    for (const fanId of fansPresent) {
+      try {
+        const existing = await listFanInteractions(fanId);
+        if (existing.some((i) => i.type === "Presença" && i.note === note)) continue;
+        await addFanInteraction(fanId, date, note, "Presença");
+        await checkAndUpgradeFan(fanId).catch(() => {});
+      } catch {
+        /* best-effort — não interrompe */
+      }
+    }
+    try {
+      await setGigFans(gig.id, fansPresent);
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  /**
+   * Grava o debrief na GIG. `finalize` marca como concluído (precisa estar
+   * completo). Cria tarefas pendentes, alimenta os fãs presentes (presença →
+   * interação) e — só na PRIMEIRA finalização — gera os insights. NÃO fecha nem
+   * avisa: quem chama cuida disso (botões do diálogo ou o "Salvar" do GigForm).
+   * Retorna quantos insights foram criados.
+   */
+  async function persistDebrief(finalize: boolean): Promise<number> {
+    const firstFinalize = finalize && !gig.debrief_completed_at && !insightsFlushed.current;
+    const completedAt = finalize ? (gig.debrief_completed_at ?? new Date().toISOString()) : null;
+    await updateGig({
+      id: gig.id,
+      ...state,
+      fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
+      debrief_pending: finalize ? 0 : 1,
+      ...(finalize ? { debrief_completed_at: completedAt } : {}),
+    });
+    if (finalize) await clearDebriefDraft(gig.id);
+    await flushDebriefTasks();
+    await registerFansPresence();
+    if (firstFinalize) {
+      insightsFlushed.current = true;
+      return flushDebriefInsights(gig, state);
+    }
+    return 0;
+  }
+
   async function saveAsPending() {
     setSaving(true);
     try {
-      await updateGig({
-        id: gig.id,
-        ...state,
-        fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
-        debrief_pending: 1,
-      });
-      await flushDebriefTasks();
+      await persistDebrief(false);
       toast.warning("Debrief salvo como pendente — finalize quando puder.");
       onCompleted();
       onOpenChange?.(false);
@@ -276,19 +326,12 @@ export function DebriefForm({
     }
     setSaving(true);
     try {
-      // só registra debrief_completed_at na primeira vez que ficar completo
-      const completedAt = gig.debrief_completed_at ?? new Date().toISOString();
-      await updateGig({
-        id: gig.id,
-        ...state,
-        fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
-        debrief_pending: 0,
-        debrief_completed_at: completedAt,
-      });
-      await clearDebriefDraft(gig.id);
-      await flushDebriefTasks();
-      const insightCount = await flushDebriefInsights(gig, state);
-      toast.success(`Debrief finalizado! ${insightCount} insight${insightCount !== 1 ? "s" : ""} criado${insightCount !== 1 ? "s" : ""} em Ideias.`);
+      const insightCount = await persistDebrief(true);
+      toast.success(
+        insightCount > 0
+          ? `Debrief finalizado! ${insightCount} insight${insightCount !== 1 ? "s" : ""} em Ideias.`
+          : "Debrief finalizado!"
+      );
       onCompleted();
       onOpenChange?.(false);
     } catch (e) {
@@ -298,52 +341,18 @@ export function DebriefForm({
     }
   }
 
+  // O "Salvar" do GigForm finaliza o debrief embutido por aqui (sem fechar/avisar
+  // — o GigForm cuida do seu próprio toast e refresh).
+  useImperativeHandle(ref, () => ({
+    commit: async () => {
+      await persistDebrief(complete);
+    },
+  }));
+
   /** Navega para o módulo de conteúdo já pré-preenchendo o título com a GIG. */
   function handleCreateContent() {
     const title = gig.event_name || gig.venue_name || "GIG";
     navigate(`/conteudo?title=${encodeURIComponent(title)}`);
-  }
-
-  /** Registra uma interação para cada fã marcado como presente na GIG. */
-  async function handleRegisterFans() {
-    if (fansPresent.length === 0) {
-      toast.warning("Nenhum fã marcado como presente.");
-      return;
-    }
-    setRegisteringFans(true);
-    const date = (gig.date ?? new Date().toISOString()).slice(0, 10);
-    const where = gig.event_name || gig.venue_name || "GIG";
-    const note = `Presença em GIG: ${where}`;
-    let count = 0;
-    for (const fanId of fansPresent) {
-      try {
-        // evita duplicar a interação de Presença para o mesmo fã+GIG
-        const existing = await listFanInteractions(fanId);
-        const already = existing.some(
-          (i) => i.type === "Presença" && i.note === note
-        );
-        if (already) continue;
-        await addFanInteraction(fanId, date, note, "Presença");
-        await checkAndUpgradeFan(fanId).catch(() => {});
-        count++;
-      } catch {
-        /* best-effort — não interrompe */
-      }
-    }
-    // persiste a presença na tabela gig_fans (best-effort)
-    try {
-      await setGigFans(gig.id, fansPresent);
-    } catch {
-      /* best-effort — não interrompe */
-    }
-    setRegisteringFans(false);
-    if (count > 0) {
-      toast.success(
-        `${count} fã${count !== 1 ? "s" : ""} registrado${count !== 1 ? "s" : ""} com interação.`
-      );
-    } else {
-      toast.error("Não foi possível registrar os fãs.");
-    }
   }
 
   // Quando o debrief é obrigatório (status acabou de virar Concluída),
@@ -511,6 +520,8 @@ export function DebriefForm({
               onChange={(v) => set("debrief_technical_notes", v)}
             />
 
+            {/* Os fãs marcados aqui ganham a interação de presença ao salvar o
+                debrief — não precisa mais de um botão separado. */}
             <FansPresentPicker value={fansPresent} onChange={setFansPresent} />
 
             {/* ===== LOOP PÓS-GIG ===== */}
@@ -524,20 +535,6 @@ export function DebriefForm({
                   onClick={handleCreateContent}
                 >
                   <Film className="h-3.5 w-3.5" /> Criar conteúdo sobre esta GIG
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleRegisterFans()}
-                  disabled={registeringFans || fansPresent.length === 0}
-                >
-                  {registeringFans ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Heart className="h-3.5 w-3.5 text-red-400" />
-                  )}
-                  Registrar fãs{fansPresent.length > 0 ? ` (${fansPresent.length})` : ""}
                 </Button>
               </div>
             </div>
@@ -560,26 +557,35 @@ export function DebriefForm({
           </div>
         )}
 
-        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
-          {required && !complete && (
-            <Button variant="outline" onClick={saveAsPending} disabled={saving}>
-              Salvar como pendente
+        {/* Embutido no GigForm: sem botões próprios — o "Salvar alterações" do
+            GigForm finaliza o debrief (via commit). Avulso: mantém os botões. */}
+        {embedded ? (
+          <p className="pt-1 text-xs text-muted-foreground">
+            As avaliações e tudo daqui são salvos junto com o botão{" "}
+            <strong>Salvar alterações</strong> da GIG.
+          </p>
+        ) : (
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+            {required && !complete && (
+              <Button variant="outline" onClick={saveAsPending} disabled={saving}>
+                Salvar como pendente
+              </Button>
+            )}
+            {!required && (
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange?.(false)}
+                disabled={saving}
+              >
+                Fechar
+              </Button>
+            )}
+            <Button onClick={saveAsComplete} disabled={saving || !complete}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {gig.debrief_completed_at ? "Atualizar debrief" : "Finalizar debrief"}
             </Button>
-          )}
-          {!required && !embedded && (
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange?.(false)}
-              disabled={saving}
-            >
-              Fechar
-            </Button>
-          )}
-          <Button onClick={saveAsComplete} disabled={saving || !complete}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {gig.debrief_completed_at ? "Atualizar debrief" : "Finalizar debrief"}
-          </Button>
-        </div>
+          </div>
+        )}
       </>
     );
 
@@ -617,7 +623,7 @@ export function DebriefForm({
       </DialogContent>
     </Dialog>
   );
-}
+});
 
 function DebriefField({
   label,

@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { Heart, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Heart, UserPlus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { listFans } from "@/modules/fans/api";
+import { FanForm } from "@/modules/fans/forms/FanForm";
 import { LevelBadge } from "@/modules/fans/components/LevelBadge";
 import type { Fan } from "@/modules/fans/types";
 import { cn } from "@/lib/utils";
@@ -20,10 +22,18 @@ type Props = {
 export function FansPresentPicker({ value, onChange }: Props) {
   const [fans, setFans] = useState<Fan[]>([]);
   const [search, setSearch] = useState("");
+  const [fanFormOpen, setFanFormOpen] = useState(false);
 
+  const loadFans = useCallback(() => listFans().then(setFans), []);
   useEffect(() => {
-    void listFans().then(setFans);
-  }, []);
+    void loadFans();
+  }, [loadFans]);
+
+  // Cadastra um fã novo (que não está na lista) e já o marca como presente.
+  async function handleFanCreated(id: number) {
+    await loadFans();
+    if (!value.includes(id)) onChange([...value, id]);
+  }
 
   const selected = useMemo(() => new Set(value), [value]);
 
@@ -51,9 +61,14 @@ export function FansPresentPicker({ value, onChange }: Props) {
           <Heart className="h-3.5 w-3.5 text-red-400" />
           Fãs presentes
         </Label>
-        <span className="text-xs text-muted-foreground">
-          {selected.size} marcado{selected.size !== 1 ? "s" : ""}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {selected.size} marcado{selected.size !== 1 ? "s" : ""}
+          </span>
+          <Button type="button" variant="outline" size="sm" className="h-7" onClick={() => setFanFormOpen(true)}>
+            <UserPlus className="h-3.5 w-3.5" /> Cadastrar fã
+          </Button>
+        </div>
       </div>
 
       {fans.length === 0 ? (
@@ -142,6 +157,12 @@ export function FansPresentPicker({ value, onChange }: Props) {
           </div>
         </>
       )}
+
+      <FanForm
+        open={fanFormOpen}
+        onOpenChange={setFanFormOpen}
+        onSaved={(id) => void handleFanCreated(id)}
+      />
     </div>
   );
 }
