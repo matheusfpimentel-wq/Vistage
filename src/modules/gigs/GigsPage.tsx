@@ -101,7 +101,7 @@ export function GigsPage() {
     if (debriefId) {
       const id = Number(debriefId);
       void getGig(id).then((gig) => {
-        if (gig) openPrepTab(gig);
+        if (gig) openDebriefTab(gig);
       });
       setSearchParams({}, { replace: true });
       return;
@@ -131,11 +131,17 @@ export function GigsPage() {
     setFormOpen(true);
   }
 
-  // Preparar/Debrief na lista abrem a GIG no editar, já na aba de preparação/
-  // debrief — em vez de uma janela separada.
+  // Preparar/Debrief na lista abrem a GIG no editar, já na aba certa — em vez
+  // de uma janela separada. Preparação e Debrief agora são abas distintas.
   function openPrepTab(gig: Gig) {
     setEditing(gig);
     setFormInitialTab("prep");
+    setFormOpen(true);
+  }
+
+  function openDebriefTab(gig: Gig) {
+    setEditing(gig);
+    setFormInitialTab("debrief");
     setFormOpen(true);
   }
 
@@ -290,7 +296,7 @@ export function GigsPage() {
             gigs={gigs}
             onEdit={openEdit}
             onPrep={openPrepTab}
-            onDebrief={openPrepTab}
+            onDebrief={openDebriefTab}
             onDelete={handleDelete}
           />
         </TabsContent>
