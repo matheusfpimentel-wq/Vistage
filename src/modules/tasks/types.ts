@@ -106,6 +106,7 @@ export type TaskUpdateInput = Partial<TaskCreateInput> & { id: number };
 export const TASK_LINK_TYPES = [
   "fan",
   "student",
+  "class",
   "supplier",
   "venue",
   "track",
@@ -118,6 +119,7 @@ export type TaskLinkType = (typeof TASK_LINK_TYPES)[number];
 export const TASK_LINK_LABELS: Record<TaskLinkType, string> = {
   fan: "Fã",
   student: "Aluno",
+  class: "Aula",
   supplier: "Fornecedor",
   venue: "Venue",
   track: "Track Musical",
