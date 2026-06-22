@@ -20,7 +20,7 @@ import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
 import { buildBackup, clearDocumentData, hasAnyDocumentData } from "@/lib/backup";
-import { useDocumentStore, SKIP_BLANK_WIPE_KEY } from "@/lib/document";
+import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY } from "@/lib/document";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 
 // Modelo "abre em branco": o app inicia vazio a cada boot; os dados vivem nos
@@ -248,6 +248,14 @@ function MainApp() {
             ),
           ]).then(() => {
             useDocumentStore.getState().settleBoot();
+            // Acabou de abrir um .vistage? Sincroniza todas as integrações
+            // configuradas (os tokens viajam no arquivo). Best-effort, em 2º plano.
+            if (sessionStorage.getItem(SYNC_INTEGRATIONS_KEY) === "1") {
+              sessionStorage.removeItem(SYNC_INTEGRATIONS_KEY);
+              void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
+                syncAllIntegrations()
+              );
+            }
           });
         }
       } catch (e) {

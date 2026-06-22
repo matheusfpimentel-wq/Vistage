@@ -38,6 +38,13 @@ export function displayDocName(name: string | null): string | null {
 // devem permanecer em vez de cair no "abre em branco". Ver o boot em App.tsx.
 export const SKIP_BLANK_WIPE_KEY = "vistage.skipBlankWipe";
 
+/**
+ * Sinaliza ao próximo boot (após abrir/mesclar um documento) que deve
+ * sincronizar TODAS as integrações configuradas — os tokens viajam no .vistage,
+ * então abrir o arquivo já reconecta e põe tudo em dia. Lido em App.tsx.
+ */
+export const SYNC_INTEGRATIONS_KEY = "vistage.syncIntegrationsOnBoot";
+
 /** Recarrega a página preservando os dados (não dispara o "abre em branco"). */
 export function reloadKeepingData(): void {
   sessionStorage.setItem(SKIP_BLANK_WIPE_KEY, "1");
@@ -144,6 +151,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       const mode: OpenMode = hasData ? await askOpenMode() : "overwrite";
       if (mode === "cancel") return;
 
+      // Abrir um documento → sincroniza as integrações no próximo boot.
+      sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
       if (mode === "merge") {
         await mergeBackup(picked.backup);
         // Reconecta o usuário de sincronização que veio no arquivo (se houver).
