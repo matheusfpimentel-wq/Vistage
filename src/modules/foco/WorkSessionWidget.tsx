@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
@@ -110,6 +111,7 @@ export function WorkSessionWidget() {
   const [startContextType, setStartContextType] = useState<string | null>(null);
   const [startContextId, setStartContextId] = useState("none");
   const [startEntityOptions, setStartEntityOptions] = useState<EntityOption[]>([]);
+  const [plannedMinutes, setPlannedMinutes] = useState("");
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pauseMsRef = useRef(0);
@@ -163,6 +165,23 @@ export function WorkSessionWidget() {
     return () => { if (unlisten) unlisten(); };
   }, [recomputeTimer]);
 
+  // A mini-janela avisa quando o tempo previsto vence — mostramos um toast na
+  // janela principal também (a sessão NUNCA encerra sozinha).
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<{ activity?: string }>("work-session-expired", (e) => {
+          toast.warning(
+            `⏰ Tempo previsto atingido${e.payload?.activity ? ` (${e.payload.activity})` : ""} — continue ou encerre.`
+          );
+        });
+      } catch { /* ignore */ }
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
   useEffect(() => {
     sessionRef.current = session;
     if (session) {
@@ -204,7 +223,9 @@ export function WorkSessionWidget() {
       setPaused(false);
       const ctxType = startContextType;
       const ctxId = startContextId === "none" ? null : Number(startContextId);
-      const id = await startSession(activityType, ctxId ? ctxType : null, ctxId);
+      const pm = Number(plannedMinutes);
+      const planned = plannedMinutes.trim() && !isNaN(pm) && pm > 0 ? Math.round(pm) : null;
+      const id = await startSession(activityType, ctxId ? ctxType : null, ctxId, planned);
       const fresh = await getActiveSession();
       setSession(fresh);
       if (fresh) void openSessionOverlay(fresh);
@@ -220,9 +241,11 @@ export function WorkSessionWidget() {
         context_type: null,
         context_id: null,
         pause_ms: 0,
+        planned_minutes: planned,
         created_at: new Date().toISOString(),
       });
       setStartOpen(false);
+      setPlannedMinutes("");
       toast.success(`Sessão iniciada: ${activityType}`);
     } finally {
       setSaving(false);
@@ -353,6 +376,24 @@ export function WorkSessionWidget() {
                 </Select>
               </div>
             )}
+            <div className="space-y-1.5">
+              <Label>Tempo previsto (opcional)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="ex: 45"
+                  value={plannedMinutes}
+                  onChange={(e) => setPlannedMinutes(e.target.value)}
+                  className="w-28"
+                />
+                <span className="text-sm text-muted-foreground">minutos</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                O anel enche conforme o tempo. Ao vencer, só avisa — nunca encerra sozinho.
+              </p>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStartOpen(false)}>Cancelar</Button>

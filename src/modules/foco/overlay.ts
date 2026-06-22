@@ -56,10 +56,12 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
 
     const win = new WebviewWindow(OVERLAY_LABEL, {
       url: resolveWindowUrl(`index.html?${params.toString()}`),
-      title: "Sessão de trabalho",
-      width: 260,
-      height: 80,
-      resizable: false,
+      title: "Sessão de foco",
+      width: 280,
+      height: 312,
+      // resizable: true permite o setSize programático (Expandir/Retrair). Como
+      // a janela é sem moldura (decorations:false), o usuário não arrasta a borda.
+      resizable: true,
       decorations: false,
       transparent: false,
       alwaysOnTop: true,

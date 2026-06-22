@@ -27,22 +27,172 @@ export type WorkSession = {
   context_type: string | null;
   context_id: number | null;
   pause_ms: number;
+  /** Tempo previsto em minutos (opcional). Alimenta o anel + alerta de venc. */
+  planned_minutes: number | null;
   created_at: string;
 };
 
 export async function startSession(
   activity_type: ActivityType,
   context_type: string | null = null,
-  context_id: number | null = null
+  context_id: number | null = null,
+  planned_minutes: number | null = null
 ): Promise<number> {
   const db = getDb();
   const started_at = new Date().toISOString();
   const res = await db.execute(
-    `INSERT INTO work_sessions (started_at, activity_type, context_type, context_id) VALUES ($1, $2, $3, $4)`,
-    [started_at, activity_type, context_type, context_id]
+    `INSERT INTO work_sessions (started_at, activity_type, context_type, context_id, planned_minutes) VALUES ($1, $2, $3, $4, $5)`,
+    [started_at, activity_type, context_type, context_id, planned_minutes]
   );
   emitDataChanged();
   return res.lastInsertId as number;
+}
+
+// ── Painel de contexto do foco (por tipo de atividade) ───────────────────────
+// O modo foco mostra, ao lado do cronômetro, o que importa para AQUELA atividade:
+// • Tempo de palco → contato do dia, horários do set e ideias de música da GIG
+// • Criação musical → o conceito da faixa
+// • Gestão → tarefas pendentes pra ir tickando
+// Lê direto do banco (funciona até na mini-janela: getDb() delega pro processo
+// Rust, que é o mesmo pra todas as janelas).
+
+export type StageSlot = { start: string; end: string };
+export type FocusPanel =
+  | {
+      kind: "stage";
+      title: string;
+      date: string | null;
+      city: string | null;
+      slots: StageSlot[];
+      dayContactName: string | null;
+      dayContactPhone: string | null;
+      ideas: string[];
+    }
+  | { kind: "music"; title: string; stage: string | null; concept: string | null }
+  | {
+      kind: "tasks";
+      tasks: { id: number; title: string; priority: string | null; due_date: string | null }[];
+    }
+  | null;
+
+function parseStageSlots(time_slots: string | null, start: string | null, end: string | null): StageSlot[] {
+  try {
+    const arr = time_slots ? (JSON.parse(time_slots) as unknown) : null;
+    if (Array.isArray(arr)) {
+      const slots = arr
+        .filter((s): s is StageSlot => !!s && typeof s === "object")
+        .map((s) => ({ start: String((s as StageSlot).start ?? ""), end: String((s as StageSlot).end ?? "") }))
+        .filter((s) => s.start || s.end);
+      if (slots.length > 0) return slots;
+    }
+  } catch {
+    /* cai no fallback */
+  }
+  if (start || end) return [{ start: start ?? "", end: end ?? "" }];
+  return [];
+}
+
+function parseGigIdeas(gig_research: string | null): string[] {
+  try {
+    const arr = gig_research ? (JSON.parse(gig_research) as unknown) : null;
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((r) => {
+        if (r && typeof r === "object") {
+          const o = r as { title?: unknown; artist?: unknown };
+          const t = typeof o.title === "string" ? o.title : "";
+          const a = typeof o.artist === "string" ? o.artist : "";
+          return [t, a].filter(Boolean).join(" · ");
+        }
+        return typeof r === "string" ? r : "";
+      })
+      .filter((s) => s.trim().length > 0)
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
+}
+
+type GigPanelRow = {
+  venue_name: string;
+  event_name: string | null;
+  date: string | null;
+  venue_city: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  time_slots: string | null;
+  day_contact_name: string | null;
+  day_contact_phone: string | null;
+  gig_research: string | null;
+};
+
+export async function loadFocusPanel(session: {
+  activity_type: string;
+  context_type: string | null;
+  context_id: number | null;
+}): Promise<FocusPanel> {
+  const db = getDb();
+  const act = session.activity_type;
+
+  if (act === "Tempo de palco") {
+    const gigCols = `venue_name, event_name, date, venue_city, start_time, end_time, time_slots, day_contact_name, day_contact_phone, gig_research`;
+    let row: GigPanelRow | undefined;
+    if (session.context_type === "gig" && session.context_id) {
+      const rows = await db.select<GigPanelRow[]>(
+        `SELECT ${gigCols} FROM gigs WHERE id = $1`,
+        [session.context_id]
+      );
+      row = rows[0];
+    }
+    if (!row) {
+      const rows = await db.select<GigPanelRow[]>(
+        `SELECT ${gigCols} FROM gigs WHERE date >= date('now') AND status != 'Cancelada' ORDER BY date, start_time LIMIT 1`
+      );
+      row = rows[0];
+    }
+    if (!row) return null;
+    return {
+      kind: "stage",
+      title: (row.event_name && row.event_name.trim()) || row.venue_name,
+      date: row.date,
+      city: row.venue_city,
+      slots: parseStageSlots(row.time_slots, row.start_time, row.end_time),
+      dayContactName: row.day_contact_name,
+      dayContactPhone: row.day_contact_phone,
+      ideas: parseGigIdeas(row.gig_research),
+    };
+  }
+
+  if (act === "Criação musical") {
+    if (session.context_type !== "track" || !session.context_id) return null;
+    const rows = await db.select<
+      { title_working: string; title_final: string | null; current_stage: string | null; concept_narrative: string | null; stage_notes: string | null }[]
+    >(
+      `SELECT title_working, title_final, current_stage, concept_narrative, stage_notes FROM tracks WHERE id = $1`,
+      [session.context_id]
+    );
+    const t = rows[0];
+    if (!t) return null;
+    return {
+      kind: "music",
+      title: (t.title_final && t.title_final.trim()) || t.title_working,
+      stage: t.current_stage,
+      concept: (t.concept_narrative && t.concept_narrative.trim()) || (t.stage_notes && t.stage_notes.trim()) || null,
+    };
+  }
+
+  if (act === "Gestão") {
+    const tasks = await db.select<
+      { id: number; title: string; priority: string | null; due_date: string | null }[]
+    >(
+      `SELECT id, title, priority, due_date FROM tasks
+        WHERE status NOT IN ('Concluída','Cancelada')
+        ORDER BY (due_date IS NULL), due_date LIMIT 12`
+    );
+    return { kind: "tasks", tasks };
+  }
+
+  return null;
 }
 
 export async function endSession(
