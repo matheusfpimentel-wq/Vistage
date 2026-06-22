@@ -36,9 +36,6 @@ import {
 import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
-import { TaskForm } from "@/modules/tasks/forms/TaskForm";
-import { getTask } from "@/modules/tasks/api";
-import type { Task } from "@/modules/tasks/types";
 
 type StatusFilter = GigStatus | "Todas";
 
@@ -58,8 +55,8 @@ export function GigsPage() {
   const [debriefGig, setDebriefGig] = useState<Gig | null>(null);
   const [debriefRequired, setDebriefRequired] = useState(false);
 
-  const [prepTask, setPrepTask] = useState<Task | null>(null);
-  const [prepOpen, setPrepOpen] = useState(false);
+  // Aba inicial do editor (ex.: "prep" ao clicar em Preparar/Debrief na lista).
+  const [formInitialTab, setFormInitialTab] = useState<string | undefined>(undefined);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -104,7 +101,7 @@ export function GigsPage() {
     if (debriefId) {
       const id = Number(debriefId);
       void getGig(id).then((gig) => {
-        if (gig) openDebrief(gig);
+        if (gig) openPrepTab(gig);
       });
       setSearchParams({}, { replace: true });
       return;
@@ -130,6 +127,15 @@ export function GigsPage() {
 
   function openEdit(gig: Gig) {
     setEditing(gig);
+    setFormInitialTab(undefined);
+    setFormOpen(true);
+  }
+
+  // Preparar/Debrief na lista abrem a GIG no editar, já na aba de preparação/
+  // debrief — em vez de uma janela separada.
+  function openPrepTab(gig: Gig) {
+    setEditing(gig);
+    setFormInitialTab("prep");
     setFormOpen(true);
   }
 
@@ -172,20 +178,6 @@ export function GigsPage() {
     setDebriefGig(gig);
     setDebriefRequired(gig.debrief_pending === 1 && gig.status === "Concluída");
     setDebriefOpen(true);
-  }
-
-  // Preparação: abre a tarefa de preparo (checklist) da GIG. Sem ela ainda
-  // (GIG confirmada antes do recurso), cai pra edição da GIG.
-  async function openPrep(gig: Gig) {
-    if (gig.prep_task_id) {
-      const t = await getTask(gig.prep_task_id);
-      if (t) {
-        setPrepTask(t);
-        setPrepOpen(true);
-        return;
-      }
-    }
-    openEdit(gig);
   }
 
   async function handleDelete(gig: Gig) {
@@ -297,8 +289,8 @@ export function GigsPage() {
           <ListView
             gigs={gigs}
             onEdit={openEdit}
-            onPrep={openPrep}
-            onDebrief={openDebrief}
+            onPrep={openPrepTab}
+            onDebrief={openPrepTab}
             onDelete={handleDelete}
           />
         </TabsContent>
@@ -330,6 +322,7 @@ export function GigsPage() {
         gig={editing}
         onSaved={handleSaved}
         onDebrief={editing ? () => openDebrief(editing) : undefined}
+        initialTab={formInitialTab}
       />
 
       {debriefGig && (
@@ -341,14 +334,6 @@ export function GigsPage() {
           onCompleted={() => void refresh()}
         />
       )}
-
-      <TaskForm
-        open={prepOpen}
-        onOpenChange={setPrepOpen}
-        task={prepTask}
-        onSaved={() => void refresh()}
-      />
-
     </div>
   );
 }

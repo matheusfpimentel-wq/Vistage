@@ -65,6 +65,8 @@ type Props = {
   onSaved: (gig: { id: number; statusChanged: boolean; isNew: boolean }) => void;
   /** Chamado quando o usuário clica em "Ir para Debrief" (só GIGs concluídas). */
   onDebrief?: () => void;
+  /** Aba aberta inicialmente (ex.: "prep" ao clicar em Preparar/Debrief na lista). */
+  initialTab?: string;
 };
 
 /** Categoria que habilita festa recorrente. */
@@ -220,6 +222,7 @@ export function GigForm({
   gig,
   prefillPromoter,
   onSaved,
+  initialTab,
 }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   // Debrief é relevante quando a GIG (salva) já está concluída / pendente.
@@ -259,8 +262,9 @@ export function GigForm({
     else setState(EMPTY);
     setErrors({});
     setDirty(false);
-    setActiveTab("geral");
-  }, [gig, prefillPromoter, open]);
+    // Abre na aba pedida (ex.: "prep" ao clicar em Preparar/Debrief na lista).
+    setActiveTab(initialTab ?? "geral");
+  }, [gig, prefillPromoter, open, initialTab]);
 
   useEffect(() => {
     if (!open) return;

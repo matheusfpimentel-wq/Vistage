@@ -152,6 +152,18 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   const { id, ...rest } = input;
   const cols = Object.keys(rest);
   if (cols.length === 0) return;
+  // Status ANTERIOR — pra rodar os efeitos colaterais de mudança de status só na
+  // TRANSIÇÃO, e não toda vez que uma GIG já concluída é salva de novo (o que
+  // re-fechava tarefas recém-criadas no debrief e re-disparava o resto).
+  let prevStatus: string | null = null;
+  if ("status" in rest) {
+    const prow = await db.select<{ status: string }[]>(
+      "SELECT status FROM gigs WHERE id = $1",
+      [id]
+    );
+    prevStatus = prow[0]?.status ?? null;
+  }
+  const statusChangedTo = (s: string) => "status" in rest && rest.status === s && prevStatus !== s;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
   const values = cols.map((k) => (rest as Record<string, unknown>)[k]);
   values.push(id);
@@ -159,8 +171,8 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     `UPDATE gigs SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
-  // Auto-complete prep task when GIG is concluded
-  if ("status" in rest && rest.status === "Concluída") {
+  // Auto-complete prep task when GIG is concluded (só na transição PARA Concluída)
+  if (statusChangedTo("Concluída")) {
     // Marca debrief como pendente se as avaliações não estiverem todas preenchidas
     // (a menos que o debrief já tenha sido finalizado).
     try {
@@ -221,14 +233,14 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     }
   }
   // Espelhamento: GIG cancelada → cancela todas as tarefas vinculadas ainda abertas.
-  if ("status" in rest && rest.status === "Cancelada") {
+  if (statusChangedTo("Cancelada")) {
     await syncGigLinkedTasksStatus(id, "Cancelada").catch(() => {});
   }
   // Saiu de "Concluída" (ex.: voltou pra Confirmada por engano): o debrief deixa
   // de fazer sentido. Limpa a pendência pra não competir com a "Preparação" na
   // lista nem aparecer como debrief pendente no dashboard. O histórico já
   // preenchido (debrief_completed_at) é preservado.
-  if ("status" in rest && rest.status !== "Concluída") {
+  if ("status" in rest && rest.status !== "Concluída" && prevStatus === "Concluída") {
     await db
       .execute("UPDATE gigs SET debrief_pending = 0 WHERE id = $1 AND debrief_pending = 1", [id])
       .catch(() => {});
