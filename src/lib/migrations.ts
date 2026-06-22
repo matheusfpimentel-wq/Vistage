@@ -1774,6 +1774,14 @@ const MIGRATIONS: Migration[] = [
       UPDATE finance_categories SET is_protected = 1 WHERE kind = 'income' AND name IN ('DJ', 'Royalties', 'Aulas / Mentorias', 'Publicidade');
     `,
   },
+  {
+    version: 123,
+    description:
+      "work_sessions.planned_minutes — tempo previsto (opcional) de uma sessão de foco; alimenta o anel de progresso e o alerta de 'tempo previsto atingido' (nunca encerra sozinho).",
+    sql: `
+      ALTER TABLE work_sessions ADD COLUMN planned_minutes INTEGER;
+    `,
+  },
 ];
 
 
