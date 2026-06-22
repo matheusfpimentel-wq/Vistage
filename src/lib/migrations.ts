@@ -1764,6 +1764,16 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 122,
+    description:
+      "finance_categories.is_protected — categorias-núcleo (DJ, Royalties, Aulas / Mentorias, Publicidade) não podem ser excluídas; renomeia a categoria de receita 'Conteúdo' → 'Publicidade'.",
+    sql: `
+      ALTER TABLE finance_categories ADD COLUMN is_protected INTEGER DEFAULT 0;
+      UPDATE OR IGNORE finance_categories SET name = 'Publicidade' WHERE kind = 'income' AND name = 'Conteúdo';
+      UPDATE finance_categories SET is_protected = 1 WHERE kind = 'income' AND name IN ('DJ', 'Royalties', 'Aulas / Mentorias', 'Publicidade');
+    `,
+  },
 ];
 
 
