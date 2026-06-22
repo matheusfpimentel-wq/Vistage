@@ -44,6 +44,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
   const cols = useResizableColumns("gigs", [
     { id: "date", width: 110, min: 90 },
     { id: "name", width: 300, min: 160 },
+    { id: "contractor", width: 170, min: 110 },
     { id: "status", width: 180, min: 120 },
     { id: "cache", width: 120, min: 90 },
     { id: "rating", width: 110, min: 80 },
@@ -112,6 +113,11 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                     {formatDate(g.date)}
                     {g.venue_city && ` · ${g.venue_city}`}
                   </div>
+                  {g.promoter_contact_name && (
+                    <div className="truncate text-xs text-muted-foreground">
+                      Contratante: {g.promoter_contact_name}
+                    </div>
+                  )}
                 </div>
                 <div className="shrink-0 text-right tabular-nums text-sm font-medium">
                   {formatCurrency(g.cache_amount)}
@@ -170,6 +176,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                 <ColResizer {...cols.resizer("date")} />
               </SortableHeader>
               <th className="relative px-3 py-2 text-left">Show / Venue<ColResizer {...cols.resizer("name")} /></th>
+              <th className="relative px-3 py-2 text-left">Contratante<ColResizer {...cols.resizer("contractor")} /></th>
               <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground">
                 <ColResizer {...cols.resizer("status")} />
               </SortableHeader>
@@ -204,6 +211,13 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                       {g.venue_name}
                       {g.venue_city && ` · ${g.venue_city}`}
                     </div>
+                  </td>
+                  <td className="truncate px-3 py-2">
+                    {g.promoter_contact_name ? (
+                      <span className="truncate">{g.promoter_contact_name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">

@@ -89,41 +89,45 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
 
   if (filters.status && filters.status !== "Todas") {
     params.push(filters.status);
-    where.push(`status = $${params.length}`);
+    where.push(`g.status = $${params.length}`);
   }
   if (filters.fromDate) {
     params.push(filters.fromDate);
-    where.push(`date >= $${params.length}`);
+    where.push(`g.date >= $${params.length}`);
   }
   if (filters.toDate) {
     params.push(filters.toDate);
-    where.push(`date <= $${params.length}`);
+    where.push(`g.date <= $${params.length}`);
   }
   if (filters.promoterContactId) {
     params.push(filters.promoterContactId);
-    where.push(`promoter_contact_id = $${params.length}`);
+    where.push(`g.promoter_contact_id = $${params.length}`);
   }
   if (filters.eventCategory && filters.eventCategory.trim().length > 0) {
     params.push(filters.eventCategory);
-    where.push(`event_category = $${params.length}`);
+    where.push(`g.event_category = $${params.length}`);
   }
   if (filters.recurringEventName && filters.recurringEventName.trim().length > 0) {
     params.push(filters.recurringEventName);
-    where.push(`recurring_event_name = $${params.length}`);
+    where.push(`g.recurring_event_name = $${params.length}`);
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
     params.push(q, q, q, q, q, q, q, q, q, q, q, q);
     const i = params.length;
     where.push(
-      `(venue_name LIKE $${i - 11} OR venue_city LIKE $${i - 10} OR briefing LIKE $${i - 9} OR event_name LIKE $${i - 8} OR recurring_event_name LIKE $${i - 7} OR event_category LIKE $${i - 6} OR targets LIKE $${i - 5} OR concrete_goals LIKE $${i - 4} OR opportunities LIKE $${i - 3} OR set_concept LIKE $${i - 2} OR day_contact_name LIKE $${i - 1} OR general_notes LIKE $${i})`
+      `(g.venue_name LIKE $${i - 11} OR g.venue_city LIKE $${i - 10} OR g.briefing LIKE $${i - 9} OR g.event_name LIKE $${i - 8} OR g.recurring_event_name LIKE $${i - 7} OR g.event_category LIKE $${i - 6} OR g.targets LIKE $${i - 5} OR g.concrete_goals LIKE $${i - 4} OR g.opportunities LIKE $${i - 3} OR g.set_concept LIKE $${i - 2} OR g.day_contact_name LIKE $${i - 1} OR g.general_notes LIKE $${i})`
     );
   }
 
+  // Resolve o nome do contratante (promoter_contact_id) num LEFT JOIN: as views
+  // de Lista e Planilha mostram a coluna "Contratante" sem N+1 nem mapa extra.
+  // Colunas da GIG ficam qualificadas com `g.` pra não colidir com `contacts`.
   const sql =
-    SELECT_ALL +
+    `SELECT ${GIG_COLUMNS.map((c) => `g.${c}`).join(", ")}, c.name AS promoter_contact_name ` +
+    `FROM gigs g LEFT JOIN contacts c ON c.id = g.promoter_contact_id` +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
-    " ORDER BY date DESC, start_time DESC";
+    " ORDER BY g.date DESC, g.start_time DESC";
   return db.select<Gig[]>(sql, params);
 }
 
