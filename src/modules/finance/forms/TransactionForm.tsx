@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { CategorySelect } from "../components/CategorySelect";
+import { RoyaltyImportDialog } from "./RoyaltyImportDialog";
 import {
   createTransaction,
   listCategories,
@@ -113,6 +114,7 @@ export function TransactionForm({
 }: Props) {
   const [state, setState] = useState<FormState>(emptyState(defaultKind));
   const [saving, setSaving] = useState(false);
+  const [royaltyOpen, setRoyaltyOpen] = useState(false);
   const [categories, setCategories] = useState<FinanceCategory[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -195,8 +197,10 @@ export function TransactionForm({
   const lockedSource = state.gig_sync === 1 ? "GIG" : "aula";
   const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
   const isAulaCategory = selectedCategoryName === "Aulas / Mentorias";
+  const isRoyaltiesCategory = selectedCategoryName === "Royalties";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -290,6 +294,26 @@ export function TransactionForm({
               onCategoriesChange={refreshCategories}
             />
           </Field>
+
+          {/* Importação de royalties mora aqui agora (saiu da barra de ações):
+              aparece assim que a categoria vira "Royalties" num lançamento novo. */}
+          {!transaction && isRoyaltiesCategory && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">
+                Tem relatório do DistroKid ou Beatport? Importe de uma vez — cada
+                faixa vira uma receita por mês, já convertida pra BRL.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setRoyaltyOpen(true)}
+              >
+                <Music className="h-3.5 w-3.5" /> Importar
+              </Button>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Status">
@@ -460,6 +484,18 @@ export function TransactionForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Importação de royalties dispara o mesmo fluxo de antes; ao concluir,
+        atualiza a lista e fecha o lançamento manual (já criou as receitas). */}
+    <RoyaltyImportDialog
+      open={royaltyOpen}
+      onOpenChange={setRoyaltyOpen}
+      onImported={() => {
+        onSaved();
+        onOpenChange(false);
+      }}
+    />
+    </>
   );
 }
 

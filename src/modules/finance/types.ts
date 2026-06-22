@@ -40,6 +40,7 @@ export type FinanceCategory = {
   name: string;
   kind: TransactionKind;
   is_default: number; // 0 / 1
+  is_protected: number; // 0 / 1 — categoria-núcleo; não pode ser excluída
 };
 
 export type FinanceTransaction = {

@@ -65,6 +65,13 @@ export async function renameCategory(id: number, name: string): Promise<void> {
 
 export async function deleteCategory(id: number): Promise<void> {
   const db = getDb();
+  const rows = await db.select<{ is_protected: number }[]>(
+    "SELECT is_protected FROM finance_categories WHERE id = $1",
+    [id]
+  );
+  if (rows[0]?.is_protected === 1) {
+    throw new Error("Categoria fixa: não pode ser excluída.");
+  }
   await db.execute("DELETE FROM finance_categories WHERE id = $1", [id]);
 }
 

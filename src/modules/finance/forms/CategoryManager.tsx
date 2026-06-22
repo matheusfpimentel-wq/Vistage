@@ -100,8 +100,8 @@ export function CategoryManager({ open, onOpenChange, onChanged }: Props) {
         <DialogHeader>
           <DialogTitle>Categorias financeiras</DialogTitle>
           <DialogDescription>
-            Renomeie ou exclua qualquer categoria — as padrão também podem ser
-            alteradas livremente.
+            Renomeie ou exclua categorias. As fixas (DJ, Royalties, Aulas /
+            Mentorias, Publicidade) não podem ser excluídas.
           </DialogDescription>
         </DialogHeader>
 
@@ -158,11 +158,15 @@ export function CategoryManager({ open, onOpenChange, onChanged }: Props) {
                       ) : (
                         <span className="flex items-center gap-2">
                           {c.name}
-                          {c.is_default === 1 && (
+                          {c.is_protected === 1 ? (
+                            <Badge variant="outline" className="text-xs">
+                              fixa
+                            </Badge>
+                          ) : c.is_default === 1 ? (
                             <Badge variant="outline" className="text-xs">
                               padrão
                             </Badge>
-                          )}
+                          ) : null}
                         </span>
                       )}
 
@@ -200,14 +204,16 @@ export function CategoryManager({ open, onOpenChange, onChanged }: Props) {
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => handleDelete(c)}
-                              aria-label="Excluir"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {c.is_protected !== 1 && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDelete(c)}
+                                aria-label="Excluir"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>

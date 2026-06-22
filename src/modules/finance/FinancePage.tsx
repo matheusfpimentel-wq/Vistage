@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, Music, Plus, Settings } from "lucide-react";
+import { Download, Plus, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -18,7 +18,6 @@ import { toast } from "@/components/ui/toaster";
 import { SkeletonList } from "@/components/shared/Skeleton";
 import { TransactionForm } from "./forms/TransactionForm";
 import { CategoryManager } from "./forms/CategoryManager";
-import { RoyaltyImportDialog } from "./forms/RoyaltyImportDialog";
 import { TransactionList } from "./views/TransactionList";
 import { EquipmentView } from "./views/EquipmentView";
 import { RecurringView } from "./views/RecurringView";
@@ -126,7 +125,6 @@ export function FinancePage() {
     useState<FinanceTransactionWithCategory | null>(null);
   const [defaultKind, setDefaultKind] = useState<TransactionKind>("income");
   const [categoryMgrOpen, setCategoryMgrOpen] = useState(false);
-  const [royaltyOpen, setRoyaltyOpen] = useState(false);
   const confirm = useConfirm();
 
   const queryFilters: TransactionFilters = useMemo(
@@ -219,7 +217,6 @@ export function FinancePage() {
             primaryAction={{ label: "Receita", icon: Plus, onClick: () => openCreate("income") }}
             secondaryActions={[
               { label: "Despesa", icon: Plus, onClick: () => openCreate("expense") },
-              { label: "Royalties", icon: Music, onClick: () => setRoyaltyOpen(true) },
               { label: "Exportar CSV", icon: Download, onClick: handleExportCsv },
               { label: "Categorias", icon: Settings, onClick: () => setCategoryMgrOpen(true) },
             ]}
@@ -381,12 +378,6 @@ export function FinancePage() {
         open={categoryMgrOpen}
         onOpenChange={setCategoryMgrOpen}
         onChanged={refresh}
-      />
-
-      <RoyaltyImportDialog
-        open={royaltyOpen}
-        onOpenChange={setRoyaltyOpen}
-        onImported={refresh}
       />
     </div>
   );
