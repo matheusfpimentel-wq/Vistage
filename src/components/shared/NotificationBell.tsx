@@ -333,7 +333,7 @@ export function NotificationBell() {
                 setPerm(await checkNotificationPermission());
                 if (granted) {
                   await sendTestNotification();
-                  toast.success("Notificações ativadas. Se nada aparecer no Windows, confira Configurações → Sistema → Notificações.");
+                  toast.success("Notificações ativadas. Se nada aparecer, confira as notificações do Vistage nas configurações do sistema.");
                 } else {
                   toast.error("Permissão negada. Ative as notificações do Vistage nas configurações do sistema.");
                 }

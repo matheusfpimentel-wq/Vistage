@@ -36,6 +36,27 @@ async function getNotifPref(): Promise<boolean> {
   }
 }
 
+// No Windows o estado de permissão do plugin de notificação NÃO persiste entre
+// aberturas — e o consentimento real fica nas Configurações do Windows, não num
+// prompt do app. Por isso, lá, a INTENÇÃO salva pelo usuário é a fonte da
+// verdade: sem isso o app voltaria a se achar "sem permissão" a cada abertura.
+const IS_WINDOWS =
+  typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
+
+/**
+ * Permissão "efetiva": concedida se o plugin confirma OU — só no Windows — se o
+ * usuário já ativou antes (intenção salva). Evita ficar reexibindo "Ativar" e
+ * deixando de notificar quando o plugin esquece o estado entre aberturas.
+ */
+async function effectivelyGranted(): Promise<boolean> {
+  try {
+    if (await isPermissionGranted()) return true;
+  } catch {
+    /* segue pro fallback */
+  }
+  return IS_WINDOWS ? await getNotifPref() : false;
+}
+
 /**
  * Notificações locais do sistema para alertas CRÍTICOS, via o plugin de
  * notificação do Tauri (a Web Notification API não funciona no webview).
@@ -50,7 +71,7 @@ export type NotifPermission = "granted" | "default";
 /** Lê a permissão atual (assíncrono — plugin do Tauri). */
 export async function checkNotificationPermission(): Promise<NotifPermission> {
   try {
-    return (await isPermissionGranted()) ? "granted" : "default";
+    return (await effectivelyGranted()) ? "granted" : "default";
   } catch {
     return "default";
   }
@@ -63,6 +84,10 @@ export async function enableNotifications(): Promise<boolean> {
     if (!granted) {
       granted = (await requestPermission()) === "granted";
     }
+    // Windows: o consentimento real fica nas Configurações do sistema e o estado
+    // do plugin não persiste — se o usuário clicou "Ativar", respeitamos a
+    // intenção (notificar; quem barra de fato é o Windows, nas Configurações).
+    if (!granted && IS_WINDOWS) granted = true;
     if (granted) {
       void setNotifPref(true);
       void syncAlertNotifications();
@@ -74,17 +99,22 @@ export async function enableNotifications(): Promise<boolean> {
 }
 
 /**
- * No boot: se o usuário já ativou notificações antes, re-estabelece sem precisar
- * clicar de novo. Silencioso se a permissão do SO ainda estiver concedida; se o
- * SO tiver revogado, o prompt aparece uma vez automaticamente.
+ * No boot: se o usuário já ativou notificações antes, re-estabelece SÓ se a
+ * permissão do SO ainda estiver de pé — em silêncio, sem clique.
+ *
+ * Importante: NÃO re-pedimos a permissão automaticamente. Em alguns cenários o
+ * SO "esquece" a autorização a cada abertura — no Windows o estado do plugin não
+ * persiste; no macOS é clássico via App Translocation (app aberto de dentro do
+ * .dmg/Downloads, fora de /Aplicativos) ou sem assinatura Developer ID. Re-pedir
+ * ali jogaria o prompt na cara do usuário toda vez. Usamos a permissão "efetiva"
+ * (que no Windows confia na intenção salva); se ela cair, o re-ativar fica como
+ * ação explícita no sininho.
  */
 export async function restoreNotificationPreference(): Promise<void> {
   if (!(await getNotifPref())) return;
   try {
-    if (await isPermissionGranted()) {
+    if (await effectivelyGranted()) {
       void syncAlertNotifications();
-    } else {
-      await enableNotifications();
     }
   } catch {
     /* best-effort */
@@ -120,7 +150,7 @@ function saveNotified(keys: string[]): void {
 async function syncAlertNotifications(): Promise<void> {
   let granted = false;
   try {
-    granted = await isPermissionGranted();
+    granted = await effectivelyGranted();
   } catch {
     return;
   }
