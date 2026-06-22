@@ -121,7 +121,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
               <div className="flex justify-end gap-1 border-t pt-2">
                 {g.status === "Confirmada" && (
                   <Button size="sm" variant="ghost" onClick={() => onPrep(g)}>
-                    Preparação
+                    Preparar
                   </Button>
                 )}
                 {showDebrief(g) && (

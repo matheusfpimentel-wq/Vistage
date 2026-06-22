@@ -33,12 +33,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@/components/ui/card";
 import { toast } from "@/components/ui/toaster";
 import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
@@ -60,7 +54,6 @@ import {
   recomputeAllFanLevels,
   removeFanGroupMember,
   saveFanUpgradeRules,
-  topFansByPresence,
   type FanFilters,
 } from "./api";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
@@ -80,9 +73,6 @@ export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [fans, setFans] = useState<Fan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [topPresence, setTopPresence] = useState<
-    { fan_id: number; name: string; gigs: number }[]
-  >([]);
   const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
   const [perkCounts, setPerkCounts] = useState<Map<number, number>>(new Map());
   const [filters, setFilters] = useState<{
@@ -123,14 +113,12 @@ export function FansPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, top, counts, perks] = await Promise.all([
+      const [data, counts, perks] = await Promise.all([
         listFans(queryFilters),
-        topFansByPresence(5).catch(() => []),
         listFanInteractionCounts().catch(() => new Map<number, number>()),
         listFanPerkCounts().catch(() => new Map<number, number>()),
       ]);
       setFans(data);
-      setTopPresence(top ?? []);
       setInteractionCounts(counts);
       setPerkCounts(perks);
     } finally {
@@ -186,28 +174,6 @@ export function FansPage() {
 
   return (
     <div className="space-y-4">
-      {topPresence.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2 text-xs">
-              <Heart className="h-4 w-4 text-red-400" />
-              Fãs mais presentes em shows
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {topPresence.map((t) => (
-              <span
-                key={t.fan_id}
-                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs"
-              >
-                <span className="font-medium">{t.name}</span>
-                <span className="text-muted-foreground">🎤 {t.gigs} shows</span>
-              </span>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       <ModuleToolbar
         primaryAction={{ label: "Novo fã", icon: Plus, onClick: openCreate }}
         search={{
