@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Lightbulb, Plus, Zap } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
@@ -40,6 +41,7 @@ type MaturationFilter = IdeaMaturation | "Todas";
 type HeatFilter = IdeaHeat | "all";
 
 export function IdeasPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Idea[]>([]);
   const [filters, setFilters] = useState<{
     category: CategoryFilter;
@@ -73,6 +75,19 @@ export function IdeasPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Deep-link ?open=<id> (vindo dos alertas) — abre a ideia específica assim
+  // que a lista carrega.
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const idea = items.find((i) => i.id === Number(openId));
+    if (idea) {
+      setEditing(idea);
+      setFormOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, items, setSearchParams]);
 
   function openCreate() {
     setEditing(null);

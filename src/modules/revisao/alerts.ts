@@ -94,15 +94,17 @@ export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[]
     alerts.push({
       key: "gigs-unpaid",
       icon: "dollar",
-      to: "/gigs",
+      // Uma só GIG → abre direto nela; várias → cai na lista.
+      to: stats.gigsUnpaidIds.length === 1 ? `/gigs?open=${stats.gigsUnpaidIds[0]}` : "/gigs",
       critical: true,
-      label: `${stats.gigsUnpaidAfter48h} GIG${plural(stats.gigsUnpaidAfter48h)} concluída${plural(stats.gigsUnpaidAfter48h)} há +48h com cachê não recebido`,
+      label: `${stats.gigsUnpaidAfter48h} GIG${plural(stats.gigsUnpaidAfter48h)} concluída${plural(stats.gigsUnpaidAfter48h)} com cachê não recebido`,
     });
   if (stats.hotIdeasStuck > 0)
     alerts.push({
       key: "ideas-stuck",
       icon: "flame",
-      to: "/ideias",
+      // Uma só ideia → abre direto nela; várias → cai na lista.
+      to: stats.hotIdeasStuckIds.length === 1 ? `/ideias?open=${stats.hotIdeasStuckIds[0]}` : "/ideias",
       critical: true,
       label: `${stats.hotIdeasStuck} ideia${plural(stats.hotIdeasStuck)} quente${plural(stats.hotIdeasStuck)} parada${plural(stats.hotIdeasStuck)} em Embrião +15d`,
     });
