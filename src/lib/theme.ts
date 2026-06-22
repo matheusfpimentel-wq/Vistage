@@ -65,7 +65,12 @@ type ThemeState = {
   hydrateFromDocument: () => Promise<void>;
 };
 
-function applyAccent(accent: Accent, theme: Theme) {
+/**
+ * Aplica a cor de destaque (primary/ring/glow/accent) no <html>. Exportada
+ * porque a mini-janela de foco (overlay) precisa pintar a cor escolhida sem
+ * carregar todo o ciclo de boot do tema — recebe accent + theme via URL.
+ */
+export function applyAccent(accent: Accent, theme: Theme) {
   const def = ACCENTS.find((a) => a.id === accent) ?? ACCENTS[0];
   const dark = theme === "dark";
   const s = document.documentElement.style;

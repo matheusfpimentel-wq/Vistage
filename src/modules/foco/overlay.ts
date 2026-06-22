@@ -42,12 +42,16 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
     _creating = true;
 
     const isDark = document.documentElement.classList.contains("dark");
+    // A cor de destaque também viaja: sem ela, o overlay caía no violeta default
+    // do index.css independentemente da personalização escolhida pelo usuário.
+    const accent = localStorage.getItem("vistage.accent") || "violet";
     const params = new URLSearchParams({
       overlay: "1",
       activity: session.activity_type,
       start: session.started_at,
       id: String(session.id),
       theme: isDark ? "dark" : "light",
+      accent,
     });
 
     const win = new WebviewWindow(OVERLAY_LABEL, {
@@ -95,6 +99,7 @@ export function readOverlayParams(): {
   start: string;
   id: number;
   theme: string;
+  accent: string;
 } | null {
   const sp = new URLSearchParams(window.location.search);
   if (sp.get("overlay") !== "1") return null;
@@ -103,6 +108,7 @@ export function readOverlayParams(): {
     start: sp.get("start") ?? new Date().toISOString(),
     id: Number(sp.get("id") ?? 0),
     theme: sp.get("theme") ?? "light",
+    accent: sp.get("accent") ?? "violet",
   };
 }
 
