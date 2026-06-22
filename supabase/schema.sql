@@ -220,6 +220,31 @@ drop trigger if exists trg_bump on public.catalog_mirror;
 create trigger trg_bump after insert or update or delete on public.catalog_mirror
   for each row execute function public.bump_sync_rev();
 
+-- ── Leitura: tarefas pendentes (modo foco → painel de Gestão no celular) ─────
+-- Snapshot das tarefas em aberto pra tickar no celular. Marcar concluída insere
+-- uma captura 'task_done' na capture_inbox; o desktop conclui de fato na revisão.
+create table if not exists public.tasks_mirror (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  source_id   text not null,                       -- id local da tarefa
+  title       text not null,
+  priority    text,
+  due_date    date,
+  category    text,
+  updated_at  timestamptz not null default now(),
+  unique (user_id, source_id)
+);
+create index if not exists idx_tasks_user on public.tasks_mirror (user_id);
+
+alter table public.tasks_mirror enable row level security;
+drop policy if exists "own rows" on public.tasks_mirror;
+create policy "own rows" on public.tasks_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop trigger if exists trg_bump on public.tasks_mirror;
+create trigger trg_bump after insert or update or delete on public.tasks_mirror
+  for each row execute function public.bump_sync_rev();
+
 -- ============================================================================
 -- Web push (resumo diário + lembretes + foco) — Fase 4
 -- ============================================================================

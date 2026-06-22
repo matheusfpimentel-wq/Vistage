@@ -263,9 +263,72 @@ function MusicPanel() {
   );
 }
 
+// ── Painel: GESTÃO (tarefas pendentes pra tickar) ────────────────────────────
+type MirrorTask = { source_id: string; title: string; priority: string | null; due_date: string | null };
+
+function GestaoPanel() {
+  const [tasks, setTasks] = useState<MirrorTask[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [done, setDone] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let active = true;
+    void supabase
+      .from("tasks_mirror")
+      .select("source_id, title, priority, due_date")
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (!active) return;
+        setTasks((data ?? []) as MirrorTask[]);
+        setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function tick(t: MirrorTask) {
+    setDone((d) => new Set(d).add(t.source_id)); // some na hora (otimista)
+    const { data: u } = await supabase.auth.getUser();
+    // Caminho de volta: vira captura 'task_done'; o desktop conclui na revisão.
+    await supabase.from("capture_inbox").insert({
+      user_id: u.user?.id,
+      kind: "task_done",
+      client_ref: crypto.randomUUID(),
+      payload: { task_id: Number(t.source_id), title: t.title },
+    });
+  }
+
+  if (!loaded) return null;
+  const visible = tasks.filter((t) => !done.has(t.source_id));
+  if (visible.length === 0) {
+    return <p className="muted center-text">Sem tarefas pendentes. 🎯</p>;
+  }
+  return (
+    <section className="card">
+      <span className="label">Tarefas pendentes</span>
+      <ul className="focus-tasks">
+        {visible.map((t) => (
+          <li key={t.source_id}>
+            <button type="button" className="focus-task" onClick={() => void tick(t)}>
+              <span className="focus-task-box" aria-hidden />
+              <span className="focus-task-title">{t.title}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="muted" style={{ fontSize: "0.75rem", marginTop: "0.4rem" }}>
+        Concluir aqui marca no PC na próxima sincronização.
+      </p>
+    </section>
+  );
+}
+
 function ContextPanel({ activity }: { activity: string }) {
   if (activity === "Tempo de palco") return <StagePanel />;
   if (activity === "Criação musical") return <MusicPanel />;
+  if (activity === "Gestão") return <GestaoPanel />;
   return null;
 }
 
