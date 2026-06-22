@@ -22,6 +22,7 @@ const KIND_LABEL: Record<string, string> = {
   highlight: "Destaque",
   note: "Nota",
   task: "Tarefa",
+  task_done: "Tarefa concluída",
   contact: "Pessoa",
   gig: "GIG",
 };

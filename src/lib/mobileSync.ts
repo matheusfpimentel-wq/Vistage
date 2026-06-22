@@ -182,6 +182,27 @@ async function buildFocus(uid: string) {
   return { user_id: uid, week, payload };
 }
 
+// ── Tarefas pendentes (modo foco → painel de Gestão no celular) ─────────────
+async function buildTasks(uid: string) {
+  const db = getDb();
+  const rows = await db.select<
+    { id: number; title: string; priority: string | null; due_date: string | null; category: string | null }[]
+  >(
+    `SELECT id, title, priority, due_date, category FROM tasks
+      WHERE status NOT IN ('Concluída','Cancelada')
+      ORDER BY (due_date IS NULL), due_date LIMIT 50`,
+    []
+  );
+  return rows.map((t) => ({
+    user_id: uid,
+    source_id: String(t.id),
+    title: t.title,
+    priority: t.priority,
+    due_date: t.due_date,
+    category: t.category,
+  }));
+}
+
 // ── Catálogo pesquisável (consulta no celular) ──────────────────────────────
 type CatalogRow = {
   user_id: string;
@@ -369,12 +390,13 @@ export async function pushMirror(): Promise<void> {
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, contacts, focus, catalog] = await Promise.all([
+  const [agenda, finance, contacts, focus, catalog, tasks] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
     buildContacts(uid),
     buildFocus(uid),
     buildCatalog(uid),
+    buildTasks(uid),
   ]);
 
   // agenda e contato do dia: snapshot (apaga as próprias linhas e reinsere o set atual).
@@ -401,6 +423,12 @@ export async function pushMirror(): Promise<void> {
   await supabase.from("catalog_mirror").delete().eq("user_id", uid);
   for (const part of chunk(catalog, 500)) {
     const { error } = await supabase.from("catalog_mirror").insert(part);
+    if (error) throw error;
+  }
+  // tarefas pendentes (Gestão no foco): snapshot.
+  await supabase.from("tasks_mirror").delete().eq("user_id", uid);
+  if (tasks.length) {
+    const { error } = await supabase.from("tasks_mirror").insert(tasks);
     if (error) throw error;
   }
   // aparência: tema/acento do documento → 1 linha por conta.
@@ -580,6 +608,14 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
           WHERE id = $2`,
         [stamped, Number(targetId)]
       );
+    }
+  } else if (kind === "task_done") {
+    // Tarefa tickada no celular → conclui de fato no banco local, com os efeitos
+    // colaterais reais (sync de derivadas, tombstone do Todoist, etc.).
+    const taskId = n("task_id");
+    if (taskId) {
+      const { updateTask } = await import("@/modules/tasks/api");
+      await updateTask({ id: taskId, status: "Concluída" });
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
