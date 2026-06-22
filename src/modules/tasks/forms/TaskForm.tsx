@@ -358,46 +358,6 @@ export function TaskForm({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Vincular a uma GIG">
-              <Select
-                value={state.gig_id?.toString() ?? "none"}
-                onValueChange={(v) =>
-                  set("gig_id", v === "none" ? null : Number(v))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Nenhum" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem vínculo</SelectItem>
-                  {gigs.map((g) => (
-                    <SelectItem key={g.id} value={g.id.toString()}>
-                      {g.venue_name} · {formatDate(g.date)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Vincular a um contato">
-              <Select
-                value={state.contact_id?.toString() ?? "none"}
-                onValueChange={(v) =>
-                  set("contact_id", v === "none" ? null : Number(v))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Nenhum" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sem vínculo</SelectItem>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id.toString()}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
           </div>
 
           <div className="space-y-1.5">
@@ -443,10 +403,19 @@ export function TaskForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Outros vínculos</Label>
+            <Label>Vínculo</Label>
             <LinkPicker
+              gigId={state.gig_id ?? null}
+              contactId={state.contact_id ?? null}
+              onGig={(id) => set("gig_id", id)}
+              onContact={(id) => set("contact_id", id)}
+              gigOptions={gigs.map((g) => ({
+                id: g.id,
+                label: `${g.venue_name} · ${formatDate(g.date)}`,
+              }))}
+              contactOptions={contacts.map((c) => ({ id: c.id, label: c.name }))}
               links={links}
-              onChange={(l) => {
+              onLinks={(l) => {
                 setLinks(l);
                 setDirty(true);
               }}
