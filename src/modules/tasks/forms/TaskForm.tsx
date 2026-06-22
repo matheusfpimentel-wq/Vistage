@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,7 +33,7 @@ import {
   type TaskCreateInput,
   type TaskRecurrence,
 } from "../types";
-import { createTask, listTaskLinks, setTaskLinks, updateTask } from "../api";
+import { addSubtask, createTask, listTaskLinks, setTaskLinks, updateTask } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listGigs } from "@/modules/gigs/api";
@@ -93,6 +93,11 @@ export function TaskForm({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [links, setLinks] = useState<PendingLink[]>([]);
+  // Subtarefas digitadas ANTES de a tarefa existir (modo criar): bufferizadas
+  // aqui e persistidas após o createTask, igual aos vínculos. No modo editar, o
+  // SubtaskList grava direto no banco.
+  const [pendingSubtasks, setPendingSubtasks] = useState<string[]>([]);
+  const [subtaskInput, setSubtaskInput] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
@@ -110,6 +115,8 @@ export function TaskForm({
     setTitleError(null);
     setDirty(false);
     setLinks([]);
+    setPendingSubtasks([]);
+    setSubtaskInput("");
   }, [task, defaults, open]);
 
   useEffect(() => {
@@ -153,6 +160,19 @@ export function TaskForm({
     setDirty(true);
   }
 
+  function addPendingSubtask() {
+    const t = subtaskInput.trim();
+    if (!t) return;
+    setPendingSubtasks((s) => [...s, t]);
+    setSubtaskInput("");
+    setDirty(true);
+  }
+
+  function removePendingSubtask(idx: number) {
+    setPendingSubtasks((s) => s.filter((_, i) => i !== idx));
+    setDirty(true);
+  }
+
   async function handleSubmit() {
     if (!state.title.trim()) {
       setTitleError("Obrigatório");
@@ -172,6 +192,12 @@ export function TaskForm({
           label: l.label || null,
         }))
       );
+      // Tarefa nova: grava as subtarefas bufferizadas, na ordem digitada.
+      if (!task && pendingSubtasks.length > 0) {
+        for (let i = 0; i < pendingSubtasks.length; i++) {
+          await addSubtask(id, pendingSubtasks[i], i);
+        }
+      }
       toast.success(task ? "Tarefa atualizada" : "Tarefa criada");
       setDirty(false);
       onSaved(id);
@@ -427,12 +453,50 @@ export function TaskForm({
             />
           </div>
 
-          {task && (
-            <div className="space-y-1.5">
-              <Label>Subtarefas (checklist)</Label>
+          <div className="space-y-1.5">
+            <Label>Subtarefas (checklist)</Label>
+            {task ? (
               <SubtaskList taskId={task.id} />
-            </div>
-          )}
+            ) : (
+              <div className="space-y-2">
+                {pendingSubtasks.length > 0 && (
+                  <div className="space-y-1">
+                    {pendingSubtasks.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="flex-1 rounded bg-muted/50 px-2 py-1 text-sm">{s}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removePendingSubtask(i)}
+                          aria-label="Remover subtarefa"
+                        >
+                          <X className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nova subtarefa…"
+                    value={subtaskInput}
+                    onChange={(e) => setSubtaskInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addPendingSubtask();
+                      }
+                    }}
+                    className="h-8 text-sm"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={addPendingSubtask}>
+                    <Plus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter className="gap-2">
