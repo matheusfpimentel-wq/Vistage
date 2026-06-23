@@ -94,12 +94,14 @@ const EMPTY: FormState = {
   venue_id: null,
   fans_present: null,
   promoter_contact_id: null,
+  promoter_name_manual: null,
   day_contact_name: null,
   day_contact_phone: null,
   estimated_audience: null,
   cache_amount: null,
   script_file_path: null,
   banner_file_path: null,
+  briefing_file_path: null,
   extra_flyer_paths: null,
   extra_flyers: [],
   time_slots: null,
@@ -733,15 +735,18 @@ export function GigForm({
               <div className="flex gap-2">
                 <Select
                   value={state.promoter_contact_id?.toString() ?? "none"}
-                  onValueChange={(v) =>
-                    set("promoter_contact_id", v === "none" ? null : Number(v))
-                  }
+                  onValueChange={(v) => {
+                    const id = v === "none" ? null : Number(v);
+                    set("promoter_contact_id", id);
+                    // Contato vinculado tem prioridade — limpa o nome manual.
+                    if (id !== null) set("promoter_name_manual", null);
+                  }}
                 >
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Selecione um contato" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sem vínculo</SelectItem>
+                    <SelectItem value="none">Contratante eventual</SelectItem>
                     {contacts.map((c) => (
                       <SelectItem key={c.id} value={c.id.toString()}>
                         {c.name}
@@ -757,6 +762,14 @@ export function GigForm({
                   <Plus className="h-3.5 w-3.5" /> Novo
                 </Button>
               </div>
+              {state.promoter_contact_id == null && (
+                <Input
+                  className="mt-2"
+                  placeholder="Nome do contratante eventual (sem cadastro)"
+                  value={state.promoter_name_manual ?? ""}
+                  onChange={(e) => set("promoter_name_manual", e.target.value || null)}
+                />
+              )}
               {contactHistory && (
                 <div className="mt-2 bg-muted/50 rounded-md p-2 text-xs space-y-0.5 text-muted-foreground">
                   <div className="font-medium text-foreground">Histórico com este contratante</div>
@@ -1055,6 +1068,13 @@ export function GigForm({
                 value={state.script_file_path}
                 onChange={(v) => set("script_file_path", v)}
                 subdir="gigs/scripts"
+                variant="document"
+              />
+              <AttachmentField
+                label="Briefing"
+                value={state.briefing_file_path}
+                onChange={(v) => set("briefing_file_path", v)}
+                subdir="gigs/briefing"
                 variant="document"
               />
             </div>

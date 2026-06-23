@@ -16,6 +16,7 @@ const GIG_COLUMNS = [
   "venue_id",
   "fans_present",
   "promoter_contact_id",
+  "promoter_name_manual",
   "day_contact_name",
   "day_contact_phone",
   "estimated_audience",
@@ -23,6 +24,7 @@ const GIG_COLUMNS = [
   "cache_paid_pct",
   "script_file_path",
   "banner_file_path",
+  "briefing_file_path",
   "extra_flyer_paths",
   "opportunities",
   "briefing",
@@ -133,8 +135,8 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
   // de Lista e Planilha mostram a coluna "Contratante" sem N+1 nem mapa extra.
   // Colunas da GIG ficam qualificadas com `g.` pra não colidir com `contacts`.
   const sql =
-    `SELECT ${GIG_COLUMNS.map((c) => `g.${c}`).join(", ")}, c.name AS promoter_contact_name ` +
-    `FROM gigs g LEFT JOIN contacts c ON c.id = g.promoter_contact_id` +
+    `SELECT ${GIG_COLUMNS.map((c) => `g.${c}`).join(", ")}, COALESCE(c.name, g.promoter_name_manual) AS promoter_contact_name` +
+    ` FROM gigs g LEFT JOIN contacts c ON c.id = g.promoter_contact_id` +
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
     " ORDER BY g.date DESC, g.start_time DESC";
   return db.select<Gig[]>(sql, params);

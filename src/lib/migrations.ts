@@ -1782,6 +1782,15 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE work_sessions ADD COLUMN planned_minutes INTEGER;
     `,
   },
+  {
+    version: 124,
+    description:
+      "gigs — briefing_file_path (anexo de briefing) e promoter_name_manual (contratante eventual, sem contato cadastrado)",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN briefing_file_path TEXT;
+      ALTER TABLE gigs ADD COLUMN promoter_name_manual TEXT;
+    `,
+  },
 ];
 
 
