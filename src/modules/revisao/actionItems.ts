@@ -4,6 +4,7 @@
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import {
   loadExtraStats,
   loadOverdueReceivableAlerts,
@@ -34,14 +35,15 @@ export function alertGroup(to: string): string | undefined {
 
 /** Todos os itens acionáveis (mesma fonte do sininho). */
 export async function loadActionItems(): Promise<AlertItem[]> {
-  const [stats, extra, rel, staleGigs, overdue] = await Promise.all([
+  const [stats, extra, rel, staleGigs, overdue, custom] = await Promise.all([
     loadWeekStats(),
     loadExtraStats(),
     loadRelationshipAlerts(),
     loadStaleGigStatusAlerts(),
     loadOverdueReceivableAlerts(),
+    evaluateCustomRules(),
   ]);
-  return [...computeAlerts(stats, extra, getDisabledRuleIds()), ...rel, ...staleGigs, ...overdue];
+  return [...computeAlerts(stats, extra, getDisabledRuleIds()), ...rel, ...staleGigs, ...overdue, ...custom];
 }
 
 /** Itens acionáveis de um grupo temático, críticos primeiro. */
