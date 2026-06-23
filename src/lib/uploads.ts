@@ -14,6 +14,24 @@ export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
 export const VIDEO_EXTS = ["mp4", "mov", "webm", "avi", "mkv", "m4v"];
 export const DOC_EXTS = ["pdf", "doc", "docx", "txt", "rtf", "md", "odt", "ttf", "otf", "woff", "woff2"];
 
+/**
+ * MIME por extensão. Sem o MIME certo no data URL, o <video> não reproduz —
+ * era o caso do .mov, que caía em "application/octet-stream" e não tocava.
+ */
+const MIME_BY_EXT: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  avi: "video/x-msvideo",
+  mkv: "video/x-matroska",
+};
+
 type PickOptions = {
   title?: string;
   extensions: string[];
@@ -123,16 +141,7 @@ async function readAsDataUrl(
   try {
     const bytes = await readFile(absolutePath);
     const ext = getExtension(absolutePath);
-    const mime =
-      ext === "jpg" || ext === "jpeg"
-        ? "image/jpeg"
-        : ext === "png"
-        ? "image/png"
-        : ext === "gif"
-        ? "image/gif"
-        : ext === "webp"
-        ? "image/webp"
-        : "application/octet-stream";
+    const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
     // converte Uint8Array em base64
     // Chunk to avoid stack overflow on large files and O(n²) string builds.
     const CHUNK = 8192;
