@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moldura Residente — MPPR</title>
+<style>
+  /* Fonte da marca (subconjunto Outfit Bold, ~1,5 KB) — usada só no texto da moldura */
+  @font-face{
+    font-family:'OutfitMP';
+    font-style:normal;
+    font-weight:700;
+    font-display:block;
+    src:url(data:font/woff2;base64,d09GMgABAAAAAAXMABAAAAAACyAAAAVxAAEZmgAAAAAAAAAAAAAAAAAAAAAAAAAAGigbgyQcegZgP1NUQVQqAGQRCAqIAIYRATYCJANACyIABCAFg0wHIAwHG/kIUZRRzm9Jvjrgiaj7AwdhERS1WmsuayaIrCF76o21CqtKfdDMI5xx4PeIr8H/92t67vtvgz/dLRAoQJs6AiPqaHymxtbTeAJlWFaY6gyv9/ZSKIX1ARZiCqYSJojbSb+H7byBW8+u+Q8lcaZpb45/8O/ZeW8fPmjzImoJtv2tFvQ9TjNKKQ3wGnCzFrAmFkhAa1mgY6yrH23Eg+0n1cz/f6/qexmT4mM+jHiOBywia9yssTs2poARLNAY2z5oB0h9cgkLJLVQt7p/7FJzYJn4R0EgAgDjRCTIkYICKYlEoGQEltz54hsKNPcNzQOaHFB/Ceh5L8oDKkBAnCkwpdECZIQCqFjFFyxPpDx5UCt+eZ5PBGLAVZhUKjLlOlNOlYNq1s2o3MipwS1WCSoJ0v6oHDTlkHbaztp5u9Vut4t2p122qzbdZho15ZNAAws8WMEOIjhBBrdE5epcRvVuo6rUlUQ5zzRTKl87FWKCApjHJ89R/78bD4B6B8AZqEJuQTyPnHE8q90IRMRVkrjCPWkyhk2zO7Jty0GB5m1HMoA+gAAjCnK6ZCAFHQdXsFKuwHc1tU23BBG4TeTzcJ5JYJ8ZCbBubURX2IxQqIv1D/w3BfMGhM7X+5CEw2B76lcbGKBKM/9RoQUEesi9HpkoBAFGAK32CsBAAC3kCbRQsAOQ0SYPBnAJSPgLFPqBARx8Er4CBX/9MzNSk5MSiX0bUa8USAYAAzVXJ3jbKfB2ytjXRTPrS9/LBRSWUe/wYpcs8aTNW9yneU9I46LKcDaMqMXDseGQBoAFd72AGjZO1JKgS7hwBl+9AvUvQ+28vpdq6oqwgrL39tbly2TOV2Kzq6+JGqQB0j0w30gFaWoZvfIOkWrRTnL2nDAFjawIJDQcmhEDwV2nm2swz+lKldqeOOs+d3aCoyPSkjplwRHnr5S6Lu7LZI9lbd/trepmjNANmVrnEag/v6fneObbYbOcBWmBNjMuENNpoSf9jywA9zC8ayE6fXxGXRgUEQ7BclpG17361wsvJBSZRL6uvqEenFUueBKczCoWrRbKJpz+OlfPxmmi8pAfj8GE4DghUUHa+EjtxAxfKjk2i+DjcTN1AzY6N9kJWFwSj4dPiMex9zoOAluxqfHEen8/YkNKXCsuwOJm5gbw/XMd2pvaGx2bEpsS9Npq2wBflrPvjOvsdBcYbFH0twqTuccHeyaZuyYLx878PM9ugnRO33GttrlQvd4lT0HluMW/cxvr838W45WbvGwCM1UgsPqyiTxHYCs9wRYd8fJycdTxGq1cEiJ4WhyDSYvNxklMbT1KP7zz6nNUDAdGGVFNpqSlGga7krAp1ha4ZaGRwHLDTkjkMOPyvSXSSly1s8V3tpWLy52Fmfci8ANW83ZSUlpfEfghzhxVkDsiOoiwhHw0OxuMjzr/teO7u9eb/3N2PccMYNb1Y0x/mDlvz8QUMjWD/MP8NUWaQjFwugMA1A4CHS5qW4OQMPT/0PAH8PlRPAD8rhq5/q89Z5rf5odyDIDwA/ClRwCNTEHFUVkvVfvGzHNr/VmjDF8c2gjDnWj0nlsUd/8+Ee3W6O8x/RzR8A4EMnsabFKaY34gUHRKlixF4AY+keiGmIJbEsw4I67NV5JYdafMacuyikQcW1AY66lV+QpUKILIkAllDcsbFoa1UC5OWxigBCodguwUqEi+LGlSEuAkvZnyFSk2wXmsGKogWUjlxUsGBHp/iWSeUuTL5TXyNEQ+d64HoXx50GTSRfoUrnw5UmF4wvDmjSZdkSQZZO04VnyNhG2dCJe2bkBmm7AeVW/hdMiHP06xGN48UXjCIombKRMh7SwD8gptdc6s/sfxn/16DwA=) format('woff2');
+  }
+
+  :root{
+    --turq:#149aa6;       /* turquesa de UI (contraste em branco) */
+    --turq-dark:#0d6b74;
+    --orange:#f4521e;
+    --orange-dark:#d9410f;
+    --ink:#1f2a2c;
+    --muted:#5b6a6c;
+    --line:#e3e8e9;
+    --bg:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 36px}
+  .lead{border-left:5px solid var(--turq);padding:2px 0 2px 14px;margin-bottom:18px}
+  h1{font-size:1.5rem;margin:0 0 6px;color:var(--turq-dark);letter-spacing:-.2px}
+  .lead p{margin:0;color:var(--muted);font-size:.98rem}
+
+  .stage{
+    max-width:430px;margin:0 auto;
+    background:#f4f7f7;border:1px solid var(--line);border-radius:14px;
+    padding:14px;
+  }
+  .canvas-box{position:relative;width:100%;border-radius:10px;overflow:hidden}
+  canvas#view{
+    display:block;width:100%;height:auto;
+    touch-action:none;cursor:grab;background:transparent;
+  }
+  canvas#view.dragging{cursor:grabbing}
+
+  .zoom-row{display:none;align-items:center;gap:10px;margin-top:12px}
+  .zoom-row.show{display:flex}
+  .zoom-row label{font-size:.8rem;color:var(--muted);min-width:42px}
+  input[type=range]{flex:1;accent-color:var(--turq)}
+
+  .hint{margin:10px 2px 0;font-size:.78rem;color:var(--muted);text-align:center}
+
+  .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;justify-content:center}
+  .btn{
+    appearance:none;border:0;border-radius:10px;cursor:pointer;
+    font-size:.95rem;font-weight:600;padding:12px 18px;line-height:1;
+    display:inline-flex;align-items:center;gap:8px;transition:background .15s,opacity .15s;
+  }
+  .btn:focus-visible{outline:3px solid #9fd9df;outline-offset:2px}
+  .btn-primary{background:var(--turq);color:#fff}
+  .btn-primary:hover{background:var(--turq-dark)}
+  .btn-save{background:var(--orange);color:#fff}
+  .btn-save:hover{background:var(--orange-dark)}
+  .btn-ghost{background:#fff;color:var(--turq-dark);border:1px solid var(--line)}
+  .btn-ghost:hover{background:#f0f5f5}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .hidden{display:none !important}
+
+  .status{margin:12px auto 0;max-width:430px;text-align:center;font-size:.85rem;color:var(--turq-dark);min-height:1.1em}
+  .foot{margin:22px auto 0;max-width:430px;text-align:center;font-size:.72rem;color:#9aa7a8}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="lead">
+      <h1>Moldura Residente — MPPR</h1>
+      <p>Adicione uma foto ou vídeo, posicione do jeito que quiser e baixe com a moldura do MPPR.</p>
+    </div>
+
+    <section class="stage">
+      <div class="canvas-box">
+        <canvas id="view" width="1200" height="1600" aria-label="Pré-visualização da moldura"></canvas>
+      </div>
+
+      <div class="zoom-row" id="zoomRow">
+        <label for="zoom">Zoom</label>
+        <input type="range" id="zoom" min="1" max="6" step="0.01" value="1">
+      </div>
+
+      <p class="hint" id="hint">Arraste para posicionar &bull; role o mouse ou pince com dois dedos para dar zoom</p>
+    </section>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="addBtn">Adicionar foto ou vídeo</button>
+      <button class="btn btn-ghost hidden" id="resetBtn">Centralizar</button>
+      <button class="btn btn-save hidden" id="saveBtn">Salvar</button>
+    </div>
+
+    <p class="status" id="status"></p>
+    <p class="foot">Ferramenta de uso interno • Identidade visual do Ministério Público do Paraná</p>
+
+    <input type="file" id="file" accept="image/*,video/*" class="hidden">
+  </main>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Geometria da moldura (espaço base 1200 x 1600) ----
+  var W = 1200, H = 1600, CARD_R = 40;
+  var WIN = { x:72, y:64, w:812, h:1300, r:44 };
+  var TURQ="#45C6D0", GREEN="#1AA64C", DTEAL="#2E8089", ORANGE="#F4521E";
+  var FLAG_G="#009C3B", FLAG_Y="#FFDF00", FLAG_B="#002776";
+
+  // ---- Estado ----
+  var media=null, mediaType=null, mediaW=0, mediaH=0;
+  var zoom=1, panX=0, panY=0;
+  var objectUrl=null, recording=false, fontReady=false;
+
+  // ---- Elementos ----
+  var canvas=document.getElementById('view');
+  var ctx=canvas.getContext('2d');
+  var fileInput=document.getElementById('file');
+  var addBtn=document.getElementById('addBtn');
+  var saveBtn=document.getElementById('saveBtn');
+  var resetBtn=document.getElementById('resetBtn');
+  var zoomRow=document.getElementById('zoomRow');
+  var zoomInput=document.getElementById('zoom');
+  var statusEl=document.getElementById('status');
+  var hintEl=document.getElementById('hint');
+
+  // ---- Helpers de desenho ----
+  function rrect(c,x,y,w,h,r){
+    c.beginPath();
+    c.moveTo(x+r,y);
+    c.arcTo(x+w,y,x+w,y+h,r);
+    c.arcTo(x+w,y+h,x,y+h,r);
+    c.arcTo(x,y+h,x,y,r);
+    c.arcTo(x,y,x+w,y,r);
+    c.closePath();
+  }
+  function circle(c,cx,cy,r){ c.beginPath(); c.arc(cx,cy,r,0,Math.PI*2); c.fill(); }
+  function setFont(c,px){ c.font = '700 '+px+'px "OutfitMP","Arial Black",system-ui,sans-serif'; }
+  function ls(c,v){ try{ c.letterSpacing = v+'px'; }catch(e){} }
+
+  function pinPath(c,cx,cy,r){
+    var aL=Math.PI*150/180, aR=Math.PI*30/180;
+    var lx=cx+r*Math.cos(aL), lyy=cy+r*Math.sin(aL);
+    c.beginPath();
+    c.moveTo(cx, cy+2*r);          // ponta
+    c.lineTo(lx, lyy);             // lado esquerdo
+    c.arc(cx,cy,r,aL,aR+Math.PI*2,false); // arco por cima
+    c.closePath();
+  }
+  function drawPinFlag(c,cx,cy,r){
+    pinPath(c,cx,cy,r); c.fillStyle=GREEN; c.fill();   // contorno do pin
+    c.save();
+    pinPath(c,cx,cy,r); c.clip();
+    c.fillStyle=FLAG_G; c.fillRect(cx-r-2, cy-r-2, 2*r+4, 3*r+4);
+    c.fillStyle=FLAG_Y; c.beginPath();
+    c.moveTo(cx, cy-0.62*r); c.lineTo(cx+0.82*r, cy);
+    c.lineTo(cx, cy+0.62*r); c.lineTo(cx-0.82*r, cy); c.closePath(); c.fill();
+    c.fillStyle=FLAG_B; circle(c,cx,cy,r*0.30);
+    c.restore();
+  }
+
+  // ---- Cálculo da transformação da mídia ----
+  function mediaRect(){
+    var base = Math.max(WIN.w/mediaW, WIN.h/mediaH);
+    var s = base*zoom;
+    var dw = mediaW*s, dh = mediaH*s;
+    var maxX = Math.max(0,(dw-WIN.w)/2), maxY = Math.max(0,(dh-WIN.h)/2);
+    panX = Math.min(maxX, Math.max(-maxX, panX));
+    panY = Math.min(maxY, Math.max(-maxY, panY));
+    var dx = WIN.x + WIN.w/2 - dw/2 + panX;
+    var dy = WIN.y + WIN.h/2 - dh/2 + panY;
+    return {dx:dx,dy:dy,dw:dw,dh:dh};
+  }
+
+  // ---- Render principal (S = fator de escala) ----
+  function renderTo(cv, S){
+    var c = cv.getContext('2d');
+    c.setTransform(1,0,0,1,0,0);
+    c.clearRect(0,0,cv.width,cv.height);
+    c.scale(S,S);
+
+    // cartão turquesa
+    rrect(c,0,0,W,H,CARD_R); c.fillStyle=TURQ; c.fill();
+    // janela branca
+    rrect(c,WIN.x,WIN.y,WIN.w,WIN.h,WIN.r); c.fillStyle="#ffffff"; c.fill();
+
+    // mídia recortada à janela
+    if(media && mediaW){
+      var r = mediaRect();
+      c.save(); rrect(c,WIN.x,WIN.y,WIN.w,WIN.h,WIN.r); c.clip();
+      try{ c.drawImage(media, r.dx, r.dy, r.dw, r.dh); }catch(e){}
+      c.restore();
+    } else {
+      c.fillStyle="#aebdbe"; c.textAlign="center"; c.textBaseline="middle";
+      c.font='34px system-ui,-apple-system,sans-serif';
+      c.fillText("Sua foto ou vídeo aqui", WIN.x+WIN.w/2, WIN.y+WIN.h/2);
+    }
+
+    // discos verdes (presos ao cartão)
+    c.save(); rrect(c,0,0,W,H,CARD_R); c.clip();
+    c.fillStyle=GREEN; circle(c,1240,780,320); circle(c,1095,470,150);
+    c.restore();
+
+    // logo MPPR
+    c.fillStyle="#ffffff"; c.textAlign="center"; c.textBaseline="alphabetic";
+    setFont(c,168); ls(c,-6);
+    c.fillText("MP",1042,232); c.fillText("PR",1042,372);
+
+    // pin com bandeira do Brasil
+    drawPinFlag(c,1060,1000,86);
+
+    // BRASIL
+    c.fillStyle="#ffffff"; setFont(c,40); ls(c,8);
+    c.fillText("BRASIL",1060,1232);
+
+    // barras inferiores
+    c.fillStyle=DTEAL; rrect(c,64,1392,840,64,32); c.fill();
+    rrect(c,64,1488,520,60,30); c.fill();
+
+    // selo RESIDENTE
+    c.fillStyle=ORANGE; rrect(c,620,1474,560,100,50); c.fill();
+    c.fillStyle="#ffffff"; setFont(c,54); ls(c,6);
+    c.fillText("RESIDENTE",900,1540);
+
+    ls(c,0);
+  }
+
+  // ---- Loop de render ----
+  var dirty=true;
+  function tick(){
+    if(mediaType==='video' || dirty){ renderTo(canvas,1); dirty=false; }
+    requestAnimationFrame(tick);
+  }
+  function invalidate(){ dirty=true; }
+
+  // ---- Interações: arrastar e zoom ----
+  function scaleFactor(){ return W / canvas.getBoundingClientRect().width; }
+  var pointers={}, lastDist=0, lastMid=null;
+
+  canvas.addEventListener('pointerdown', function(e){
+    if(!media) return;
+    canvas.setPointerCapture(e.pointerId);
+    pointers[e.pointerId]={x:e.clientX,y:e.clientY};
+    canvas.classList.add('dragging');
+    lastDist=0; lastMid=null;
+  });
+  canvas.addEventListener('pointermove', function(e){
+    if(!media || !pointers[e.pointerId]) return;
+    var prev=pointers[e.pointerId];
+    var ids=Object.keys(pointers);
+    var f=scaleFactor();
+    if(ids.length>=2){
+      var a=pointers[ids[0]], b=pointers[ids[1]];
+      pointers[e.pointerId]={x:e.clientX,y:e.clientY};
+      a=pointers[ids[0]]; b=pointers[ids[1]];
+      var dist=Math.hypot(a.x-b.x, a.y-b.y);
+      var mid={x:(a.x+b.x)/2, y:(a.y+b.y)/2};
+      if(lastDist){ setZoom(zoom * (dist/lastDist)); }
+      if(lastMid){ panX += (mid.x-lastMid.x)*f; panY += (mid.y-lastMid.y)*f; }
+      lastDist=dist; lastMid=mid;
+    } else {
+      panX += (e.clientX-prev.x)*f;
+      panY += (e.clientY-prev.y)*f;
+      pointers[e.pointerId]={x:e.clientX,y:e.clientY};
+    }
+    invalidate();
+  });
+  function endPointer(e){
+    delete pointers[e.pointerId];
+    if(Object.keys(pointers).length<2){ lastDist=0; lastMid=null; }
+    if(Object.keys(pointers).length===0) canvas.classList.remove('dragging');
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+
+  canvas.addEventListener('wheel', function(e){
+    if(!media) return;
+    e.preventDefault();
+    setZoom(zoom * (1 - e.deltaY*0.0015));
+    invalidate();
+  }, {passive:false});
+
+  function setZoom(z){
+    zoom = Math.min(6, Math.max(1, z));
+    zoomInput.value = zoom.toFixed(2);
+    invalidate();
+  }
+  zoomInput.addEventListener('input', function(){ setZoom(parseFloat(zoomInput.value)); });
+
+  // ---- Carregar mídia ----
+  addBtn.addEventListener('click', function(){ fileInput.click(); });
+  fileInput.addEventListener('change', function(){
+    var file = fileInput.files && fileInput.files[0];
+    if(!file) return;
+    clearMedia();
+    objectUrl = URL.createObjectURL(file);
+    if(file.type.indexOf('video')===0){
+      var v=document.createElement('video');
+      v.src=objectUrl; v.muted=true; v.loop=true; v.playsInline=true;
+      v.setAttribute('playsinline','');
+      v.addEventListener('loadedmetadata', function(){
+        mediaW=v.videoWidth; mediaH=v.videoHeight; media=v; mediaType='video';
+        resetView(); onMediaReady(); v.play().catch(function(){});
+      });
+      v.addEventListener('error', function(){ setStatus('Não foi possível abrir esse vídeo.'); });
+    } else {
+      var img=new Image();
+      img.onload=function(){
+        mediaW=img.naturalWidth; mediaH=img.naturalHeight; media=img; mediaType='image';
+        resetView(); onMediaReady();
+      };
+      img.onerror=function(){ setStatus('Não foi possível abrir essa imagem.'); };
+      img.src=objectUrl;
+    }
+    fileInput.value='';
+  });
+
+  function onMediaReady(){
+    saveBtn.classList.remove('hidden');
+    resetBtn.classList.remove('hidden');
+    zoomRow.classList.add('show');
+    saveBtn.textContent = (mediaType==='video') ? 'Salvar vídeo' : 'Salvar foto';
+    addBtn.textContent = 'Trocar mídia';
+    setStatus('');
+    invalidate();
+  }
+  function resetView(){ zoom=1; panX=0; panY=0; zoomInput.value='1'; }
+  resetBtn.addEventListener('click', function(){ resetView(); invalidate(); });
+
+  function clearMedia(){
+    if(media && mediaType==='video'){ try{media.pause();}catch(e){} }
+    if(objectUrl){ URL.revokeObjectURL(objectUrl); objectUrl=null; }
+    media=null; mediaType=null; mediaW=0; mediaH=0;
+  }
+
+  // ---- Salvar ----
+  saveBtn.addEventListener('click', function(){
+    if(!media) return;
+    if(mediaType==='video') saveVideo(); else savePhoto();
+  });
+
+  function download(blob, name){
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  }
+
+  function savePhoto(){
+    var S=2;
+    var ec=document.createElement('canvas'); ec.width=W*S; ec.height=H*S;
+    renderTo(ec,S);
+    ec.toBlob(function(b){
+      if(b){ download(b,'moldura-mppr.png'); setStatus('Foto salva ✓'); }
+    },'image/png');
+  }
+
+  function pickMime(){
+    var c=['video/mp4;codecs=avc1.42E01E','video/mp4',
+           'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+    if(!window.MediaRecorder) return null;
+    for(var i=0;i<c.length;i++){ try{ if(MediaRecorder.isTypeSupported(c[i])) return c[i]; }catch(e){} }
+    return '';
+  }
+  function extFor(m){ return (m && m.indexOf('mp4')>=0) ? 'mp4' : 'webm'; }
+
+  function saveVideo(){
+    if(recording) return;
+    var mime=pickMime();
+    if(mime===null){ setStatus('Seu navegador não permite salvar vídeo. Use uma foto ou tire um print.'); return; }
+    var v=media;
+    var stream=canvas.captureStream(30);
+    try{
+      var vs = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
+      if(vs){ vs.getAudioTracks().forEach(function(t){ stream.addTrack(t); }); }
+    }catch(e){}
+
+    var rec;
+    try{ rec = mime ? new MediaRecorder(stream,{mimeType:mime, videoBitsPerSecond:8000000}) : new MediaRecorder(stream); }
+    catch(e){ setStatus('Não foi possível iniciar a gravação neste navegador.'); return; }
+
+    var chunks=[];
+    rec.ondataavailable=function(e){ if(e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop=function(){
+      var out = rec.mimeType || mime || 'video/webm';
+      var blob=new Blob(chunks,{type:out});
+      download(blob,'moldura-mppr.'+extFor(out));
+      recording=false; saveBtn.disabled=false; addBtn.disabled=false;
+      v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
+      setStatus('Vídeo salvo ✓');
+    };
+
+    recording=true; saveBtn.disabled=true; addBtn.disabled=true;
+    setStatus('Gravando vídeo… aguarde terminar (toca uma vez do início ao fim).');
+
+    v.loop=false; v.muted=false;
+    var stopAt = function(){ if(rec.state!=='inactive') rec.stop(); };
+    v.onended=stopAt;
+    try{ v.currentTime=0; }catch(e){}
+    var p=v.play();
+    if(p && p.catch){ p.catch(function(){ v.muted=true; v.play().catch(function(){}); }); }
+    rec.start();
+    // trava de segurança: no máx. ~60 s
+    setTimeout(stopAt, Math.min(60000, ((v.duration||30)*1000)+1500));
+  }
+
+  function setStatus(t){ statusEl.textContent=t; }
+
+  // ---- Inicialização ----
+  function start(){
+    if(document.fonts && document.fonts.load){
+      document.fonts.load('700 168px "OutfitMP"').then(function(){ fontReady=true; invalidate(); })
+        .catch(function(){ invalidate(); });
+    }
+    invalidate();
+    requestAnimationFrame(tick);
+  }
+  start();
+})();
+</script>
+</body>
+</html>
