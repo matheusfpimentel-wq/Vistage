@@ -62,8 +62,76 @@ export type ExtraStats = {
 
 const plural = (n: number) => (n > 1 ? "s" : "");
 
-/** Calcula a lista de alertas a partir das estatísticas da semana e de stats extras (opcionais). */
-export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[] {
+/** Categorias usadas para agrupar as regras padrão no editor de Configurações. */
+export type RuleCategory =
+  | "GIGs"
+  | "Produção"
+  | "Pessoas"
+  | "Tarefas"
+  | "Festas"
+  | "Aulas"
+  | "Objetivos"
+  | "Motivação";
+
+/**
+ * Catálogo das regras EMBUTIDAS (as que já existem no `computeAlerts`). Serve
+ * para o editor "Configurações avançadas" listá-las no formato Se→Então e
+ * permitir LIGAR/DESLIGAR cada uma. O `id` é estável; regras com chave dinâmica
+ * (sufixo por item) casam por prefixo (`dynamic: true`).
+ */
+export type BuiltinRule = {
+  id: string;
+  category: RuleCategory;
+  /** Texto no formato "Se … → Então …". */
+  label: string;
+  /** Chave dinâmica: o id é um prefixo (ex.: "motivation-tasks-done-"). */
+  dynamic?: boolean;
+};
+
+export const BUILTIN_RULES: BuiltinRule[] = [
+  { id: "tasks-overdue", category: "Tarefas", label: "Se uma tarefa está vencida (data < hoje) sem conclusão → alerta" },
+  { id: "debriefs-pending", category: "GIGs", label: "Se uma GIG concluída está sem debrief → alerta" },
+  { id: "gigs-unprepared", category: "GIGs", label: "Se uma GIG em até 72h está sem prep musical completa → alerta" },
+  { id: "gigs-unpaid", category: "GIGs", label: "Se uma GIG concluída há +48h está com cachê não recebido → alerta" },
+  { id: "gigs-no-rating", category: "GIGs", label: "Se uma GIG desta semana está sem avaliação no debrief → alerta" },
+  { id: "no-upcoming-gigs", category: "GIGs", label: "Se não há nenhuma GIG marcada à frente → alerta" },
+  { id: "ideas-stuck", category: "Produção", label: "Se uma ideia quente está parada em Embrião há +15 dias → alerta" },
+  { id: "tracks-stalled", category: "Produção", label: "Se uma faixa está sem movimento há +15 dias → alerta" },
+  { id: "content-stalled", category: "Produção", label: "Se um conteúdo está sem movimento há +15 dias → alerta" },
+  { id: "no-tracks-production", category: "Produção", label: "Se não há nenhuma música em produção → alerta" },
+  { id: "no-new-track-30d", category: "Produção", label: "Se nenhuma música nova foi iniciada nos últimos 30 dias → alerta" },
+  { id: "track-standby-overdue-", category: "Produção", label: "Se uma faixa em standby passou da data de retorno → alerta", dynamic: true },
+  { id: "parties-stalled", category: "Festas", label: "Se uma festa está sem movimento há +15 dias → alerta" },
+  { id: "parties-undated", category: "Festas", label: "Se uma festa está sem data definida → alerta" },
+  { id: "classes-unprepared", category: "Aulas", label: "Se uma aula em breve não foi preparada → alerta" },
+  { id: "superfans-stale", category: "Pessoas", label: "Se um superfã está sem interação há 30+ dias → alerta" },
+  { id: "superfans-pending-interaction", category: "Pessoas", label: "Se um fã Superfã está sem interação há 30+ dias → pendência" },
+  { id: "crm-no-interaction-week", category: "Pessoas", label: "Se nenhum contato do CRM foi interagido esta semana → alerta" },
+  { id: "okrs-lagging", category: "Objetivos", label: "Se um OKR está abaixo de 20% com menos de 30 dias no quarter → alerta" },
+  { id: "motivation-tasks-done-", category: "Motivação", label: "Se você completou 5+ tarefas na semana → parabéns", dynamic: true },
+  { id: "motivation-gigs-month-", category: "Motivação", label: "Se você fez shows este mês e tem GIG esta semana → motivação", dynamic: true },
+  { id: "motivation-focus-record-", category: "Motivação", label: "Se você está a 7 dias ou menos de bater seu recorde de foco → motivação", dynamic: true },
+];
+
+/** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */
+export function ruleIdForKey(key: string): string {
+  for (const r of BUILTIN_RULES) {
+    if (r.dynamic ? key.startsWith(r.id) : key === r.id) return r.id;
+  }
+  return key;
+}
+
+/**
+ * Calcula a lista de alertas a partir das estatísticas da semana e de stats
+ * extras (opcionais). `disabledRuleIds` remove as regras padrão que o usuário
+ * desligou no editor — passado pelos consumidores (lido do cache local). O
+ * núcleo segue puro/portátil: mesmas entradas → mesma saída.
+ */
+export function computeAlerts(
+  stats: WeekStats,
+  extra?: ExtraStats,
+  disabledRuleIds: string[] = []
+): AlertItem[] {
   const alerts: AlertItem[] = [];
 
   if (stats.tasksOverdue > 0)
@@ -270,5 +338,9 @@ export function computeAlerts(stats: WeekStats, extra?: ExtraStats): AlertItem[]
     });
   }
 
+  if (disabledRuleIds.length > 0) {
+    const disabled = new Set(disabledRuleIds);
+    return alerts.filter((a) => !disabled.has(ruleIdForKey(a.key)));
+  }
   return alerts;
 }

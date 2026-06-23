@@ -5,6 +5,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { computeAlerts } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
@@ -159,7 +160,7 @@ async function syncAlertNotifications(): Promise<void> {
   let critical;
   try {
     const stats = await loadWeekStats();
-    critical = (await filterSnoozed(computeAlerts(stats))).filter((a) => a.critical);
+    critical = (await filterSnoozed(computeAlerts(stats, undefined, getDisabledRuleIds()))).filter((a) => a.critical);
   } catch {
     return;
   }

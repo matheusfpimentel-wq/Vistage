@@ -3,6 +3,7 @@
 // temático pelo destino (`to`) de cada item.
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import {
   loadExtraStats,
   loadOverdueReceivableAlerts,
@@ -40,7 +41,7 @@ export async function loadActionItems(): Promise<AlertItem[]> {
     loadStaleGigStatusAlerts(),
     loadOverdueReceivableAlerts(),
   ]);
-  return [...computeAlerts(stats, extra), ...rel, ...staleGigs, ...overdue];
+  return [...computeAlerts(stats, extra, getDisabledRuleIds()), ...rel, ...staleGigs, ...overdue];
 }
 
 /** Itens acionáveis de um grupo temático, críticos primeiro. */

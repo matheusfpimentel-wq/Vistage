@@ -4,6 +4,7 @@ import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { computeAlerts, type AlertItem } from "./alerts";
+import { getDisabledRuleIds } from "./ruleConfig";
 import { filterSnoozed, snoozeAlert } from "./snooze";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
@@ -23,7 +24,7 @@ export function AlertsPage() {
     debounceRef.current = setTimeout(async () => {
       try {
         const stats = await loadWeekStats();
-        setAlerts(await filterSnoozed(computeAlerts(stats)));
+        setAlerts(await filterSnoozed(computeAlerts(stats, undefined, getDisabledRuleIds())));
       } catch {
         /* silently ignore */
       } finally {
