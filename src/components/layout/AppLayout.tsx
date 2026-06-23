@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { ChevronDown, PanelLeftOpen, Plus, Search, Settings } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { SidebarRail } from "./SidebarRail";
 import { MobileTabBar } from "./MobileTabBar";
 import { FileMenu } from "./FileMenu";
 import { useDocumentStore } from "@/lib/document";
@@ -13,6 +14,7 @@ import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { requestNewItemAt, triggerNewItem, useShortcutsConfig } from "@/lib/shortcuts";
+import { useThemeStore } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const CREATE_ITEMS = [
@@ -37,6 +39,7 @@ export function AppLayout() {
   // Atalho de busca personalizável — reflete a tecla escolhida em Configurações
   // (antes ficava fixo em "Ctrl K" mesmo após o usuário trocar).
   const shortcuts = useShortcutsConfig();
+  const sidebarLayout = useThemeStore((s) => s.sidebarLayout);
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform);
 
   // Fecha o drawer mobile sempre que a rota muda.
@@ -70,9 +73,13 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Sidebar fixa — só no desktop */}
+      {/* Sidebar fixa — só no desktop. Layout clássico ou rail compacto (opt-in). */}
       <div className={cn("hidden md:block transition-all duration-200", sidebarCollapsed ? "w-0 overflow-hidden" : "")}>
-        <Sidebar onCollapse={() => setSidebarCollapsed(true)} />
+        {sidebarLayout === "rail" ? (
+          <SidebarRail />
+        ) : (
+          <Sidebar onCollapse={() => setSidebarCollapsed(true)} />
+        )}
       </div>
 
       {/* Drawer mobile — overlay + sidebar deslizante */}

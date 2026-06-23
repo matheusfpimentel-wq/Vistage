@@ -3,11 +3,14 @@ import { getDb } from "./db";
 
 export type Theme = "light" | "dark";
 export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan";
+/** Layout do menu lateral no desktop: clássico (rótulos) ou rail compacto (ícones). */
+export type SidebarLayout = "classic" | "rail";
 
 // Cache local pra pintar sem flash no boot; a FONTE DA VERDADE é a tabela
 // document_settings (viaja com o .vistage).
 const LS_THEME = "vistage.theme";
 const LS_ACCENT = "vistage.accent";
+const LS_SIDEBAR = "vistage.sidebarLayout";
 
 async function saveDocSetting(key: string, value: string): Promise<void> {
   try {
@@ -28,9 +31,10 @@ async function saveDocSetting(key: string, value: string): Promise<void> {
  * boot em branco em que document_settings ainda não tenha sido escrito.
  */
 export async function persistAppearanceToDocument(): Promise<void> {
-  const { theme, accent } = useThemeStore.getState();
+  const { theme, accent, sidebarLayout } = useThemeStore.getState();
   await saveDocSetting("theme", theme);
   await saveDocSetting("accent", accent);
+  await saveDocSetting("sidebarLayout", sidebarLayout);
 }
 
 type AccentDef = {
@@ -58,8 +62,10 @@ export const ACCENTS: AccentDef[] = [
 type ThemeState = {
   theme: Theme;
   accent: Accent;
+  sidebarLayout: SidebarLayout;
   setTheme: (t: Theme) => void;
   setAccent: (a: Accent) => void;
+  setSidebarLayout: (l: SidebarLayout) => void;
   toggle: () => void;
   hydrate: () => void;
   hydrateFromDocument: () => Promise<void>;
@@ -95,6 +101,7 @@ function applyToDom(theme: Theme, accent: Accent) {
 export const useThemeStore = create<ThemeState>((set, get) => ({
   theme: "dark",
   accent: "violet",
+  sidebarLayout: "classic",
   setTheme(t) {
     localStorage.setItem(LS_THEME, t);
     void saveDocSetting("theme", t);
@@ -107,6 +114,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     applyAccent(a, get().theme);
     set({ accent: a });
   },
+  setSidebarLayout(l) {
+    localStorage.setItem(LS_SIDEBAR, l);
+    void saveDocSetting("sidebarLayout", l);
+    set({ sidebarLayout: l });
+  },
   toggle() {
     get().setTheme(get().theme === "dark" ? "light" : "dark");
   },
@@ -118,8 +130,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const accent: Accent = ACCENTS.some((a) => a.id === storedAccent)
       ? (storedAccent as Accent)
       : "violet";
+    const storedSidebar = localStorage.getItem(LS_SIDEBAR);
+    const sidebarLayout: SidebarLayout = storedSidebar === "rail" ? "rail" : "classic";
     applyToDom(theme, accent);
-    set({ theme, accent });
+    set({ theme, accent, sidebarLayout });
   },
   /**
    * Aplica o tema salvo NO DOCUMENTO (document_settings). Chamado após o banco
@@ -129,17 +143,20 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   async hydrateFromDocument() {
     try {
       const rows = await getDb().select<{ key: string; value: string }[]>(
-        "SELECT key, value FROM document_settings WHERE key IN ('theme','accent')"
+        "SELECT key, value FROM document_settings WHERE key IN ('theme','accent','sidebarLayout')"
       );
       const map = new Map(rows.map((r) => [r.key, r.value]));
       const dt = map.get("theme");
       const da = map.get("accent");
+      const ds = map.get("sidebarLayout");
       const theme: Theme = dt === "light" || dt === "dark" ? dt : get().theme;
       const accent: Accent = ACCENTS.some((a) => a.id === da) ? (da as Accent) : get().accent;
+      const sidebarLayout: SidebarLayout = ds === "rail" || ds === "classic" ? ds : get().sidebarLayout;
       localStorage.setItem(LS_THEME, theme);
       localStorage.setItem(LS_ACCENT, accent);
+      localStorage.setItem(LS_SIDEBAR, sidebarLayout);
       applyToDom(theme, accent);
-      set({ theme, accent });
+      set({ theme, accent, sidebarLayout });
     } catch {
       /* sem document_settings (banco antigo) — ignora */
     }

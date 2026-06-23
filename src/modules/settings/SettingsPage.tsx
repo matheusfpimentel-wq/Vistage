@@ -27,7 +27,7 @@ import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
-  const { theme, accent, setTheme, setAccent } = useThemeStore();
+  const { theme, accent, setTheme, setAccent, sidebarLayout, setSidebarLayout } = useThemeStore();
 
   useEffect(() => {
     void isDatabaseEmpty().then(setCanSeed);
@@ -138,6 +138,29 @@ export function SettingsPage() {
                     style={{ backgroundColor: `hsl(${a.swatch})` }}
                   />
                 ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Menu lateral</p>
+              <p className="text-xs text-muted-foreground">
+                Experimental: um menu compacto só com ícones — o nome aparece ao
+                passar o mouse, e os grupos ficam separados verticalmente.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant={sidebarLayout === "classic" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSidebarLayout("classic")}
+                >
+                  Clássico
+                </Button>
+                <Button
+                  variant={sidebarLayout === "rail" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSidebarLayout("rail")}
+                >
+                  Compacto (ícones)
+                </Button>
               </div>
             </div>
           </CardContent>
