@@ -70,6 +70,15 @@ const GIG_COLUMNS = [
   "updated_at",
 ] as const;
 
+// Colunas REALMENTE graváveis: exclui as chaves geridas pelo banco
+// (id/created_at/updated_at) e campos DERIVADOS como promoter_contact_name, que
+// vêm de JOIN no listGigs e NÃO existem na tabela `gigs`. Sem este filtro, salvar
+// uma GIG que veio da lista jogaria promoter_contact_name no INSERT/UPDATE →
+// "no such column: promoter_contact_name".
+const WRITABLE_GIG_COLUMNS = new Set<string>(
+  GIG_COLUMNS.filter((c) => c !== "id" && c !== "created_at" && c !== "updated_at")
+);
+
 const SELECT_ALL = `SELECT ${GIG_COLUMNS.join(", ")} FROM gigs`;
 
 export type GigFilters = {
@@ -139,7 +148,7 @@ export async function getGig(id: number): Promise<Gig | null> {
 
 export async function createGig(input: GigCreateInput): Promise<number> {
   const db = getDb();
-  const cols = Object.keys(input);
+  const cols = Object.keys(input).filter((c) => WRITABLE_GIG_COLUMNS.has(c));
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
   const values = cols.map((k) => (input as Record<string, unknown>)[k]);
   const res = await db.execute(
@@ -154,7 +163,7 @@ export async function createGig(input: GigCreateInput): Promise<number> {
 export async function updateGig(input: GigUpdateInput): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
-  const cols = Object.keys(rest);
+  const cols = Object.keys(rest).filter((c) => WRITABLE_GIG_COLUMNS.has(c));
   if (cols.length === 0) return;
   // Status ANTERIOR — pra rodar os efeitos colaterais de mudança de status só na
   // TRANSIÇÃO, e não toda vez que uma GIG já concluída é salva de novo (o que

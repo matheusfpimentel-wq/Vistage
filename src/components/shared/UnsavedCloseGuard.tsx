@@ -74,6 +74,18 @@ export function UnsavedCloseGuard() {
       setOpen(false);
       return;
     }
+    // Espera o sync das integrações terminar antes de fechar — com teto de tempo
+    // pra rede lenta não travar o encerramento. O save() já disparou o sync; o
+    // guard de re-entrância faz este await aguardar o MESMO sync em andamento.
+    try {
+      const { syncAllIntegrations } = await import("@/lib/integrationsSync");
+      await Promise.race([
+        syncAllIntegrations({ silent: true }),
+        new Promise<void>((resolve) => setTimeout(resolve, 6000)),
+      ]);
+    } catch {
+      /* best-effort — não impede o fechamento */
+    }
     await closeNow();
   }
 
