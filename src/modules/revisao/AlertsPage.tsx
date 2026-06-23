@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { computeAlerts, type AlertItem } from "./alerts";
 import { getDisabledRuleIds } from "./ruleConfig";
+import { evaluateCustomRules } from "./customRules";
 import { filterSnoozed, snoozeAlert } from "./snooze";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
@@ -23,8 +24,13 @@ export function AlertsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const stats = await loadWeekStats();
-        setAlerts(await filterSnoozed(computeAlerts(stats, undefined, getDisabledRuleIds())));
+        const [stats, custom] = await Promise.all([loadWeekStats(), evaluateCustomRules()]);
+        setAlerts(
+          await filterSnoozed([
+            ...computeAlerts(stats, undefined, getDisabledRuleIds()),
+            ...custom,
+          ])
+        );
       } catch {
         /* silently ignore */
       } finally {

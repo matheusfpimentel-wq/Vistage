@@ -1791,6 +1791,25 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN promoter_name_manual TEXT;
     `,
   },
+  {
+    version: 125,
+    description:
+      "custom_rules — regras de alertas/insights criadas pelo usuário (Configurações avançadas)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS custom_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity TEXT NOT NULL,
+        field TEXT NOT NULL,
+        operator TEXT NOT NULL,
+        value TEXT,
+        message TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'alerta',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 

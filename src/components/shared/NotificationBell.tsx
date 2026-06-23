@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
@@ -237,8 +238,17 @@ export function NotificationBell() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
-        setAlerts(await filterSnoozed(computeAlerts(stats, extra, getDisabledRuleIds())));
+        const [stats, extra, custom] = await Promise.all([
+          loadWeekStats(),
+          loadExtraStats(),
+          evaluateCustomRules(),
+        ]);
+        setAlerts(
+          await filterSnoozed([
+            ...computeAlerts(stats, extra, getDisabledRuleIds()),
+            ...custom,
+          ])
+        );
       } catch {
         // silently ignore
       }
