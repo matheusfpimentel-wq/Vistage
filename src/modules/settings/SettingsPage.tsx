@@ -22,6 +22,7 @@ import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
 import { TodoistSettings } from "./TodoistSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
+import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 
 export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
@@ -58,8 +59,14 @@ export function SettingsPage() {
       <TabsList className="w-full justify-start">
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
+        <TabsTrigger value="avancado">Configurações avançadas</TabsTrigger>
         <TabsTrigger value="backup">Backup</TabsTrigger>
       </TabsList>
+
+      {/* ─── Configurações avançadas (regras de alertas/insights) ─── */}
+      <TabsContent value="avancado" className="space-y-6">
+        <AdvancedRulesSettings />
+      </TabsContent>
 
       {/* ─── Backup (CSV) ────────────────────────────────────── */}
       <TabsContent value="backup" className="space-y-6">

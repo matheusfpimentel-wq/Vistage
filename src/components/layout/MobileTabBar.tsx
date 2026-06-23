@@ -4,6 +4,7 @@ import { Bell, CalendarRange, CheckSquare, LayoutDashboard, Menu, Wallet } from 
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { DATA_CHANGED } from "@/lib/events";
 
 /**
@@ -29,7 +30,7 @@ export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
       debounceRef.current = setTimeout(async () => {
         try {
           const stats = await loadWeekStats();
-          setCriticalCount(computeAlerts(stats).filter((a) => a.critical).length);
+          setCriticalCount(computeAlerts(stats, undefined, getDisabledRuleIds()).filter((a) => a.critical).length);
         } catch {
           /* ignore */
         }

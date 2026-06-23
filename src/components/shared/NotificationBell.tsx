@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
@@ -237,7 +238,7 @@ export function NotificationBell() {
     debounceRef.current = setTimeout(async () => {
       try {
         const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
-        setAlerts(await filterSnoozed(computeAlerts(stats, extra)));
+        setAlerts(await filterSnoozed(computeAlerts(stats, extra, getDisabledRuleIds())));
       } catch {
         // silently ignore
       }

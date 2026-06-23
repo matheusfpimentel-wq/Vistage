@@ -20,6 +20,7 @@ const PORTABLE_PREFIXES = [
   "vistage.cols.",
   "vistage.filter.",
   "vistage.mindmap.",
+  "vistage.rules.",
 ];
 
 function isPortableKey(key: string): boolean {
@@ -61,7 +62,8 @@ export async function hydrateViewPrefsFromDocument(): Promise<void> {
         WHERE key LIKE 'vistage.view.%'
            OR key LIKE 'vistage.cols.%'
            OR key LIKE 'vistage.filter.%'
-           OR key LIKE 'vistage.mindmap.%'`
+           OR key LIKE 'vistage.mindmap.%'
+           OR key LIKE 'vistage.rules.%'`
     );
     for (const r of rows) {
       if (r.value == null) continue;
