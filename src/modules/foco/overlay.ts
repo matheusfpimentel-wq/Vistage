@@ -2,6 +2,14 @@ import type { WorkSession } from "./api";
 
 const OVERLAY_LABEL = "work-session";
 
+/**
+ * Tamanhos da mini-janela. COMPACT é praticamente só o círculo (pouco espaço em
+ * branco); EXPANDED abre o painel com todas as informações. Compartilhado entre
+ * a criação da janela (aqui) e o toggle Expandir/Retrair (SessionOverlay).
+ */
+export const OVERLAY_COMPACT = { w: 168, h: 168 };
+export const OVERLAY_EXPANDED = { w: 300, h: 540 };
+
 // Prevents concurrent calls from creating two windows before the first one is registered.
 let _creating = false;
 
@@ -57,8 +65,8 @@ export async function openSessionOverlay(session: WorkSession): Promise<void> {
     const win = new WebviewWindow(OVERLAY_LABEL, {
       url: resolveWindowUrl(`index.html?${params.toString()}`),
       title: "Sessão de foco",
-      width: 280,
-      height: 312,
+      width: OVERLAY_COMPACT.w,
+      height: OVERLAY_COMPACT.h,
       // resizable: true permite o setSize programático (Expandir/Retrair). Como
       // a janela é sem moldura (decorations:false), o usuário não arrasta a borda.
       resizable: true,
