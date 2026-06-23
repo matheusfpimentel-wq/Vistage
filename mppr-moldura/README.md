@@ -49,7 +49,10 @@ var BAR_LOT  = { x:66, y:1893, w:927,  h:90  };  // barra da Lotação
 
 ## Observações
 
-- Gravação de vídeo usa a API `MediaRecorder` — funciona na maioria dos navegadores de
-  desktop e Android; no iPhone/Safari o suporte é mais limitado (nesse caso, use foto).
+- Gravação de vídeo usa a API `MediaRecorder`. O **áudio** é capturado via Web Audio
+  (`createMediaElementSource` → `MediaStreamDestination`), que funciona em Chrome/Firefox
+  no desktop e no Chrome Android. No **iPhone/Safari** a captura de áudio do vídeo no
+  navegador é bloqueada — o app avisa e salva o vídeo sem som; para vídeo com áudio, use
+  o Chrome no computador ou Android (ou salve uma foto).
 - O texto de Nome/Lotação usa uma fonte do sistema (negrito). Se quiser a fonte
   geométrica exata da identidade do MPPR, dá para embutir uma fonte específica.

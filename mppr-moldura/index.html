@@ -291,41 +291,82 @@
     ec.toBlob(function(b){ if(b){ download(b,'moldura-mppr.png'); setStatus('Foto salva ✓'); } },'image/png');
   }
   function pickMime(){
-    var c=['video/mp4;codecs=avc1.42E01E','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
-    if(!window.MediaRecorder) return null;
+    var c=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4',
+           'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus',
+           'video/webm;codecs=h264,opus','video/webm'];
     for(var i=0;i<c.length;i++){ try{ if(MediaRecorder.isTypeSupported(c[i])) return c[i]; }catch(e){} }
     return '';
   }
   function extFor(m){ return (m && m.indexOf('mp4')>=0)?'mp4':'webm'; }
+
+  // Captura de áudio via Web Audio API — bem mais compatível que video.captureStream(),
+  // que não existe no Safari/iPhone. Pega o som do vídeo e manda para o gravador.
+  var audioCtx=null;
+  function videoHasAudio(v){
+    return !!(v.mozHasAudio
+      || (typeof v.webkitAudioDecodedByteCount==='number' && v.webkitAudioDecodedByteCount>0)
+      || (v.audioTracks && v.audioTracks.length>0));
+  }
+  function buildAudioTracks(v){
+    try{
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return [];
+      if(!audioCtx) audioCtx = new AC();
+      if(audioCtx.state==='suspended'){ audioCtx.resume(); }
+      // createMediaElementSource só pode ser chamado uma vez por elemento — guardamos no próprio vídeo.
+      if(!v._mpprSrc){ v._mpprSrc = audioCtx.createMediaElementSource(v); }
+      var dest = audioCtx.createMediaStreamDestination();
+      v._mpprSrc.connect(dest);
+      v._mpprSrc.connect(audioCtx.destination); // também toca alto e mantém o grafo "puxando" o áudio
+      return dest.stream.getAudioTracks();
+    }catch(e){ return []; }
+  }
+
   function saveVideo(){
     if(recording) return;
-    var mime=pickMime();
-    if(mime===null){ setStatus('Seu navegador não permite salvar vídeo. Use uma foto ou tire um print.'); return; }
+    if(!window.MediaRecorder || !canvas.captureStream){
+      setStatus('Este navegador não permite salvar vídeo. Tente o Chrome no computador ou Android, ou salve uma foto.');
+      return;
+    }
     var v=media;
+    var mime=pickMime();
     var stream=canvas.captureStream(30);
-    try{
-      var vs = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
-      if(vs){ vs.getAudioTracks().forEach(function(t){ stream.addTrack(t); }); }
-    }catch(e){}
+
+    // áudio: tenta Web Audio; se não vier nada, tenta video.captureStream() como último recurso
+    var aTracks=buildAudioTracks(v);
+    if(!aTracks.length){
+      try{
+        var vs = v.captureStream ? v.captureStream() : (v.mozCaptureStream ? v.mozCaptureStream() : null);
+        if(vs) aTracks = vs.getAudioTracks();
+      }catch(e){}
+    }
+    aTracks.forEach(function(t){ try{ stream.addTrack(t); }catch(e){} });
+    var noAudio = (aTracks.length===0) && videoHasAudio(v);
+
     var rec;
     try{ rec = mime ? new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000}) : new MediaRecorder(stream); }
-    catch(e){ setStatus('Não foi possível iniciar a gravação neste navegador.'); return; }
+    catch(e){ setStatus('Não foi possível iniciar a gravação neste navegador.'); recording=false; return; }
+
     var chunks=[];
     rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
     rec.onstop=function(){
       var out=rec.mimeType||mime||'video/webm';
       download(new Blob(chunks,{type:out}),'moldura-mppr.'+extFor(out));
       recording=false; saveBtn.disabled=false; addBtn.disabled=false;
+      try{ if(v._mpprSrc) v._mpprSrc.disconnect(); }catch(e){}
       v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
-      setStatus('Vídeo salvo ✓');
+      setStatus(noAudio
+        ? 'Vídeo salvo — porém sem áudio (este navegador não deixou capturar o som; é comum no iPhone).'
+        : 'Vídeo salvo ✓');
     };
+
     recording=true; saveBtn.disabled=true; addBtn.disabled=true;
     setStatus('Gravando vídeo… aguarde tocar uma vez do início ao fim.');
-    v.loop=false; v.muted=false;
+    v.loop=false; v.muted=false; v.volume=1;
     var stop=function(){ if(rec.state!=='inactive') rec.stop(); };
     v.onended=stop;
     try{ v.currentTime=0; }catch(e){}
-    var p=v.play(); if(p&&p.catch){ p.catch(function(){ v.muted=true; v.play().catch(function(){}); }); }
+    var p=v.play(); if(p&&p.catch){ p.catch(function(){ v.play().catch(function(){}); }); }
     rec.start();
     setTimeout(stop, Math.min(60000, ((v.duration||30)*1000)+1500));
   }
