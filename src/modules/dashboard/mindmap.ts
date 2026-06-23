@@ -59,6 +59,36 @@ export const MIND_TYPE_META: Record<
   fest:    { label: "Festa recorrente", color: "#e879f9", route: "/gigs" },        // fúcsia
 };
 
+/**
+ * Chave (portátil, viaja com o .vistage) onde ficam as cores personalizadas
+ * das entidades do mapa mental. Valor = JSON `{ [type]: "#rrggbb" }`.
+ */
+export const MIND_COLORS_KEY = "vistage.mindmap.colors";
+
+/** Lê os overrides de cor do cache local (hidratado do documento no boot). */
+export function loadMindColorOverrides(): Partial<Record<MindNodeType, string>> {
+  try {
+    const raw = localStorage.getItem(MIND_COLORS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed && typeof parsed === "object") {
+      return parsed as Partial<Record<MindNodeType, string>>;
+    }
+  } catch {
+    /* JSON inválido — ignora e usa os padrões */
+  }
+  return {};
+}
+
+/** Cor efetiva de um tipo: override do usuário OU o padrão de MIND_TYPE_META. */
+export function mindColor(
+  type: MindNodeType,
+  overrides?: Partial<Record<MindNodeType, string>>
+): string {
+  const ov = overrides ?? loadMindColorOverrides();
+  return ov[type] || MIND_TYPE_META[type].color;
+}
+
 const nid = (type: MindNodeType, id: number) => `${type}:${id}`;
 
 /** Data ISO (YYYY-MM-DD) → "DD/MM/AA" curtinha pra rótulo. */

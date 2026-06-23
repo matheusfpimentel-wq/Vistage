@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, RotateCcw, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useThemeStore, ACCENTS } from "@/lib/theme";
+import { persistDocSetting } from "@/lib/docSettings";
+import {
+  loadMindColorOverrides,
+  MIND_COLORS_KEY,
+  MIND_TYPE_META,
+  type MindNodeType,
+} from "@/modules/dashboard/mindmap";
 import { reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
@@ -129,6 +136,8 @@ export function SettingsPage() {
           </CardContent>
         </Card>
 
+        <MindMapColorsCard />
+
         <ShortcutSettings />
 
         {canSeed && (
@@ -158,5 +167,73 @@ export function SettingsPage() {
         )}
       </TabsContent>
     </Tabs>
+  );
+}
+
+/** Personalização das cores das entidades do mapa mental (portátil no .vistage). */
+function MindMapColorsCard() {
+  const [colors, setColors] = useState<Partial<Record<MindNodeType, string>>>(
+    () => loadMindColorOverrides()
+  );
+
+  function persist(next: Partial<Record<MindNodeType, string>>) {
+    setColors(next);
+    persistDocSetting(MIND_COLORS_KEY, JSON.stringify(next));
+  }
+
+  function setColor(type: MindNodeType, hex: string) {
+    persist({ ...colors, [type]: hex });
+  }
+
+  function resetColor(type: MindNodeType) {
+    const next = { ...colors };
+    delete next[type];
+    persist(next);
+  }
+
+  const types = Object.keys(MIND_TYPE_META) as MindNodeType[];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Cores do mapa mental</CardTitle>
+        <CardDescription>
+          A cor de cada tipo de entidade na teia de relações. As mudanças viajam
+          com o seu arquivo <code>.vistage</code>.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+          {types.map((t) => {
+            const meta = MIND_TYPE_META[t];
+            const current = colors[t] || meta.color;
+            const customized = !!colors[t] && colors[t] !== meta.color;
+            return (
+              <div key={t} className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={current}
+                  onChange={(e) => setColor(t, e.target.value)}
+                  aria-label={`Cor de ${meta.label}`}
+                  className="h-7 w-9 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
+                />
+                <span className="flex-1 truncate text-sm">{meta.label}</span>
+                {customized && (
+                  <button
+                    type="button"
+                    onClick={() => resetColor(t)}
+                    className="text-muted-foreground transition hover:text-foreground"
+                    title="Restaurar cor padrão"
+                    aria-label={`Restaurar cor padrão de ${meta.label}`}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
