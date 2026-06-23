@@ -72,6 +72,7 @@
   .btn[disabled]{opacity:.45;cursor:not-allowed}
   .hidden{display:none !important}
   .status{margin:12px auto 0;text-align:center;font-size:.85rem;color:var(--turq-dark);min-height:1.1em}
+  .fslink{display:block;text-align:center;margin:8px auto 0;font-size:.9rem;color:var(--orange);font-weight:700;text-decoration:underline;cursor:pointer}
 </style>
 </head>
 <body>
@@ -114,6 +115,7 @@
     </div>
 
     <p class="status" id="status"></p>
+    <a id="fsLink" class="fslink hidden" target="_blank" rel="noopener">Abrir em tela cheia &#8599;</a>
     <input type="file" id="file" accept="image/*,video/*" class="hidden">
   </main>
 
@@ -161,6 +163,7 @@
   var upperChk=document.getElementById('upper');
   var progress=document.getElementById('progress');
   var progBar=document.getElementById('progBar');
+  var fsLink=document.getElementById('fsLink');
 
   // ---- Helpers ----
   function disp(t){ return upperOn ? (t||'').toLocaleUpperCase('pt-BR') : (t||''); }
@@ -325,7 +328,7 @@
     saveBtn.textContent = isImg ? 'Salvar foto' : 'Salvar vídeo';
     if(isImg && navigator.clipboard && window.ClipboardItem) copyBtn.classList.remove('hidden');
     else copyBtn.classList.add('hidden');
-    if(!navigator.share) shareBtn.classList.add('hidden');
+    if(fsLink) fsLink.classList.add('hidden');
     addBtn.textContent='Trocar mídia';
     setStatus(''); invalidate();
   }
@@ -356,14 +359,43 @@
     ec.toBlob(function(b){ cb(b); },'image/png');
   }
 
-  // ---- Salvar / Compartilhar / Copiar ----
+  function isEmbedded(){ try{ return window.self!==window.top; }catch(e){ return true; } }
+  function photoDataUrl(){ var ec=document.createElement('canvas'); ec.width=IMG_W; ec.height=IMG_H; renderTo(ec,1,false); return ec.toDataURL('image/png'); }
+  function dataUrlToBlob(durl){
+    var p=durl.split(','), mime=(p[0].match(/:(.*?);/)||[])[1]||'image/png', bin=atob(p[1]);
+    var n=bin.length, u8=new Uint8Array(n); while(n--) u8[n]=bin.charCodeAt(n);
+    return new Blob([u8],{type:mime});
+  }
+  function storiesHelp(prefix){
+    prefix = prefix || 'Imagem salva ✓ ';
+    if(isEmbedded()){
+      setStatus(prefix+'O envio direto pro Instagram é bloqueado quando a página fica embutida no site. Toque em "Abrir em tela cheia" e use "Publicar nos Stories" lá — ou poste a imagem salva pelo Instagram (Stories → galeria).');
+      if(fsLink) fsLink.classList.remove('hidden');
+    } else {
+      setStatus(prefix+'Agora abra o Instagram, vá em Stories e escolha a imagem na galeria.');
+    }
+  }
+
+  // ---- Salvar / Publicar nos Stories / Copiar ----
   saveBtn.addEventListener('click', function(){
     if(!media) return;
-    if(mediaType==='video') recordVideo('download'); else photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); setStatus('Foto salva ✓'); } });
+    if(mediaType==='video') recordVideo('download');
+    else photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); setStatus('Foto salva ✓'); } });
   });
   shareBtn.addEventListener('click', function(){
     if(!media) return;
-    if(mediaType==='video') recordVideo('share'); else photoBlob(function(b){ shareFile(b, baseName()+'.png'); });
+    if(mediaType==='video'){ recordVideo('stories'); return; }
+    // gera o PNG de forma SÍNCRONA para preservar o gesto do toque (exigido pelo compartilhamento nativo)
+    var blob, file;
+    try{ blob=dataUrlToBlob(photoDataUrl()); file=new File([blob], baseName()+'.png', {type:'image/png'}); }
+    catch(e){ photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); storiesHelp(); } }); return; }
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({files:[file], title:'Moldura MPPR'})
+        .then(function(){ setStatus('No menu de compartilhamento, escolha o Instagram → Stories. ✓'); })
+        .catch(function(err){ if(err && err.name==='AbortError') return; download(blob, file.name); storiesHelp(); });
+    } else {
+      download(blob, file.name); storiesHelp();
+    }
   });
   copyBtn.addEventListener('click', function(){
     if(!media || mediaType!=='image') return;
@@ -375,18 +407,6 @@
         .catch(function(){ setStatus('Não foi possível copiar. Use Salvar.'); });
     });
   });
-  function shareFile(blob, name){
-    if(!blob) return;
-    var file=new File([blob], name, {type:blob.type});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({files:[file], title:'Moldura MPPR'})
-        .then(function(){ setStatus('Pronto! Escolha o Instagram (Stories) no menu de compartilhamento.'); })
-        .catch(function(err){ if(err && err.name!=='AbortError'){ download(blob,name); setStatus('Compartilhamento bloqueado aqui — a imagem foi baixada. Abra o Instagram e poste pelos Stories.'); } });
-    } else {
-      download(blob,name);
-      setStatus('Compartilhamento direto não disponível — a imagem foi baixada. Abra o Instagram e poste pelos Stories.');
-    }
-  }
 
   // ---- Vídeo (gravação + áudio via Web Audio) ----
   function pickMime(){
@@ -438,8 +458,9 @@
       progress.classList.add('hidden'); progBar.style.width='0';
       try{ if(v._mpprSrc) v._mpprSrc.disconnect(); }catch(e){}
       v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
-      if(mode==='share') shareFile(blob,name); else download(blob,name);
-      setStatus(noAudio ? 'Vídeo salvo — sem áudio (limitação do navegador).' : (mode==='share'?'':'Vídeo salvo ✓'));
+      download(blob,name);
+      if(mode==='stories') storiesHelp(noAudio ? 'Vídeo salvo (sem áudio — limitação do navegador). ' : 'Vídeo salvo ✓ ');
+      else setStatus(noAudio ? 'Vídeo salvo — sem áudio (limitação do navegador).' : 'Vídeo salvo ✓');
     };
 
     recording=true; saveBtn.disabled=true; addBtn.disabled=true; shareBtn.disabled=true;
@@ -454,6 +475,7 @@
     setTimeout(stop, Math.min(60000, ((v.duration||30)*1000)+1500));
   }
 
+  if(fsLink){ try{ fsLink.href=window.location.href; }catch(e){} }
   invalidate();
   requestAnimationFrame(tick);
 })();

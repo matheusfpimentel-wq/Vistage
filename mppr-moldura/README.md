@@ -35,11 +35,15 @@ permite **baixar / compartilhar** o resultado. Feita para ser incorporada no Goo
 **Opção B — incorporar por URL:** hospede o `index.html` em algo público (GitHub Pages,
 Netlify…) e use Inserir → Incorporar → **Por URL**.
 
-> **Compartilhar:** o botão usa a API nativa de compartilhamento do navegador. Dentro do
-> iframe do Google Sites isso pode ser bloqueado — nesse caso o app baixa a imagem e
-> orienta a postar pelo Instagram. Funciona melhor com a página aberta na própria URL
-> (Opção B). Não é possível enviar direto para os Stories a partir de um site — só apps
-> nativos têm essa permissão.
+> **Publicar nos Stories — importante:** o botão usa o compartilhamento nativo do
+> navegador (Web Share). **Dentro do iframe do Google Sites isso é bloqueado** (o Sites
+> não concede a permissão `web-share` ao conteúdo embutido), então lá o botão **salva a
+> imagem e mostra o passo a passo** para postar pelo Instagram (Stories → galeria), além
+> de oferecer um link **"Abrir em tela cheia"**. Com a página aberta **na própria URL**
+> (top-level, em celular) o botão chama o menu nativo e o Instagram aparece em um toque.
+> Por isso, para o melhor resultado: **incorpore por URL (Opção B)** e/ou coloque no
+> Google Sites um link direto para a ferramenta em tela cheia. Não existe forma de um site
+> enviar *direto* para os Stories sem passar por esse menu — só apps nativos têm essa permissão.
 
 ## Ajustes (no início do `<script>`)
 
