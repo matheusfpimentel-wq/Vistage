@@ -9,7 +9,13 @@ import { toast } from "@/components/ui/toaster";
  * arquivo (portabilidade), abrir o documento — até numa máquina nova — reconecta
  * e já põe tudo em dia automaticamente.
  */
+let inFlight: Promise<void> | null = null;
+
 export async function syncAllIntegrations(opts?: { silent?: boolean }): Promise<void> {
+  // Re-entrância: salvamentos em sequência (ou boot + save juntos) compartilham
+  // o MESMO sync em andamento, em vez de disparar vários concorrentes.
+  if (inFlight) return inFlight;
+  inFlight = (async () => {
   const done: string[] = [];
 
   // ── Todoist ────────────────────────────────────────────────────────────────
@@ -50,5 +56,11 @@ export async function syncAllIntegrations(opts?: { silent?: boolean }): Promise<
 
   if (!opts?.silent && done.length > 0) {
     toast.success(`Integrações sincronizadas: ${done.join(", ")}.`);
+  }
+  })();
+  try {
+    await inFlight;
+  } finally {
+    inFlight = null;
   }
 }

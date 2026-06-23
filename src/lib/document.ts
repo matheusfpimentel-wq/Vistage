@@ -187,6 +187,11 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       await saveBackupToPath(path);
       set({ dirty: false });
       toast.success(`Salvo em ${fileName(path)}`);
+      // A cada salvamento, sincroniza as integrações em segundo plano (silencioso)
+      // — Google Calendar, Todoist e o espelho do celular ficam em dia sem clique.
+      void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
+        syncAllIntegrations({ silent: true })
+      );
       return true;
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);
@@ -212,6 +217,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
       toast.success(`Salvo como ${fileName(path)}`);
+      void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
+        syncAllIntegrations({ silent: true })
+      );
       return true;
     } catch (e) {
       toast.error(`Erro ao salvar: ${String(e)}`);

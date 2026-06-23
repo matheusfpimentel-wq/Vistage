@@ -61,6 +61,33 @@ export const MIND_TYPE_META: Record<
 
 const nid = (type: MindNodeType, id: number) => `${type}:${id}`;
 
+/** Data ISO (YYYY-MM-DD) → "DD/MM/AA" curtinha pra rótulo. */
+function shortDate(iso: string | null): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y.slice(2)}` : "";
+}
+
+/**
+ * Rótulo do nó de GIG. Quando a GIG faz parte de uma festa RECORRENTE, a
+ * recorrente já vira um nó próprio ("fest"); então a GIG mostra a EDIÇÃO (nome
+ * do evento/venue + data) — senão todas as edições ficariam com o mesmo nome.
+ */
+function gigLabel(g: {
+  id: number;
+  event_name: string | null;
+  venue_name: string | null;
+  date: string | null;
+  recurring_event_name: string | null;
+}): string {
+  const base = g.event_name?.trim() || g.venue_name?.trim() || `GIG #${g.id}`;
+  if (g.recurring_event_name?.trim()) {
+    const d = shortDate(g.date);
+    return d ? `${base} · ${d}` : base;
+  }
+  return base;
+}
+
 export async function buildMindGraph(): Promise<MindGraph> {
   const db = getDb();
 
@@ -79,8 +106,8 @@ export async function buildMindGraph(): Promise<MindGraph> {
     fans,
     classSessions,
   ] = await Promise.all([
-    db.select<{ id: number; label: string; venue_id: number | null; promoter_contact_id: number | null; recurring_event_name: string | null }[]>(
-      `SELECT id, COALESCE(NULLIF(recurring_event_name,''), NULLIF(event_name,''), venue_name, 'GIG #'||id) AS label, venue_id, promoter_contact_id, recurring_event_name FROM gigs`
+    db.select<{ id: number; event_name: string | null; venue_name: string | null; date: string | null; venue_id: number | null; promoter_contact_id: number | null; recurring_event_name: string | null }[]>(
+      `SELECT id, event_name, venue_name, date, venue_id, promoter_contact_id, recurring_event_name FROM gigs`
     ),
     db.select<{ id: number; label: string; gig_id: number | null }[]>(
       `SELECT id, COALESCE(NULLIF(title,''), 'Festa #'||id) AS label, gig_id FROM parties`
@@ -135,7 +162,7 @@ export async function buildMindGraph(): Promise<MindGraph> {
       catalog.set(key, { id: key, type, label, route: MIND_TYPE_META[type].route });
     }
   };
-  gigs.forEach((g) => add("gig", g.id, g.label));
+  gigs.forEach((g) => add("gig", g.id, gigLabel(g)));
   parties.forEach((p) => add("party", p.id, p.label));
   students.forEach((s) => add("student", s.id, s.label));
   classSessions.forEach((c) => add("class", c.id, c.label));
