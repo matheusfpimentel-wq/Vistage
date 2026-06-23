@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import {
   CheckSquare,
+  ChevronDown,
+  ChevronRight,
   Clipboard,
   Download,
   ExternalLink,
+  FolderPlus,
   Image as ImageIcon,
   Link as LinkIcon,
   Loader2,
@@ -939,30 +942,77 @@ function PhotosTab({
   const [addingPhoto, setAddingPhoto] = useState(false);
   const [addingVideo, setAddingVideo] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Seleção por caminho (estável quando as fotos são agrupadas por álbum).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Álbuns recolhidos (chave = nome do álbum; "" = grupo "Sem álbum").
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [newAlbum, setNewAlbum] = useState("");
 
   const onlyPhotos = photos.filter((p) => !p.type || p.type === "photo");
   const onlyVideos = photos.filter((p) => p.type === "video");
-  const allSelected = onlyPhotos.length > 0 && selected.size === onlyPhotos.length;
+  const allSelected =
+    onlyPhotos.length > 0 && onlyPhotos.every((p) => selected.has(p.path));
 
-  // indices map: onlyPhotos[i] → original index in photos[]
-  const photoIndices = photos
-    .map((p, i) => ({ p, i }))
-    .filter(({ p }) => !p.type || p.type === "photo")
-    .map(({ i }) => i);
+  // Nomes de álbuns existentes (não-vazios, distintos), em ordem alfabética.
+  const albumNames = Array.from(
+    new Set(
+      onlyPhotos.map((p) => (p.album ?? "").trim()).filter((a) => a.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  function togglePhoto(localIdx: number) {
+  // Grupos exibidos: cada álbum + "Sem álbum" (chave "") por último, só se
+  // houver fotos soltas. Sem álbum nenhum, exibe um grid simples (progressive
+  // disclosure — não muda a experiência de quem não usa álbuns).
+  const useAlbumSections = albumNames.length > 0;
+  const groups: { key: string; label: string; photos: IdentityPhoto[] }[] =
+    albumNames.map((name) => ({
+      key: name,
+      label: name,
+      photos: onlyPhotos.filter((p) => (p.album ?? "").trim() === name),
+    }));
+  const loosePhotos = onlyPhotos.filter((p) => !(p.album ?? "").trim());
+  if (loosePhotos.length > 0) {
+    groups.push({ key: "", label: "Sem álbum", photos: loosePhotos });
+  }
+
+  function togglePhoto(path: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(localIdx)) next.delete(localIdx);
-      else next.add(localIdx);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
       return next;
     });
   }
 
   function toggleAll() {
-    setSelected(
-      allSelected ? new Set() : new Set(onlyPhotos.map((_, i) => i))
+    setSelected(allSelected ? new Set() : new Set(onlyPhotos.map((p) => p.path)));
+  }
+
+  function toggleAlbum(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Move as fotos selecionadas para um álbum (album="" remove do álbum).
+  function assignSelectedToAlbum(album: string) {
+    const name = album.trim();
+    if (selected.size === 0) return;
+    const count = selected.size;
+    onPhotosChange(
+      photos.map((p) =>
+        (!p.type || p.type === "photo") && selected.has(p.path)
+          ? { ...p, album: name || undefined }
+          : p
+      )
+    );
+    setSelected(new Set());
+    setNewAlbum("");
+    toast.success(
+      name ? `${count} foto(s) → "${name}"` : `${count} foto(s) sem álbum`
     );
   }
 
@@ -1023,7 +1073,7 @@ function PhotosTab({
   async function handleDownloadSelected() {
     const targets =
       selected.size > 0
-        ? onlyPhotos.filter((_, i) => selected.has(i))
+        ? onlyPhotos.filter((p) => selected.has(p.path))
         : onlyPhotos;
     if (targets.length === 0) return;
     setDownloading(true);
@@ -1057,6 +1107,30 @@ function PhotosTab({
       setDownloading(false);
     }
   }
+
+  // Grid masonry (CSS columns) — cada card mantém o tamanho natural da mídia,
+  // então o layout se adapta a fotos retrato/paisagem sem cortar.
+  const renderPhotoGrid = (list: IdentityPhoto[]) => (
+    <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5">
+      {list.map((photo) => {
+        const origIdx = photos.indexOf(photo);
+        return (
+          <PhotoCard
+            key={photo.path}
+            photo={photo}
+            selected={selected.has(photo.path)}
+            onToggle={() => togglePhoto(photo.path)}
+            onCaptionChange={(caption) => {
+              const next = [...photos];
+              next[origIdx] = { ...next[origIdx], caption };
+              onPhotosChange(next);
+            }}
+            onRemove={() => void handleRemove(origIdx, "foto")}
+          />
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -1106,30 +1180,88 @@ function PhotosTab({
             )}
           </div>
 
+          {/* Barra de álbum — aparece quando há fotos selecionadas. */}
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
+              <span className="text-xs text-muted-foreground">
+                Mover {selected.size} foto(s) para:
+              </span>
+              {albumNames.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => assignSelectedToAlbum(name)}
+                  className="rounded-full border px-2.5 py-1 text-xs transition hover:border-primary hover:text-primary"
+                >
+                  {name}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => assignSelectedToAlbum("")}
+                className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground transition hover:border-primary hover:text-primary"
+              >
+                Sem álbum
+              </button>
+              <div className="flex items-center gap-1">
+                <Input
+                  value={newAlbum}
+                  onChange={(e) => setNewAlbum(e.target.value)}
+                  placeholder="Novo álbum…"
+                  className="h-7 w-32 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newAlbum.trim())
+                      assignSelectedToAlbum(newAlbum);
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={!newAlbum.trim()}
+                  onClick={() => assignSelectedToAlbum(newAlbum)}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  Criar
+                </Button>
+              </div>
+            </div>
+          )}
+
           {onlyPhotos.length === 0 ? (
             <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
               Nenhuma foto ainda.
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {onlyPhotos.map((photo, localIdx) => {
-                const origIdx = photoIndices[localIdx];
+          ) : useAlbumSections ? (
+            <div className="space-y-3">
+              {groups.map((g) => {
+                const isCollapsed = collapsed.has(g.key);
                 return (
-                  <PhotoCard
-                    key={photo.path}
-                    photo={photo}
-                    selected={selected.has(localIdx)}
-                    onToggle={() => togglePhoto(localIdx)}
-                    onCaptionChange={(caption) => {
-                      const next = [...photos];
-                      next[origIdx] = { ...next[origIdx], caption };
-                      onPhotosChange(next);
-                    }}
-                    onRemove={() => void handleRemove(origIdx, "foto")}
-                  />
+                  <div key={g.key || "__none__"} className="rounded-lg border">
+                    <button
+                      type="button"
+                      onClick={() => toggleAlbum(g.key)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/40"
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                      <span>{g.label}</span>
+                      <Badge variant="secondary" className="ml-1">
+                        {g.photos.length}
+                      </Badge>
+                    </button>
+                    {!isCollapsed && (
+                      <div className="p-3 pt-0">{renderPhotoGrid(g.photos)}</div>
+                    )}
+                  </div>
                 );
               })}
             </div>
+          ) : (
+            renderPhotoGrid(onlyPhotos)
           )}
         </CardContent>
       </Card>
@@ -1157,7 +1289,7 @@ function PhotosTab({
               Nenhum vídeo ainda. Suporte a MP4, MOV, WebM, AVI, MKV.
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="columns-1 gap-3 sm:columns-2 lg:columns-3">
               {onlyVideos.map((video) => {
                 const origIdx = photos.indexOf(video);
                 return (
@@ -1268,19 +1400,19 @@ function PhotoCard({
   return (
     <div
       className={cn(
-        "group overflow-hidden rounded-lg border bg-card",
+        "group mb-3 break-inside-avoid overflow-hidden rounded-lg border bg-card",
         selected && "ring-2 ring-primary"
       )}
     >
-      <div className="relative aspect-square w-full bg-muted">
+      <div className="relative w-full bg-muted">
         {url ? (
           <img
             src={url}
             alt={photo.caption || "Foto"}
-            className="h-full w-full object-cover"
+            className="block h-auto w-full"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+          <div className="flex aspect-square items-center justify-center text-xs text-muted-foreground">
             Carregando…
           </div>
         )}
@@ -1305,6 +1437,14 @@ function PhotoCard({
         >
           <X className="h-4 w-4" />
         </Button>
+        {photo.album && (
+          <Badge
+            variant="secondary"
+            className="absolute bottom-2 left-2 max-w-[80%] truncate bg-background/80"
+          >
+            {photo.album}
+          </Badge>
+        )}
       </div>
       <div className="p-2">
         <Input
@@ -1329,17 +1469,17 @@ function VideoCard({
 }) {
   const url = useImageUrl(video.path);
   return (
-    <div className="group overflow-hidden rounded-lg border bg-card">
-      <div className="relative aspect-video w-full bg-muted">
+    <div className="group mb-3 break-inside-avoid overflow-hidden rounded-lg border bg-card">
+      <div className="relative w-full bg-muted">
         {url ? (
           <video
             src={url}
             controls
-            className="h-full w-full object-contain"
+            className="block h-auto w-full"
             preload="metadata"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+          <div className="flex aspect-video items-center justify-center text-xs text-muted-foreground">
             Carregando…
           </div>
         )}

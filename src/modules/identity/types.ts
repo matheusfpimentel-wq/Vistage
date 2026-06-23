@@ -45,6 +45,8 @@ export type IdentityPhoto = {
   caption?: string;
   /** "photo" (padrão) ou "video". */
   type?: "photo" | "video";
+  /** Álbum ao qual a foto pertence. Vazio/ausente = "Sem álbum". */
+  album?: string;
 };
 
 /** Link para uma pasta externa de fotos (Google Drive, Dropbox, etc). */
