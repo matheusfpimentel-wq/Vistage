@@ -17,7 +17,9 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
+import { TaskCompactListView } from "./views/TaskCompactListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
+import { TaskEisenhowerView } from "./views/TaskEisenhowerView";
 import { TaskSprintView } from "./views/TaskSprintView";
 import {
   completeAndRecur,
@@ -164,13 +166,15 @@ export function TasksPage() {
     await refresh();
   }
 
-  const [view, setView] = useModuleView<"list" | "kanban" | "sprint">(
-    "tasks",
-    "list"
-  );
-  // As views "Linha do tempo" e "Energia" foram removidas — se uma delas estiver
-  // salva de uma visita antiga, cai pra "list" pra não ficar sem conteúdo.
-  const safeView = view === "kanban" || view === "sprint" ? view : "list";
+  const [view, setView] = useModuleView<
+    "list" | "compact" | "kanban" | "eisenhower" | "sprint"
+  >("tasks", "list");
+  // Se uma view removida (linha do tempo/energia) estiver salva de uma visita
+  // antiga, cai pra "list" pra não ficar sem conteúdo.
+  const safeView: typeof view =
+    view === "compact" || view === "kanban" || view === "eisenhower" || view === "sprint"
+      ? view
+      : "list";
 
   return (
     <div className="space-y-4">
@@ -293,7 +297,9 @@ export function TasksPage() {
       <Tabs value={safeView} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
+          <TabsTrigger value="compact">Compacta</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
+          <TabsTrigger value="eisenhower">Eisenhower</TabsTrigger>
           <TabsTrigger value="sprint">Sprint</TabsTrigger>
         </TabsList>
 
@@ -309,8 +315,24 @@ export function TasksPage() {
           />
         </TabsContent>
 
+        <TabsContent value="compact">
+          <TaskCompactListView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+          />
+        </TabsContent>
+
         <TabsContent value="kanban">
           <TaskKanbanView tasks={tasks} onEdit={openEdit} onMove={handleMove} />
+        </TabsContent>
+
+        <TabsContent value="eisenhower">
+          <TaskEisenhowerView
+            tasks={tasks}
+            onEdit={openEdit}
+            onToggleDone={handleToggleDone}
+          />
         </TabsContent>
 
         <TabsContent value="sprint">
