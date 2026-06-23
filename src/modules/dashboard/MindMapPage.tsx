@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import {
   buildMindGraph,
+  loadMindColorOverrides,
+  mindColor,
   MIND_TYPE_META,
   type MindGraph,
   type MindNode,
@@ -327,6 +329,10 @@ export function MindMapPage() {
     alphaRef.current = 1;
   };
 
+  // cores personalizadas das entidades (lidas uma vez; a página remonta ao
+  // navegar de volta das Configurações, então pega o valor novo).
+  const colorOverrides = useMemo(() => loadMindColorOverrides(), []);
+
   // tipos presentes no grafo (para a legenda/filtros)
   const presentTypes = useMemo(() => {
     const s = new Set<MindNodeType>();
@@ -377,7 +383,7 @@ export function MindMapPage() {
                 )}
                 title={off ? `Mostrar ${meta.label}` : `Ocultar ${meta.label}`}
               >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: mindColor(t, colorOverrides) }} />
                 {meta.label}
               </button>
             );
@@ -425,7 +431,7 @@ export function MindMapPage() {
               const active = !neighbors || (neighbors.has(e.source) && neighbors.has(e.target));
               // cor derivada da ponta-fonte para dar identidade visual à aresta
               const srcNode = visible.nodes.find((n) => n.id === e.source);
-              const edgeColor = srcNode ? MIND_TYPE_META[srcNode.type].color : "#94a3b8";
+              const edgeColor = srcNode ? mindColor(srcNode.type, colorOverrides) : "#94a3b8";
               return (
                 <line
                   key={i}
@@ -443,7 +449,6 @@ export function MindMapPage() {
             {visible.nodes.map((n) => {
               const p = posRef.current.get(n.id);
               if (!p) return null;
-              const meta = MIND_TYPE_META[n.type];
               const deg = degree.get(n.id) ?? 1;
               const r = Math.min(26, 8 + deg * 2.5);
               const dim = neighbors ? !neighbors.has(n.id) : false;
@@ -463,7 +468,7 @@ export function MindMapPage() {
                 >
                   <circle
                     r={r}
-                    fill={meta.color}
+                    fill={mindColor(n.type, colorOverrides)}
                     stroke="white"
                     strokeWidth={1.5}
                     className="drop-shadow"

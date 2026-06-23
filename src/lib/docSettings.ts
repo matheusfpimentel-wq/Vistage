@@ -15,7 +15,12 @@ import { getDb } from "./db";
  */
 
 /** Prefixos das chaves de preferência de view que são portáteis. */
-const PORTABLE_PREFIXES = ["vistage.view.", "vistage.cols.", "vistage.filter."];
+const PORTABLE_PREFIXES = [
+  "vistage.view.",
+  "vistage.cols.",
+  "vistage.filter.",
+  "vistage.mindmap.",
+];
 
 function isPortableKey(key: string): boolean {
   return PORTABLE_PREFIXES.some((p) => key.startsWith(p));
@@ -55,7 +60,8 @@ export async function hydrateViewPrefsFromDocument(): Promise<void> {
       `SELECT key, value FROM document_settings
         WHERE key LIKE 'vistage.view.%'
            OR key LIKE 'vistage.cols.%'
-           OR key LIKE 'vistage.filter.%'`
+           OR key LIKE 'vistage.filter.%'
+           OR key LIKE 'vistage.mindmap.%'`
     );
     for (const r of rows) {
       if (r.value == null) continue;
