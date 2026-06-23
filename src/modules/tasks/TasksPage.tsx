@@ -18,9 +18,7 @@ import { toast } from "@/components/ui/toaster";
 import { TaskForm } from "./forms/TaskForm";
 import { TaskListView } from "./views/TaskListView";
 import { TaskKanbanView } from "./views/TaskKanbanView";
-import { TaskTimelineView } from "./views/TaskTimelineView";
 import { TaskSprintView } from "./views/TaskSprintView";
-import { TaskEnergyView } from "./views/TaskEnergyView";
 import {
   completeAndRecur,
   deleteTask,
@@ -166,9 +164,13 @@ export function TasksPage() {
     await refresh();
   }
 
-  const [view, setView] = useModuleView<
-    "list" | "kanban" | "timeline" | "sprint" | "energy"
-  >("tasks", "list");
+  const [view, setView] = useModuleView<"list" | "kanban" | "sprint">(
+    "tasks",
+    "list"
+  );
+  // As views "Linha do tempo" e "Energia" foram removidas — se uma delas estiver
+  // salva de uma visita antiga, cai pra "list" pra não ficar sem conteúdo.
+  const safeView = view === "kanban" || view === "sprint" ? view : "list";
 
   return (
     <div className="space-y-4">
@@ -288,13 +290,11 @@ export function TasksPage() {
         <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
       )}
 
-      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
+      <Tabs value={safeView} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
           <TabsTrigger value="list">Lista</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="sprint">Sprint</TabsTrigger>
-          <TabsTrigger value="energia">Energia</TabsTrigger>
         </TabsList>
 
         <TabsContent value="list">
@@ -313,10 +313,6 @@ export function TasksPage() {
           <TaskKanbanView tasks={tasks} onEdit={openEdit} onMove={handleMove} />
         </TabsContent>
 
-        <TabsContent value="timeline">
-          <TaskTimelineView tasks={tasks} onEdit={openEdit} />
-        </TabsContent>
-
         <TabsContent value="sprint">
           <TaskSprintView
             tasks={tasks}
@@ -326,14 +322,6 @@ export function TasksPage() {
           />
         </TabsContent>
 
-        <TabsContent value="energia">
-          <TaskEnergyView
-            tasks={tasks}
-            onEdit={openEdit}
-            onToggleDone={handleToggleDone}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
       </Tabs>
 
       <TaskForm

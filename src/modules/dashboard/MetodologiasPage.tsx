@@ -15,7 +15,6 @@ import {
   RefreshCw,
   Target,
   Grid2x2,
-  TrendingUp,
   Smile,
   Plus,
   X,
@@ -31,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
+import { formatDate, toLocalISODate } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -126,7 +125,7 @@ export function MetodologiasPage() {
         <div>
           <h2 className="text-lg font-semibold">Metodologias de Gestão</h2>
           <p className="text-sm text-muted-foreground">
-            Frameworks aplicados aos seus dados: OKRs, SWOT, Eisenhower, Pareto e NPS.
+            Frameworks aplicados aos seus dados: SWOT, Eisenhower, NPS e OKRs.
           </p>
         </div>
         <Button variant="ghost" size="icon" onClick={() => load()} aria-label="Atualizar">
@@ -134,11 +133,10 @@ export function MetodologiasPage() {
         </Button>
       </div>
 
-      <OkrsSection okrs={data.okrs} />
       <SwotSection data={data} />
       <EisenhowerSection tasks={data.tasks} onChanged={() => load(true)} />
-      <ParetoSection gigs={data.gigs} />
       <NpsSection gigs={data.gigs} />
+      <OkrsSection okrs={data.okrs} />
     </div>
   );
 }
@@ -691,99 +689,6 @@ function EisenhowerSection({ tasks, onChanged }: { tasks: Task[]; onChanged: () 
         <Link to="/tarefas" className="block text-xs text-primary hover:underline">
           Gerenciar tarefas →
         </Link>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================
-// Pareto de Receita (regra 80/20)
-// ============================================================
-
-function ParetoSection({ gigs }: { gigs: Gig[] }) {
-  const [showAll, setShowAll] = useState(false);
-  const earning = gigs
-    .filter((g) => (g.cache_amount ?? 0) > 0 && g.status !== "Cancelada")
-    .map((g) => ({ gig: g, value: g.cache_amount ?? 0 }))
-    .sort((a, b) => b.value - a.value);
-
-  const total = earning.reduce((s, e) => s + e.value, 0);
-
-  // GIGs que acumulam os primeiros 80% da receita (os "poucos vitais").
-  let cum = 0;
-  const vital: typeof earning = [];
-  for (const e of earning) {
-    if (cum >= total * 0.8) break;
-    vital.push(e);
-    cum += e.value;
-  }
-  const vitalShareOfCount = earning.length > 0 ? Math.round((vital.length / earning.length) * 100) : 0;
-  const vitalShareOfRevenue = total > 0 ? Math.round((cum / total) * 100) : 0;
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          Pareto de Receita (80/20)
-        </CardTitle>
-        <CardDescription>
-          De onde vem a maior parte do seu faturamento de GIGs.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {earning.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Sem GIGs com cachê registrado ainda.
-          </p>
-        ) : (
-          <>
-            <div className="mb-3 rounded-md border bg-muted/30 p-3 text-sm">
-              <span className="font-semibold">{vitalShareOfCount}%</span> das GIGs
-              {" "}({vital.length} de {earning.length}) geraram{" "}
-              <span className="font-semibold text-emerald-600">{vitalShareOfRevenue}%</span> da receita
-              {" "}({formatCurrency(cum)} de {formatCurrency(total)}).
-            </div>
-            <div className="space-y-1.5">
-              {(showAll ? earning : vital).map((e, i) => {
-                const pct = total > 0 ? (e.value / total) * 100 : 0;
-                const isVital = i < vital.length;
-                return (
-                  <div key={e.gig.id} className="flex items-center gap-2">
-                    <Link
-                      to={`/gigs?open=${e.gig.id}`}
-                      className="w-40 shrink-0 truncate text-xs hover:underline"
-                      title={gigDisplayName(e.gig)}
-                    >
-                      {gigDisplayName(e.gig)}
-                    </Link>
-                    <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
-                      <div
-                        className={cn("h-full rounded-full", isVital ? "bg-emerald-500" : "bg-muted-foreground/40")}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="w-20 shrink-0 text-right text-xs tabular-nums">
-                      {formatCurrency(e.value)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            {!showAll && earning.length > vital.length && (
-              <button
-                type="button"
-                onClick={() => setShowAll(true)}
-                className="mt-1 text-xs text-primary hover:underline"
-              >
-                Ver todas as {earning.length} GIGs →
-              </button>
-            )}
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Em verde, os poucos vitais que somam ~80% da receita. Foque em conseguir mais GIGs como essas.
-            </p>
-          </>
-        )}
       </CardContent>
     </Card>
   );

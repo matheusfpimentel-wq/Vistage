@@ -1044,14 +1044,14 @@ export function GigForm({
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AttachmentField
-                label="Flyer / arte (principal — vai pra Identidade)"
+                label="Flyer"
                 value={state.banner_file_path}
                 onChange={(v) => set("banner_file_path", v)}
                 subdir="gigs/flyers"
                 variant="image"
               />
               <AttachmentField
-                label="Roteiro / setlist"
+                label="Roteiro"
                 value={state.script_file_path}
                 onChange={(v) => set("script_file_path", v)}
                 subdir="gigs/scripts"
