@@ -300,7 +300,7 @@ function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
                       "flex-1 rounded-sm h-5 transition",
                       cell ? "cursor-default" : "bg-muted/30"
                     )}
-                    style={cell ? { backgroundColor: `hsl(262 60% 60% / ${intensity})` } : {}}
+                    style={cell ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : {}}
                     title={cell ? `E:${cell.avg_energy.toFixed(1)} F:${cell.avg_focus.toFixed(1)} (${cell.count}×)` : "Sem dados"}
                   />
                 );
