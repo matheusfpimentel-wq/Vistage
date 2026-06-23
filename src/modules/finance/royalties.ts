@@ -495,3 +495,50 @@ export async function importRoyaltyTrackMonths(
   }
   return { created, skipped, noRate };
 }
+
+/** Receita (royalties) de uma faixa — income com track_id, recentes primeiro. */
+export async function listTrackRoyalties(
+  trackId: number
+): Promise<{ id: number; amount: number; date: string | null; description: string | null }[]> {
+  const db = getDb();
+  return db.select<{ id: number; amount: number; date: string | null; description: string | null }[]>(
+    `SELECT id, amount, date, description
+       FROM finance_transactions
+      WHERE track_id = $1 AND kind = 'income'
+      ORDER BY date DESC, id DESC`,
+    [trackId]
+  );
+}
+
+/** Adiciona UMA receita de royalties a uma faixa (manual, fora do import CSV). */
+export async function addTrackRoyalty(input: {
+  trackId: number;
+  amount: number;
+  date: string | null;
+  description: string | null;
+}): Promise<number> {
+  const catId = await getOrCreateRoyaltyCategory();
+  return createTransaction({
+    kind: "income",
+    amount: input.amount,
+    // Receita exige data; sem data informada, usa hoje.
+    date: input.date ?? new Date().toISOString().slice(0, 10),
+    description: input.description,
+    category_id: catId,
+    gig_id: null,
+    contact_id: null,
+    class_id: null,
+    student_package_id: null,
+    track_id: input.trackId,
+    party_id: null,
+    music_cost_id: null,
+    gig_sync: 0,
+    class_sync: 0,
+    status: "Recebido",
+    payment_method: null,
+    expense_type: null,
+    receipt_file_path: null,
+    tax_relevant: 0,
+    recurring_id: null,
+  });
+}
