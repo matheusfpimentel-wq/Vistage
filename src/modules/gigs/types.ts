@@ -32,6 +32,8 @@ export type Gig = {
   /** JSON array com IDs de fãs presentes (preenchido no debrief). */
   fans_present: string | null;
   promoter_contact_id: number | null;
+  /** Nome do contratante quando é "eventual" (sem contato cadastrado). */
+  promoter_name_manual: string | null;
   /**
    * Nome do contratante, resolvido por LEFT JOIN em `listGigs` (NÃO é coluna da
    * tabela `gigs`). Fica `undefined` em consultas que não fazem o join (ex.:
@@ -46,6 +48,8 @@ export type Gig = {
   cache_paid_pct: number | null;
   script_file_path: string | null;
   banner_file_path: string | null;
+  /** Anexo de briefing da GIG (documento). */
+  briefing_file_path: string | null;
   extra_flyer_paths: string | null; // JSON array de caminhos (flyers além do primeiro)
   opportunities: string | null;
   briefing: string | null;
