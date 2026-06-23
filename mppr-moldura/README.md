@@ -51,7 +51,10 @@ var BAR_LOT  = { x:66, y:1893, w:927,  h:90  };  // barra da Lotação
 - **Áudio do vídeo** é capturado via Web Audio (`createMediaElementSource` →
   `MediaStreamDestination`) — funciona em Chrome/Firefox (desktop) e Chrome (Android).
   No iPhone/Safari a captura é bloqueada; nesse caso o vídeo é salvo sem som.
-- A fonte do **Nome/Lotação** é a *Outfit* (geométrica, bem próxima da identidade do
-  MPPR), embutida como subconjunto. Se você tiver a **fonte oficial**, dá para trocar.
+- A fonte do **Nome/Lotação** é a **Futura** (Bold no nome, Medium na lotação) — a fonte
+  da identidade do MPPR —, embutida como subconjunto. O arquivo de Futura fornecido não
+  traz os **acentos** (á, ã, ç, é…), então esses caracteres usam como reserva a *Outfit*
+  (também geométrica); na prática quase não se nota. Se você tiver uma Futura com acentos,
+  dá para trocar e dispensar a reserva.
 - `moldura.png` é a arte oficial (PNG 1489×2013 com janela central transparente). Para
   trocar a moldura, basta embutir o novo PNG em base64 no lugar de `FRAME_SRC`.
