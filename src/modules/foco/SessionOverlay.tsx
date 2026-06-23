@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { emit } from "@tauri-apps/api/event";
-import { readOverlayParams } from "./overlay";
+import { readOverlayParams, OVERLAY_COMPACT, OVERLAY_EXPANDED } from "./overlay";
 import { applyAccent, type Accent } from "@/lib/theme";
 import { CircularTimer } from "./CircularTimer";
 import { getDb } from "@/lib/db";
@@ -18,8 +18,8 @@ import { loadFocusPanel, type FocusPanel, type WorkSession } from "./api";
 import { updateTask } from "@/modules/tasks/api";
 
 // Tamanhos da janela: compacto (só o círculo) e expandido (círculo + painel).
-const COMPACT = { w: 280, h: 312 };
-const EXPANDED = { w: 300, h: 540 };
+const COMPACT = OVERLAY_COMPACT;
+const EXPANDED = OVERLAY_EXPANDED;
 
 function elapsedSecs(startedAt: string, pauseOffset: number): number {
   const diff = Math.floor((Date.now() - new Date(startedAt).getTime() - pauseOffset) / 1000);
@@ -200,6 +200,48 @@ export function SessionOverlay() {
 
   const progress = plannedSecs ? secs / plannedSecs : undefined;
   const activity = session?.activity_type ?? params.activity;
+
+  // Compacto: a janela é praticamente só o círculo. Os controles ficam
+  // minúsculos nos cantos livres (fora do círculo) e arrasta-se pela área vazia.
+  if (!expanded) {
+    return (
+      <div
+        data-tauri-drag-region
+        className="relative flex h-screen w-screen items-center justify-center overflow-hidden bg-background text-foreground select-none"
+      >
+        <CircularTimer
+          size={150}
+          elapsedLabel={fmtElapsed(secs)}
+          progress={progress}
+          plannedLabel={plannedMin ? fmtPlanned(plannedMin) : null}
+          paused={paused}
+          expired={expired}
+          onToggle={() => setPaused((p) => !p)}
+        />
+        <button
+          type="button"
+          onClick={() => void closeSelf()}
+          title="Fechar mini-janela"
+          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
+        >
+          <X className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void toggleExpand()}
+          title="Expandir — ver informações da sessão"
+          className="absolute bottom-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
+        >
+          <Maximize2 className="h-3 w-3" />
+        </button>
+        {expired && (
+          <span className="pointer-events-none absolute left-1/2 top-0.5 -translate-x-1/2 text-[11px]">
+            ⏰
+          </span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen flex-col select-none overflow-hidden bg-background text-foreground">
