@@ -14,9 +14,12 @@ permite **baixar / compartilhar** o resultado. Feita para ser incorporada no Goo
   - enquanto arrasta, a parte que fica **fora da janela** aparece esmaecida (ajuda a enquadrar).
 - Campos **Nome** e **Lotação** — o texto aparece nas duas barras escuras (nome em cima,
   lotação embaixo), com **MAIÚSCULAS** opcional e ajuste automático de tamanho.
-- **Salvar** (foto → PNG 1489×2013; vídeo → `.mp4`/`.webm` com áudio), **Compartilhar**
-  (menu nativo do celular → Instagram/Stories) e **Copiar** imagem (desktop). O arquivo
-  sai nomeado com o nome digitado (ex.: `moldura-mppr-ana.png`).
+- **Publicar nos Stories** (botão laranja com o ícone do Instagram — abre o
+  compartilhamento nativo do celular; o usuário escolhe Instagram → Stories), **Salvar**
+  (foto → PNG 1489×2013; vídeo → `.mp4`/`.webm` com áudio) e **Copiar** imagem (desktop).
+  O arquivo sai nomeado com o nome digitado (ex.: `moldura-mppr-ana.png`).
+- Os botões seguem a identidade da moldura: formato pílula, fonte **Futura** e a paleta
+  do card (laranja do selo, verde, turquesa-escuro).
 - Fotos são corrigidas de **orientação (EXIF)** e **reduzidas** se forem muito grandes,
   para não travar em celulares.
 - A moldura é a **imagem oficial** (`moldura.png`), embutida em base64. Nada é redesenhado
