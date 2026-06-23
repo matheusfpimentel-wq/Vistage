@@ -25,6 +25,8 @@ const TooltipContent = React.forwardRef<
 ));
 TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
+export { Tooltip, TooltipTrigger, TooltipContent };
+
 /**
  * Pequeno ícone "i" com tooltip ao passar o mouse.
  * Usado pra dar contexto extra em labels concisos sem poluir a UI.
