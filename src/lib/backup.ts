@@ -116,6 +116,22 @@ const FILE_PATH_JSON_COLS: Partial<Record<TableName, string[]>> = {
   gigs: ["extra_flyer_paths"],
 };
 
+/**
+ * Colunas cujo valor é um JSON array de OBJETOS, cada um com um campo de caminho.
+ * Ex.: a galeria da Identidade (`artist_identity.photos` = [{ path, type, … }])
+ * e as fontes da marca (`artist_identity.fonts` = [{ name, file_path, … }]).
+ * Sem isso, os bytes da galeria/fontes não entravam no .vistage e sumiam ao
+ * abrir o arquivo em outra máquina.
+ */
+const FILE_PATH_JSON_OBJECT_COLS: Partial<
+  Record<TableName, { col: string; pathKey: string }[]>
+> = {
+  artist_identity: [
+    { col: "photos", pathKey: "path" },
+    { col: "fonts", pathKey: "file_path" },
+  ],
+};
+
 function joinPath(...parts: string[]): string {
   const sep = parts[0]?.includes("\\") && !parts[0].includes("/") ? "\\" : "/";
   return parts
@@ -139,9 +155,16 @@ async function readAsBase64(absPath: string): Promise<string | null> {
       : ext === "gif" ? "image/gif"
       : ext === "webp" ? "image/webp"
       : ext === "pdf" ? "application/pdf"
+      : ext === "mp4" || ext === "m4v" ? "video/mp4"
+      : ext === "mov" ? "video/quicktime"
+      : ext === "webm" ? "video/webm"
       : "application/octet-stream";
+    // Em blocos: vídeos podem ter dezenas de MB e o concat byte-a-byte travava.
     let bin = "";
-    bytes.forEach((b) => (bin += String.fromCharCode(b)));
+    const CHUNK = 8192;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
     return `data:${mime};base64,${btoa(bin)}`;
   } catch {
     return null;
@@ -176,6 +199,30 @@ async function collectFiles(
         let paths: unknown[];
         try { paths = JSON.parse(raw); } catch { continue; }
         for (const p of paths) {
+          if (typeof p !== "string" || !p) continue;
+          const rel = relativize(p, uploadsDir);
+          if (files[rel] !== undefined) continue;
+          const data = await readAsBase64(p);
+          if (data) files[rel] = data;
+        }
+      }
+    }
+  }
+  // arrays de OBJETOS com campo de caminho (ex.: galeria/fontes da Identidade)
+  for (const [table, specs] of Object.entries(FILE_PATH_JSON_OBJECT_COLS) as [
+    TableName,
+    { col: string; pathKey: string }[]
+  ][]) {
+    const rows = tables[table] ?? [];
+    for (const row of rows) {
+      for (const { col, pathKey } of specs) {
+        const raw = row[col];
+        if (typeof raw !== "string" || !raw) continue;
+        let arr: unknown[];
+        try { arr = JSON.parse(raw); } catch { continue; }
+        for (const item of arr) {
+          if (!item || typeof item !== "object") continue;
+          const p = (item as Record<string, unknown>)[pathKey];
           if (typeof p !== "string" || !p) continue;
           const rel = relativize(p, uploadsDir);
           if (files[rel] !== undefined) continue;
@@ -626,6 +673,42 @@ export async function restoreBackup(backup: Backup): Promise<{
             `UPDATE ${table} SET ${col} = $1 WHERE id = $2`,
             [JSON.stringify(updated), id]
           );
+        }
+      }
+    }
+    // arrays de OBJETOS com caminho (galeria/fontes da Identidade)
+    for (const [table, specs] of Object.entries(FILE_PATH_JSON_OBJECT_COLS) as [
+      TableName,
+      { col: string; pathKey: string }[]
+    ][]) {
+      const rows = backup.tables[table] ?? [];
+      for (const row of rows) {
+        const id = row["id"];
+        if (id == null) continue;
+        for (const { col, pathKey } of specs) {
+          const raw = row[col];
+          if (typeof raw !== "string" || !raw) continue;
+          let arr: unknown[];
+          try { arr = JSON.parse(raw); } catch { continue; }
+          let changed = false;
+          const updated = arr.map((item) => {
+            if (!item || typeof item !== "object") return item;
+            const obj = item as Record<string, unknown>;
+            const p = obj[pathKey];
+            if (typeof p !== "string") return item;
+            const normP = p.replace(/\\/g, "/");
+            const normOld = oldDir.replace(/\\/g, "/");
+            if (!normP.startsWith(normOld)) return item;
+            const rel = normP.slice(normOld.length).replace(/^\//, "");
+            changed = true;
+            return { ...obj, [pathKey]: joinPath(newDir, rel) };
+          });
+          if (changed) {
+            await db.execute(
+              `UPDATE ${table} SET ${col} = $1 WHERE id = $2`,
+              [JSON.stringify(updated), id]
+            );
+          }
         }
       }
     }
