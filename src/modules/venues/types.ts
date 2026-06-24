@@ -32,6 +32,7 @@ export type Venue = {
   dominant_genre?: string | null;
   rider_equipment?: string | null;
   regular_audience?: string | null;
+  djs_residentes?: string | null;
   lat: number | null;
   lng: number | null;
   geocoded_at: string | null;

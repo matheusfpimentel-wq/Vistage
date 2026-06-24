@@ -163,6 +163,24 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               {venue.regular_audience && (
                 <Row label="Público habitual" value={venue.regular_audience} />
               )}
+              {venue.djs_residentes && venue.djs_residentes.trim() && (
+                <div className="space-y-1">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                    DJs residentes
+                  </div>
+                  <ul className="space-y-0.5">
+                    {venue.djs_residentes
+                      .split("\n")
+                      .map((l) => l.trim())
+                      .filter(Boolean)
+                      .map((dj, i) => (
+                        <li key={i} className="text-sm">
+                          • {dj}
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
               {venue.website && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">

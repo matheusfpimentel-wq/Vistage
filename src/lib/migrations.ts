@@ -1866,6 +1866,11 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE focus_blocks ADD COLUMN plan TEXT;
     `,
   },
+  {
+    version: 131,
+    description: "venues.djs_residentes — DJs residentes (um por linha)",
+    sql: `ALTER TABLE venues ADD COLUMN djs_residentes TEXT;`,
+  },
 ];
 
 
