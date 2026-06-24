@@ -295,8 +295,8 @@ export function Sidebar({
             type="button"
             onClick={onCollapse}
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
-            title="Recolher painel lateral"
-            aria-label="Recolher painel lateral"
+            title="Recolher para ícones"
+            aria-label="Recolher para ícones"
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>
