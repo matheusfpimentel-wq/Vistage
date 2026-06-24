@@ -238,10 +238,36 @@ function buildCondition(
   }
 }
 
+/** Conta quantas linhas casam com a regra; null se inválida ou se der erro. */
+async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
+  const e = entityDef(rule.entity);
+  if (!e) return null;
+  const f = fieldDef(e, rule.field);
+  if (!f) return null;
+  // o operador precisa pertencer ao tipo do campo (combinação válida)
+  if (!OPERATORS_BY_TYPE[f.type].some((o) => o.op === rule.operator)) return null;
+  const cond = buildCondition(f, rule.operator);
+  if (!cond) return null;
+
+  const where = [e.baseWhere, cond.sql].filter(Boolean).join(" AND ");
+  const sql = `SELECT COUNT(*) AS n FROM ${e.table} WHERE ${where}`;
+  const params: unknown[] = [];
+  if (cond.needsValue) {
+    const num = Number(rule.value);
+    params.push(Number.isFinite(num) ? num : rule.value);
+  }
+  try {
+    const rows = await getDb().select<{ n: number }[]>(sql, params);
+    return rows[0]?.n ?? 0;
+  } catch {
+    return null; // regra problemática — ignora isoladamente
+  }
+}
+
 /**
- * Roda as regras habilitadas e devolve um AlertItem por regra que casou
- * (count > 0). Cada regra problemática é ignorada isoladamente — nunca derruba
- * o painel.
+ * Roda as regras de ALERTA habilitadas e devolve um AlertItem por regra que
+ * casou (count > 0). Regras de severidade "insight" NÃO entram aqui — viram
+ * insights no banco via `evaluateInsightRules`.
  */
 export async function evaluateCustomRules(): Promise<AlertItem[]> {
   let rules: CustomRule[];
@@ -252,37 +278,45 @@ export async function evaluateCustomRules(): Promise<AlertItem[]> {
   }
   const out: AlertItem[] = [];
   for (const rule of rules) {
-    if (!rule.enabled) continue;
+    if (!rule.enabled || rule.severity !== "alerta") continue;
     const e = entityDef(rule.entity);
     if (!e) continue;
-    const f = fieldDef(e, rule.field);
-    if (!f) continue;
-    // o operador precisa pertencer ao tipo do campo (combinação válida)
-    if (!OPERATORS_BY_TYPE[f.type].some((o) => o.op === rule.operator)) continue;
-    const cond = buildCondition(f, rule.operator);
-    if (!cond) continue;
-
-    const where = [e.baseWhere, cond.sql].filter(Boolean).join(" AND ");
-    const sql = `SELECT COUNT(*) AS n FROM ${e.table} WHERE ${where}`;
-    const params: unknown[] = [];
-    if (cond.needsValue) {
-      const num = Number(rule.value);
-      params.push(Number.isFinite(num) ? num : rule.value);
+    const n = await evaluateRuleCount(rule);
+    if (n && n > 0) {
+      out.push({
+        key: `custom-${rule.id}`,
+        icon: "warning",
+        to: e.route,
+        critical: true,
+        label: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
+      });
     }
-    try {
-      const rows = await getDb().select<{ n: number }[]>(sql, params);
-      const n = rows[0]?.n ?? 0;
-      if (n > 0) {
-        out.push({
-          key: `custom-${rule.id}`,
-          icon: rule.severity === "insight" ? "target" : "warning",
-          to: e.route,
-          critical: rule.severity === "alerta",
-          label: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
-        });
-      }
-    } catch {
-      /* regra problemática — ignora isoladamente */
+  }
+  return out;
+}
+
+export type InsightRuleHit = { ruleId: number; content: string };
+
+/**
+ * Roda as regras de INSIGHT habilitadas e devolve um item por regra que casou
+ * (count > 0). Não vão pro sininho — viram insights no banco.
+ */
+export async function evaluateInsightRules(): Promise<InsightRuleHit[]> {
+  let rules: CustomRule[];
+  try {
+    rules = await listCustomRules();
+  } catch {
+    return [];
+  }
+  const out: InsightRuleHit[] = [];
+  for (const rule of rules) {
+    if (!rule.enabled || rule.severity !== "insight") continue;
+    const n = await evaluateRuleCount(rule);
+    if (n && n > 0) {
+      out.push({
+        ruleId: rule.id,
+        content: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
+      });
     }
   }
   return out;

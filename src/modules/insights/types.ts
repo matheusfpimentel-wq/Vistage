@@ -1,4 +1,4 @@
-export type InsightSource = "gig" | "track" | "party" | "idea" | "manual";
+export type InsightSource = "gig" | "track" | "party" | "idea" | "manual" | "rule";
 
 export type InsightHit = {
   source_type: InsightSource;
@@ -14,6 +14,7 @@ export const SOURCE_LABEL: Record<InsightSource, string> = {
   party: "Festa",
   idea: "Ideia",
   manual: "Manual",
+  rule: "Regra",
 };
 
 export const SOURCE_COLOR: Record<InsightSource, string> = {
@@ -22,6 +23,7 @@ export const SOURCE_COLOR: Record<InsightSource, string> = {
   party: "bg-pink-500/20 text-pink-400 border-pink-500/30",
   idea: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   manual: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  rule: "bg-violet-500/20 text-violet-400 border-violet-500/30",
 };
 
 export const SOURCE_ROUTE: Record<InsightSource, string> = {
@@ -30,4 +32,5 @@ export const SOURCE_ROUTE: Record<InsightSource, string> = {
   party: "/festas",
   idea: "/ideias",
   manual: "/insights",
+  rule: "/insights",
 };
