@@ -152,9 +152,9 @@ export function Sidebar({
       onClick={onNavigate}
       className={({ isActive }) =>
         cn(
-          "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
+          "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors select-none",
           isActive
-            ? "bg-primary/10 text-primary font-medium"
+            ? "bg-primary/10 text-primary font-medium ring-1 ring-inset ring-primary/15 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-1 before:-translate-y-1/2 before:rounded-r-full before:bg-primary"
             : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         )
       }
