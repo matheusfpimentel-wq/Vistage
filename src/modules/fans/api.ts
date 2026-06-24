@@ -686,7 +686,10 @@ export async function listGigsForFan(
 ): Promise<{ id: number; name: string | null; date: string | null; city: string | null }[]> {
   const db = getDb();
   return db.select<{ id: number; name: string | null; date: string | null; city: string | null }[]>(
-    `SELECT g.id as id, g.name as name, g.date as date, g.city as city
+    `SELECT g.id as id,
+            COALESCE(NULLIF(g.event_name, ''), g.venue_name) as name,
+            g.date as date,
+            g.venue_city as city
        FROM gig_fans gf
        JOIN gigs g ON g.id = gf.gig_id
       WHERE gf.fan_id = $1

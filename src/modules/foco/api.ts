@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+import { toLocalISODate } from "@/lib/format";
 
 export const ACTIVITY_TYPES = [
   "Criação musical",
@@ -458,7 +459,7 @@ export async function loadStageTimeBlocks(): Promise<StageTimeBlock[]> {
   sunday.setHours(0, 0, 0, 0);
   const saturday = new Date(sunday);
   saturday.setDate(sunday.getDate() + 6);
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const iso = (d: Date) => toLocalISODate(d); // LOCAL, não UTC (senão a semana vira o dia errado no fuso BR)
   const rows = await db
     .select<
       { id: number; date: string | null; event_name: string | null; venue_name: string; start_time: string | null; end_time: string | null; time_slots: string | null }[]
