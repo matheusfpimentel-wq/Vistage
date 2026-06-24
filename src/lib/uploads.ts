@@ -6,10 +6,18 @@ import {
   mkdir,
   readFile,
   remove,
+  writeFile,
 } from "@tauri-apps/plugin-fs";
 import { open as openShell } from "@tauri-apps/plugin-shell";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useConfigStore } from "./config";
+import {
+  downloadMediaFromDrive,
+  getDriveFileId,
+  isDriveConnected,
+  isDriveMedia,
+  uploadMediaToDrive,
+} from "./gdrive";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
 export const VIDEO_EXTS = ["mp4", "mov", "webm", "avi", "mkv", "m4v"];
@@ -80,7 +88,69 @@ export async function saveAttachment(
   const filename = `${stamp}.${ext}`;
   const dest = joinPath(dir, filename);
   await copyFile(sourcePath, dest);
+
+  // Mídia "pesada" (galeria, flyers, música…) sobe pro Google Drive em segundo
+  // plano, se conectado. Best-effort: a cópia local continua valendo de qualquer
+  // forma, então nada se perde se o Drive falhar ou estiver desconectado.
+  const rel = `${subdir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")}/${filename}`;
+  if (isDriveMedia(rel)) {
+    void (async () => {
+      try {
+        if (!(await isDriveConnected())) return;
+        const bytes = await readFile(dest);
+        const mime = MIME_BY_EXT[ext] ?? "application/octet-stream";
+        await uploadMediaToDrive(rel, bytesToBase64(bytes), mime);
+      } catch {
+        /* fica só local */
+      }
+    })();
+  }
   return dest;
+}
+
+/** Uint8Array → base64 (em blocos, pra não estourar a pilha com arquivos grandes). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = "";
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+/** Parte relativa de um caminho de anexo (depois do último "/uploads/"). */
+function relUnderUploads(path: string): string | null {
+  const norm = path.replace(/\\/g, "/");
+  const idx = norm.toLowerCase().lastIndexOf("/uploads/");
+  if (idx === -1) return null;
+  const segs = norm.slice(idx + "/uploads/".length).split("/").filter(Boolean);
+  return segs.length ? segs.join("/") : null;
+}
+
+/**
+ * Anexo sumido do disco mas existente no Drive: baixa, grava no uploadsDir atual
+ * e devolve o caminho local. Best-effort (null se não der). Cobre abrir um
+ * .vistage cuja mídia pesada vive no Drive (não embutida no arquivo).
+ */
+async function tryFetchFromDrive(path: string): Promise<string | null> {
+  try {
+    const rel = relUnderUploads(path);
+    if (!rel) return null;
+    const fileId = await getDriveFileId(rel);
+    if (!fileId || !(await isDriveConnected())) return null;
+    const dest = resolveUnderCurrentUploads(path);
+    if (!dest) return null;
+    const b64 = await downloadMediaFromDrive(fileId);
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const dir = dest.substring(0, Math.max(dest.lastIndexOf("/"), dest.lastIndexOf("\\")));
+    if (dir && !(await exists(dir))) await mkdir(dir, { recursive: true });
+    await writeFile(dest, bytes);
+    return dest;
+  } catch {
+    return null;
+  }
 }
 
 // ── Streaming nativo de mídia (asset://) ─────────────────────────────────────
@@ -140,6 +210,9 @@ async function resolveExistingPath(path: string): Promise<string> {
       /* ignora */
     }
   }
+  // Não está em disco: tenta baixar do Google Drive (mídia pesada não embutida).
+  const fromDrive = await tryFetchFromDrive(path);
+  if (fromDrive) return fromDrive;
   return path;
 }
 

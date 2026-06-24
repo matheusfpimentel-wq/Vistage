@@ -4,6 +4,7 @@
 
 mod db;
 mod gcal;
+mod gdrive;
 
 use db::DbState;
 use gcal::GcalState;
@@ -32,6 +33,9 @@ pub fn run() {
             gcal::gcal_update_event,
             gcal::gcal_delete_event,
             gcal::gcal_list_events,
+            gdrive::gdrive_ensure_folder,
+            gdrive::gdrive_upload,
+            gdrive::gdrive_download,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");

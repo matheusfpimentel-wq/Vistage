@@ -335,9 +335,14 @@ async function collectFiles(
  */
 async function collectRawFiles(
   tables: Backup["tables"],
-  uploadsDir: string
+  uploadsDir: string,
+  skipRels: Set<string> = new Set()
 ): Promise<{ files: Record<string, Uint8Array>; skipped: string[] }> {
-  const entries = Object.entries(collectFilePaths(tables, uploadsDir));
+  // Pula o que já vive no Google Drive (mapeado em drive_media) — não embute,
+  // mas também não conta como "perdido": é intencional, mantém o .vistage leve.
+  const entries = Object.entries(collectFilePaths(tables, uploadsDir)).filter(
+    ([rel]) => !skipRels.has(rel)
+  );
   const read = await mapLimit(entries, READ_CONCURRENCY, async ([rel, abs]) => ({
     rel,
     bytes: await readAttachmentBytes(abs, rel, uploadsDir),
@@ -557,7 +562,15 @@ async function buildContainerBytes(
   };
   let skipped: string[] = [];
   if (uploadsDir) {
-    const raw = await collectRawFiles(data.tables, uploadsDir);
+    // Mídia já enviada ao Google Drive (mapeada em app_settings drive_media:<rel>)
+    // NÃO é embutida — fica só no Drive, deixando o .vistage leve.
+    const driveRels = new Set(
+      (data.tables.app_settings ?? [])
+        .map((r) => String((r as Record<string, unknown>).key ?? ""))
+        .filter((k) => k.startsWith("drive_media:"))
+        .map((k) => k.slice("drive_media:".length))
+    );
+    const raw = await collectRawFiles(data.tables, uploadsDir, driveRels);
     for (const [rel, bytes] of Object.entries(raw.files)) entries[`files/${rel}`] = bytes;
     skipped = raw.skipped;
   }
