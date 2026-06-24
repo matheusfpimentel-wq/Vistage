@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -11,111 +11,119 @@ import {
 import { useThemeStore } from "@/lib/theme";
 import {
   DEFAULT_NAV,
-  effectiveGroupLabel,
-  loadGroupLabels,
   loadOrderedNav,
   NAV_GROUP_ORDER,
   NAV_ORDER_CHANGED,
-  type GroupLabels,
-  type NavGroup,
   type NavItem,
 } from "@/lib/nav";
 
+// Parâmetros da magnificação estilo dock do macOS.
+const RANGE = 110; // px de influência do cursor (acima/abaixo)
+const MAX_BOOST = 0.55; // escala extra no ícone sob o cursor (1 + 0.55 = 1.55×)
+
 /**
- * Menu lateral COMPACTO (experimental, opt-in). Só ícones num círculo; o rótulo
- * aparece num tooltip ao passar o mouse; os grupos ficam separados verticalmente
- * por divisores. Reaproveita a MESMA configuração de navegação do menu clássico
- * (ordem e grupos customizados), então as duas visões ficam sempre em sincronia.
+ * Menu lateral COMPACTO (experimental, opt-in): círculos "suspensos" sobre o
+ * fundo do app (sem barra), centralizados na vertical. Ao aproximar o mouse, os
+ * ícones CRESCEM com falloff suave — o sob o cursor mais, os vizinhos um pouco
+ * menos — igual ao dock do macOS. Reaproveita a mesma config de navegação do
+ * menu clássico (ordem + grupos).
  */
 export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
   const setSidebarLayout = useThemeStore((s) => s.setSidebarLayout);
   const [nav, setNav] = useState<NavItem[]>(DEFAULT_NAV);
-  const [groupLabels, setGroupLabels] = useState<GroupLabels>({});
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const reload = useCallback(() => {
-    void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
-      setNav(ordered);
-      setGroupLabels(labels);
-    });
+    void loadOrderedNav().then(setNav);
   }, []);
-
   useEffect(() => {
     reload();
-    const onChange = () => reload();
-    window.addEventListener(NAV_ORDER_CHANGED, onChange);
-    return () => window.removeEventListener(NAV_ORDER_CHANGED, onChange);
+    window.addEventListener(NAV_ORDER_CHANGED, reload);
+    return () => window.removeEventListener(NAV_ORDER_CHANGED, reload);
   }, [reload]);
 
+  // Lista achatada (Dashboard + grupos), marcando o 1º item de cada grupo pra
+  // dar o respiro vertical sem virar uma barra.
   const fixedHead = nav.filter((i) => i.fixed && i.to === "/");
+  const flat: { item: NavItem; groupStart: boolean }[] = [];
+  fixedHead.forEach((item) => flat.push({ item, groupStart: false }));
+  NAV_GROUP_ORDER.forEach((g) => {
+    nav
+      .filter((i) => i.group === g)
+      .forEach((item, idx) => flat.push({ item, groupStart: idx === 0 }));
+  });
 
-  const renderItem = (item: NavItem) => {
-    const Icon = item.icon;
-    return (
-      <Tooltip key={item.to} delayDuration={150}>
-        <TooltipTrigger asChild>
-          <NavLink
-            to={item.to}
-            end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                "flex h-10 w-10 items-center justify-center rounded-full transition-colors",
-                isActive
-                  ? "bg-primary/15 text-primary ring-1 ring-primary/30"
-                  : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              )
-            }
-          >
-            <Icon className="h-5 w-5" />
-          </NavLink>
-        </TooltipTrigger>
-        <TooltipContent side="right">{item.label}</TooltipContent>
-      </Tooltip>
-    );
-  };
+  function magnify(cursorY: number) {
+    for (const el of itemRefs.current) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const center = r.top + r.height / 2;
+      const d = Math.abs(cursorY - center);
+      const f = Math.max(0, 1 - d / RANGE);
+      const scale = 1 + MAX_BOOST * f * f; // ease-out na curva
+      el.style.transform = `scale(${scale})`;
+    }
+  }
+  function reset() {
+    for (const el of itemRefs.current) {
+      if (el) el.style.transform = "scale(1)";
+    }
+  }
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <aside className="flex h-screen w-[4.25rem] flex-col border-r bg-card">
-        {/* Marca compacta */}
-        <div className="flex h-16 items-center justify-center border-b">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-sm font-bold text-primary">
-            V
-          </div>
-        </div>
-
-        {/* Navegação */}
-        <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto py-3">
-          {fixedHead.map(renderItem)}
-
-          {NAV_GROUP_ORDER.map((group: NavGroup) => {
-            const items = nav.filter((i) => i.group === group);
-            if (items.length === 0) return null;
+    <TooltipProvider delayDuration={120}>
+      {/* Coluna transparente (sem barra). Rola se não couber; centraliza se couber. */}
+      <div className="flex h-screen w-[4.5rem] shrink-0 flex-col items-center overflow-y-auto">
+        <div
+          className="my-auto flex flex-col items-center gap-2 py-3"
+          onMouseMove={(e) => magnify(e.clientY)}
+          onMouseLeave={reset}
+        >
+          {flat.map(({ item, groupStart }, idx) => {
+            const Icon = item.icon;
             return (
-              <div key={group} className="flex flex-col items-center gap-1">
-                <Tooltip delayDuration={150}>
+              <div
+                key={item.to}
+                ref={(el) => {
+                  itemRefs.current[idx] = el;
+                }}
+                className={cn(
+                  "transition-transform duration-100 ease-out will-change-transform",
+                  groupStart && "mt-2"
+                )}
+                style={{ transformOrigin: "left center" }}
+              >
+                <Tooltip delayDuration={120}>
                   <TooltipTrigger asChild>
-                    <div className="my-1 h-px w-6 bg-border" role="separator" />
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      onClick={onNavigate}
+                      className={({ isActive }) =>
+                        cn(
+                          "relative inline-flex h-11 w-11 items-center justify-center rounded-full border shadow-sm",
+                          isActive
+                            ? "border-primary/50 bg-primary/15 text-primary"
+                            : "border-border bg-card text-muted-foreground hover:text-foreground"
+                        )
+                      }
+                    >
+                      <Icon className="block h-[1.15rem] w-[1.15rem] shrink-0" />
+                    </NavLink>
                   </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {effectiveGroupLabel(group, groupLabels)}
-                  </TooltipContent>
+                  <TooltipContent side="right">{item.label}</TooltipContent>
                 </Tooltip>
-                {items.map(renderItem)}
               </div>
             );
           })}
-        </nav>
 
-        {/* Voltar ao menu clássico */}
-        <div className="flex items-center justify-center border-t p-2">
-          <Tooltip delayDuration={150}>
+          <Tooltip delayDuration={120}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => setSidebarLayout("classic")}
-                aria-label="Menu expandido"
-                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                aria-label="Voltar ao menu expandido"
+                className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm transition-transform duration-150 ease-out hover:scale-125 hover:text-foreground"
               >
                 <PanelLeftOpen className="h-4 w-4" />
               </button>
@@ -123,7 +131,7 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
             <TooltipContent side="right">Menu expandido</TooltipContent>
           </Tooltip>
         </div>
-      </aside>
+      </div>
     </TooltipProvider>
   );
 }
