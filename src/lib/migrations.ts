@@ -1834,6 +1834,22 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE ideas ADD COLUMN notion_page_id TEXT;
     `,
   },
+  {
+    version: 128,
+    description:
+      "focus_blocks — Trilha da semana (blocos de foco/mortos por dia da semana)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS focus_blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        weekday INTEGER NOT NULL,        -- 0=Dom … 6=Sáb
+        start_min INTEGER NOT NULL,      -- minutos desde 00:00
+        duration_min INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'foco', -- 'foco' | 'morto'
+        label TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 
