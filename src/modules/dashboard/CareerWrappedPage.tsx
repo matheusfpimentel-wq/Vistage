@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Award,
   Calendar,
+  CheckCircle2,
   FileDown,
   GraduationCap,
   Lightbulb,
+  ListPlus,
   Loader2,
   MapPin,
   Megaphone,
@@ -65,6 +67,8 @@ type WrappedData = {
   partiesRealized: number;
   contentPublished: number;
   ideasCaptured: number;
+  tasksCompleted: number;
+  tasksCreated: number;
   highlights: { title: string; date: string }[];
 };
 
@@ -72,6 +76,8 @@ async function loadWrapped(period: Period): Promise<WrappedData> {
   const db = getDb();
   // O prefixo casa qualquer granularidade: "" (tudo), "YYYY" (ano), "YYYY-MM" (mês).
   const like = `${period.prefix}%`;
+  // "Mês mais agitado" não faz sentido quando o próprio filtro já é um mês.
+  const monthLevel = /^\d{4}-\d{2}$/.test(period.prefix);
 
   const [
     gigRows,
@@ -158,15 +164,25 @@ async function loadWrapped(period: Period): Promise<WrappedData> {
 
   // ── Mais módulos (festas, conteúdo, ideias) ─────────────────────────────
   const partyRows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM parties WHERE date LIKE $1 AND status != 'Cancelada'`,
+    `SELECT COUNT(*) as n FROM parties WHERE date LIKE $1 AND status = 'Realizada'`,
     [like]
   ).catch(() => [] as { n: number }[]);
   const contentRows = await db.select<{ n: number }[]>(
-    `SELECT COUNT(*) as n FROM content WHERE COALESCE(published_at, publish_date) LIKE $1`,
+    `SELECT COUNT(*) as n FROM content WHERE status = 'Publicado' AND COALESCE(published_at, publish_date) LIKE $1`,
     [like]
   ).catch(() => [] as { n: number }[]);
   const ideaRows = await db.select<{ n: number }[]>(
     `SELECT COUNT(*) as n FROM ideas WHERE created_at LIKE $1`,
+    [like]
+  ).catch(() => [] as { n: number }[]);
+  // Tarefas: concluídas no período (proxy = updated_at, pois não há completed_at)
+  // e novas (created_at). Mesmo padrão de "created_at LIKE" dos outros módulos.
+  const tasksDoneRows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) as n FROM tasks WHERE status = 'Concluída' AND updated_at LIKE $1`,
+    [like]
+  ).catch(() => [] as { n: number }[]);
+  const tasksNewRows = await db.select<{ n: number }[]>(
+    `SELECT COUNT(*) as n FROM tasks WHERE created_at LIKE $1`,
     [like]
   ).catch(() => [] as { n: number }[]);
 
@@ -190,8 +206,8 @@ async function loadWrapped(period: Period): Promise<WrappedData> {
     topContractor: contractorRows[0]?.name ?? null,
     topContractorCount: contractorRows[0]?.n ?? 0,
     topContractorRevenue: contractorRows[0]?.revenue ?? 0,
-    topMonth: monthRows[0]?.month ? MONTH_NAMES[Number(monthRows[0].month) - 1] ?? null : null,
-    topMonthCount: monthRows[0]?.n ?? 0,
+    topMonth: monthLevel ? null : (monthRows[0]?.month ? MONTH_NAMES[Number(monthRows[0].month) - 1] ?? null : null),
+    topMonthCount: monthLevel ? 0 : (monthRows[0]?.n ?? 0),
     avgRating: ratingRows[0]?.avg ?? null,
     newFans: fanRows[0]?.n ?? 0,
     focusSessionCount: focusRows[0]?.n ?? 0,
@@ -210,6 +226,8 @@ async function loadWrapped(period: Period): Promise<WrappedData> {
     partiesRealized: partyRows[0]?.n ?? 0,
     contentPublished: contentRows[0]?.n ?? 0,
     ideasCaptured: ideaRows[0]?.n ?? 0,
+    tasksCompleted: tasksDoneRows[0]?.n ?? 0,
+    tasksCreated: tasksNewRows[0]?.n ?? 0,
     highlights: highlightRows,
   };
 }
@@ -289,6 +307,13 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
     kv("Novas músicas iniciadas", String(data.newTracks));
     kv("Sessões de foco", String(data.focusSessionCount));
     kv("Horas em foco", `${data.focusHours}h`);
+  }
+
+  if (data.tasksCompleted > 0 || data.tasksCreated > 0) {
+    h2("Tarefas"); y -= 4;
+    if (data.tasksCompleted > 0) kv("Tarefas concluídas", String(data.tasksCompleted));
+    if (data.tasksCreated > 0) kv("Tarefas novas", String(data.tasksCreated));
+    y += 10;
   }
 
   if (data.highlights.length > 0) {
@@ -407,7 +432,9 @@ export function CareerWrappedPage() {
     data.contentPublished === 0 &&
     data.ideasCaptured === 0 &&
     data.newFans === 0 &&
-    data.focusSessionCount === 0;
+    data.focusSessionCount === 0 &&
+    data.tasksCompleted === 0 &&
+    data.tasksCreated === 0;
 
   return (
     <div className="space-y-6">
@@ -557,6 +584,18 @@ export function CareerWrappedPage() {
               <StatTile icon={<Music2 className="h-4 w-4" />} label="Novas músicas iniciadas" value={data.newTracks} />
               <StatTile icon={<TrendingUp className="h-4 w-4" />} label="Sessões de foco" value={data.focusSessionCount} />
               <StatTile icon={<TrendingUp className="h-4 w-4" />} label="Horas em foco" value={`${data.focusHours}h`} />
+            </Section>
+          )}
+
+          {/* Tarefas */}
+          {(data.tasksCompleted > 0 || data.tasksCreated > 0) && (
+            <Section icon={<CheckCircle2 className="h-4 w-4" />} title="Tarefas">
+              {data.tasksCompleted > 0 && (
+                <StatTile icon={<CheckCircle2 className="h-4 w-4" />} label="Tarefas concluídas" value={data.tasksCompleted} accent />
+              )}
+              {data.tasksCreated > 0 && (
+                <StatTile icon={<ListPlus className="h-4 w-4" />} label="Tarefas novas" value={data.tasksCreated} />
+              )}
             </Section>
           )}
 
