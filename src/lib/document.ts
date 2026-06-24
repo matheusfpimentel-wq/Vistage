@@ -182,9 +182,15 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     if (!path) return get().saveAs();
     set({ busy: true });
     try {
-      await saveBackupToPath(path);
+      const { skipped } = await saveBackupToPath(path);
       set({ dirty: false });
-      toast.success(`Salvo em ${fileName(path)}`);
+      if (skipped.length > 0) {
+        toast.warning(
+          `Salvo em ${fileName(path)} — mas ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora do arquivo. Confira se ainda existem na pasta de uploads.`
+        );
+      } else {
+        toast.success(`Salvo em ${fileName(path)}`);
+      }
       // A cada salvamento, sincroniza as integrações em segundo plano (silencioso)
       // — Google Calendar, Todoist e o espelho do celular ficam em dia sem clique.
       void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
@@ -210,10 +216,16 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
       });
       if (!path) return false;
-      await saveBackupToPath(path);
+      const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
-      toast.success(`Salvo como ${fileName(path)}`);
+      if (skipped.length > 0) {
+        toast.warning(
+          `Salvo como ${fileName(path)} — ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora.`
+        );
+      } else {
+        toast.success(`Salvo como ${fileName(path)}`);
+      }
       void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
         syncAllIntegrations({ silent: true })
       );
