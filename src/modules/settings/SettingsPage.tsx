@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, RotateCcw, ShieldAlert, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -156,10 +156,6 @@ export function SettingsPage() {
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Menu lateral</p>
-              <p className="text-xs text-muted-foreground">
-                Experimental: um menu compacto só com ícones — o nome aparece ao
-                passar o mouse, e os grupos ficam separados verticalmente.
-              </p>
               <div className="flex gap-2">
                 <Button
                   variant={sidebarLayout === "classic" ? "default" : "outline"}
@@ -229,29 +225,18 @@ function MindMapColorsCard() {
     persist({ ...colors, [type]: hex });
   }
 
-  function resetColor(type: MindNodeType) {
-    const next = { ...colors };
-    delete next[type];
-    persist(next);
-  }
-
   const types = Object.keys(MIND_TYPE_META) as MindNodeType[];
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Cores do mapa mental</CardTitle>
-        <CardDescription>
-          A cor de cada tipo de entidade na teia de relações. As mudanças viajam
-          com o seu arquivo <code>.vistage</code>.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
           {types.map((t) => {
             const meta = MIND_TYPE_META[t];
             const current = colors[t] || meta.color;
-            const customized = !!colors[t] && colors[t] !== meta.color;
             return (
               <div key={t} className="flex items-center gap-2">
                 <input
@@ -262,17 +247,6 @@ function MindMapColorsCard() {
                   className="h-7 w-9 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
                 />
                 <span className="flex-1 truncate text-sm">{meta.label}</span>
-                {customized && (
-                  <button
-                    type="button"
-                    onClick={() => resetColor(t)}
-                    className="text-muted-foreground transition hover:text-foreground"
-                    title="Restaurar cor padrão"
-                    aria-label={`Restaurar cor padrão de ${meta.label}`}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
             );
           })}
