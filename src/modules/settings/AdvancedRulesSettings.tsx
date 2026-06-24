@@ -64,7 +64,6 @@ const CATEGORY_ORDER: RuleCategory[] = [
   "Festas",
   "Aulas",
   "Objetivos",
-  "Motivação",
 ];
 
 /** Toggle acessível (não há componente Switch no projeto). */
@@ -119,26 +118,28 @@ export function AdvancedRulesSettings() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Info className="h-4 w-4 text-primary" />
-            Como funcionam os alertas e insights
+            Como funcionam os alertas
           </CardTitle>
           <CardDescription>
-            Cada regra observa seus dados e, quando a condição bate, mostra um
-            alerta no sininho 🔔 e nos painéis de pendências.
+            Cada alerta observa seus dados e, quando a condição bate, aparece no
+            sininho 🔔 e nos painéis de pendências.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
           <p>
-            • <strong className="text-foreground">Desligar</strong> uma regra faz
-            o alerta dela parar de aparecer — sem apagar nada do seu conteúdo.
+            • Abaixo você vê <strong className="text-foreground">a mensagem que
+            aparece</strong> em cada alerta e <strong className="text-foreground">quando
+            ela dispara</strong>.
           </p>
           <p>
-            • Cada regra segue o formato{" "}
-            <em>Se {"{"}condição{"}"} → Então {"{"}alerta{"}"}</em>, com
-            operadores como <code>&lt;</code>, <code>&gt;</code>, <code>=</code> e
-            “sem movimento há X dias”.
+            • <strong className="text-foreground">Desligar</strong> faz o alerta
+            parar de aparecer — sem apagar nada do seu conteúdo.
           </p>
           <p>
-            • As mudanças viajam com o seu arquivo <code>.vistage</code>.
+            • Você pode criar os seus em <strong className="text-foreground">Minhas
+            regras</strong> (operadores <code>&lt;</code>, <code>&gt;</code>,{" "}
+            <code>=</code> e “sem movimento há X dias”). As mudanças viajam com o
+            seu <code>.vistage</code>.
           </p>
         </CardContent>
       </Card>
@@ -162,16 +163,21 @@ export function AdvancedRulesSettings() {
                   return (
                     <div
                       key={r.id}
-                      className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+                      className="flex items-start justify-between gap-3 rounded-md border p-2.5"
                     >
-                      <span
-                        className={cn(
-                          "text-sm leading-snug",
-                          !on && "text-muted-foreground line-through"
-                        )}
-                      >
-                        {r.label}
-                      </span>
+                      <div className={cn("min-w-0", !on && "opacity-60")}>
+                        <p
+                          className={cn(
+                            "text-sm font-medium leading-snug",
+                            !on && "line-through"
+                          )}
+                        >
+                          {r.message}
+                        </p>
+                        <p className="text-xs leading-snug text-muted-foreground">
+                          Dispara quando: {r.trigger}
+                        </p>
+                      </div>
                       <Toggle on={on} onClick={() => toggle(r.id)} />
                     </div>
                   );
