@@ -126,7 +126,7 @@ export function FansPresentPicker({ value, onChange }: Props) {
                       className={cn(
                         "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition",
                         checked
-                          ? "border-primary bg-primary text-primary-foreground"
+                          ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
                           : "border-input"
                       )}
                     >

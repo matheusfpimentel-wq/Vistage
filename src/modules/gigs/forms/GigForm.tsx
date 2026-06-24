@@ -1193,7 +1193,7 @@ export function GigForm({
                             className={cn(
                               "rounded-md border px-2.5 py-1 text-xs transition",
                               selected
-                                ? "border-primary bg-primary text-primary-foreground"
+                                ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
                                 : "border-input text-muted-foreground hover:bg-accent"
                             )}
                           >

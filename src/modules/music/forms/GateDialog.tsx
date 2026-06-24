@@ -231,7 +231,7 @@ function ChipGroup({
           className={cn(
             "rounded-md border px-3 py-1 text-sm transition",
             value === o
-              ? "border-primary bg-primary text-primary-foreground"
+              ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
               : "border-input hover:bg-accent"
           )}
         >
