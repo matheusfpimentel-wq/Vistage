@@ -379,7 +379,13 @@ export async function deleteHighlight(id: number): Promise<void> {
 }
 
 // ── Trilha da semana (focus_blocks) ──────────────────────────────────────────
+// "foco" = bloco produtivo (conta nas horas planejadas); "morto" = tempo
+// indisponível/bloqueado (não conta). O rótulo "morto" é interno — a UI mostra
+// "Indisponível".
 export type FocusBlockKind = "foco" | "morto";
+
+/** Classificações dos blocos — reaproveita os tipos de atividade do Modo Foco. */
+export const BLOCK_CATEGORIES = ACTIVITY_TYPES;
 
 export type FocusBlock = {
   id: number;
@@ -388,6 +394,12 @@ export type FocusBlock = {
   duration_min: number;
   kind: FocusBlockKind;
   label: string | null;
+  /** Classificação (gestão, estudo, tempo de palco…). */
+  category: string | null;
+  /** Cor do bloco em hex (#rrggbb). Sem cor → usa a cor do tipo. */
+  color: string | null;
+  /** Plano breve (opcional). */
+  plan: string | null;
 };
 
 export type FocusBlockInput = {
@@ -396,14 +408,17 @@ export type FocusBlockInput = {
   duration_min: number;
   kind: FocusBlockKind;
   label?: string | null;
+  category?: string | null;
+  color?: string | null;
+  plan?: string | null;
 };
 
 export async function listFocusBlocks(): Promise<FocusBlock[]> {
   const db = getDb();
   return db
     .select<FocusBlock[]>(
-      `SELECT id, weekday, start_min, duration_min, kind, label FROM focus_blocks
-        ORDER BY weekday, start_min`
+      `SELECT id, weekday, start_min, duration_min, kind, label, category, color, plan
+         FROM focus_blocks ORDER BY weekday, start_min`
     )
     .catch(() => [] as FocusBlock[]);
 }
@@ -411,12 +426,87 @@ export async function listFocusBlocks(): Promise<FocusBlock[]> {
 export async function createFocusBlock(input: FocusBlockInput): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO focus_blocks (weekday, start_min, duration_min, kind, label)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [input.weekday, input.start_min, input.duration_min, input.kind, input.label ?? null]
+    `INSERT INTO focus_blocks (weekday, start_min, duration_min, kind, label, category, color, plan)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      input.weekday, input.start_min, input.duration_min, input.kind,
+      input.label ?? null, input.category ?? null, input.color ?? null, input.plan ?? null,
+    ]
   );
   emitDataChanged();
   return Number(res.lastInsertId);
+}
+
+export type StageTimeBlock = {
+  gig_id: number;
+  weekday: number;
+  start_min: number;
+  duration_min: number;
+  label: string;
+};
+
+/**
+ * Blocos de "tempo de palco" derivados das GIGs da SEMANA CORRENTE (dom→sáb).
+ * Lê data + time_slots de cada GIG não-cancelada e mapeia pro grid semanal. São
+ * read-only (refletem a agenda real, não ficam em focus_blocks).
+ */
+export async function loadStageTimeBlocks(): Promise<StageTimeBlock[]> {
+  const db = getDb();
+  const today = new Date();
+  const sunday = new Date(today);
+  sunday.setDate(today.getDate() - today.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  const rows = await db
+    .select<
+      { id: number; date: string | null; event_name: string | null; venue_name: string; start_time: string | null; end_time: string | null; time_slots: string | null }[]
+    >(
+      `SELECT id, date, event_name, venue_name, start_time, end_time, time_slots
+         FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
+      [iso(sunday), iso(saturday)]
+    )
+    .catch(() => [] as { id: number; date: string | null; event_name: string | null; venue_name: string; start_time: string | null; end_time: string | null; time_slots: string | null }[]);
+  const toMin = (t: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const blocks: StageTimeBlock[] = [];
+  for (const g of rows) {
+    if (!g.date) continue;
+    const weekday = new Date(`${g.date}T00:00:00`).getDay();
+    const label = (g.event_name && g.event_name.trim()) || g.venue_name;
+    for (const s of parseStageSlots(g.time_slots, g.start_time, g.end_time)) {
+      const sm = s.start ? toMin(s.start) : null;
+      if (sm == null) continue;
+      let em = s.end ? toMin(s.end) : null;
+      if (em == null) em = sm + 60;
+      if (em <= sm) em = 24 * 60; // cruza a meia-noite → cap no fim do dia
+      blocks.push({ gig_id: g.id, weekday, start_min: sm, duration_min: em - sm, label });
+    }
+  }
+  return blocks;
+}
+
+export type PeakFocusHour = { hour: number; avg_focus: number; sessions: number } | null;
+
+/** Horário do dia com MAIOR foco médio (sessões encerradas com foco aferido). */
+export async function loadPeakFocusHour(): Promise<PeakFocusHour> {
+  const db = getDb();
+  const rows = await db
+    .select<{ hour: number; avg_focus: number; sessions: number }[]>(`
+      SELECT CAST(strftime('%H', started_at) AS INTEGER) AS hour,
+             ROUND(AVG(focus_level), 1) AS avg_focus,
+             COUNT(*) AS sessions
+        FROM work_sessions
+       WHERE ended_at IS NOT NULL AND focus_level IS NOT NULL
+       GROUP BY hour
+       ORDER BY avg_focus DESC, sessions DESC
+       LIMIT 1
+    `)
+    .catch(() => [] as { hour: number; avg_focus: number; sessions: number }[]);
+  return rows[0] ?? null;
 }
 
 export async function updateFocusBlock(
