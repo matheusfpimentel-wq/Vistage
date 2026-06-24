@@ -1,6 +1,6 @@
 import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists, readDir } from "@tauri-apps/plugin-fs";
+import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
@@ -236,39 +236,6 @@ async function collectFiles(
   return files;
 }
 
-/**
- * Defesa em profundidade: varre TODO o uploadsDir e lê cada arquivo como base64,
- * chaveado pelo caminho relativo. Garante que QUALQUER anexo viaje no .vistage —
- * inclusive de colunas que ninguém registrou nas allowlists acima. O bug
- * histórico era depender só das allowlists: cada coluna `_path` nova virava
- * perda de dados silenciosa até alguém lembrar de registrá-la. Best-effort.
- */
-async function collectAllUploads(uploadsDir: string): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
-  async function walk(dir: string, prefix: string): Promise<void> {
-    let entries: { name: string; isDirectory: boolean; isFile: boolean }[];
-    try {
-      entries = (await readDir(dir)) as { name: string; isDirectory: boolean; isFile: boolean }[];
-    } catch {
-      return; // diretório inexistente/sem permissão — ignora
-    }
-    for (const e of entries) {
-      if (!e.name) continue;
-      const abs = joinPath(dir, e.name);
-      const rel = prefix ? `${prefix}/${e.name}` : e.name;
-      if (e.isDirectory) {
-        await walk(abs, rel);
-      } else if (e.isFile) {
-        if (files[rel] !== undefined) continue;
-        const data = await readAsBase64(abs);
-        if (data) files[rel] = data;
-      }
-    }
-  }
-  await walk(uploadsDir, "");
-  return files;
-}
-
 /** Restaura arquivos do backup para o uploadsDir atual. */
 async function restoreFiles(
   files: Record<string, string>,
@@ -319,13 +286,14 @@ export async function buildBackup(): Promise<Backup> {
   let files: Record<string, string> = {};
   if (uploadsDir) {
     try {
-      // 1) Por coluna (mantém o rewrite de caminhos no restore para as colunas
-      //    conhecidas). 2) Varredura do uploadsDir inteiro (defesa em
-      //    profundidade): garante que TODO anexo viaje, mesmo de colunas não
-      //    registradas. A varredura tem precedência (leu os bytes reais do disco).
-      const referenced = await collectFiles(tables, uploadsDir);
-      const walked = await collectAllUploads(uploadsDir);
-      files = { ...referenced, ...walked };
+      // Embute SÓ os arquivos referenciados pelas colunas do catálogo
+      // (allowlists). Não varre o uploadsDir inteiro: arquivos órfãos (versões
+      // antigas, exports soltos, mídia de itens já apagados) ficavam TODOS em
+      // base64 na memória ao salvar — o JSON.stringify ainda duplicava tudo num
+      // texto gigante → "Out of memory" no Windows com bibliotecas grandes.
+      // As allowlists já cobrem todos os arquivos REAIS (auditoria), então nada
+      // em uso deixa de viajar.
+      files = await collectFiles(tables, uploadsDir);
     } catch {
       // não bloqueia o backup se a leitura de arquivos falhar
     }
