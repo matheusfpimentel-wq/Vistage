@@ -23,6 +23,7 @@ import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
 import { TodoistSettings } from "./TodoistSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
+import { InsightsBankSettings } from "./InsightsBankSettings";
 
 export function SettingsPage() {
   const [seeding, setSeeding] = useState(false);
@@ -63,9 +64,20 @@ export function SettingsPage() {
         <TabsTrigger value="backup">Backup</TabsTrigger>
       </TabsList>
 
-      {/* ─── Configurações avançadas (regras de alertas/insights) ─── */}
-      <TabsContent value="avancado" className="space-y-6">
-        <AdvancedRulesSettings />
+      {/* ─── Configurações avançadas (alertas + insights) ─── */}
+      <TabsContent value="avancado" className="space-y-4">
+        <Tabs defaultValue="alertas" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="alertas">Alertas</TabsTrigger>
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+          </TabsList>
+          <TabsContent value="alertas">
+            <AdvancedRulesSettings />
+          </TabsContent>
+          <TabsContent value="insights">
+            <InsightsBankSettings />
+          </TabsContent>
+        </Tabs>
       </TabsContent>
 
       {/* ─── Backup (CSV) ────────────────────────────────────── */}

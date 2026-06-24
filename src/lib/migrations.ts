@@ -1810,6 +1810,23 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 126,
+    description:
+      "Insights — anotações manuais (manual_insights) e exclusões do banco (dismissed_insights)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS manual_insights (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE IF NOT EXISTS dismissed_insights (
+        source_type TEXT NOT NULL,
+        source_id INTEGER NOT NULL,
+        PRIMARY KEY (source_type, source_id)
+      );
+    `,
+  },
 ];
 
 
