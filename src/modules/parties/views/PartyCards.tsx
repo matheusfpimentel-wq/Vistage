@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { formatDate, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
 
 type Props = {
@@ -22,6 +23,7 @@ export function PartyCards({ parties, onEdit, onDelete }: Props) {
   }
 
   return (
+    <PendingTasksProvider entityType="party">
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {parties.map((p) => {
         const rev = estimatedRevenue(p);
@@ -75,5 +77,6 @@ export function PartyCards({ parties, onEdit, onDelete }: Props) {
         );
       })}
     </div>
+    </PendingTasksProvider>
   );
 }

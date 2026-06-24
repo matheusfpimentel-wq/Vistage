@@ -40,6 +40,7 @@ import { PackageForm } from "./forms/PackageForm";
 import { ClassForm } from "./forms/ClassForm";
 import { StudentDetail } from "./forms/StudentDetail";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import {
   deleteClass,
   deletePackage,
@@ -206,6 +207,7 @@ export function ClassesPage() {
   const [view, setView] = useModuleView<"classes" | "students" | "packages">("classes", "classes");
 
   return (
+    <PendingTasksProvider entityType="student">
     <div className="space-y-4">
       <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
         <TabsList>
@@ -579,6 +581,7 @@ export function ClassesPage() {
         }}
       />
     </div>
+    </PendingTasksProvider>
   );
 }
 

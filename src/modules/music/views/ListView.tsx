@@ -6,6 +6,7 @@ import { daysInStage } from "../api";
 import { StageBadge } from "../components/StageBadge";
 import { trackDisplayName, type TrackWithProject } from "../types";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 
@@ -32,6 +33,7 @@ export function ListView({
   ]);
   const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
   return (
+    <PendingTasksProvider entityType="track">
     <div className="overflow-x-auto rounded-md border">
       <table className="table-fixed text-sm" style={{ width: tableWidth }}>
         <colgroup>
@@ -134,5 +136,6 @@ export function ListView({
         </tbody>
       </table>
     </div>
+    </PendingTasksProvider>
   );
 }

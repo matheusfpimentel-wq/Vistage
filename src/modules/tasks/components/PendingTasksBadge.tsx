@@ -3,6 +3,7 @@ import { ListTodo } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DATA_CHANGED } from "@/lib/events";
 import { countOpenTasksLinkedTo } from "../api";
+import { usePendingTasksCount } from "./PendingTasksContext";
 
 type Props = {
   entityType: string;
@@ -19,14 +20,19 @@ export function PendingTasksBadge({
   hideWhenZero = true,
   className,
 }: Props) {
-  const [count, setCount] = useState(0);
+  // Se houver um PendingTasksProvider cobrindo este tipo, usamos a contagem
+  // compartilhada (1 query agrupada pra lista toda). Senão, fallback: query
+  // própria por entidade — preserva o comportamento antigo fora de listas.
+  const shared = usePendingTasksCount(entityType, entityId);
+  const [selfCount, setSelfCount] = useState(0);
 
   useEffect(() => {
+    if (shared !== null) return; // provider cuida da contagem
     let alive = true;
     function load() {
       void countOpenTasksLinkedTo(entityType, entityId)
         .then((n) => {
-          if (alive) setCount(n);
+          if (alive) setSelfCount(n);
         })
         .catch(() => {
           /* contagem é só um selo; falha não deve derrubar a lista */
@@ -38,8 +44,9 @@ export function PendingTasksBadge({
       alive = false;
       window.removeEventListener(DATA_CHANGED, load);
     };
-  }, [entityType, entityId]);
+  }, [entityType, entityId, shared]);
 
+  const count = shared !== null ? shared : selfCount;
   if (hideWhenZero && count === 0) return null;
 
   return (

@@ -479,3 +479,26 @@ export async function countOpenTasksLinkedTo(
   );
   return rows[0]?.n ?? 0;
 }
+
+/**
+ * Versão em lote: conta as tarefas abertas de TODAS as entidades de um tipo numa
+ * única query agrupada. Usada pelo PendingTasksProvider para evitar N+1 (um
+ * SELECT por selo) em telas de lista. Só entram entidades com ≥1 tarefa aberta.
+ */
+export async function countOpenTasksByEntity(
+  entityType: string
+): Promise<Map<number, number>> {
+  const db = getDb();
+  const rows = await db.select<{ entity_id: number; n: number }[]>(
+    `SELECT tl.entity_id AS entity_id, COUNT(*) AS n
+       FROM tasks t
+       JOIN task_links tl ON tl.task_id = t.id
+      WHERE tl.entity_type = $1
+        AND t.status NOT IN ('Concluída', 'Cancelada')
+      GROUP BY tl.entity_id`,
+    [entityType]
+  );
+  const map = new Map<number, number>();
+  for (const r of rows) map.set(r.entity_id, r.n);
+  return map;
+}
