@@ -1,6 +1,42 @@
-# MusicGest
+# Vistage
 
-Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador de conteúdo). Banco SQLite portátil em HD externo, app desktop nativo (Tauri 2) que roda em Mac e Windows.
+Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador de conteúdo). App desktop nativo em **Tauri 2** (Mac e Windows) com banco **SQLite**, onde todos os seus dados vivem num único arquivo portátil `.vistage` — como um documento do Office, mas para a sua carreira.
+
+---
+
+## Como o Vistage guarda seus dados
+
+O Vistage funciona como um **editor de documentos**:
+
+- Seus dados vivem num arquivo **`.vistage`** que você **Abre** e **Salva** (`Ctrl/Cmd + S`).
+- Esse arquivo carrega **tudo junto**: todas as tabelas + os **anexos embutidos** (fotos, flyers, roteiros, manual de marca, PDFs) + os tokens das integrações + a sessão de sincronização. Você leva o `.vistage` para outra máquina e abre — está tudo lá, fotos inclusive.
+- O arquivo pode ser **protegido por senha** (AES‑GCM 256 + PBKDF2). Sem a senha, não abre — e não há recuperação (é o ponto).
+
+### Formato do arquivo (contêiner)
+
+Para continuar sendo **um arquivo só** sem estourar a memória ao salvar bibliotecas grandes de mídia, o `.vistage` é um **contêiner**:
+
+```
+.vistage
+├── vistage.json     ← todos os dados (sem base64)
+└── files/           ← bytes crus de cada anexo
+```
+
+- **Sem senha** → zip puro (assinatura `PK`).
+- **Com senha** → o mesmo zip cifrado num envelope binário `VENC` (AES‑GCM).
+- **Compatível com versões antigas:** arquivos `.vistage` no formato JSON antigo (com ou sem senha) continuam abrindo e **migram sozinhos** para o contêiner no próximo *Salvar*. A detecção é automática pela assinatura do arquivo.
+
+> Converter um `.vistage` antigo offline (opcional): `node scripts/vistage-to-container.mjs <arquivo.vistage> [--password <senha>]`.
+
+### Onde ficam os arquivos em disco
+
+```
+<pasta escolhida no Setup>/
+├── vistage.config.json   # aponta para a pasta de anexos
+└── uploads/              # anexos físicos (fotos, PDFs, vídeos)
+```
+
+O banco SQLite **ativo** é uma réplica local no diretório de dados do app (`AppData`/`Application Support`), reconstruída a partir do `.vistage` que você abre. A fonte da verdade é sempre o seu arquivo `.vistage`.
 
 ---
 
@@ -8,24 +44,27 @@ Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador 
 
 | Módulo | Rota | Resumo |
 |---|---|---|
-| **Dashboard** | `/` | KPIs estratégicos, cards de domínio, timeline semanal integrada (GIGs + tarefas + posts + festas no mesmo eixo) |
-| **GIGs** | `/gigs` | CRUD + 4 views (lista/calendário/kanban/insights), debrief automático com avaliação, checklist de preparação, set list N:N com tracks |
-| **Venues** | `/venues` | CRUD, foto, KPIs por venue |
-| **CRM** | `/crm` | Contatos (pessoas), foto, histórico de interações, vínculo com GIGs/tarefas |
-| **Clube de fãs** | `/fas` | 3 níveis (Superfã/Fã/Possível), presença em GIGs |
-| **Produção Musical** | `/musica` | Stage-Gate 8 etapas + 4 gates decisórios, Stand-by, Flow Sessions, heatmap criativo, Roadmap 12 meses, Portfolio analytics, sub-blocos Marketing/Financeiro/Performance |
-| **Aulas** | `/aulas` | Alunos, pacotes com ementa, sessões com controle de saldo |
-| **Gestão de Conteúdo** | `/conteudo` | Pipeline editorial (lista/calendário/kanban), métricas manuais |
-| **Banco de Ideias** | `/ideias` | Captura rápida Ctrl+I, Brain Dump, 3 views, conversão pra Track ou Tarefa |
-| **Produção de Festas** | `/festas` | CRUD de festas, lineup N:N com CRM, custos inline, auto-tarefas ao confirmar, KPIs |
-| **Insights** | `/insights` | Pool unificada `v_insights` (GIGs + tracks + festas + ideias), busca full-text com highlight, exportar TXT |
-| **Revisão Semanal** | `/revisao` | KPIs da semana, checklist interativo persistido (6 itens), lista de foco, alertas, mini-OKRs, highlights |
-| **Energia & Foco** | `/foco` | Sessões de trabalho com cronômetro, heatmap energia×dia/hora, distribuição por atividade, highlights cumulativos |
-| **OKRs** | `/objetivos` | Objetivos trimestrais com key results — 5 fontes de auto-pull (GIGs, tracks, festas, conteúdos, receita) |
-| **Identidade Artística** | `/identidade` | Nome, bio, paleta livre de cores, redes sociais, logo/presskit, flyers das GIGs |
-| **Tarefas** | `/tarefas` | Lista + Kanban, subtarefas, prioridade, filtros, recorrência semanal/mensal |
+| **Dashboard** | `/` | KPIs estratégicos + sub-painéis (Relacionamento, Criação, Gestão), timeline semanal integrada |
+| **Hoje / Relatório / Mapa** | `/hoje` `/relatorio` `/mapa` | Foco do dia, relatório mensal e mapa mental |
+| **Alertas** | `/alertas` | Regras de alerta/insight em editor composto **SE / ENTÃO** (E/OU), seguras por whitelist |
+| **GIGs** | `/gigs` | CRUD + views (lista/calendário/kanban/insights), debrief com avaliação, checklist, set list N:N com tracks |
+| **Venues** | `/venues` | CRUD, foto, DJs residentes, KPIs por venue |
+| **Pessoas** | `/pessoas` | CRM unificado: contatos, fornecedores, histórico de interações, vínculo com GIGs/tarefas |
+| **Clube de fãs** | `/fas` | Níveis de fã, presença em GIGs, interações |
+| **Produção Musical** | `/musica` | Stage‑Gate (etapas + gates), Stand‑by, Flow Sessions, heatmap, roadmap, analytics, sub-blocos Marketing/Financeiro/Performance |
+| **Aulas** | `/aulas` | Alunos, pacotes com ementa, sessões com saldo |
+| **Festas** | `/festas` | CRUD de festas, lineup N:N, custos inline, auto-tarefas ao confirmar, KPIs |
+| **Conteúdo** | `/conteudo` | Pipeline editorial (lista/calendário/kanban), métricas |
+| **Banco de Ideias** | `/ideias` | Captura rápida `Ctrl+I`, Brain Dump, conversão para Track/Tarefa, provocações (InsightDie) |
+| **Insights** | `/insights` | Pool unificada (GIGs + tracks + festas + ideias), busca full-text, exportar TXT |
+| **Energia & Foco** | `/foco` | 3 abas: **Trilha da Semana**, **Modo Foco** (streak, hora de pico), **Highlights** |
+| **OKRs** | `/objetivos` | Objetivos trimestrais com key results e auto‑pull de métricas |
+| **Identidade Artística** | `/identidade` | Bio, paleta de cores, redes, logo/presskit, galeria, fontes da marca |
+| **Tarefas** | `/tarefas` | Lista + Kanban + Eisenhower (drag-and-drop), subtarefas, recorrência |
+| **Reuniões** | `/reunioes` | Reuniões vinculadas a tarefas |
 | **Financeiro** | `/financeiro` | Dashboard Recharts, transações, recorrentes, patrimônio derivado de equipamentos |
-| **Configurações** | `/configuracoes` | Path do banco, Google Calendar, CSV por entidade + JSON completo, atalhos, seed |
+| **Carreira (Wrapped)** | `/carreira` | Retrospectiva da carreira |
+| **Configurações** | `/configuracoes` | Documento, integrações, exportações, atalhos, regras, aparência |
 
 ---
 
@@ -33,14 +72,31 @@ Sistema **local-first** de gestão para negócio musical (DJ, produtor, criador 
 
 | Camada | Tecnologia |
 |---|---|
-| Desktop | Tauri 2 (Rust, ~10 MB binário) |
+| Desktop | Tauri 2 (Rust) |
 | Frontend | React 18 + Vite + TypeScript strict + Tailwind |
 | Componentes | shadcn/ui style (Radix primitives) |
-| Charts | Recharts (lazy-loaded — só no módulo Financeiro) |
-| Banco | SQLite via `@tauri-apps/plugin-sql` |
+| Charts | Recharts (lazy — só no Financeiro) |
+| Banco | SQLite via `@tauri-apps/plugin-sql` (libsql) |
 | Estado | Zustand |
 | Datas | date-fns + locale ptBR |
+| Drag-and-drop | `@dnd-kit` |
+| Compressão | `fflate` (contêiner `.vistage`) |
+| Criptografia | Web Crypto (AES‑GCM 256 + PBKDF2‑SHA256) |
 | OAuth | PKCE puro em Rust (`tiny_http` + `ureq` + `sha2`) |
+
+---
+
+## Integrações
+
+| Integração | O que faz |
+|---|---|
+| **Google Calendar** | Sincroniza GIGs com um calendário Google (OAuth PKCE via Rust; tokens viajam no `.vistage`) |
+| **Todoist** | Espelha tarefas |
+| **Notion** | Espelha o Banco de Ideias (cria base de dados e páginas automaticamente) |
+| **Sincronização (Supabase)** | Sessão portátil embutida no `.vistage` reconecta o mesmo usuário em outra máquina |
+| **Celular (PWA)** | Companion mobile (`mobile/`) para captura rápida que espelha de volta no app |
+
+> Em estudo: integração com **Google Drive** apenas para fotos/vídeos (seleção de pastas), reaproveitando o OAuth do Calendar — tira a mídia pesada de dentro do documento.
 
 ---
 
@@ -61,12 +117,12 @@ npm install
 ## Desenvolvimento
 
 ```bash
-npm run tauri:dev
+npm run tauri:dev      # app desktop (Rust + Vite)
+npm run dev            # só o frontend (web), sem Tauri
+npm run build          # tsc --noEmit && vite build (checagem de tipos + bundle)
 ```
 
-Na primeira execução a tela de Setup pede uma pasta no HD externo (ex: `/Volumes/HD/musicgest` no Mac ou `E:\musicgest` no Windows). O app cria `musicgest.db`, `uploads/` e `musicgest.config.json` lá.
-
-Em **Configurações → Popular com exemplos** você gera dados de demo (GIGs, contatos, tarefas, transações) para ver o sistema funcionando rápido.
+Na primeira execução, o Setup pede uma pasta para os anexos e cria `vistage.config.json` + `uploads/` ali. Em **Configurações → Popular com exemplos** você gera dados de demo para ver o sistema funcionando.
 
 ---
 
@@ -74,11 +130,7 @@ Em **Configurações → Popular com exemplos** você gera dados de demo (GIGs, 
 
 ### Opção A (recomendada): GitHub Actions
 
-A cada push, `.github/workflows/build.yml` builda Mac e Windows. Para baixar:
-
-1. Abra <https://github.com/matheusfpimentel-wq/GM-/actions>
-2. Clique no workflow mais recente (verde)
-3. Baixe `musicgest-macos-latest` (`.dmg`) e/ou `musicgest-windows-latest` (`.msi`/`.exe`) em **Artifacts**
+A cada push, `.github/workflows/build.yml` builda Mac e Windows. Baixe os artefatos (`.dmg` / `.msi`/`.exe`) na aba **Actions** do repositório, no run mais recente.
 
 ### Opção B: local
 
@@ -86,43 +138,11 @@ A cada push, `.github/workflows/build.yml` builda Mac e Windows. Para baixar:
 npm run tauri:build
 ```
 
-Saída em `src-tauri/target/release/bundle/`. Tauri não faz cross-compile: Mac produz `.app`, Windows produz `.exe`.
+Saída em `src-tauri/target/release/bundle/`. Tauri não faz cross-compile: Mac produz `.app`/`.dmg`, Windows produz `.exe`/`.msi`.
 
-> **Assinatura ad-hoc:** o binário macOS recebe assinatura ad-hoc automática (abre sem o erro "danificado" em Apple Silicon). Não é certificado pago — na primeira abertura o Mac pede clique direito → Abrir; Windows mostra SmartScreen → "Mais informações → Executar mesmo assim".
-
-> **Se um `.dmg` antigo disser "danificado":**
-> ```bash
-> sudo xattr -rd com.apple.quarantine /Applications/MusicGest.app
-> ```
-
----
-
-## Portabilidade no HD externo
-
-```
-/Volumes/HD/musicgest/
-├── musicgest.db              # banco SQLite (todo o histórico)
-├── musicgest.config.json     # aponta para o db + uploads
-└── uploads/                  # anexos (fotos, documentos)
-```
-
-Plugue o HD em qualquer Mac ou Windows com o executável correspondente e o app encontra os dados automaticamente. Para HD novo em máquina nova: "Abrir banco existente" no setup, aponte para `musicgest.config.json`.
-
----
-
-## Integração com Google Calendar
-
-Sincroniza GIGs com um calendário Google (opcional).
-
-1. [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → crie um projeto
-2. **APIs & Services → Library** → ative **Google Calendar API**
-3. **OAuth consent screen** → External, adicione seu e-mail como Test User
-4. **Credentials → Create → OAuth client ID** → tipo **Desktop app** → copie Client ID e Client secret
-5. No MusicGest → **Configurações** → cole os valores → **Salvar → Conectar**
-6. Autorize no navegador que abrir
-7. Escolha o calendário de destino → **Sincronizar agora**
-
-A partir daí, toda criação/edição de GIG empurra automaticamente o evento. Tokens ficam só no `musicgest.db` local.
+> **Assinatura ad-hoc** no macOS (abre sem o erro "danificado" em Apple Silicon; não é certificado pago). Primeira abertura: clique direito → Abrir. Windows: SmartScreen → "Mais informações → Executar mesmo assim".
+>
+> Se um `.dmg` antigo disser "danificado": `sudo xattr -rd com.apple.quarantine /Applications/Vistage.app`
 
 ---
 
@@ -130,72 +150,21 @@ A partir daí, toda criação/edição de GIG empurra automaticamente o evento. 
 
 | Atalho | Ação |
 |---|---|
-| `Ctrl/Cmd + K` | Busca global (GIGs, contatos, tarefas, tracks, festas, decisões…) |
+| `Ctrl/Cmd + S` | Salvar o documento |
+| `Ctrl/Cmd + K` | Busca global |
 | `Ctrl/Cmd + N` | Novo item no módulo ativo |
 | `Ctrl + I` | Captura rápida de ideia |
 | `Ctrl + Shift + F` | Modo Foco Profundo (oculta sidebar) |
 
-Todos os atalhos são customizáveis em **Configurações → Atalhos**.
-
----
-
-## Decision Log
-
-Registre decisões importantes enquanto toma (contexto + opções consideradas + raciocínio). Meses depois, volte e preencha o **outcome** e a **avaliação** (Acertou / Errou / Inconclusivo). A Revisão Semanal alerta quando há decisions com outcome mas sem avaliação.
-
-Base empírica: Kahneman — explicitar critérios e revisitar reduz vieses sistemáticos.
-
----
-
-## OKRs
-
-Objetivos trimestrais (ex: `2026-Q3`) com Key Results mensuráveis. Cada KR pode ter `metric_source` automático:
-
-| Fonte | O que puxa |
-|---|---|
-| `gigs_completed` | GIGs concluídas no trimestre |
-| `tracks_released` | Tracks em Lançamento/Pós-lançamento |
-| `parties_executed` | Festas com status Realizada |
-| `content_published` | Conteúdos publicados |
-| `finance_revenue` | Receita total (R$) |
-| `manual` | Você atualiza manualmente |
-
-Base: Andy Grove (Intel) / John Doerr, *Measure What Matters*. 3–5 objetivos por trimestre, 2–4 KRs cada.
-
----
-
-## Energia & Foco
-
-Widget no header para registrar sessões de trabalho com tipo de atividade. Ao encerrar, avalie energia (1–5) e foco (1–5). Após algumas semanas, `/foco` mostra:
-
-- **Heatmap** de energia média por dia da semana × horário
-- **Distribuição** de tempo por tipo de atividade
-- **Highlights cumulativos** — momentos marcantes da carreira
-
-Base: Schwartz & McCarthy, *Manage Your Energy, Not Your Time* (HBR 2007).
-
----
-
-## Revisão Semanal
-
-Checklist interativo com 6 itens, estado persistido por semana:
-
-1. Banco de Ideias revisado
-2. Tarefas da semana revisadas
-3. OKRs em dia
-4. Financeiro conferido
-5. Decision Log atualizado
-6. Insights consolidados
-
-Cada item linka direto para o módulo correspondente. Toast de conclusão ao marcar tudo.
+Customizáveis em **Configurações → Atalhos**.
 
 ---
 
 ## Backup e exportação
 
-- **JSON completo** (`Configurações → Exportar backup`): snapshot de todas as tabelas, importável com transação atômica
-- **CSV por entidade**: cada tabela individualmente, modo append (preserva IDs) ou replace
-- Anexos físicos (`uploads/`) **não entram** no JSON — copie a pasta manualmente junto com o `.db`
+- **Documento `.vistage`** — é o backup completo e portátil: dados + anexos embutidos + sessões. Use *Salvar como* para snapshots datados.
+- **JSON / CSV** (Configurações) — exportações pontuais por entidade.
+- O `.vistage` carrega **credenciais** (tokens das integrações, sessão de sync) em texto — por isso a UI avisa "não compartilhe". Para blindar, **proteja o documento com senha**.
 
 ---
 
@@ -203,61 +172,38 @@ Cada item linka direto para o módulo correspondente. Toast de conclusão ao mar
 
 ```
 src/
-├── App.tsx                    # roteador lazy + suspense + atalhos globais
+├── App.tsx                    # boot "abre em branco" + roteador lazy + atalhos
 ├── lib/
-│   ├── db.ts                  # carga do SQLite + singleton getDb()
-│   ├── migrations.ts          # 18 migrations versionadas (v1→v18)
-│   ├── backup.ts              # JSON export/import
-│   ├── csv.ts                 # CSV por entidade
-│   ├── search.ts              # busca global (12 tipos de entidade)
-│   ├── format.ts              # datas, moeda, ratings (pt-BR)
-│   ├── config.ts              # caminho do HD externo
+│   ├── db.ts                  # SQLite (réplica local) + singleton getDb()
+│   ├── migrations.ts          # migrations versionadas (v1 → v132), sempre aditivas
+│   ├── document.ts            # store do documento .vistage (Abrir/Salvar/Salvar como)
+│   ├── backup.ts              # contêiner .vistage: empacota/lê dados + anexos
+│   ├── crypto.ts              # criptografia opcional (envelope string + binário "VENC")
+│   ├── config.ts              # pasta de anexos (uploadsDir) + vistage.config.json
+│   ├── uploads.ts             # cópia/carga de anexos, useImageUrl
 │   ├── gcal.ts                # wrapper TS dos commands Rust (Google Calendar)
-│   └── shortcuts.ts           # event bus Ctrl+N
-├── components/
-│   ├── ui/                    # primitivos (Button, Card, Dialog, Badge…)
-│   ├── shared/                # ThemeToggle, CommandPalette
-│   └── layout/                # Sidebar, AppLayout (+ WorkSessionWidget)
-└── modules/
-    ├── dashboard/             # DashboardPage
-    ├── gigs/                  # GigsPage + forms + views + components
-    ├── venues/
-    ├── crm/
-    ├── fans/
-    ├── music/                 # MusicPage — Stage-Gate, Flow Sessions
-    ├── classes/
-    ├── content/
-    ├── ideas/
-    ├── parties/               # PartiesPage — produção de festas
-    ├── insights/              # InsightsPage — v_insights VIEW
-    ├── revisao/               # RevisaoPage — weekly review
-    ├── foco/                  # FocoPage + WorkSessionWidget
-    ├── objetivos/             # ObjetivosPage — OKRs
-    ├── identity/
-    ├── tasks/
-    ├── finance/               # FinancePage — único chunk com Recharts
-    └── settings/
+│   ├── todoist.ts notion.ts supabase.ts mobileSync.ts integrationsSync.ts
+│   └── shortcuts.ts           # atalhos globais
+├── components/                # ui/ (primitivos), shared/, layout/ (dock, AppLayout)
+└── modules/                   # um diretório por módulo (gigs, music, pessoas, foco, …)
 
 src-tauri/
-├── Cargo.toml
-├── tauri.conf.json
-├── capabilities/default.json
 └── src/
-    ├── main.rs
     ├── lib.rs                 # plugins + commands Tauri
-    ├── gcal.rs                # OAuth PKCE + Calendar API
+    ├── db.rs                  # acesso ao SQLite
+    ├── gcal.rs                # OAuth PKCE + chamadas Google (via ureq, evita CORS)
     └── oauth_success.html
+
+scripts/vistage-to-container.mjs   # conversor offline JSON→contêiner (com --password)
+mobile/                            # PWA companion de captura
+docs/                              # roadmap mobile, sync, cloud-push
 ```
 
 ---
 
-## Schema do banco (v18)
+## Schema do banco
 
-18 migrations versionadas, sempre aditivas, nunca destrutivas.
-
-Tabelas principais: `contacts`, `venues`, `gigs`, `gig_debrief_drafts`, `tasks`, `subtasks`, `content`, `ideas`, `students`, `class_packages`, `student_packages`, `classes`, `artist_identity`, `artist_templates`, `parties`, `party_costs`, `music_projects`, `tracks`, `track_collaborators`, `track_flow_sessions`, `track_media_targets`, `music_project_costs`, `track_performance_snapshots`, `gig_tracks`, `finance_categories`, `finance_transactions`, `finance_recurring`, `equipment`, `work_sessions`, `highlights`, `okrs`, `decisions`, `app_settings`, `gcal_auth`
-
-Views: `v_insights` (pool unificada de aprendizados de GIGs + tracks + festas + ideias)
+Migrations versionadas em `src/lib/migrations.ts` (**até v132**), sempre **aditivas, nunca destrutivas** — o app aplica as pendentes no boot, de forma idempotente.
 
 ---
 

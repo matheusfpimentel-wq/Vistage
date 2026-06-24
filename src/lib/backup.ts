@@ -155,6 +155,27 @@ function relativize(absPath: string, uploadsDir: string): string {
   return rel;
 }
 
+/**
+ * Parte RELATIVA de um caminho de anexo, robusta entre máquinas: tudo após o
+ * último "/uploads/". O `relativize` simples só funciona quando o caminho começa
+ * exatamente com o uploadsDir atual — o que NÃO acontece ao abrir um .vistage
+ * cujos caminhos absolutos vieram de outro computador (ex.: Mac → Windows). Sem
+ * isso, a chave do arquivo virava o caminho absoluto inteiro e o anexo não era
+ * embutido nem restaurado. Mesma lógica do `resolveUnderCurrentUploads` (uploads.ts).
+ */
+function relUnderUploads(absPath: string, uploadsDir: string): string {
+  const norm = absPath.replace(/\\/g, "/");
+  const idx = norm.toLowerCase().lastIndexOf("/uploads/");
+  if (idx !== -1) {
+    return norm
+      .slice(idx + "/uploads/".length)
+      .split("/")
+      .filter(Boolean)
+      .join("/");
+  }
+  return relativize(absPath, uploadsDir);
+}
+
 function mimeForExt(name: string): string {
   const ext = (name.match(/\.([a-zA-Z0-9]+)$/) ?? [])[1]?.toLowerCase() ?? "bin";
   return ext === "jpg" || ext === "jpeg" ? "image/jpeg"
@@ -178,12 +199,66 @@ function bytesToDataUrl(bytes: Uint8Array, name: string): string {
   return `data:${mimeForExt(name)};base64,${btoa(bin)}`;
 }
 
-async function readAsBase64(absPath: string): Promise<string | null> {
-  try {
-    return bytesToDataUrl(await readFile(absPath), absPath);
-  } catch {
-    return null;
+// ── Leitura RESILIENTE de anexos ─────────────────────────────────────────────
+// Um único anexo inacessível (caminho de outra máquina, placeholder de nuvem do
+// Google Drive/OneDrive, arquivo bloqueado ou numa unidade removida) NÃO pode
+// travar o salvar para sempre — era a causa do "salvamento eterno". Cada leitura
+// tem TIMEOUT; e um caminho salvo que não resolve é re-tentado sob o uploadsDir
+// ATUAL (igual ao useImageUrl), para que tudo que o app exibe também seja salvo.
+const READ_TIMEOUT_MS = 12_000;
+const READ_CONCURRENCY = 6;
+
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
+/** map com concorrência limitada — evita 1 leitura travada bloquear todas em série. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length || 1) }, worker));
+  return results;
+}
+
+/** Lê um arquivo com timeout; nunca rejeita nem trava (retorna null no limite). */
+function readFileTimed(path: string): Promise<Uint8Array | null> {
+  return withTimeout(
+    readFile(path)
+      .then((b) => b as Uint8Array)
+      .catch(() => null),
+    READ_TIMEOUT_MS,
+    null
+  );
+}
+
+/**
+ * Bytes de um anexo: tenta o caminho salvo; se falhar/expirar, tenta sob o
+ * uploadsDir ATUAL (a parte após "/uploads/"). Retorna null se nenhum resolver.
+ */
+async function readAttachmentBytes(
+  abs: string,
+  rel: string,
+  uploadsDir: string
+): Promise<Uint8Array | null> {
+  const first = await readFileTimed(abs);
+  if (first) return first;
+  if (uploadsDir && rel) {
+    const alt = joinPath(uploadsDir, ...rel.split("/").filter(Boolean));
+    if (alt !== abs) {
+      const second = await readFileTimed(alt);
+      if (second) return second;
+    }
   }
+  return null;
 }
 
 /**
@@ -198,8 +273,8 @@ function collectFilePaths(
   const paths: Record<string, string> = {};
   const add = (val: unknown) => {
     if (typeof val !== "string" || !val) return;
-    const rel = relativize(val, uploadsDir);
-    if (paths[rel] === undefined) paths[rel] = val;
+    const rel = relUnderUploads(val, uploadsDir);
+    if (rel && paths[rel] === undefined) paths[rel] = val;
   };
   for (const [table, cols] of Object.entries(FILE_PATH_COLS) as [TableName, string[]][]) {
     for (const row of tables[table] ?? []) for (const col of cols) add(row[col]);
@@ -242,30 +317,38 @@ async function collectFiles(
   tables: Backup["tables"],
   uploadsDir: string
 ): Promise<Record<string, string>> {
-  const paths = collectFilePaths(tables, uploadsDir);
+  const entries = Object.entries(collectFilePaths(tables, uploadsDir));
+  const read = await mapLimit(entries, READ_CONCURRENCY, async ([rel, abs]) => ({
+    rel,
+    bytes: await readAttachmentBytes(abs, rel, uploadsDir),
+  }));
   const files: Record<string, string> = {};
-  for (const [rel, abs] of Object.entries(paths)) {
-    const data = await readAsBase64(abs);
-    if (data) files[rel] = data;
-  }
+  for (const { rel, bytes } of read) if (bytes) files[rel] = bytesToDataUrl(bytes, rel);
   return files;
 }
 
-/** Reúne os arquivos referenciados como BYTES crus (pro contêiner zip). */
+/**
+ * Reúne os arquivos referenciados como BYTES crus (pro contêiner zip), com
+ * leitura resiliente (timeout + fallback no uploadsDir atual + concorrência).
+ * Devolve também a lista de anexos que NÃO puderam ser lidos, para o salvar
+ * avisar o usuário em vez de sumir com eles em silêncio.
+ */
 async function collectRawFiles(
   tables: Backup["tables"],
   uploadsDir: string
-): Promise<Record<string, Uint8Array>> {
-  const paths = collectFilePaths(tables, uploadsDir);
+): Promise<{ files: Record<string, Uint8Array>; skipped: string[] }> {
+  const entries = Object.entries(collectFilePaths(tables, uploadsDir));
+  const read = await mapLimit(entries, READ_CONCURRENCY, async ([rel, abs]) => ({
+    rel,
+    bytes: await readAttachmentBytes(abs, rel, uploadsDir),
+  }));
   const files: Record<string, Uint8Array> = {};
-  for (const [rel, abs] of Object.entries(paths)) {
-    try {
-      files[rel] = await readFile(abs);
-    } catch {
-      /* arquivo sumido no disco — ignora (não trava o salvar) */
-    }
+  const skipped: string[] = [];
+  for (const { rel, bytes } of read) {
+    if (bytes) files[rel] = bytes;
+    else skipped.push(rel);
   }
-  return files;
+  return { files, skipped };
 }
 
 /** Restaura arquivos do backup para o uploadsDir atual. */
@@ -310,14 +393,18 @@ export async function buildBackupData(): Promise<Backup> {
   const db = getDb();
   // Garante que a aparência (tema/cor) e as preferências de view estejam
   // gravadas no documento antes de lê-lo (mesmo após um boot em branco).
-  await persistAppearanceToDocument().catch(() => {});
-  await persistViewPrefsToDocument().catch(() => {});
+  // Com timeout: uma escrita travada não pode prender o salvar para sempre.
+  await withTimeout(persistAppearanceToDocument().catch(() => {}), 5000, undefined);
+  await withTimeout(persistViewPrefsToDocument().catch(() => {}), 5000, undefined);
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
     tables[t] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
   }
   const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
-  const session = (await getPortableSession()) ?? undefined;
+  // getPortableSession faz getSession() do Supabase, que pode disparar um refresh
+  // de token pela REDE (sem timeout próprio). Limita aqui: sem rede, o salvar não
+  // pode ficar eterno só por causa da sessão de sync — segue sem ela.
+  const session = (await withTimeout(getPortableSession(), 5000, null)) ?? undefined;
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -457,23 +544,32 @@ function isZip(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }
 
-/** Monta os BYTES do contêiner zip (vistage.json + files/<rel> crus). */
-async function buildContainerBytes(data: Backup): Promise<Uint8Array> {
+/**
+ * Monta os BYTES do contêiner zip (vistage.json + files/<rel> crus). Devolve
+ * também os anexos que não puderam ser lidos (para o salvar avisar).
+ */
+async function buildContainerBytes(
+  data: Backup
+): Promise<{ bytes: Uint8Array; skipped: string[] }> {
   const uploadsDir = data.uploadsDir ?? useConfigStore.getState().config?.uploadsDir ?? "";
   const entries: Record<string, Uint8Array> = {
     "vistage.json": strToU8(JSON.stringify({ ...data, files: {} })),
   };
+  let skipped: string[] = [];
   if (uploadsDir) {
     const raw = await collectRawFiles(data.tables, uploadsDir);
-    for (const [rel, bytes] of Object.entries(raw)) entries[`files/${rel}`] = bytes;
+    for (const [rel, bytes] of Object.entries(raw.files)) entries[`files/${rel}`] = bytes;
+    skipped = raw.skipped;
   }
   // level 0 = store (mídia já é comprimida; evita CPU à toa e mantém rápido).
-  return zipSync(entries, { level: 0 });
+  return { bytes: zipSync(entries, { level: 0 }), skipped };
 }
 
 /** Empacota o documento como contêiner zip (dados + arquivos crus, store). */
-export async function writeContainer(path: string, data: Backup): Promise<void> {
-  await writeFile(path, await buildContainerBytes(data));
+export async function writeContainer(path: string, data: Backup): Promise<string[]> {
+  const { bytes, skipped } = await buildContainerBytes(data);
+  await writeFile(path, bytes);
+  return skipped;
 }
 
 /**
@@ -486,10 +582,11 @@ export async function writeEncryptedContainer(
   path: string,
   data: Backup,
   password: string
-): Promise<void> {
-  const zipped = await buildContainerBytes(data);
-  const sealed = await encryptBytes(zipped, password);
+): Promise<string[]> {
+  const { bytes, skipped } = await buildContainerBytes(data);
+  const sealed = await encryptBytes(bytes, password);
   await writeFile(path, sealed);
+  return skipped;
 }
 
 /** Lê um contêiner zip e reconstrói o Backup (arquivos viram base64 p/ o restore). */
@@ -515,14 +612,13 @@ export function readContainer(bytes: Uint8Array): Backup {
  * eterno"/Out of memory ao salvar com fotos e vídeos embutidos. Em ambos os
  * casos é um único arquivo .vistage.
  */
-export async function saveBackupToPath(path: string): Promise<void> {
+export async function saveBackupToPath(path: string): Promise<{ skipped: string[] }> {
   const data = await buildBackupData();
   const pw = getDocPassword();
-  if (pw) {
-    await writeEncryptedContainer(path, data, pw);
-  } else {
-    await writeContainer(path, data);
-  }
+  const skipped = pw
+    ? await writeEncryptedContainer(path, data, pw)
+    : await writeContainer(path, data);
+  return { skipped };
 }
 
 /** Lê e valida um arquivo de documento a partir do caminho (contêiner ou JSON). */

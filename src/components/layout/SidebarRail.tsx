@@ -127,7 +127,7 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
                             className={cn(
                               "pointer-events-none absolute inset-0 rounded-[inherit] border bg-gradient-to-br shadow-[0_4px_12px_-4px_rgba(0,0,0,0.45)] backdrop-blur-md transition-colors",
                               isActive
-                                ? "border-primary/50 from-primary/85 to-primary/40"
+                                ? "border-primary/45 from-primary/30 to-primary/[0.08] ring-1 ring-inset ring-primary/30"
                                 : "border-white/15 from-white/20 to-white/[0.03] dark:from-white/[0.12] dark:to-white/0"
                             )}
                           />
@@ -140,7 +140,7 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
                             className={cn(
                               "relative block h-[1.15rem] w-[1.15rem] shrink-0 transition-colors",
                               isActive
-                                ? "text-primary-foreground drop-shadow-sm"
+                                ? "text-primary drop-shadow-sm"
                                 : "text-muted-foreground group-hover:text-foreground"
                             )}
                           />
