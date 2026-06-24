@@ -87,3 +87,18 @@
       0 8px 24px -8px hsl(var(--primary) / 0.35);
   }
 }
+
+@layer components {
+  /* Pílula de filtro/segmento — visual moderno (estilo iOS): cantos bem
+     arredondados, estado ativo "elevado" com sombra colorida suave e um brilho
+     sutil na borda (em vez do preenchimento chapado antigo). */
+  .seg-pill {
+    @apply rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 active:scale-[0.97];
+  }
+  .seg-pill-off {
+    @apply border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground;
+  }
+  .seg-pill-on {
+    @apply border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/15;
+  }
+}

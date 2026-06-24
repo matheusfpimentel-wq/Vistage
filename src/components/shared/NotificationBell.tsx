@@ -6,7 +6,7 @@ import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
-import { filterSnoozed } from "@/modules/revisao/snooze";
+import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
 import { toast } from "@/components/ui/toaster";
@@ -415,6 +415,20 @@ export function NotificationBell() {
                           onClick={() => { navigate(a.to); setOpen(false); }}
                         >
                           Abrir GIG
+                        </button>
+                      </div>
+                    )}
+                    {a.dismissible && (
+                      <div className="mt-1.5 pl-7">
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+                          onClick={async () => {
+                            await snoozeAlert(a.key, 24 * 365);
+                            setOpen(false);
+                          }}
+                        >
+                          Dispensar
                         </button>
                       </div>
                     )}

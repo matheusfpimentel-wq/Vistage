@@ -533,6 +533,13 @@ export async function recoverCaptures(ids: string[]): Promise<number> {
   return ingestCaptures(ids);
 }
 
+/** Exclui de vez (hard delete) as capturas descartadas — sem recuperação. */
+export async function deleteCaptures(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const { error } = await supabase.from("capture_inbox").delete().in("id", ids);
+  if (error) throw error;
+}
+
 async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise<void> {
   const s = (k: string): string | null => (typeof p[k] === "string" ? (p[k] as string) : null);
   const n = (k: string): number | null => (typeof p[k] === "number" ? (p[k] as number) : null);

@@ -203,14 +203,21 @@ export const OPERATORS_BY_TYPE: Record<
   ],
 };
 
+/** Uma condição "campo · operador · valor" do lado SE da regra. */
+export type RuleCondition = { field: string; operator: RuleOperator; value: string | null };
+/** Como combinar as condições: all = E (todas), any = OU (qualquer uma). */
+export type RuleMatch = "all" | "any";
+
 export type CustomRule = {
   id: number;
   entity: RuleEntityKey;
-  field: string;
-  operator: RuleOperator;
-  value: string | null;
+  /** 1+ condições combinadas por `match`. */
+  conditions: RuleCondition[];
+  match: RuleMatch;
   message: string;
   severity: "alerta" | "insight";
+  /** Alerta "desaparecer ao clicar" (dispensável no sininho). */
+  dismissible: number; // 0 | 1
   enabled: number; // 0 | 1
   created_at: string;
   updated_at: string;
@@ -218,13 +225,66 @@ export type CustomRule = {
 
 export type CustomRuleInput = {
   entity: RuleEntityKey;
+  conditions: RuleCondition[];
+  match: RuleMatch;
+  message: string;
+  severity: "alerta" | "insight";
+  dismissible?: number;
+  enabled?: number;
+};
+
+/** Linha crua do banco (conditions é JSON; colunas legadas mantidas). */
+type CustomRuleRow = {
+  id: number;
+  entity: RuleEntityKey;
   field: string;
   operator: RuleOperator;
   value: string | null;
   message: string;
   severity: "alerta" | "insight";
-  enabled?: number;
+  enabled: number;
+  conditions: string | null;
+  match_mode: string | null;
+  dismissible: number | null;
+  created_at: string;
+  updated_at: string;
 };
+
+function rowToRule(r: CustomRuleRow): CustomRule {
+  let conditions: RuleCondition[] = [];
+  if (r.conditions) {
+    try {
+      const parsed = JSON.parse(r.conditions) as unknown;
+      if (Array.isArray(parsed)) {
+        conditions = parsed
+          .filter((c): c is RuleCondition => !!c && typeof c === "object" && "field" in c && "operator" in c)
+          .map((c) => ({
+            field: String((c as RuleCondition).field),
+            operator: (c as RuleCondition).operator,
+            value: (c as RuleCondition).value ?? null,
+          }));
+      }
+    } catch {
+      /* cai no legado abaixo */
+    }
+  }
+  // Regra antiga (sem `conditions`): usa a condição única legada.
+  if (conditions.length === 0) {
+    conditions = [{ field: r.field, operator: r.operator, value: r.value }];
+  }
+  return {
+    id: r.id,
+    entity: r.entity,
+    conditions,
+    match: r.match_mode === "any" ? "any" : "all",
+    message: r.message,
+    severity: r.severity,
+    dismissible: r.dismissible ?? 0,
+    enabled: r.enabled,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
 
 export function entityDef(key: string): RuleEntityDef | undefined {
   return RULE_ENTITIES.find((e) => e.key === key);
@@ -248,42 +308,55 @@ export function decodeStateDays(value: string | null): { state: string; days: st
   return { state, days };
 }
 
-/** Texto legível "Se {entidade} · {campo} {operador} {valor}". */
+function describeCondition(e: RuleEntityDef | undefined, c: RuleCondition): string {
+  const f = e ? fieldDef(e, c.field) : undefined;
+  const fLabel = f?.label ?? c.field;
+  if (c.operator === "state_stale") {
+    const { state, days } = decodeStateDays(c.value);
+    return `${fLabel} em "${state}" há +${days}d`;
+  }
+  const opLabel = f ? operatorDef(f.type, c.operator)?.label ?? c.operator : c.operator;
+  const valuePart = c.value ? ` ${c.value}` : "";
+  return `${fLabel} ${opLabel}${valuePart}`;
+}
+
+/** Texto legível "Se {entidade} · {cond1} E/OU {cond2}". */
 export function describeRule(
-  r: Pick<CustomRule, "entity" | "field" | "operator" | "value">
+  r: Pick<CustomRule, "entity" | "conditions" | "match">
 ): string {
   const e = entityDef(r.entity);
-  const f = e ? fieldDef(e, r.field) : undefined;
   const eLabel = e?.label ?? r.entity;
-  const fLabel = f?.label ?? r.field;
-  if (r.operator === "state_stale") {
-    const { state, days } = decodeStateDays(r.value);
-    return `Se ${eLabel} · ${fLabel} está em "${state}" há mais de ${days} dias`;
-  }
-  const opLabel = f
-    ? operatorDef(f.type, r.operator)?.label ?? r.operator
-    : r.operator;
-  const valuePart = r.value ? ` ${r.value}` : "";
-  return `Se ${eLabel} · ${fLabel} ${opLabel}${valuePart}`;
+  const joiner = r.match === "any" ? " OU " : " E ";
+  const parts = r.conditions.map((c) => describeCondition(e, c));
+  return `Se ${eLabel} · ${parts.join(joiner)}`;
 }
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 export async function listCustomRules(): Promise<CustomRule[]> {
-  return getDb().select<CustomRule[]>(`SELECT * FROM custom_rules ORDER BY id DESC`);
+  const rows = await getDb().select<CustomRuleRow[]>(`SELECT * FROM custom_rules ORDER BY id DESC`);
+  return rows.map(rowToRule);
 }
+
+const FALLBACK_COND: RuleCondition = { field: "", operator: "filled", value: null };
+
 export async function createCustomRule(input: CustomRuleInput): Promise<void> {
+  const first = input.conditions[0] ?? FALLBACK_COND;
   await getDb().execute(
-    `INSERT INTO custom_rules (entity, field, operator, value, message, severity, enabled)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [input.entity, input.field, input.operator, input.value, input.message, input.severity, input.enabled ?? 1]
+    `INSERT INTO custom_rules (entity, field, operator, value, message, severity, enabled, conditions, match_mode, dismissible)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [input.entity, first.field, first.operator, first.value, input.message, input.severity,
+      input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0]
   );
 }
 export async function updateCustomRule(id: number, input: CustomRuleInput): Promise<void> {
+  const first = input.conditions[0] ?? FALLBACK_COND;
   await getDb().execute(
     `UPDATE custom_rules
-        SET entity=$1, field=$2, operator=$3, value=$4, message=$5, severity=$6, enabled=$7, updated_at=datetime('now')
-      WHERE id=$8`,
-    [input.entity, input.field, input.operator, input.value, input.message, input.severity, input.enabled ?? 1, id]
+        SET entity=$1, field=$2, operator=$3, value=$4, message=$5, severity=$6, enabled=$7,
+            conditions=$8, match_mode=$9, dismissible=$10, updated_at=datetime('now')
+      WHERE id=$11`,
+    [input.entity, first.field, first.operator, first.value, input.message, input.severity,
+      input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0, id]
   );
 }
 export async function setCustomRuleEnabled(id: number, enabled: boolean): Promise<void> {
@@ -368,20 +441,41 @@ function buildParams(operator: RuleOperator, value: string | null): unknown[] {
   }
 }
 
-/** Conta quantas linhas casam com a regra; null se inválida ou se der erro. */
+/** Cláusula SQL de UMA condição, com placeholders renumerados a partir de startIdx. */
+function buildConditionClause(
+  e: RuleEntityDef,
+  c: RuleCondition,
+  startIdx: number
+): { sql: string; params: unknown[] } | null {
+  const f = fieldDef(e, c.field);
+  if (!f) return null;
+  if (!OPERATORS_BY_TYPE[f.type].some((o) => o.op === c.operator)) return null;
+  let sql = buildSql(f, c.operator);
+  if (!sql) return null;
+  const params = buildParams(c.operator, c.value);
+  // Renumera $1..$n → $startIdx.. (alto→baixo p/ não colidir).
+  for (let i = params.length; i >= 1; i--) {
+    sql = sql.split(`$${i}`).join(`$${startIdx + i - 1}`);
+  }
+  return { sql: `(${sql})`, params };
+}
+
+/** Conta quantas linhas casam com a regra (condições compostas); null se inválida. */
 async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
   const e = entityDef(rule.entity);
   if (!e) return null;
-  const f = fieldDef(e, rule.field);
-  if (!f) return null;
-  // o operador precisa pertencer ao tipo do campo (combinação válida)
-  if (!OPERATORS_BY_TYPE[f.type].some((o) => o.op === rule.operator)) return null;
-  const cond = buildSql(f, rule.operator);
-  if (!cond) return null;
-
-  const where = [e.baseWhere, `(${cond})`].filter(Boolean).join(" AND ");
+  if (rule.conditions.length === 0) return null;
+  const clauses: string[] = [];
+  const params: unknown[] = [];
+  for (const c of rule.conditions) {
+    const built = buildConditionClause(e, c, params.length + 1);
+    if (!built) return null; // condição inválida invalida a regra inteira
+    clauses.push(built.sql);
+    params.push(...built.params);
+  }
+  const joiner = rule.match === "any" ? " OR " : " AND ";
+  const where = [e.baseWhere, `(${clauses.join(joiner)})`].filter(Boolean).join(" AND ");
   const sql = `SELECT COUNT(*) AS n FROM ${e.table} WHERE ${where}`;
-  const params = buildParams(rule.operator, rule.value);
   try {
     const rows = await getDb().select<{ n: number }[]>(sql, params);
     return rows[0]?.n ?? 0;
@@ -414,6 +508,7 @@ export async function evaluateCustomRules(): Promise<AlertItem[]> {
         icon: "warning",
         to: e.route,
         critical: true,
+        dismissible: !!rule.dismissible,
         label: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
       });
     }

@@ -284,12 +284,7 @@ export function TasksPage() {
           <button
             key={f.id}
             onClick={() => setFilters((s) => ({ ...s, date: f.id }))}
-            className={cn(
-              "rounded-md border px-2.5 py-1 text-xs transition",
-              filters.date === f.id
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-input bg-background hover:bg-accent"
-            )}
+            className={cn("seg-pill", filters.date === f.id ? "seg-pill-on" : "seg-pill-off")}
           >
             {f.label}
           </button>

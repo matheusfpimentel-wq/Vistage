@@ -75,6 +75,7 @@ const EMPTY: VenueCreateInput = {
   dominant_genre: null,
   rider_equipment: null,
   regular_audience: null,
+  djs_residentes: null,
   is_closed: 0,
 };
 
@@ -105,6 +106,7 @@ function venueToState(v: Venue): VenueCreateInput {
     dominant_genre: v.dominant_genre,
     rider_equipment: v.rider_equipment ?? null,
     regular_audience: v.regular_audience,
+    djs_residentes: v.djs_residentes ?? null,
     is_closed: v.is_closed ?? 0,
   };
 }
@@ -429,6 +431,14 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
                 placeholder="Equipamento disponível na casa: PA, mesa, monitores, microfones, backline…"
                 value={state.rider_equipment ?? ""}
                 onChange={(e) => set("rider_equipment", e.target.value || null)}
+                rows={3}
+              />
+            </Field>
+            <Field label="DJs residentes">
+              <Textarea
+                placeholder="Um DJ por linha…"
+                value={state.djs_residentes ?? ""}
+                onChange={(e) => set("djs_residentes", e.target.value || null)}
                 rows={3}
               />
             </Field>
