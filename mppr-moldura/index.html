@@ -355,7 +355,7 @@
   // ---- Salvar / Copiar ----
   saveBtn.addEventListener('click', function(){
     if(!media) return;
-    if(mediaType==='video') recordVideo('download');
+    if(mediaType==='video') recordVideo();
     else photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); setStatus('Foto salva ✓'); } });
   });
   copyBtn.addEventListener('click', function(){
@@ -371,8 +371,8 @@
 
   // ---- Vídeo (gravação + áudio via Web Audio) ----
   function pickMime(){
-    var c=['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4',
-           'video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm;codecs=h264,opus','video/webm'];
+    var c=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm',
+           'video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4'];
     for(var i=0;i<c.length;i++){ try{ if(MediaRecorder.isTypeSupported(c[i])) return c[i]; }catch(e){} }
     return '';
   }
@@ -393,7 +393,7 @@
       return dest.stream.getAudioTracks();
     }catch(e){ return []; }
   }
-  function recordVideo(mode){
+  function recordVideo(){
     if(recording) return;
     if(!window.MediaRecorder || !canvas.captureStream){
       setStatus('Este navegador não permite salvar vídeo. Tente Chrome (PC/Android) ou salve uma foto.'); return;
@@ -408,31 +408,42 @@
 
     var rec;
     try{ rec=mime?new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:8000000}):new MediaRecorder(stream); }
-    catch(e){ setStatus('Não foi possível iniciar a gravação.'); return; }
+    catch(e){ try{ rec=new MediaRecorder(stream); }catch(e2){ setStatus('Não foi possível iniciar a gravação.'); return; } }
 
-    var chunks=[];
+    var chunks=[], started=false, safety=null;
     rec.ondataavailable=function(e){ if(e.data&&e.data.size) chunks.push(e.data); };
     rec.onstop=function(){
-      var out=rec.mimeType||mime||'video/webm', name=baseName()+'.'+extFor(out);
-      var blob=new Blob(chunks,{type:out});
+      if(safety){ clearTimeout(safety); safety=null; }
       recording=false; saveBtn.disabled=false; addBtn.disabled=false;
       progress.classList.add('hidden'); progBar.style.width='0';
       try{ if(v._mpprSrc) v._mpprSrc.disconnect(); }catch(e){}
-      v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
-      download(blob,name);
+      v.onended=null; v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
+      var blob=new Blob(chunks,{type:rec.mimeType||mime||'video/webm'});
+      if(!blob.size){ setStatus('Não consegui gravar o vídeo aqui 😕 — tente salvar como foto, ou use o Chrome no PC/Android.'); return; }
+      download(blob, baseName()+'.'+extFor(blob.type));
       setStatus(noAudio ? 'Vídeo salvo — sem áudio (limitação do navegador).' : 'Vídeo salvo ✓');
+    };
+    var stop=function(){ if(rec.state!=='inactive'){ try{ rec.stop(); }catch(e){} } };
+    var begin=function(){
+      if(started || rec.state!=='inactive') return;
+      started=true;
+      try{ rec.start(250); }
+      catch(e){ recording=false; saveBtn.disabled=false; addBtn.disabled=false; progress.classList.add('hidden'); setStatus('Não foi possível iniciar a gravação.'); }
     };
 
     recording=true; saveBtn.disabled=true; addBtn.disabled=true;
     progress.classList.remove('hidden'); progBar.style.width='0';
     setStatus('Gravando vídeo… aguarde tocar do início ao fim.');
+
     v.loop=false; v.muted=false; v.volume=1;
-    var stop=function(){ if(rec.state!=='inactive') rec.stop(); };
-    v.onended=stop;
+    var dur=(isFinite(v.duration) && v.duration>0) ? v.duration : 15;   // evita setTimeout(NaN) que parava na hora
+    v.onended=function(){ stop(); };
+    safety=setTimeout(stop, Math.min(120000, dur*1000+2000));
     try{ v.currentTime=0; }catch(e){}
+    var onPlaying=function(){ v.removeEventListener('playing', onPlaying); begin(); };
+    v.addEventListener('playing', onPlaying);                            // só grava quando o vídeo está tocando (garante frames)
     var p=v.play(); if(p&&p.catch){ p.catch(function(){ v.play().catch(function(){}); }); }
-    rec.start();
-    setTimeout(stop, Math.min(60000, ((v.duration||30)*1000)+1500));
+    setTimeout(begin, 700);                                              // fallback se 'playing' não disparar
   }
 
   invalidate();
