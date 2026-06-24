@@ -62,6 +62,8 @@ export type TrackRow = {
   standby_until: string | null;
   task_id: number | null;
   related_track_id: number | null;
+  /** Prazo de conclusão (opcional). Quando preenchido, gera/atualiza a tarefa. */
+  deadline: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -98,6 +100,7 @@ export type TrackCreateInput = {
   stage_notes: string | null;
   creative_block_notes: string | null;
   related_track_id?: number | null;
+  deadline?: string | null;
 };
 
 export type TrackUpdateInput = Partial<TrackCreateInput> & { id: number; standby_until?: string | null };
