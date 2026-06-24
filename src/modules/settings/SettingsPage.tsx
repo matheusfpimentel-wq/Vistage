@@ -169,7 +169,7 @@ export function SettingsPage() {
                   size="sm"
                   onClick={() => setSidebarLayout("rail")}
                 >
-                  Compacto (ícones)
+                  Ícones
                 </Button>
               </div>
             </div>

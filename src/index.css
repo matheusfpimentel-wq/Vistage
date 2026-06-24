@@ -103,3 +103,14 @@
     @apply border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm;
   }
 }
+
+@layer utilities {
+  /* Esconde a barra de rolagem mantendo a rolagem (usado no menu de ícones). */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

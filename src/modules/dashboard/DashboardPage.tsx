@@ -30,7 +30,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
 import { MindMapPage } from "@/modules/dashboard/MindMapPage";
-import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
 import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
 import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
@@ -200,7 +199,6 @@ export function DashboardPage() {
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
           <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
-          <TabsTrigger value="report">Relatório mensal</TabsTrigger>
           <TabsTrigger value="career">Carreira em números</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
@@ -255,10 +253,6 @@ export function DashboardPage() {
 
       <TabsContent value="metodologias">
         <MetodologiasPage />
-      </TabsContent>
-
-      <TabsContent value="report">
-        <MonthlyReportPage />
       </TabsContent>
 
       <TabsContent value="career">
