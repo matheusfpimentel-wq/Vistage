@@ -70,47 +70,45 @@ export type RuleCategory =
   | "Tarefas"
   | "Festas"
   | "Aulas"
-  | "Objetivos"
-  | "Motivação";
+  | "Objetivos";
 
 /**
- * Catálogo das regras EMBUTIDAS (as que já existem no `computeAlerts`). Serve
- * para o editor "Configurações avançadas" listá-las no formato Se→Então e
- * permitir LIGAR/DESLIGAR cada uma. O `id` é estável; regras com chave dinâmica
- * (sufixo por item) casam por prefixo (`dynamic: true`).
+ * Catálogo das regras EMBUTIDAS de ALERTA (as que já existem no `computeAlerts`).
+ * Serve para o editor "Configurações avançadas" listá-las com a MENSAGEM REAL
+ * que aparece + quando ela dispara, e permitir LIGAR/DESLIGAR cada uma. O `id` é
+ * estável; regras com chave dinâmica (sufixo por item) casam por prefixo.
  */
 export type BuiltinRule = {
   id: string;
   category: RuleCategory;
-  /** Texto no formato "Se … → Então …". */
-  label: string;
-  /** Chave dinâmica: o id é um prefixo (ex.: "motivation-tasks-done-"). */
+  /** A mensagem real que aparece no alerta (generalizada, sem o número). */
+  message: string;
+  /** Quando o alerta dispara (a condição). */
+  trigger: string;
+  /** Chave dinâmica: o id é um prefixo (ex.: "track-standby-overdue-"). */
   dynamic?: boolean;
 };
 
 export const BUILTIN_RULES: BuiltinRule[] = [
-  { id: "tasks-overdue", category: "Tarefas", label: "Se uma tarefa está vencida (data < hoje) sem conclusão → alerta" },
-  { id: "debriefs-pending", category: "GIGs", label: "Se uma GIG concluída está sem debrief → alerta" },
-  { id: "gigs-unprepared", category: "GIGs", label: "Se uma GIG em até 72h está sem prep musical completa → alerta" },
-  { id: "gigs-unpaid", category: "GIGs", label: "Se uma GIG concluída há +48h está com cachê não recebido → alerta" },
-  { id: "gigs-no-rating", category: "GIGs", label: "Se uma GIG desta semana está sem avaliação no debrief → alerta" },
-  { id: "no-upcoming-gigs", category: "GIGs", label: "Se não há nenhuma GIG marcada à frente → alerta" },
-  { id: "ideas-stuck", category: "Produção", label: "Se uma ideia quente está parada em Embrião há +15 dias → alerta" },
-  { id: "tracks-stalled", category: "Produção", label: "Se uma faixa está sem movimento há +15 dias → alerta" },
-  { id: "content-stalled", category: "Produção", label: "Se um conteúdo está sem movimento há +15 dias → alerta" },
-  { id: "no-tracks-production", category: "Produção", label: "Se não há nenhuma música em produção → alerta" },
-  { id: "no-new-track-30d", category: "Produção", label: "Se nenhuma música nova foi iniciada nos últimos 30 dias → alerta" },
-  { id: "track-standby-overdue-", category: "Produção", label: "Se uma faixa em standby passou da data de retorno → alerta", dynamic: true },
-  { id: "parties-stalled", category: "Festas", label: "Se uma festa está sem movimento há +15 dias → alerta" },
-  { id: "parties-undated", category: "Festas", label: "Se uma festa está sem data definida → alerta" },
-  { id: "classes-unprepared", category: "Aulas", label: "Se uma aula em breve não foi preparada → alerta" },
-  { id: "superfans-stale", category: "Pessoas", label: "Se um superfã está sem interação há 30+ dias → alerta" },
-  { id: "superfans-pending-interaction", category: "Pessoas", label: "Se um fã Superfã está sem interação há 30+ dias → pendência" },
-  { id: "crm-no-interaction-week", category: "Pessoas", label: "Se nenhum contato do CRM foi interagido esta semana → alerta" },
-  { id: "okrs-lagging", category: "Objetivos", label: "Se um OKR está abaixo de 20% com menos de 30 dias no quarter → alerta" },
-  { id: "motivation-tasks-done-", category: "Motivação", label: "Se você completou 5+ tarefas na semana → parabéns", dynamic: true },
-  { id: "motivation-gigs-month-", category: "Motivação", label: "Se você fez shows este mês e tem GIG esta semana → motivação", dynamic: true },
-  { id: "motivation-focus-record-", category: "Motivação", label: "Se você está a 7 dias ou menos de bater seu recorde de foco → motivação", dynamic: true },
+  { id: "tasks-overdue", category: "Tarefas", message: "Há tarefas vencidas sem conclusão", trigger: "Tarefa com prazo anterior a hoje e ainda não concluída" },
+  { id: "debriefs-pending", category: "GIGs", message: "Debriefs de GIG pendentes", trigger: "GIG concluída sem o debrief preenchido" },
+  { id: "gigs-unprepared", category: "GIGs", message: "GIGs em 72h sem prep musical completa", trigger: "GIG nas próximas 72h sem a preparação musical concluída" },
+  { id: "gigs-unpaid", category: "GIGs", message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída há mais de 48h com cachê ainda não recebido" },
+  { id: "gigs-no-rating", category: "GIGs", message: "GIGs desta semana sem avaliação no debrief", trigger: "GIG da semana concluída sem a nota do contratante no debrief" },
+  { id: "no-upcoming-gigs", category: "GIGs", message: "Nenhuma GIG marcada à frente", trigger: "Não há nenhuma GIG futura agendada" },
+  { id: "ideas-stuck", category: "Produção", message: "Ideias quentes paradas em Embrião há +15 dias", trigger: "Ideia 'quente' sem evoluir do estágio Embrião por mais de 15 dias" },
+  { id: "tracks-stalled", category: "Produção", message: "Faixas sem movimento há +15 dias", trigger: "Faixa em produção sem nenhuma atualização por mais de 15 dias" },
+  { id: "content-stalled", category: "Produção", message: "Conteúdos sem movimento há +15 dias", trigger: "Conteúdo sem nenhuma atualização por mais de 15 dias" },
+  { id: "no-tracks-production", category: "Produção", message: "Nenhuma música em produção", trigger: "Não há nenhuma faixa em produção no momento" },
+  { id: "no-new-track-30d", category: "Produção", message: "Nenhuma música nova nos últimos 30 dias", trigger: "Nenhuma faixa foi iniciada nos últimos 30 dias" },
+  { id: "track-standby-overdue-", category: "Produção", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
+  { id: "parties-stalled", category: "Festas", message: "Festas sem movimento há +15 dias", trigger: "Festa sem nenhuma atualização por mais de 15 dias" },
+  { id: "parties-undated", category: "Festas", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
+  { id: "classes-unprepared", category: "Aulas", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
+  { id: "superfans-stale", category: "Pessoas", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
+  { id: "superfans-pending-interaction", category: "Pessoas", message: "Superfãs com interação pendente há 30+ dias", trigger: "Fã superfã sem interação registrada há 30 dias ou mais" },
+  { id: "crm-no-interaction-week", category: "Pessoas", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
+  { id: "okrs-lagging", category: "Objetivos", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
 ];
 
 /** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */
@@ -304,39 +302,8 @@ export function computeAlerts(
     });
   }
 
-  // ── Motivação / conquistas ─────────────────────────────────────
-  if ((extra?.tasksCompletedThisWeek ?? 0) >= 5) {
-    const n = extra!.tasksCompletedThisWeek!;
-    alerts.push({
-      key: `motivation-tasks-done-${n}`,
-      icon: "trophy",
-      to: "/tarefas",
-      critical: false,
-      label: `Você completou ${n} tarefa${plural(n)} esta semana — ótimo ritmo!`,
-    });
-  }
-
-  if ((extra?.gigsThisMonth ?? 0) > 0 && stats.gigsThisWeek > 0) {
-    const n = extra!.gigsThisMonth!;
-    alerts.push({
-      key: `motivation-gigs-month-${n}`,
-      icon: "zap",
-      to: "/gigs",
-      critical: false,
-      label: `Esta semana com ${stats.gigsThisWeek} GIG${plural(stats.gigsThisWeek)} — você já fez ${n} show${plural(n)} este mês!`,
-    });
-  }
-
-  if ((extra?.daysToFocusRecord ?? null) != null && (extra?.daysToFocusRecord ?? 999) <= 7) {
-    const d = extra!.daysToFocusRecord!;
-    alerts.push({
-      key: `motivation-focus-record-${d}d`,
-      icon: "zap",
-      to: "/foco",
-      critical: false,
-      label: `Você está a apenas ${d} dia${plural(d)} de bater seu recorde de sessões de foco`,
-    });
-  }
+  // Mensagens de motivação/parabéns NÃO são alertas — foram removidas do
+  // sininho (os campos de ExtraStats correspondentes ficam sem uso aqui).
 
   if (disabledRuleIds.length > 0) {
     const disabled = new Set(disabledRuleIds);
