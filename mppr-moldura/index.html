@@ -21,9 +21,16 @@
   }
   .wrap{max-width:480px;margin:0 auto;padding:16px 14px 30px}
 
-  .canvas-box{position:relative;width:100%;border-radius:10px;overflow:hidden}
+  .stage{display:flex;gap:10px;align-items:stretch}
+  .canvas-box{position:relative;flex:1 1 auto;min-width:0;border-radius:10px;overflow:hidden}
   canvas#view{display:block;width:100%;height:auto;touch-action:none;cursor:grab;background:transparent}
   canvas#view.dragging{cursor:grabbing}
+  .vrange{
+    flex:0 0 26px;align-self:stretch;margin:0;cursor:pointer;
+    writing-mode:vertical-lr;direction:rtl;
+    -webkit-appearance:slider-vertical;appearance:slider-vertical;
+    accent-color:var(--dteal);
+  }
 
   .progress{height:6px;border-radius:6px;background:#e3e8e9;margin:10px 2px 0;overflow:hidden}
   .progress > div{height:100%;width:0;background:var(--orange);transition:width .12s linear}
@@ -80,8 +87,11 @@
 </head>
 <body>
   <main class="wrap">
-    <div class="canvas-box">
-      <canvas id="view" width="1000" height="1352" aria-label="Pré-visualização da moldura"></canvas>
+    <div class="stage">
+      <div class="canvas-box">
+        <canvas id="view" width="1000" height="1352" aria-label="Pré-visualização da moldura"></canvas>
+      </div>
+      <input type="range" id="zoom" class="vrange" min="1" max="6" step="0.01" value="1" aria-label="Zoom da foto">
     </div>
     <div class="progress hidden" id="progress"><div id="progBar"></div></div>
 
@@ -98,10 +108,6 @@
     </div>
 
     <div class="actions">
-      <button class="btn btn-stories hidden" id="shareBtn">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.25" fill="currentColor" stroke="none"/></svg>
-        Publicar nos Stories
-      </button>
       <button class="btn btn-add" id="addBtn">Adicionar foto ou vídeo</button>
       <button class="btn btn-save hidden" id="saveBtn">Salvar</button>
       <button class="btn btn-icon hidden" id="copyBtn" type="button" title="Copiar imagem" aria-label="Copiar imagem">
@@ -113,7 +119,6 @@
     </div>
 
     <p class="status" id="status"></p>
-    <a id="fsLink" class="fslink hidden" target="_blank" rel="noopener">Abrir em tela cheia &#8599;</a>
     <input type="file" id="file" accept="image/*,video/*" class="hidden">
   </main>
 
@@ -147,18 +152,16 @@
   var canvas=document.getElementById('view');
   var fileInput=document.getElementById('file');
   var addBtn=document.getElementById('addBtn');
-  var shareBtn=document.getElementById('shareBtn');
   var saveBtn=document.getElementById('saveBtn');
   var copyBtn=document.getElementById('copyBtn');
   var resetBtn=document.getElementById('resetBtn');
-  // zoom: rolagem do mouse / pinça (sem controles na tela)
+  var zoomInput=document.getElementById('zoom');
   var statusEl=document.getElementById('status');
   var nomeInput=document.getElementById('nome');
   var lotInput=document.getElementById('lotacao');
   var upperChk=document.getElementById('upper');
   var progress=document.getElementById('progress');
   var progBar=document.getElementById('progBar');
-  var fsLink=document.getElementById('fsLink');
 
   // ---- Helpers ----
   function disp(t){ return upperOn ? (t||'').toLocaleUpperCase('pt-BR') : (t||''); }
@@ -255,7 +258,8 @@
   canvas.addEventListener('wheel', function(e){ if(!media) return; e.preventDefault(); setZoom(zoom*(1-e.deltaY*0.0015)); invalidate(); }, {passive:false});
   canvas.addEventListener('dblclick', function(){ if(media){ resetView(); invalidate(); } });
 
-  function setZoom(z){ zoom=Math.min(6,Math.max(1,z)); invalidate(); }
+  function setZoom(z){ zoom=Math.min(6,Math.max(1,z)); if(zoomInput) zoomInput.value=zoom.toFixed(2); invalidate(); }
+  zoomInput.addEventListener('input', function(){ setZoom(parseFloat(zoomInput.value)); });
 
   // ---- Campos ----
   nomeInput.addEventListener('input', function(){ nomeVal=nomeInput.value.trim(); invalidate(); });
@@ -312,18 +316,16 @@
   });
 
   function onMediaReady(){
-    shareBtn.classList.remove('hidden');
     saveBtn.classList.remove('hidden');
     resetBtn.classList.remove('hidden');
     var isImg = mediaType==='image';
     saveBtn.textContent = isImg ? 'Salvar foto' : 'Salvar vídeo';
     if(isImg && navigator.clipboard && window.ClipboardItem) copyBtn.classList.remove('hidden');
     else copyBtn.classList.add('hidden');
-    if(fsLink) fsLink.classList.add('hidden');
     addBtn.textContent='Trocar mídia';
     setStatus(''); invalidate();
   }
-  function resetView(){ zoom=1; panX=0; panY=0; }
+  function resetView(){ zoom=1; panX=0; panY=0; if(zoomInput) zoomInput.value='1'; }
   resetBtn.addEventListener('click', function(){ resetView(); invalidate(); });
   function clearMedia(){
     if(media && mediaType==='video'){ try{media.pause();}catch(e){} }
@@ -350,43 +352,11 @@
     ec.toBlob(function(b){ cb(b); },'image/png');
   }
 
-  function isEmbedded(){ try{ return window.self!==window.top; }catch(e){ return true; } }
-  function photoDataUrl(){ var ec=document.createElement('canvas'); ec.width=IMG_W; ec.height=IMG_H; renderTo(ec,1,false); return ec.toDataURL('image/png'); }
-  function dataUrlToBlob(durl){
-    var p=durl.split(','), mime=(p[0].match(/:(.*?);/)||[])[1]||'image/png', bin=atob(p[1]);
-    var n=bin.length, u8=new Uint8Array(n); while(n--) u8[n]=bin.charCodeAt(n);
-    return new Blob([u8],{type:mime});
-  }
-  function storiesHelp(prefix){
-    prefix = prefix || 'Imagem salva ✓ ';
-    if(isEmbedded()){
-      setStatus(prefix+'O envio direto pro Instagram é bloqueado quando a página fica embutida no site. Toque em "Abrir em tela cheia" e use "Publicar nos Stories" lá — ou poste a imagem salva pelo Instagram (Stories → galeria).');
-      if(fsLink) fsLink.classList.remove('hidden');
-    } else {
-      setStatus(prefix+'Agora abra o Instagram, vá em Stories e escolha a imagem na galeria.');
-    }
-  }
-
-  // ---- Salvar / Publicar nos Stories / Copiar ----
+  // ---- Salvar / Copiar ----
   saveBtn.addEventListener('click', function(){
     if(!media) return;
     if(mediaType==='video') recordVideo('download');
     else photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); setStatus('Foto salva ✓'); } });
-  });
-  shareBtn.addEventListener('click', function(){
-    if(!media) return;
-    if(mediaType==='video'){ recordVideo('stories'); return; }
-    // gera o PNG de forma SÍNCRONA para preservar o gesto do toque (exigido pelo compartilhamento nativo)
-    var blob, file;
-    try{ blob=dataUrlToBlob(photoDataUrl()); file=new File([blob], baseName()+'.png', {type:'image/png'}); }
-    catch(e){ photoBlob(function(b){ if(b){ download(b,baseName()+'.png'); storiesHelp(); } }); return; }
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({files:[file], title:'Moldura MPPR'})
-        .then(function(){ setStatus('No menu de compartilhamento, escolha o Instagram → Stories. ✓'); })
-        .catch(function(err){ if(err && err.name==='AbortError') return; download(blob, file.name); storiesHelp(); });
-    } else {
-      download(blob, file.name); storiesHelp();
-    }
   });
   copyBtn.addEventListener('click', function(){
     if(!media || mediaType!=='image') return;
@@ -445,16 +415,15 @@
     rec.onstop=function(){
       var out=rec.mimeType||mime||'video/webm', name=baseName()+'.'+extFor(out);
       var blob=new Blob(chunks,{type:out});
-      recording=false; saveBtn.disabled=false; addBtn.disabled=false; shareBtn.disabled=false;
+      recording=false; saveBtn.disabled=false; addBtn.disabled=false;
       progress.classList.add('hidden'); progBar.style.width='0';
       try{ if(v._mpprSrc) v._mpprSrc.disconnect(); }catch(e){}
       v.loop=true; v.muted=true; try{ v.currentTime=0; v.play(); }catch(e){}
       download(blob,name);
-      if(mode==='stories') storiesHelp(noAudio ? 'Vídeo salvo (sem áudio — limitação do navegador). ' : 'Vídeo salvo ✓ ');
-      else setStatus(noAudio ? 'Vídeo salvo — sem áudio (limitação do navegador).' : 'Vídeo salvo ✓');
+      setStatus(noAudio ? 'Vídeo salvo — sem áudio (limitação do navegador).' : 'Vídeo salvo ✓');
     };
 
-    recording=true; saveBtn.disabled=true; addBtn.disabled=true; shareBtn.disabled=true;
+    recording=true; saveBtn.disabled=true; addBtn.disabled=true;
     progress.classList.remove('hidden'); progBar.style.width='0';
     setStatus('Gravando vídeo… aguarde tocar do início ao fim.');
     v.loop=false; v.muted=false; v.volume=1;
@@ -466,7 +435,6 @@
     setTimeout(stop, Math.min(60000, ((v.duration||30)*1000)+1500));
   }
 
-  if(fsLink){ try{ fsLink.href=window.location.href; }catch(e){} }
   invalidate();
   requestAnimationFrame(tick);
 })();

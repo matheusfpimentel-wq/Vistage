@@ -2,22 +2,20 @@
 
 Aplicação de página única (`index.html`, autocontido, sem dependências) que aplica a
 **moldura oficial do MPPR** sobre uma **foto** ou **vídeo** enviado pelo usuário e
-permite **baixar / compartilhar** o resultado. Feita para ser incorporada no Google Sites.
+permite **baixar** o resultado. Feita para ser incorporada no Google Sites.
 
 ## O que ela faz
 
 - Botão **Adicionar foto ou vídeo**.
 - A mídia aparece pela **janela transparente** da moldura. Dá para:
   - **arrastar** para posicionar;
-  - dar **zoom** (roda do mouse no desktop, pinça no celular);
+  - dar **zoom** pela **barra vertical ao lado da figurinha** (ou roda do mouse / pinça);
   - **duplo-clique** para centralizar;
   - enquanto arrasta, a parte que fica **fora da janela** aparece esmaecida (ajuda a enquadrar).
 - Campos **Nome** e **Lotação** — o texto aparece nas duas barras escuras (nome em cima,
   lotação embaixo), com **MAIÚSCULAS** opcional e ajuste automático de tamanho.
-- **Publicar nos Stories** (botão laranja com o ícone do Instagram — abre o
-  compartilhamento nativo do celular; o usuário escolhe Instagram → Stories), **Salvar**
-  (foto → PNG 1489×2013; vídeo → `.mp4`/`.webm` com áudio) e **Copiar** imagem (desktop).
-  O arquivo sai nomeado com o nome digitado (ex.: `moldura-mppr-ana.png`).
+- **Salvar** (foto → PNG 1489×2013; vídeo → `.mp4`/`.webm` com áudio) e **Copiar** imagem
+  (desktop). O arquivo sai nomeado com o nome digitado (ex.: `moldura-mppr-ana.png`).
 - Os botões seguem a identidade da moldura: formato pílula, fonte **Futura** e a paleta
   do card (laranja do selo, verde, turquesa-escuro).
 - Fotos são corrigidas de **orientação (EXIF)** e **reduzidas** se forem muito grandes,
@@ -34,16 +32,6 @@ permite **baixar / compartilhar** o resultado. Feita para ser incorporada no Goo
 
 **Opção B — incorporar por URL:** hospede o `index.html` em algo público (GitHub Pages,
 Netlify…) e use Inserir → Incorporar → **Por URL**.
-
-> **Publicar nos Stories — importante:** o botão usa o compartilhamento nativo do
-> navegador (Web Share). **Dentro do iframe do Google Sites isso é bloqueado** (o Sites
-> não concede a permissão `web-share` ao conteúdo embutido), então lá o botão **salva a
-> imagem e mostra o passo a passo** para postar pelo Instagram (Stories → galeria), além
-> de oferecer um link **"Abrir em tela cheia"**. Com a página aberta **na própria URL**
-> (top-level, em celular) o botão chama o menu nativo e o Instagram aparece em um toque.
-> Por isso, para o melhor resultado: **incorpore por URL (Opção B)** e/ou coloque no
-> Google Sites um link direto para a ferramenta em tela cheia. Não existe forma de um site
-> enviar *direto* para os Stories sem passar por esse menu — só apps nativos têm essa permissão.
 
 ## Ajustes (no início do `<script>`)
 
