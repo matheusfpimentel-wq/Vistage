@@ -315,7 +315,7 @@ export function PessoasPage() {
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-lg transition",
                       active
-                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
+                        ? "bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/25 backdrop-blur-sm"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >
