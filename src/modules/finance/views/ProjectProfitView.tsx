@@ -60,9 +60,9 @@ export function ProjectProfitView() {
             type="button"
             onClick={() => setMode(m)}
             className={cn(
-              "rounded px-3 py-1 text-xs transition",
+              "rounded-lg px-3 py-1 text-xs transition",
               mode === m
-                ? "bg-primary text-primary-foreground"
+                ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
                 : "text-muted-foreground hover:bg-accent"
             )}
           >

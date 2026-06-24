@@ -158,7 +158,7 @@ function FlowScale({
           className={cn(
             "h-8 w-8 rounded-md border text-sm transition",
             value === n
-              ? "border-primary bg-primary text-primary-foreground"
+              ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
               : "border-input hover:bg-accent"
           )}
         >

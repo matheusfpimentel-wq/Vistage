@@ -313,9 +313,9 @@ export function PessoasPage() {
                     aria-pressed={active}
                     onClick={() => toggleRoleFilter(t)}
                     className={cn(
-                      "flex h-7 w-7 items-center justify-center rounded transition",
+                      "flex h-7 w-7 items-center justify-center rounded-lg transition",
                       active
-                        ? "bg-primary text-primary-foreground"
+                        ? "bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
                         : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >

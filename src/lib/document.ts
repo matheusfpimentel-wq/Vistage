@@ -1,14 +1,12 @@
 import { create } from "zustand";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
-  buildBackup,
   hasAnyDocumentData,
   pickBackupFile,
   restoreBackup,
   restoreBackupFiles,
   restoreBackupSession,
   saveBackupToPath,
-  writeBackupFile,
   type Backup,
 } from "./backup";
 import { getDb } from "./db";
@@ -212,8 +210,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
         filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
       });
       if (!path) return false;
-      const backup = await buildBackup();
-      await writeBackupFile(path, backup);
+      await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
       toast.success(`Salvo como ${fileName(path)}`);

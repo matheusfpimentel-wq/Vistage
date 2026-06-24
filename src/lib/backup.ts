@@ -1,6 +1,6 @@
 import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readFile, readTextFile, writeFile, writeTextFile, mkdir, exists, readDir } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
@@ -9,6 +9,7 @@ import { decryptString, encryptString, isEncryptedRaw } from "./crypto";
 import { getDocPassword, setDocPassword } from "./docPassword";
 import { promptPassword } from "./passwordPrompt";
 import { toast } from "@/components/ui/toaster";
+import { zipSync, unzipSync, strToU8, strFromU8 } from "fflate";
 
 /** Versão do formato de backup. Bump se mudar o schema de exportação. */
 const BACKUP_VERSION = 2;
@@ -147,125 +148,116 @@ function relativize(absPath: string, uploadsDir: string): string {
   return rel;
 }
 
+function mimeForExt(name: string): string {
+  const ext = (name.match(/\.([a-zA-Z0-9]+)$/) ?? [])[1]?.toLowerCase() ?? "bin";
+  return ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+    : ext === "png" ? "image/png"
+    : ext === "gif" ? "image/gif"
+    : ext === "webp" ? "image/webp"
+    : ext === "pdf" ? "application/pdf"
+    : ext === "mp4" || ext === "m4v" ? "video/mp4"
+    : ext === "mov" ? "video/quicktime"
+    : ext === "webm" ? "video/webm"
+    : "application/octet-stream";
+}
+
+/** Bytes → data URL base64 (em blocos: vídeos grandes travavam o concat). */
+function bytesToDataUrl(bytes: Uint8Array, name: string): string {
+  let bin = "";
+  const CHUNK = 8192;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return `data:${mimeForExt(name)};base64,${btoa(bin)}`;
+}
+
 async function readAsBase64(absPath: string): Promise<string | null> {
   try {
-    const bytes = await readFile(absPath);
-    const ext = (absPath.match(/\.([a-zA-Z0-9]+)$/) ?? [])[1]?.toLowerCase() ?? "bin";
-    const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg"
-      : ext === "png" ? "image/png"
-      : ext === "gif" ? "image/gif"
-      : ext === "webp" ? "image/webp"
-      : ext === "pdf" ? "application/pdf"
-      : ext === "mp4" || ext === "m4v" ? "video/mp4"
-      : ext === "mov" ? "video/quicktime"
-      : ext === "webm" ? "video/webm"
-      : "application/octet-stream";
-    // Em blocos: vídeos podem ter dezenas de MB e o concat byte-a-byte travava.
-    let bin = "";
-    const CHUNK = 8192;
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-    }
-    return `data:${mime};base64,${btoa(bin)}`;
+    return bytesToDataUrl(await readFile(absPath), absPath);
   } catch {
     return null;
   }
 }
 
-/** Reúne todos os caminhos de arquivos do backup e os lê como base64. */
-async function collectFiles(
+/**
+ * Mapeia caminho-relativo → caminho-absoluto de TODOS os arquivos referenciados
+ * pelas colunas do catálogo (allowlists). É a fonte única usada tanto pelo
+ * formato JSON (base64) quanto pelo contêiner (bytes crus).
+ */
+function collectFilePaths(
   tables: Backup["tables"],
   uploadsDir: string
-): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
+): Record<string, string> {
+  const paths: Record<string, string> = {};
+  const add = (val: unknown) => {
+    if (typeof val !== "string" || !val) return;
+    const rel = relativize(val, uploadsDir);
+    if (paths[rel] === undefined) paths[rel] = val;
+  };
   for (const [table, cols] of Object.entries(FILE_PATH_COLS) as [TableName, string[]][]) {
-    const rows = tables[table] ?? [];
-    for (const row of rows) {
-      for (const col of cols) {
-        const val = row[col];
-        if (typeof val !== "string" || !val) continue;
-        const rel = relativize(val, uploadsDir);
-        if (files[rel] !== undefined) continue;
-        const data = await readAsBase64(val);
-        if (data) files[rel] = data;
-      }
-    }
+    for (const row of tables[table] ?? []) for (const col of cols) add(row[col]);
   }
   for (const [table, cols] of Object.entries(FILE_PATH_JSON_COLS) as [TableName, string[]][]) {
-    const rows = tables[table] ?? [];
-    for (const row of rows) {
+    for (const row of tables[table] ?? []) {
       for (const col of cols) {
         const raw = row[col];
         if (typeof raw !== "string" || !raw) continue;
-        let paths: unknown[];
-        try { paths = JSON.parse(raw); } catch { continue; }
-        for (const p of paths) {
-          if (typeof p !== "string" || !p) continue;
-          const rel = relativize(p, uploadsDir);
-          if (files[rel] !== undefined) continue;
-          const data = await readAsBase64(p);
-          if (data) files[rel] = data;
-        }
+        try {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) for (const p of arr) add(p);
+        } catch { /* ignora */ }
       }
     }
   }
-  // arrays de OBJETOS com campo de caminho (ex.: galeria/fontes da Identidade)
   for (const [table, specs] of Object.entries(FILE_PATH_JSON_OBJECT_COLS) as [
     TableName,
     { col: string; pathKey: string }[]
   ][]) {
-    const rows = tables[table] ?? [];
-    for (const row of rows) {
+    for (const row of tables[table] ?? []) {
       for (const { col, pathKey } of specs) {
         const raw = row[col];
         if (typeof raw !== "string" || !raw) continue;
-        let arr: unknown[];
-        try { arr = JSON.parse(raw); } catch { continue; }
-        for (const item of arr) {
-          if (!item || typeof item !== "object") continue;
-          const p = (item as Record<string, unknown>)[pathKey];
-          if (typeof p !== "string" || !p) continue;
-          const rel = relativize(p, uploadsDir);
-          if (files[rel] !== undefined) continue;
-          const data = await readAsBase64(p);
-          if (data) files[rel] = data;
-        }
+        try {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr))
+            for (const item of arr) {
+              if (item && typeof item === "object") add((item as Record<string, unknown>)[pathKey]);
+            }
+        } catch { /* ignora */ }
       }
     }
+  }
+  return paths;
+}
+
+/** Reúne os arquivos referenciados como base64 (formato JSON legado). */
+async function collectFiles(
+  tables: Backup["tables"],
+  uploadsDir: string
+): Promise<Record<string, string>> {
+  const paths = collectFilePaths(tables, uploadsDir);
+  const files: Record<string, string> = {};
+  for (const [rel, abs] of Object.entries(paths)) {
+    const data = await readAsBase64(abs);
+    if (data) files[rel] = data;
   }
   return files;
 }
 
-/**
- * Defesa em profundidade: varre TODO o uploadsDir e lê cada arquivo como base64,
- * chaveado pelo caminho relativo. Garante que QUALQUER anexo viaje no .vistage —
- * inclusive de colunas que ninguém registrou nas allowlists acima. O bug
- * histórico era depender só das allowlists: cada coluna `_path` nova virava
- * perda de dados silenciosa até alguém lembrar de registrá-la. Best-effort.
- */
-async function collectAllUploads(uploadsDir: string): Promise<Record<string, string>> {
-  const files: Record<string, string> = {};
-  async function walk(dir: string, prefix: string): Promise<void> {
-    let entries: { name: string; isDirectory: boolean; isFile: boolean }[];
+/** Reúne os arquivos referenciados como BYTES crus (pro contêiner zip). */
+async function collectRawFiles(
+  tables: Backup["tables"],
+  uploadsDir: string
+): Promise<Record<string, Uint8Array>> {
+  const paths = collectFilePaths(tables, uploadsDir);
+  const files: Record<string, Uint8Array> = {};
+  for (const [rel, abs] of Object.entries(paths)) {
     try {
-      entries = (await readDir(dir)) as { name: string; isDirectory: boolean; isFile: boolean }[];
+      files[rel] = await readFile(abs);
     } catch {
-      return; // diretório inexistente/sem permissão — ignora
-    }
-    for (const e of entries) {
-      if (!e.name) continue;
-      const abs = joinPath(dir, e.name);
-      const rel = prefix ? `${prefix}/${e.name}` : e.name;
-      if (e.isDirectory) {
-        await walk(abs, rel);
-      } else if (e.isFile) {
-        if (files[rel] !== undefined) continue;
-        const data = await readAsBase64(abs);
-        if (data) files[rel] = data;
-      }
+      /* arquivo sumido no disco — ignora (não trava o salvar) */
     }
   }
-  await walk(uploadsDir, "");
   return files;
 }
 
@@ -302,44 +294,51 @@ async function restoreFiles(
  * reconecta as integrações e o usuário de sync. O preço é que o arquivo passa a
  * conter credenciais em texto puro — a UI exibe um aviso de "não compartilhe".
  */
-export async function buildBackup(): Promise<Backup> {
+/**
+ * Monta o Backup SEM os arquivos (só dados/metadados/sessão). É a base do
+ * formato CONTÊINER (os arquivos entram como entradas cruas no zip, não em
+ * base64 num JSON gigante na memória — o que estourava no Windows).
+ */
+export async function buildBackupData(): Promise<Backup> {
   const db = getDb();
-  // Garante que a aparência (tema/cor) e as preferências de view (abas, larguras
-  // de coluna, filtros) estejam gravadas no documento antes de lê-lo — assim o
-  // .vistage sempre carrega o layout atual, mesmo logo após um boot em branco em
-  // que document_settings ainda não foi tocado.
+  // Garante que a aparência (tema/cor) e as preferências de view estejam
+  // gravadas no documento antes de lê-lo (mesmo após um boot em branco).
   await persistAppearanceToDocument().catch(() => {});
   await persistViewPrefsToDocument().catch(() => {});
   const tables = {} as Backup["tables"];
   for (const t of TABLES) {
-    const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
-    tables[t] = rows;
+    tables[t] = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${t}`);
   }
   const uploadsDir = useConfigStore.getState().config?.uploadsDir ?? "";
-  let files: Record<string, string> = {};
-  if (uploadsDir) {
-    try {
-      // 1) Por coluna (mantém o rewrite de caminhos no restore para as colunas
-      //    conhecidas). 2) Varredura do uploadsDir inteiro (defesa em
-      //    profundidade): garante que TODO anexo viaje, mesmo de colunas não
-      //    registradas. A varredura tem precedência (leu os bytes reais do disco).
-      const referenced = await collectFiles(tables, uploadsDir);
-      const walked = await collectAllUploads(uploadsDir);
-      files = { ...referenced, ...walked };
-    } catch {
-      // não bloqueia o backup se a leitura de arquivos falhar
-    }
-  }
   const session = (await getPortableSession()) ?? undefined;
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     app: "vistage",
     tables,
-    files,
+    files: {},
     uploadsDir,
     ...(session ? { session } : {}),
   };
+}
+
+/**
+ * Backup completo no formato JSON LEGADO (arquivos embutidos como base64). Usado
+ * pelo backup de transição e pelo "Salvar" quando há senha de documento. Embute
+ * só os arquivos referenciados pelas colunas do catálogo (allowlists) — nunca
+ * varre o uploadsDir inteiro (órfãos estouravam a memória).
+ */
+export async function buildBackup(): Promise<Backup> {
+  const data = await buildBackupData();
+  const uploadsDir = data.uploadsDir ?? "";
+  if (uploadsDir) {
+    try {
+      data.files = await collectFiles(data.tables, uploadsDir);
+    } catch {
+      // não bloqueia o backup se a leitura de arquivos falhar
+    }
+  }
+  return data;
 }
 
 /**
@@ -442,25 +441,85 @@ export async function writeBackupFile(path: string, backup: Backup): Promise<voi
   await writeTextFile(path, out);
 }
 
-/** Grava o backup atual num caminho específico (usado por "Salvar"). */
-export async function saveBackupToPath(path: string): Promise<void> {
-  const backup = await buildBackup();
-  await writeBackupFile(path, backup);
+// ── Contêiner .vistage (zip) ─────────────────────────────────────────────────
+// Formato novo: UM arquivo zip com `vistage.json` (dados, SEM base64) +
+// `files/<rel>` (bytes crus). Evita inflar tudo em base64 num JSON gigante na
+// memória ao salvar — a causa do "Out of memory" no Windows. Continua sendo um
+// arquivo só (.vistage). Detectado na leitura pela assinatura "PK".
+function isZip(bytes: Uint8Array): boolean {
+  return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }
 
-/** Lê e valida um arquivo de documento a partir do caminho. */
-export async function readBackupFromPath(path: string): Promise<Backup> {
-  const raw = await readTextFile(path);
-  return parseBackupRaw(raw);
+/** Empacota o documento como contêiner zip (dados + arquivos crus, store). */
+export async function writeContainer(path: string, data: Backup): Promise<void> {
+  const uploadsDir = data.uploadsDir ?? useConfigStore.getState().config?.uploadsDir ?? "";
+  const entries: Record<string, Uint8Array> = {
+    "vistage.json": strToU8(JSON.stringify({ ...data, files: {} })),
+  };
+  if (uploadsDir) {
+    const raw = await collectRawFiles(data.tables, uploadsDir);
+    for (const [rel, bytes] of Object.entries(raw)) entries[`files/${rel}`] = bytes;
+  }
+  // level 0 = store (mídia já é comprimida; evita CPU à toa e mantém rápido).
+  const zipped = zipSync(entries, { level: 0 });
+  await writeFile(path, zipped);
+}
+
+/** Lê um contêiner zip e reconstrói o Backup (arquivos viram base64 p/ o restore). */
+export function readContainer(bytes: Uint8Array): Backup {
+  const unzipped = unzipSync(bytes);
+  const jsonEntry = unzipped["vistage.json"];
+  if (!jsonEntry) throw new Error("Contêiner .vistage inválido (sem vistage.json).");
+  const backup = parseBackupRaw(strFromU8(jsonEntry));
+  const files: Record<string, string> = {};
+  for (const [name, content] of Object.entries(unzipped)) {
+    if (!name.startsWith("files/")) continue;
+    const rel = name.slice("files/".length);
+    if (rel) files[rel] = bytesToDataUrl(content, rel);
+  }
+  backup.files = files;
+  return backup;
 }
 
 /**
- * Lê um arquivo que PODE estar cifrado: se estiver, pede a senha e decifra
- * (lembrando-a para os próximos "Salvar"); se não, limpa a senha do documento.
- * Retorna o Backup, ou null se o usuário cancelar / a senha estiver errada.
+ * Grava o documento no caminho. SEM senha → CONTÊINER (zip, leve na memória).
+ * COM senha → JSON cifrado (back-compat + proteção por senha). Em ambos é um
+ * arquivo .vistage só.
+ */
+export async function saveBackupToPath(path: string): Promise<void> {
+  if (getDocPassword()) {
+    const backup = await buildBackup();
+    await writeBackupFile(path, backup);
+  } else {
+    const data = await buildBackupData();
+    await writeContainer(path, data);
+  }
+}
+
+/** Lê e valida um arquivo de documento a partir do caminho (contêiner ou JSON). */
+export async function readBackupFromPath(path: string): Promise<Backup> {
+  const bytes = await readFile(path);
+  if (isZip(bytes)) return readContainer(bytes);
+  return parseBackupRaw(strFromU8(bytes));
+}
+
+/**
+ * Lê um arquivo que pode ser CONTÊINER (zip), JSON puro ou JSON CIFRADO. Se for
+ * cifrado, pede a senha e decifra (lembrando-a p/ os próximos "Salvar"); senão,
+ * limpa a senha. Retorna o Backup, ou null se cancelar / senha errada.
  */
 async function readMaybeEncrypted(path: string): Promise<Backup | null> {
-  const raw = await readTextFile(path);
+  const bytes = await readFile(path);
+  if (isZip(bytes)) {
+    setDocPassword(null); // contêiner v1 não é cifrado
+    try {
+      return readContainer(bytes);
+    } catch (e) {
+      toast.error((e as Error).message ?? "Não foi possível ler o contêiner .vistage.");
+      return null;
+    }
+  }
+  const raw = strFromU8(bytes);
   if (!isEncryptedRaw(raw)) {
     setDocPassword(null); // documento sem senha
     return parseBackupRaw(raw);
@@ -484,7 +543,6 @@ async function readMaybeEncrypted(path: string): Promise<Backup | null> {
 
 /** Abre o diálogo "Salvar como" e grava o documento. Retorna o caminho. */
 export async function exportBackupToFile(): Promise<string | null> {
-  const backup = await buildBackup();
   const stamp = new Date().toISOString().slice(0, 10);
   const path = await saveDialog({
     title: "Salvar documento do Vistage",
@@ -492,7 +550,7 @@ export async function exportBackupToFile(): Promise<string | null> {
     filters: [{ name: "Documento Vistage", extensions: ["vistage"] }],
   });
   if (!path) return null;
-  await writeBackupFile(path, backup);
+  await saveBackupToPath(path);
   return path;
 }
 

@@ -106,7 +106,7 @@ export function InsightsPage() {
           className={cn(
             "rounded-full border px-3 py-1 text-xs transition",
             source === "all"
-              ? "border-primary bg-primary text-primary-foreground"
+              ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
               : "border-input text-muted-foreground hover:bg-accent"
           )}
         >
@@ -119,7 +119,7 @@ export function InsightsPage() {
             className={cn(
               "rounded-full border px-3 py-1 text-xs transition",
               source === s
-                ? "border-primary bg-primary text-primary-foreground"
+                ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
                 : cn("border-input hover:bg-accent", SOURCE_COLOR[s])
             )}
           >
