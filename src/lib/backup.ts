@@ -5,7 +5,14 @@ import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
 import { persistViewPrefsToDocument } from "./docSettings";
-import { decryptString, encryptString, isEncryptedRaw } from "./crypto";
+import {
+  decryptString,
+  encryptString,
+  isEncryptedRaw,
+  isEncryptedContainer,
+  encryptBytes,
+  decryptBytes,
+} from "./crypto";
 import { getDocPassword, setDocPassword } from "./docPassword";
 import { promptPassword } from "./passwordPrompt";
 import { toast } from "@/components/ui/toaster";
@@ -450,8 +457,8 @@ function isZip(bytes: Uint8Array): boolean {
   return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 }
 
-/** Empacota o documento como contêiner zip (dados + arquivos crus, store). */
-export async function writeContainer(path: string, data: Backup): Promise<void> {
+/** Monta os BYTES do contêiner zip (vistage.json + files/<rel> crus). */
+async function buildContainerBytes(data: Backup): Promise<Uint8Array> {
   const uploadsDir = data.uploadsDir ?? useConfigStore.getState().config?.uploadsDir ?? "";
   const entries: Record<string, Uint8Array> = {
     "vistage.json": strToU8(JSON.stringify({ ...data, files: {} })),
@@ -461,8 +468,28 @@ export async function writeContainer(path: string, data: Backup): Promise<void> 
     for (const [rel, bytes] of Object.entries(raw)) entries[`files/${rel}`] = bytes;
   }
   // level 0 = store (mídia já é comprimida; evita CPU à toa e mantém rápido).
-  const zipped = zipSync(entries, { level: 0 });
-  await writeFile(path, zipped);
+  return zipSync(entries, { level: 0 });
+}
+
+/** Empacota o documento como contêiner zip (dados + arquivos crus, store). */
+export async function writeContainer(path: string, data: Backup): Promise<void> {
+  await writeFile(path, await buildContainerBytes(data));
+}
+
+/**
+ * Contêiner CIFRADO: zipa os dados/arquivos (bytes crus) e cifra o zip inteiro
+ * com a senha do documento (envelope binário "VENC"). Continua leve na memória —
+ * NÃO há base64 nem JSON gigante. Resolve o "salvamento eterno"/Out of memory
+ * que acontecia ao salvar documentos com senha + fotos/vídeos embutidos.
+ */
+export async function writeEncryptedContainer(
+  path: string,
+  data: Backup,
+  password: string
+): Promise<void> {
+  const zipped = await buildContainerBytes(data);
+  const sealed = await encryptBytes(zipped, password);
+  await writeFile(path, sealed);
 }
 
 /** Lê um contêiner zip e reconstrói o Backup (arquivos viram base64 p/ o restore). */
@@ -482,16 +509,18 @@ export function readContainer(bytes: Uint8Array): Backup {
 }
 
 /**
- * Grava o documento no caminho. SEM senha → CONTÊINER (zip, leve na memória).
- * COM senha → JSON cifrado (back-compat + proteção por senha). Em ambos é um
- * arquivo .vistage só.
+ * Grava o documento no caminho — sempre como CONTÊINER (zip leve na memória).
+ * SEM senha → contêiner puro. COM senha → contêiner CIFRADO (envelope "VENC").
+ * Nenhum dos caminhos materializa base64/JSON gigante: acabou o "salvamento
+ * eterno"/Out of memory ao salvar com fotos e vídeos embutidos. Em ambos os
+ * casos é um único arquivo .vistage.
  */
 export async function saveBackupToPath(path: string): Promise<void> {
-  if (getDocPassword()) {
-    const backup = await buildBackup();
-    await writeBackupFile(path, backup);
+  const data = await buildBackupData();
+  const pw = getDocPassword();
+  if (pw) {
+    await writeEncryptedContainer(path, data, pw);
   } else {
-    const data = await buildBackupData();
     await writeContainer(path, data);
   }
 }
@@ -499,8 +528,15 @@ export async function saveBackupToPath(path: string): Promise<void> {
 /** Lê e valida um arquivo de documento a partir do caminho (contêiner ou JSON). */
 export async function readBackupFromPath(path: string): Promise<Backup> {
   const bytes = await readFile(path);
+  if (isEncryptedContainer(bytes)) {
+    throw new Error("Documento protegido por senha — abra pelo menu Abrir.");
+  }
   if (isZip(bytes)) return readContainer(bytes);
-  return parseBackupRaw(strFromU8(bytes));
+  const raw = strFromU8(bytes);
+  if (isEncryptedRaw(raw)) {
+    throw new Error("Documento protegido por senha — abra pelo menu Abrir.");
+  }
+  return parseBackupRaw(raw);
 }
 
 /**
@@ -510,8 +546,34 @@ export async function readBackupFromPath(path: string): Promise<Backup> {
  */
 async function readMaybeEncrypted(path: string): Promise<Backup | null> {
   const bytes = await readFile(path);
+
+  // Contêiner CIFRADO (novo formato com senha): pede a senha, decifra os bytes
+  // do zip e reconstrói o documento. Leve na memória (sem base64/JSON gigante).
+  if (isEncryptedContainer(bytes)) {
+    const pw = await promptPassword({
+      title: "Documento protegido",
+      description: "Este arquivo .vistage está protegido por senha. Digite-a para abrir.",
+      confirmLabel: "Abrir",
+    });
+    if (pw == null) return null; // cancelou
+    let zipBytes: Uint8Array;
+    try {
+      zipBytes = await decryptBytes(bytes, pw);
+    } catch (e) {
+      toast.error((e as Error).message ?? "Não foi possível decifrar o arquivo.");
+      return null;
+    }
+    setDocPassword(pw); // lembra pra re-cifrar nos próximos Salvar
+    try {
+      return readContainer(zipBytes);
+    } catch (e) {
+      toast.error((e as Error).message ?? "Não foi possível ler o contêiner .vistage.");
+      return null;
+    }
+  }
+
   if (isZip(bytes)) {
-    setDocPassword(null); // contêiner v1 não é cifrado
+    setDocPassword(null); // contêiner sem senha
     try {
       return readContainer(bytes);
     } catch (e) {

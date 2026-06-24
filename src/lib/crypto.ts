@@ -11,6 +11,12 @@
 const ENC_APP = "vistage-encrypted";
 const PBKDF2_ITER = 210_000;
 
+// Assinatura do CONTÊINER cifrado (envelope BINÁRIO): "VENC". Diferente do zip
+// ("PK") e do JSON ("{"). Permite cifrar o contêiner zip inteiro sem inflar tudo
+// em base64/JSON gigante na memória — a causa do "salvamento eterno"/OOM.
+const ENC_MAGIC = new Uint8Array([0x56, 0x45, 0x4e, 0x43]); // "VENC"
+const ENC_HEADER_LEN = 39; // magic(4)+ver(1)+iter(4 BE)+saltLen(1)+salt(16)+ivLen(1)+iv(12)
+
 type Envelope = {
   app: typeof ENC_APP;
   v: 1;
@@ -110,4 +116,67 @@ export async function decryptString(envelopeJson: string, password: string): Pro
     throw new Error("Senha incorreta.");
   }
   return new TextDecoder().decode(plain);
+}
+
+// ── Envelope BINÁRIO (para o contêiner .vistage cifrado) ─────────────────────
+// Cifra/decifra BYTES crus sem passar por base64 nem JSON — assim um documento
+// com senha sai do contêiner zip direto pro AES, sem materializar strings
+// gigantes (era o que estourava a memória ao salvar fotos/vídeos embutidos).
+
+/** Detecta se os bytes são um contêiner .vistage CIFRADO (envelope "VENC"). */
+export function isEncryptedContainer(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= ENC_HEADER_LEN &&
+    bytes[0] === ENC_MAGIC[0] &&
+    bytes[1] === ENC_MAGIC[1] &&
+    bytes[2] === ENC_MAGIC[2] &&
+    bytes[3] === ENC_MAGIC[3]
+  );
+}
+
+/** Cifra bytes (o zip do contêiner) com a senha. Retorna o envelope binário. */
+export async function encryptBytes(plain: Uint8Array, password: string): Promise<Uint8Array> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(password, salt, PBKDF2_ITER);
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, plain as BufferSource)
+  );
+  const header = new Uint8Array(ENC_HEADER_LEN);
+  header.set(ENC_MAGIC, 0);
+  header[4] = 1; // versão do envelope
+  new DataView(header.buffer).setUint32(5, PBKDF2_ITER, false); // big-endian
+  header[9] = salt.length; // 16
+  header.set(salt, 10);
+  header[26] = iv.length; // 12
+  header.set(iv, 27);
+  const out = new Uint8Array(header.length + cipher.length);
+  out.set(header, 0);
+  out.set(cipher, header.length);
+  return out;
+}
+
+/** Decifra um envelope binário "VENC". Lança "Senha incorreta." se não bater. */
+export async function decryptBytes(envelope: Uint8Array, password: string): Promise<Uint8Array> {
+  if (!isEncryptedContainer(envelope)) throw new Error("Arquivo criptografado inválido.");
+  const view = new DataView(envelope.buffer, envelope.byteOffset, envelope.byteLength);
+  const iter = view.getUint32(5, false);
+  const saltLen = envelope[9];
+  const salt = envelope.slice(10, 10 + saltLen);
+  const ivOff = 10 + saltLen;
+  const ivLen = envelope[ivOff];
+  const iv = envelope.slice(ivOff + 1, ivOff + 1 + ivLen);
+  const cipher = envelope.slice(ivOff + 1 + ivLen);
+  const key = await deriveKey(password, salt, iter);
+  let plain: ArrayBuffer;
+  try {
+    plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv as BufferSource },
+      key,
+      cipher as BufferSource
+    );
+  } catch {
+    throw new Error("Senha incorreta.");
+  }
+  return new Uint8Array(plain);
 }
