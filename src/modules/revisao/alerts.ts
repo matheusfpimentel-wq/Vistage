@@ -37,6 +37,8 @@ export type AlertItem = {
   to: string;
   critical: boolean;
   icon: AlertIconKey;
+  /** Regra própria marcada como "desaparecer ao clicar" → mostra dispensar. */
+  dismissible?: boolean;
 };
 
 export type ExtraStats = {

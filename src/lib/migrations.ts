@@ -1871,6 +1871,16 @@ const MIGRATIONS: Migration[] = [
     description: "venues.djs_residentes — DJs residentes (um por linha)",
     sql: `ALTER TABLE venues ADD COLUMN djs_residentes TEXT;`,
   },
+  {
+    version: 132,
+    description:
+      "custom_rules — condições compostas (E/OU) + dispensável ao clicar",
+    sql: `
+      ALTER TABLE custom_rules ADD COLUMN conditions TEXT;
+      ALTER TABLE custom_rules ADD COLUMN match_mode TEXT NOT NULL DEFAULT 'all';
+      ALTER TABLE custom_rules ADD COLUMN dismissible INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -42,7 +42,10 @@ import {
   updateCustomRule,
   type CustomRule,
   type CustomRuleInput,
+  type RuleCondition,
+  type RuleEntityDef,
   type RuleEntityKey,
+  type RuleMatch,
   type RuleOperator,
 } from "@/modules/revisao/customRules";
 import { emitDataChanged } from "@/lib/events";
@@ -120,8 +123,8 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
             </CardTitle>
             <CardDescription>
               {isInsight
-                ? "Quando a condição bate, vira um insight no banco (sem ir pro sininho)."
-                : "Quando a condição bate, mostra um alerta no sininho."}
+                ? "Quando as condições batem, vira um insight no banco (sem ir pro sininho)."
+                : "Monte a regra: SE (uma ou mais condições, com E/OU) ENTÃO mostra um alerta no sininho."}
             </CardDescription>
           </div>
           <Button
@@ -139,7 +142,7 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
       <CardContent className="space-y-2">
         {rules.length === 0 ? (
           <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nenhuma regra ainda. Clique em “Nova regra” para criar a primeira.
+            Nenhuma regra ainda. Clique em "Nova regra" para criar a primeira.
           </div>
         ) : (
           rules.map((r) => (
@@ -155,6 +158,11 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
                   )}
                 >
                   {r.message}
+                  {!!r.dismissible && !isInsight && (
+                    <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                      (dispensável)
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {describeRule(r)} → {isInsight ? "vira insight" : "mostra o alerta"}
@@ -203,7 +211,176 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
   );
 }
 
-/** Formulário (dialog) de criação/edição de uma regra própria (severidade fixa). */
+/** Uma linha de condição: campo · operador · valor (adaptável). */
+function ConditionRow({
+  entityKey,
+  cond,
+  onChange,
+  onRemove,
+  canRemove,
+}: {
+  entityKey: RuleEntityKey;
+  cond: RuleCondition;
+  onChange: (c: RuleCondition) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+}) {
+  const eDef = entityDef(entityKey);
+  const fDef = eDef ? fieldDef(eDef, cond.field) : undefined;
+  const operators = fDef ? OPERATORS_BY_TYPE[fDef.type] : [];
+  const opMeta = operators.find((o) => o.op === cond.operator);
+  const needsValue = opMeta?.needsValue ?? false;
+  const valueKind = opMeta?.valueKind ?? "none";
+  const options = fDef?.options ?? [];
+  const { state: stateVal, days: daysVal } = decodeStateDays(cond.value);
+
+  function changeField(field: string) {
+    const nf = eDef ? fieldDef(eDef, field) : undefined;
+    const op = nf ? OPERATORS_BY_TYPE[nf.type][0].op : cond.operator;
+    onChange({ field, operator: op, value: null });
+  }
+  const setValue = (value: string | null) => onChange({ ...cond, value });
+
+  return (
+    <div className="space-y-2 rounded-md border p-2">
+      <div className="flex items-center gap-1.5">
+        <Select value={cond.field} onValueChange={changeField}>
+          <SelectTrigger className="h-8 flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {eDef?.fields.map((fd) => (
+              <SelectItem key={fd.key} value={fd.key}>
+                {fd.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {canRemove && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-muted-foreground"
+            onClick={onRemove}
+            aria-label="Remover condição"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+      <Select
+        value={cond.operator}
+        onValueChange={(v) => onChange({ ...cond, operator: v as RuleOperator, value: null })}
+      >
+        <SelectTrigger className="h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {operators.map((o) => (
+            <SelectItem key={o.op} value={o.op}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {needsValue && valueKind === "number" && (
+        <Input
+          type="number"
+          className="h-8"
+          value={cond.value ?? ""}
+          onChange={(ev) => setValue(ev.target.value)}
+          placeholder="ex: 15"
+        />
+      )}
+      {needsValue && valueKind === "text" && (
+        <Input
+          className="h-8"
+          value={cond.value ?? ""}
+          onChange={(ev) => setValue(ev.target.value)}
+          placeholder="ex: pendente"
+        />
+      )}
+      {needsValue && valueKind === "enum" && (
+        <Select value={cond.value ?? ""} onValueChange={setValue}>
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder="Escolha…" />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o} value={o}>
+                {o}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {needsValue && valueKind === "state_days" && (
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={stateVal} onValueChange={(v) => setValue(encodeStateDays(v, daysVal))}>
+            <SelectTrigger className="h-8">
+              <SelectValue placeholder="Estado…" />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((o) => (
+                <SelectItem key={o} value={o}>
+                  {o}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            type="number"
+            className="h-8"
+            value={daysVal}
+            onChange={(ev) => setValue(encodeStateDays(stateVal, ev.target.value))}
+            placeholder="dias"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Janela de ajuda: lista os campos da entidade (rótulo + nome cru da coluna). */
+function FieldHelpDialog({
+  open,
+  onOpenChange,
+  entity,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  entity: RuleEntityDef | undefined;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Campos de {entity?.label ?? ""}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-1">
+          {entity?.fields.map((f) => (
+            <div
+              key={f.key}
+              className="flex items-center justify-between gap-2 rounded border px-2 py-1 text-sm"
+            >
+              <span>{f.label}</span>
+              <code className="text-xs text-muted-foreground">{f.column}</code>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function defaultCondition(entKey: RuleEntityKey): RuleCondition {
+  const e = entityDef(entKey);
+  const f0 = e?.fields[0];
+  if (!f0) return { field: "", operator: "filled", value: null };
+  return { field: f0.key, operator: OPERATORS_BY_TYPE[f0.type][0].op, value: null };
+}
+
+/** Formulário (dialog) de criação/edição: editor SE / ENTÃO em 2 colunas. */
 function RuleFormDialog({
   open,
   onOpenChange,
@@ -219,57 +396,47 @@ function RuleFormDialog({
 }) {
   const isInsight = severity === "insight";
   const [entity, setEntity] = useState<RuleEntityKey>("gig");
-  const [field, setField] = useState<string>(RULE_ENTITIES[0].fields[0].key);
-  const [operator, setOperator] = useState<RuleOperator>(
-    OPERATORS_BY_TYPE[RULE_ENTITIES[0].fields[0].type][0].op
-  );
-  const [value, setValue] = useState("");
+  const [conditions, setConditions] = useState<RuleCondition[]>([defaultCondition("gig")]);
+  const [match, setMatch] = useState<RuleMatch>("all");
   const [message, setMessage] = useState("");
+  const [dismissible, setDismissible] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setEntity(editing.entity);
-      setField(editing.field);
-      setOperator(editing.operator);
-      setValue(editing.value ?? "");
+      setConditions(editing.conditions.length ? editing.conditions : [defaultCondition(editing.entity)]);
+      setMatch(editing.match);
       setMessage(editing.message);
+      setDismissible(!!editing.dismissible);
     } else {
-      const e0 = RULE_ENTITIES[0];
-      setEntity(e0.key);
-      setField(e0.fields[0].key);
-      setOperator(OPERATORS_BY_TYPE[e0.fields[0].type][0].op);
-      setValue("");
+      setEntity("gig");
+      setConditions([defaultCondition("gig")]);
+      setMatch("all");
       setMessage("");
+      setDismissible(false);
     }
   }, [open, editing]);
 
-  const eDef = entityDef(entity);
-  const fDef = eDef ? fieldDef(eDef, field) : undefined;
-  const operators = fDef ? OPERATORS_BY_TYPE[fDef.type] : [];
-  const opMeta = operators.find((o) => o.op === operator);
-  const needsValue = opMeta?.needsValue ?? false;
-  const valueKind = opMeta?.valueKind ?? "none";
-  const options = fDef?.options ?? [];
-  const { state: stateVal, days: daysVal } = decodeStateDays(value);
-
   function onEntityChange(next: RuleEntityKey) {
     setEntity(next);
-    const e = entityDef(next);
-    if (!e) return;
-    const f0 = e.fields[0];
-    setField(f0.key);
-    setOperator(OPERATORS_BY_TYPE[f0.type][0].op);
-    setValue("");
+    setConditions([defaultCondition(next)]);
   }
 
-  function onFieldChange(nextKey: string) {
-    setField(nextKey);
-    if (!eDef) return;
-    const f = fieldDef(eDef, nextKey);
-    if (f) setOperator(OPERATORS_BY_TYPE[f.type][0].op);
-    setValue("");
+  function validCondition(c: RuleCondition): boolean {
+    const e = entityDef(entity);
+    const f = e ? fieldDef(e, c.field) : undefined;
+    if (!f) return false;
+    const opMeta = OPERATORS_BY_TYPE[f.type].find((o) => o.op === c.operator);
+    if (!opMeta) return false;
+    if (!opMeta.needsValue) return true;
+    if (opMeta.valueKind === "state_days") {
+      const { state, days } = decodeStateDays(c.value);
+      return !!state && !!days.trim() && Number.isFinite(Number(days));
+    }
+    return !!(c.value && c.value.trim());
   }
 
   async function save() {
@@ -277,24 +444,17 @@ function RuleFormDialog({
       toast.error(`Escreva a mensagem do ${isInsight ? "insight" : "alerta"}.`);
       return;
     }
-    if (needsValue) {
-      if (valueKind === "state_days") {
-        if (!stateVal || !daysVal.trim() || !Number.isFinite(Number(daysVal))) {
-          toast.error("Escolha o estado e os dias.");
-          return;
-        }
-      } else if (!value.trim()) {
-        toast.error("Informe o valor da condição.");
-        return;
-      }
+    if (conditions.length === 0 || !conditions.every(validCondition)) {
+      toast.error("Complete as condições (campo, condição e valor).");
+      return;
     }
     const input: CustomRuleInput = {
       entity,
-      field,
-      operator,
-      value: needsValue ? value.trim() : null,
+      conditions,
+      match,
       message: message.trim(),
       severity,
+      dismissible: !isInsight && dismissible ? 1 : 0,
     };
     setSaving(true);
     try {
@@ -310,170 +470,134 @@ function RuleFormDialog({
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {editing ? "Editar regra" : isInsight ? "Nova regra de insight" : "Nova regra"}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs">Se (entidade)</Label>
-              <Select value={entity} onValueChange={(v) => onEntityChange(v as RuleEntityKey)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {RULE_ENTITIES.map((e) => (
-                    <SelectItem key={e.key} value={e.key}>
-                      {e.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Campo</Label>
-              <Select value={field} onValueChange={onFieldChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {eDef?.fields.map((f) => (
-                    <SelectItem key={f.key} value={f.key}>
-                      {f.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+  const eDef = entityDef(entity);
 
-          <div className="space-y-2">
-            <div
-              className={cn(
-                "grid gap-2",
-                needsValue && valueKind !== "state_days" ? "grid-cols-2" : "grid-cols-1"
-              )}
-            >
-              <div className="space-y-1">
-                <Label className="text-xs">Condição</Label>
-                <Select
-                  value={operator}
-                  onValueChange={(v) => {
-                    setOperator(v as RuleOperator);
-                    setValue("");
-                  }}
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {editing ? "Editar regra" : isInsight ? "Nova regra de insight" : "Nova regra"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-5 md:grid-cols-2">
+            {/* ── SE ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold uppercase tracking-wide">Se</Label>
+                <button
+                  type="button"
+                  onClick={() => setHelpOpen(true)}
+                  className="flex h-5 w-5 items-center justify-center rounded-full border text-xs text-muted-foreground transition hover:bg-accent hover:text-foreground"
+                  title="Ver os nomes dos campos"
+                  aria-label="Ajuda: nomes dos campos"
                 >
-                  <SelectTrigger>
+                  ?
+                </button>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Entidade</Label>
+                <Select value={entity} onValueChange={(v) => onEntityChange(v as RuleEntityKey)}>
+                  <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {operators.map((o) => (
-                      <SelectItem key={o.op} value={o.op}>
-                        {o.label}
+                    {RULE_ENTITIES.map((e) => (
+                      <SelectItem key={e.key} value={e.key}>
+                        {e.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              {needsValue && valueKind === "number" && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Valor</Label>
-                  <Input
-                    type="number"
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    placeholder="ex: 15"
-                  />
+
+              {conditions.length > 1 && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">Combinar:</span>
+                  {(["all", "any"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMatch(m)}
+                      className={cn("seg-pill", match === m ? "seg-pill-on" : "seg-pill-off")}
+                    >
+                      {m === "all" ? "Todas (E)" : "Qualquer (OU)"}
+                    </button>
+                  ))}
                 </div>
               )}
-              {needsValue && valueKind === "text" && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Texto</Label>
-                  <Input
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    placeholder="ex: pendente"
+
+              <div className="space-y-2">
+                {conditions.map((c, i) => (
+                  <div key={i} className="space-y-1">
+                    {i > 0 && (
+                      <div className="text-center text-[10px] font-semibold uppercase text-muted-foreground">
+                        {match === "any" ? "ou" : "e"}
+                      </div>
+                    )}
+                    <ConditionRow
+                      entityKey={entity}
+                      cond={c}
+                      onChange={(nc) =>
+                        setConditions((cs) => cs.map((x, idx) => (idx === i ? nc : x)))
+                      }
+                      onRemove={() => setConditions((cs) => cs.filter((_, idx) => idx !== i))}
+                      canRemove={conditions.length > 1}
+                    />
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConditions((cs) => [...cs, defaultCondition(entity)])}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Condição
+                </Button>
+              </div>
+            </div>
+
+            {/* ── ENTÃO ── */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide">Então</Label>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">
+                  Mensagem do {isInsight ? "insight" : "alerta"}
+                </Label>
+                <Input
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={isInsight ? "ex: {n} GIGs de cachê alto" : "ex: Entregar kit de embaixador"}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Use <code>{"{n}"}</code> pra inserir a quantidade.
+                </p>
+              </div>
+              {!isInsight && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={dismissible}
+                    onChange={(e) => setDismissible(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
                   />
-                </div>
-              )}
-              {needsValue && valueKind === "enum" && (
-                <div className="space-y-1">
-                  <Label className="text-xs">Valor</Label>
-                  <Select value={value} onValueChange={setValue}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options.map((o) => (
-                        <SelectItem key={o} value={o}>
-                          {o}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                  Desaparecer ao clicar (dispensar no sininho)
+                </label>
               )}
             </div>
-            {needsValue && valueKind === "state_days" && (
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Estado</Label>
-                  <Select value={stateVal} onValueChange={(v) => setValue(encodeStateDays(v, daysVal))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {options.map((o) => (
-                        <SelectItem key={o} value={o}>
-                          {o}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Há mais de (dias)</Label>
-                  <Input
-                    type="number"
-                    value={daysVal}
-                    onChange={(e) => setValue(encodeStateDays(stateVal, e.target.value))}
-                    placeholder="ex: 14"
-                  />
-                </div>
-              </div>
-            )}
           </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs">
-              Então — mensagem do {isInsight ? "insight" : "alerta"}
-            </Label>
-            <Input
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={
-                isInsight ? "ex: {n} GIGs de cachê alto este mês" : "ex: {n} GIG(s) com cachê vencido"
-              }
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Use <code>{"{n}"}</code> para inserir a quantidade.
-            </p>
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={() => void save()} disabled={saving}>
-            {editing ? "Salvar" : "Criar"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => void save()} disabled={saving}>
+              {editing ? "Salvar" : "Criar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <FieldHelpDialog open={helpOpen} onOpenChange={setHelpOpen} entity={eDef} />
+    </>
   );
 }
