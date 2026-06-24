@@ -377,3 +377,97 @@ export async function deleteHighlight(id: number): Promise<void> {
   await db.execute(`DELETE FROM highlights WHERE id=$1`, [id]);
   emitDataChanged();
 }
+
+// ── Trilha da semana (focus_blocks) ──────────────────────────────────────────
+export type FocusBlockKind = "foco" | "morto";
+
+export type FocusBlock = {
+  id: number;
+  weekday: number; // 0=Dom … 6=Sáb
+  start_min: number; // minutos desde 00:00
+  duration_min: number;
+  kind: FocusBlockKind;
+  label: string | null;
+};
+
+export type FocusBlockInput = {
+  weekday: number;
+  start_min: number;
+  duration_min: number;
+  kind: FocusBlockKind;
+  label?: string | null;
+};
+
+export async function listFocusBlocks(): Promise<FocusBlock[]> {
+  const db = getDb();
+  return db
+    .select<FocusBlock[]>(
+      `SELECT id, weekday, start_min, duration_min, kind, label FROM focus_blocks
+        ORDER BY weekday, start_min`
+    )
+    .catch(() => [] as FocusBlock[]);
+}
+
+export async function createFocusBlock(input: FocusBlockInput): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO focus_blocks (weekday, start_min, duration_min, kind, label)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [input.weekday, input.start_min, input.duration_min, input.kind, input.label ?? null]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updateFocusBlock(
+  id: number,
+  patch: Partial<FocusBlockInput>
+): Promise<void> {
+  const db = getDb();
+  const cols = Object.keys(patch);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (patch as Record<string, unknown>)[c]);
+  values.push(id);
+  await db.execute(`UPDATE focus_blocks SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
+}
+
+export async function deleteFocusBlock(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM focus_blocks WHERE id = $1`, [id]);
+  emitDataChanged();
+}
+
+/**
+ * Streak (estilo Duolingo): dias seguidos com ao menos uma sessão encerrada,
+ * terminando hoje ou ontem (se ainda não focou hoje, a sequência não quebra até
+ * o fim do dia).
+ */
+export async function loadFocusStreak(): Promise<number> {
+  const db = getDb();
+  const rows = await db
+    .select<{ d: string }[]>(
+      `SELECT DISTINCT date(started_at) AS d FROM work_sessions
+        WHERE ended_at IS NOT NULL ORDER BY d DESC`
+    )
+    .catch(() => [] as { d: string }[]);
+  const days = new Set(rows.map((r) => r.d));
+  if (days.size === 0) return 0;
+
+  const dayMs = 86400000;
+  const today = new Date();
+  const iso = (dt: Date) => dt.toISOString().slice(0, 10);
+  // âncora: hoje se focou hoje, senão ontem (sequência ainda viva durante o dia)
+  let cursor = new Date(today);
+  if (!days.has(iso(cursor))) {
+    cursor = new Date(today.getTime() - dayMs);
+    if (!days.has(iso(cursor))) return 0;
+  }
+  let streak = 0;
+  while (days.has(iso(cursor))) {
+    streak += 1;
+    cursor = new Date(cursor.getTime() - dayMs);
+  }
+  return streak;
+}

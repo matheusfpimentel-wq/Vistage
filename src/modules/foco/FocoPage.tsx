@@ -22,6 +22,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { formatDate, todayISO } from "@/lib/format";
+import { WeekTrack } from "./WeekTrack";
 import {
   loadHeatmap,
   loadActivityStats,
@@ -78,9 +79,12 @@ export function FocoPage() {
 
   return (
     <div className="space-y-6">
+      <WeekTrack />
+
       {activityStats.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Nenhuma sessão encerrada ainda. Inicie uma sessão pelo botão "▶ Sessão" no topo.
+          Ainda sem sessões encerradas. Planeje sua semana acima e inicie uma
+          sessão pelo botão "▶ Sessão" no topo.
         </div>
       ) : (
         <>
