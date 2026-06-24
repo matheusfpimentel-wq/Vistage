@@ -28,14 +28,23 @@ import {
   type InsightHit,
   type InsightSource,
 } from "@/modules/insights/types";
+import { CustomRulesSection } from "./CustomRulesSection";
 
-const SOURCES: (InsightSource | "all")[] = ["all", "gig", "track", "party", "idea", "manual"];
+const SOURCES: (InsightSource | "all")[] = [
+  "all",
+  "gig",
+  "track",
+  "party",
+  "idea",
+  "manual",
+  "rule",
+];
 
 /**
  * Aba "Insights" do Config. avançada: mostra o banco de insights que já existe
- * (aprendizados de GIGs/faixas/festas/ideias) + anotações manuais; deixa
- * EXCLUIR (esconder sem apagar a fonte) e ADICIONAR insights por texto.
- * (Insights por operadores lógicos vêm na parte seguinte.)
+ * (aprendizados de GIGs/faixas/festas/ideias) + anotações manuais + insights
+ * gerados por regras; deixa EXCLUIR (esconder sem apagar a fonte) e ADICIONAR
+ * insights por TEXTO ou por OPERADORES lógicos.
  */
 export function InsightsBankSettings() {
   const [hits, setHits] = useState<InsightHit[]>([]);
@@ -114,6 +123,9 @@ export function InsightsBankSettings() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Insights por operadores lógicos (regra severidade 'insight') */}
+      <CustomRulesSection severity="insight" />
 
       <Card>
         <CardHeader>

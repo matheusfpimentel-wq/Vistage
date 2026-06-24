@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { evaluateInsightRules } from "@/modules/revisao/customRules";
 import type { InsightHit, InsightSource } from "./types";
 
 export type InsightFilters = {
@@ -14,7 +15,7 @@ export type InsightFilters = {
  */
 export async function listInsights(filters: InsightFilters = {}): Promise<InsightHit[]> {
   const db = getDb();
-  const [sourceRows, manualRows, dismissedRows] = await Promise.all([
+  const [sourceRows, manualRows, dismissedRows, ruleHits] = await Promise.all([
     db.select<InsightHit[]>("SELECT * FROM v_insights"),
     db
       .select<{ id: number; content: string; created_at: string }[]>(
@@ -26,6 +27,7 @@ export async function listInsights(filters: InsightFilters = {}): Promise<Insigh
         "SELECT source_type, source_id FROM dismissed_insights"
       )
       .catch(() => [] as { source_type: string; source_id: number }[]),
+    evaluateInsightRules().catch(() => [] as { ruleId: number; content: string }[]),
   ]);
 
   const dismissed = new Set(dismissedRows.map((d) => `${d.source_type}:${d.source_id}`));
@@ -36,10 +38,21 @@ export async function listInsights(filters: InsightFilters = {}): Promise<Insigh
     content: m.content,
     occurred_at: m.created_at,
   }));
+  // Insights gerados por regras (operadores). São "do agora", então usam a data
+  // atual e aparecem no topo.
+  const ruleNow = new Date().toISOString();
+  const ruleInsights: InsightHit[] = ruleHits.map((h) => ({
+    source_type: "rule",
+    source_id: h.ruleId,
+    source_title: "Regra de insight",
+    content: h.content,
+    occurred_at: ruleNow,
+  }));
 
   let all: InsightHit[] = [
     ...sourceRows.filter((r) => !dismissed.has(`${r.source_type}:${r.source_id}`)),
     ...manual,
+    ...ruleInsights,
   ];
 
   if (filters.source && filters.source !== "all") {
