@@ -76,7 +76,7 @@ export function OrcamentoTab({
         subcategory: newSubcategory || null,
         description: newDesc.trim() || null,
         projected_amount: projected,
-        actual_amount: newActual ? parseFloat(newActual) : null,
+        actual_amount: newActual && Number.isFinite(parseFloat(newActual)) ? parseFloat(newActual) : null,
         supplier_note: newSupplier.trim() || null,
         supplier_id: newSupplierId === "none" ? null : Number(newSupplierId),
         status: "projetado",

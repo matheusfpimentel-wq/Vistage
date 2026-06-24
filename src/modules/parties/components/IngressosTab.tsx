@@ -57,7 +57,7 @@ export function IngressosTab({
         name,
         ticket_type: newType,
         price,
-        quantity_total: newQtyTotal ? parseInt(newQtyTotal) : null,
+        quantity_total: newQtyTotal && Number.isFinite(parseInt(newQtyTotal, 10)) ? parseInt(newQtyTotal, 10) : null,
         quantity_sold: 0,
         sale_start_date: newStart || null,
         sale_end_date: newEnd || null,

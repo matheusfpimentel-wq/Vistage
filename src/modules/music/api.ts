@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+import { toLocalISODate } from "@/lib/format";
 import {
   projectKindFromTrack,
   nextStage,
@@ -801,7 +802,7 @@ export async function autoCreateLaunchTask(track: Track): Promise<void> {
   const d = new Date();
   d.setMonth(d.getMonth() + 1);
   d.setDate(1);
-  const due = d.toISOString().slice(0, 10);
+  const due = toLocalISODate(d); // LOCAL — não rolar pro mês anterior à noite (BR)
   await db.execute(
     `INSERT INTO tasks (title, category, priority, status, due_date, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,

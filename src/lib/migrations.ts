@@ -1881,6 +1881,32 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE custom_rules ADD COLUMN dismissible INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 133,
+    description:
+      "Índices de performance em FKs/colunas quentes (auditoria) — varreduras de tabela viravam full scan",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_gigs_promoter ON gigs(promoter_contact_id);
+      CREATE INDEX IF NOT EXISTS idx_gigs_venue ON gigs(venue_id);
+      CREATE INDEX IF NOT EXISTS idx_parties_venue ON parties(venue_id);
+      CREATE INDEX IF NOT EXISTS idx_tx_party ON finance_transactions(party_id);
+      CREATE INDEX IF NOT EXISTS idx_tx_track ON finance_transactions(track_id);
+      CREATE INDEX IF NOT EXISTS idx_tx_music_cost ON finance_transactions(music_cost_id);
+      CREATE INDEX IF NOT EXISTS idx_classes_student_package ON classes(student_package_id);
+      CREATE INDEX IF NOT EXISTS idx_student_packages_student ON student_packages(student_id);
+      CREATE INDEX IF NOT EXISTS idx_mpc_project ON music_project_costs(project_id);
+      CREATE INDEX IF NOT EXISTS idx_mpc_track ON music_project_costs(track_id);
+      CREATE INDEX IF NOT EXISTS idx_track_collab_track ON track_collaborators(track_id);
+      CREATE INDEX IF NOT EXISTS idx_track_media_track ON track_media_targets(track_id);
+      CREATE INDEX IF NOT EXISTS idx_track_perf_track ON track_performance_snapshots(track_id);
+      CREATE INDEX IF NOT EXISTS idx_gig_tracks_gig ON gig_tracks(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_gig_tracks_track ON gig_tracks(track_id);
+      CREATE INDEX IF NOT EXISTS idx_okr_kr_tasks_okr ON okr_kr_tasks(okr_id, kr_index);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_contact ON suppliers(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_pbi_supplier ON party_budget_items(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_content_snapshots_content ON content_snapshots(content_id);
+    `,
+  },
 ];
 
 

@@ -20,9 +20,11 @@ export function ActionPanel({ group }: { group: string }) {
 
   useEffect(() => {
     let active = true;
-    void loadActionItemsForGroup(group).then((it) => {
-      if (active) setItems(it);
-    });
+    void loadActionItemsForGroup(group)
+      .then((it) => {
+        if (active) setItems(it);
+      })
+      .catch((e) => console.error("Falha ao carregar itens acionáveis", e));
     return () => {
       active = false;
     };

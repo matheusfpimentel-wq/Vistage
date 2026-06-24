@@ -99,6 +99,7 @@ export function MetodologiasPage() {
     if (!silent) setLoading(true);
     void loadData()
       .then(setData)
+      .catch((e) => console.error("Falha ao carregar Metodologias", e))
       .finally(() => { if (!silent) setLoading(false); });
   }, []);
 

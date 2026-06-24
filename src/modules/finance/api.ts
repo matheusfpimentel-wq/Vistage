@@ -756,8 +756,7 @@ export async function generateRecurringForMonth(yearMonth: string): Promise<numb
  */
 export async function autoGenerateRecurringUpToNow(): Promise<void> {
   const db = getDb();
-  const now = new Date();
-  const currentYM = now.toISOString().slice(0, 7);
+  const currentYM = toLocalYearMonth(); // fuso LOCAL — não gerar recorrências um mês cedo à noite (BR)
 
   const rows = await db.select<{ value: string }[]>(
     "SELECT value FROM app_settings WHERE key = 'last_recurring_gen'"
@@ -909,18 +908,18 @@ function monthEnd(yyyymm: string): string {
 
 function periodToDateFilter(period?: string): { fromDate?: string; toDate?: string } {
   if (!period || period === "all") return {};
-  const now = new Date();
+  // Datas no fuso LOCAL (não UTC) — senão "este mês"/"este ano" pulam a virada à noite no BR.
   if (period === "last12") {
     const d = new Date();
     d.setDate(d.getDate() - 365);
-    return { fromDate: d.toISOString().slice(0, 10) };
+    return { fromDate: toLocalISODate(d) };
   }
   if (period === "thismonth") {
-    const m = now.toISOString().slice(0, 7);
+    const m = toLocalYearMonth();
     return { fromDate: `${m}-01`, toDate: monthEnd(m) };
   }
   if (period === "thisyear") {
-    const y = now.toISOString().slice(0, 4);
+    const y = toLocalYearMonth().slice(0, 4);
     return { fromDate: `${y}-01-01`, toDate: `${y}-12-31` };
   }
   if (/^\d{4}-\d{2}$/.test(period)) {
@@ -1220,6 +1219,14 @@ export async function loadProjectProfit(): Promise<ProjectProfit[]> {
  */
 export async function retroactiveSyncAllLinked(): Promise<void> {
   const db = getDb();
+  // Reconciliação cara (N+1 sobre GIGs/aulas/festas/custos). Era rodada a CADA
+  // boot. Agora no máx. 1×/dia: as sincronizações por mutação mantêm o financeiro
+  // em dia no uso normal; este backfill é só rede de segurança.
+  const today = toLocalISODate();
+  const lastRows = await db
+    .select<{ value: string }[]>("SELECT value FROM app_settings WHERE key = 'last_retro_sync'")
+    .catch(() => [] as { value: string }[]);
+  if (lastRows[0]?.value === today) return;
   try {
     // GIGs
     const gigs = await db.select<{
@@ -1282,4 +1289,12 @@ export async function retroactiveSyncAllLinked(): Promise<void> {
       try { await syncMusicCostTransaction(c.id); } catch { /* continue */ }
     }
   } catch { /* continue */ }
+  // Marca o dia como reconciliado (mesmo que algum trecho tenha falhado e
+  // seguido) — tenta de novo amanhã, não a cada boot.
+  await db
+    .execute(
+      "INSERT INTO app_settings (key, value) VALUES ('last_retro_sync', $1) ON CONFLICT(key) DO UPDATE SET value = $1",
+      [today]
+    )
+    .catch(() => {});
 }
