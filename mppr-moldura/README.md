@@ -9,7 +9,7 @@ permite **baixar / compartilhar** o resultado. Feita para ser incorporada no Goo
 - Botão **Adicionar foto ou vídeo**.
 - A mídia aparece pela **janela transparente** da moldura. Dá para:
   - **arrastar** para posicionar;
-  - dar **zoom** (roda do mouse, pinça no celular, barrinha ou botões **+/−**);
+  - dar **zoom** (roda do mouse no desktop, pinça no celular);
   - **duplo-clique** para centralizar;
   - enquanto arrasta, a parte que fica **fora da janela** aparece esmaecida (ajuda a enquadrar).
 - Campos **Nome** e **Lotação** — o texto aparece nas duas barras escuras (nome em cima,

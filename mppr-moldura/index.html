@@ -63,10 +63,13 @@
   .btn svg{width:18px;height:18px;flex:0 0 auto}
   .btn-stories{flex:1 1 100%;background:var(--orange);color:#fff;font-size:1rem;padding:15px 22px}
   .btn-stories:hover{filter:brightness(.93)}
-  .btn-add{background:var(--dteal);color:#fff}
+  .btn-add{flex:1 1 40%;background:var(--dteal);color:#fff}
   .btn-add:hover{filter:brightness(1.08)}
-  .btn-save{background:var(--green);color:#fff}
+  .btn-save{flex:1 1 40%;background:var(--green);color:#fff}
   .btn-save:hover{filter:brightness(1.08)}
+  .btn-icon{flex:0 0 auto;width:48px;height:48px;padding:0;background:#fff;color:var(--dteal);border:2px solid var(--dteal)}
+  .btn-icon svg{width:20px;height:20px}
+  .btn-icon:hover{background:#eef6f6}
   .btn-ghost{background:#fff;color:var(--dteal);border:2px solid var(--dteal)}
   .btn-ghost:hover{background:#eef6f6}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
@@ -94,15 +97,6 @@
       <label class="check"><input type="checkbox" id="upper"> Deixar em MAIÚSCULAS</label>
     </div>
 
-    <div class="zoom-row" id="zoomRow">
-      <span class="zlabel">Zoom</span>
-      <button type="button" class="zbtn" id="zoomOut" aria-label="Diminuir zoom">&minus;</button>
-      <input type="range" id="zoom" min="1" max="6" step="0.01" value="1">
-      <button type="button" class="zbtn" id="zoomIn" aria-label="Aumentar zoom">+</button>
-    </div>
-
-    <p class="hint">Arraste para posicionar &bull; role/pince ou use +/&minus; para dar zoom &bull; duplo-clique centraliza</p>
-
     <div class="actions">
       <button class="btn btn-stories hidden" id="shareBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.25" fill="currentColor" stroke="none"/></svg>
@@ -110,8 +104,12 @@
       </button>
       <button class="btn btn-add" id="addBtn">Adicionar foto ou vídeo</button>
       <button class="btn btn-save hidden" id="saveBtn">Salvar</button>
-      <button class="btn btn-ghost hidden" id="copyBtn">Copiar</button>
-      <button class="btn btn-ghost hidden" id="resetBtn">Centralizar</button>
+      <button class="btn btn-icon hidden" id="copyBtn" type="button" title="Copiar imagem" aria-label="Copiar imagem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg>
+      </button>
+      <button class="btn btn-icon hidden" id="resetBtn" type="button" title="Centralizar" aria-label="Centralizar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2"/></svg>
+      </button>
     </div>
 
     <p class="status" id="status"></p>
@@ -153,10 +151,7 @@
   var saveBtn=document.getElementById('saveBtn');
   var copyBtn=document.getElementById('copyBtn');
   var resetBtn=document.getElementById('resetBtn');
-  var zoomRow=document.getElementById('zoomRow');
-  var zoomInput=document.getElementById('zoom');
-  var zoomIn=document.getElementById('zoomIn');
-  var zoomOut=document.getElementById('zoomOut');
+  // zoom: rolagem do mouse / pinça (sem controles na tela)
   var statusEl=document.getElementById('status');
   var nomeInput=document.getElementById('nome');
   var lotInput=document.getElementById('lotacao');
@@ -260,10 +255,7 @@
   canvas.addEventListener('wheel', function(e){ if(!media) return; e.preventDefault(); setZoom(zoom*(1-e.deltaY*0.0015)); invalidate(); }, {passive:false});
   canvas.addEventListener('dblclick', function(){ if(media){ resetView(); invalidate(); } });
 
-  function setZoom(z){ zoom=Math.min(6,Math.max(1,z)); zoomInput.value=zoom.toFixed(2); invalidate(); }
-  zoomInput.addEventListener('input', function(){ setZoom(parseFloat(zoomInput.value)); });
-  zoomIn.addEventListener('click', function(){ setZoom(zoom*1.25); });
-  zoomOut.addEventListener('click', function(){ setZoom(zoom*0.8); });
+  function setZoom(z){ zoom=Math.min(6,Math.max(1,z)); invalidate(); }
 
   // ---- Campos ----
   nomeInput.addEventListener('input', function(){ nomeVal=nomeInput.value.trim(); invalidate(); });
@@ -323,7 +315,6 @@
     shareBtn.classList.remove('hidden');
     saveBtn.classList.remove('hidden');
     resetBtn.classList.remove('hidden');
-    zoomRow.classList.add('show');
     var isImg = mediaType==='image';
     saveBtn.textContent = isImg ? 'Salvar foto' : 'Salvar vídeo';
     if(isImg && navigator.clipboard && window.ClipboardItem) copyBtn.classList.remove('hidden');
@@ -332,7 +323,7 @@
     addBtn.textContent='Trocar mídia';
     setStatus(''); invalidate();
   }
-  function resetView(){ zoom=1; panX=0; panY=0; zoomInput.value='1'; }
+  function resetView(){ zoom=1; panX=0; panY=0; }
   resetBtn.addEventListener('click', function(){ resetView(); invalidate(); });
   function clearMedia(){
     if(media && mediaType==='video'){ try{media.pause();}catch(e){} }
