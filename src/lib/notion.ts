@@ -1,0 +1,238 @@
+import { fetch } from "@tauri-apps/plugin-http";
+import { getDb } from "./db";
+
+/**
+ * Integração com o Notion — 1 VIA (Vistage → Notion). O Vistage cria um
+ * database "Ideias" no Notion (sob uma página que você compartilha com a
+ * integração) e empurra cada ideia como uma página desse database. Espelha as
+ * convenções do Todoist: token guardado em app_settings (viaja no .vistage),
+ * sync no "Salvar" e por botão, último sync mostrado.
+ *
+ * Usa o fetch do plugin HTTP do Tauri (passa pela camada Rust) — o fetch nativo
+ * do webview falha por CORS.
+ */
+
+const BASE = "https://api.notion.com/v1";
+const NOTION_VERSION = "2022-06-28";
+
+const KEY_TOKEN = "notion_token";
+const KEY_PARENT = "notion_parent_page_id";
+const KEY_DB = "notion_database_id";
+const KEY_LAST_SYNC = "notion_last_sync";
+
+const HEAT_LABEL: Record<number, string> = { 1: "Fria", 2: "Morna", 3: "Quente" };
+
+async function getSetting(key: string): Promise<string | null> {
+  const db = getDb();
+  const rows = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key = $1",
+    [key]
+  );
+  return rows[0]?.value ?? null;
+}
+
+async function setSetting(key: string, value: string): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+    [key, value]
+  );
+}
+
+async function delSetting(key: string): Promise<void> {
+  await getDb().execute("DELETE FROM app_settings WHERE key = $1", [key]);
+}
+
+export async function getNotionConfig(): Promise<{
+  token: string | null;
+  parentPageId: string | null;
+  databaseId: string | null;
+  lastSync: string | null;
+}> {
+  const [token, parentPageId, databaseId, lastSync] = await Promise.all([
+    getSetting(KEY_TOKEN),
+    getSetting(KEY_PARENT),
+    getSetting(KEY_DB),
+    getSetting(KEY_LAST_SYNC),
+  ]);
+  return { token, parentPageId, databaseId, lastSync };
+}
+
+export async function saveNotionToken(token: string): Promise<void> {
+  await setSetting(KEY_TOKEN, token);
+}
+
+export async function clearNotionConfig(): Promise<void> {
+  await Promise.all([
+    delSetting(KEY_TOKEN),
+    delSetting(KEY_PARENT),
+    delSetting(KEY_DB),
+    delSetting(KEY_LAST_SYNC),
+  ]);
+}
+
+async function notionApi<T>(
+  token: string,
+  method: string,
+  path: string,
+  body?: unknown
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Notion-Version": NOTION_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`Notion API ${res.status}: ${text}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return (await res.json()) as T;
+}
+
+/** Valida o token chamando /users/me. Lança se inválido. */
+export async function validateNotionToken(token: string): Promise<void> {
+  await notionApi(token, "GET", "/users/me");
+}
+
+type NotionTitleProp = { type: string; title?: { plain_text: string }[] };
+type NotionPage = { id: string; properties?: Record<string, NotionTitleProp> };
+
+function pageTitle(page: NotionPage): string {
+  const props = page.properties ?? {};
+  for (const key of Object.keys(props)) {
+    const p = props[key];
+    if (p?.type === "title" && Array.isArray(p.title)) {
+      const t = p.title.map((x) => x.plain_text).join("");
+      if (t.trim()) return t;
+    }
+  }
+  return "(página sem título)";
+}
+
+/** Páginas que a integração consegue ver — candidatas a "pasta" do database. */
+export async function listNotionPages(
+  token: string
+): Promise<{ id: string; title: string }[]> {
+  const res = await notionApi<{ results: NotionPage[] }>(token, "POST", "/search", {
+    filter: { value: "page", property: "object" },
+    page_size: 50,
+  });
+  return (res.results ?? []).map((p) => ({ id: p.id, title: pageTitle(p) }));
+}
+
+/** Cria o database "Ideias" sob a página escolhida e guarda o id. */
+export async function createIdeasDatabase(
+  token: string,
+  parentPageId: string
+): Promise<string> {
+  const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
+    parent: { type: "page_id", page_id: parentPageId },
+    title: [{ type: "text", text: { content: "💡 Ideias — Vistage" } }],
+    properties: {
+      Name: { title: {} },
+      Resumo: { rich_text: {} },
+      Categoria: { select: {} },
+      Calor: { select: {} },
+      Maturação: { select: {} },
+      Tags: { multi_select: {} },
+    },
+  });
+  await Promise.all([
+    setSetting(KEY_PARENT, parentPageId),
+    setSetting(KEY_DB, res.id),
+  ]);
+  return res.id;
+}
+
+type IdeaRow = {
+  id: number;
+  title: string;
+  body: string | null;
+  category: string | null;
+  tags: string | null;
+  heat: number;
+  maturation: string;
+  notion_page_id: string | null;
+};
+
+/** Nome de opção de select/multi-select seguro (sem vírgula, não vazio). */
+function optName(s: string): string {
+  return s.replace(/,/g, " ").trim().slice(0, 90) || "—";
+}
+
+function buildProps(idea: IdeaRow): Record<string, unknown> {
+  let tags: string[] = [];
+  try {
+    const parsed = JSON.parse(idea.tags ?? "[]");
+    if (Array.isArray(parsed)) tags = parsed.filter((t): t is string => typeof t === "string");
+  } catch {
+    /* tags inválidas — ignora */
+  }
+  return {
+    Name: { title: [{ text: { content: idea.title.slice(0, 1900) || "(sem título)" } }] },
+    Resumo: {
+      rich_text: idea.body ? [{ text: { content: idea.body.slice(0, 1900) } }] : [],
+    },
+    Categoria: idea.category ? { select: { name: optName(idea.category) } } : { select: null },
+    Calor: { select: { name: HEAT_LABEL[idea.heat] ?? "Fria" } },
+    Maturação: { select: { name: optName(idea.maturation) } },
+    Tags: { multi_select: tags.map((t) => ({ name: optName(t) })) },
+  };
+}
+
+export type NotionSyncResult = { created: number; updated: number; failed: number };
+
+/**
+ * Empurra todas as ideias pro database do Notion. Cada ideia vira/atualiza uma
+ * página (guardamos o notion_page_id pra não duplicar). Best-effort por ideia:
+ * uma falha não derruba o resto. Se a página sumiu lá (404), recria.
+ */
+export async function syncNotion(): Promise<NotionSyncResult> {
+  const { token, databaseId } = await getNotionConfig();
+  if (!token || !databaseId) throw new Error("Notion não configurado");
+  const db = getDb();
+  const ideas = await db.select<IdeaRow[]>(
+    "SELECT id, title, body, category, tags, heat, maturation, notion_page_id FROM ideas"
+  );
+
+  let created = 0;
+  let updated = 0;
+  let failed = 0;
+
+  for (const idea of ideas) {
+    const properties = buildProps(idea);
+    try {
+      if (idea.notion_page_id) {
+        try {
+          await notionApi(token, "PATCH", `/pages/${idea.notion_page_id}`, { properties });
+          updated++;
+        } catch {
+          // página sumiu/arquivada lá → recria e regrava o id
+          const page = await notionApi<{ id: string }>(token, "POST", "/pages", {
+            parent: { database_id: databaseId },
+            properties,
+          });
+          await db.execute("UPDATE ideas SET notion_page_id = $1 WHERE id = $2", [page.id, idea.id]);
+          created++;
+        }
+      } else {
+        const page = await notionApi<{ id: string }>(token, "POST", "/pages", {
+          parent: { database_id: databaseId },
+          properties,
+        });
+        await db.execute("UPDATE ideas SET notion_page_id = $1 WHERE id = $2", [page.id, idea.id]);
+        created++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  await setSetting(KEY_LAST_SYNC, new Date().toISOString());
+  return { created, updated, failed };
+}

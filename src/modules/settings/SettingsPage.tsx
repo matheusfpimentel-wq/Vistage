@@ -21,6 +21,7 @@ import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
 import { TodoistSettings } from "./TodoistSettings";
+import { NotionSettings } from "./NotionSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 import { InsightsBankSettings } from "./InsightsBankSettings";
@@ -103,6 +104,7 @@ export function SettingsPage() {
       <TabsContent value="integracoes" className="space-y-6">
         <MobileSyncSettings />
         <TodoistSettings />
+        <NotionSettings />
         <GoogleCalendarSettings />
       </TabsContent>
 
