@@ -1,13 +1,12 @@
 import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readFile, writeFile, writeTextFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
 import { persistViewPrefsToDocument } from "./docSettings";
 import {
   decryptString,
-  encryptString,
   isEncryptedRaw,
   isEncryptedContainer,
   encryptBytes,
@@ -113,9 +112,11 @@ const FILE_PATH_COLS: Partial<Record<TableName, string[]>> = {
   venues:               ["photo_path"],
   equipment:            ["photo_path"],
   finance_transactions: ["receipt_file_path"],
-  finance_recurring:    ["receipt_file_path"],
+  // (finance_recurring NÃO tem receipt_file_path; artist_identity NÃO tem
+  //  thumbnail_path/file_path — eram colunas fantasma que quebravam o rewrite
+  //  de caminhos no restore entre máquinas.)
   tracks:               ["daw_project_path", "stems_path", "final_files_path"],
-  artist_identity:      ["logo_path", "isotype_path", "presskit_path", "brand_manual_path", "thumbnail_path", "file_path"],
+  artist_identity:      ["logo_path", "isotype_path", "presskit_path", "brand_manual_path"],
   artist_templates:     ["file_path", "thumbnail_path"],
 };
 
@@ -186,6 +187,8 @@ function mimeForExt(name: string): string {
     : ext === "mp4" || ext === "m4v" ? "video/mp4"
     : ext === "mov" ? "video/quicktime"
     : ext === "webm" ? "video/webm"
+    : ext === "avi" ? "video/x-msvideo"
+    : ext === "mkv" ? "video/x-matroska"
     : "application/octet-stream";
 }
 
@@ -526,18 +529,6 @@ export function parseBackupRaw(raw: string): Backup {
     throw new Error("Arquivo sem dados.");
   }
   return parsed as Backup;
-}
-
-/**
- * Serializa o backup e grava no caminho — cifrando com a senha do documento se
- * houver uma definida (ver docPassword). Único ponto de escrita: garante que
- * "Salvar", "Salvar como" e exportações respeitem a proteção por senha.
- */
-export async function writeBackupFile(path: string, backup: Backup): Promise<void> {
-  const json = JSON.stringify(backup, null, 2);
-  const pw = getDocPassword();
-  const out = pw ? await encryptString(json, pw) : json;
-  await writeTextFile(path, out);
 }
 
 // ── Contêiner .vistage (zip) ─────────────────────────────────────────────────

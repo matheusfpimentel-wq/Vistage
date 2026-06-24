@@ -28,12 +28,6 @@ type Envelope = {
   data: string; // base64 (ciphertext)
 };
 
-function bytesToB64(bytes: Uint8Array): string {
-  let bin = "";
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-  return btoa(bin);
-}
-
 function b64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
@@ -70,29 +64,6 @@ export function isEncryptedRaw(raw: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** Cifra um texto (o JSON do backup) com a senha. Retorna o envelope JSON. */
-export async function encryptString(plaintext: string, password: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await deriveKey(password, salt, PBKDF2_ITER);
-  const cipher = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv as BufferSource },
-    key,
-    new TextEncoder().encode(plaintext)
-  );
-  const env: Envelope = {
-    app: ENC_APP,
-    v: 1,
-    kdf: "PBKDF2",
-    hash: "SHA-256",
-    iter: PBKDF2_ITER,
-    salt: bytesToB64(salt),
-    iv: bytesToB64(iv),
-    data: bytesToB64(new Uint8Array(cipher)),
-  };
-  return JSON.stringify(env);
 }
 
 /** Decifra um envelope. Lança "Senha incorreta." se a senha não bater. */

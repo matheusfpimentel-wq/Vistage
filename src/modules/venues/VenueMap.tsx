@@ -74,6 +74,15 @@ export function VenueMap({ venues, onOpenDetail, onRefresh }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapped.map((v) => v.id).join(",")]);
 
+  // Destrói a instância do Leaflet ao desmontar — senão o objeto vaza e o
+  // Leaflet lança "Map container is already initialized" ao remontar a aba.
+  useEffect(() => {
+    return () => {
+      leafletMap.current?.remove();
+      leafletMap.current = null;
+    };
+  }, []);
+
   async function handleGeocode(venue: Venue) {
     setGeocoding(venue.id);
     try {

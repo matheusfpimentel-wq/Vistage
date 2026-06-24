@@ -16,7 +16,7 @@ export type InsightFilters = {
 export async function listInsights(filters: InsightFilters = {}): Promise<InsightHit[]> {
   const db = getDb();
   const [sourceRows, manualRows, dismissedRows, ruleHits] = await Promise.all([
-    db.select<InsightHit[]>("SELECT * FROM v_insights"),
+    db.select<InsightHit[]>("SELECT * FROM v_insights").catch(() => [] as InsightHit[]),
     db
       .select<{ id: number; content: string; created_at: string }[]>(
         "SELECT id, content, created_at FROM manual_insights"
