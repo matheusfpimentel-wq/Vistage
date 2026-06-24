@@ -29,13 +29,14 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import {
   createCustomRule,
+  decodeStateDays,
   deleteCustomRule,
   describeRule,
+  encodeStateDays,
   entityDef,
   fieldDef,
   listCustomRules,
   OPERATORS_BY_TYPE,
-  operatorNeedsValue,
   RULE_ENTITIES,
   setCustomRuleEnabled,
   updateCustomRule,
@@ -247,7 +248,11 @@ function RuleFormDialog({
   const eDef = entityDef(entity);
   const fDef = eDef ? fieldDef(eDef, field) : undefined;
   const operators = fDef ? OPERATORS_BY_TYPE[fDef.type] : [];
-  const needsValue = fDef ? operatorNeedsValue(fDef.type, operator) : false;
+  const opMeta = operators.find((o) => o.op === operator);
+  const needsValue = opMeta?.needsValue ?? false;
+  const valueKind = opMeta?.valueKind ?? "none";
+  const options = fDef?.options ?? [];
+  const { state: stateVal, days: daysVal } = decodeStateDays(value);
 
   function onEntityChange(next: RuleEntityKey) {
     setEntity(next);
@@ -256,6 +261,7 @@ function RuleFormDialog({
     const f0 = e.fields[0];
     setField(f0.key);
     setOperator(OPERATORS_BY_TYPE[f0.type][0].op);
+    setValue("");
   }
 
   function onFieldChange(nextKey: string) {
@@ -263,6 +269,7 @@ function RuleFormDialog({
     if (!eDef) return;
     const f = fieldDef(eDef, nextKey);
     if (f) setOperator(OPERATORS_BY_TYPE[f.type][0].op);
+    setValue("");
   }
 
   async function save() {
@@ -270,9 +277,16 @@ function RuleFormDialog({
       toast.error(`Escreva a mensagem do ${isInsight ? "insight" : "alerta"}.`);
       return;
     }
-    if (needsValue && !value.trim()) {
-      toast.error("Informe o valor da condição.");
-      return;
+    if (needsValue) {
+      if (valueKind === "state_days") {
+        if (!stateVal || !daysVal.trim() || !Number.isFinite(Number(daysVal))) {
+          toast.error("Escolha o estado e os dias.");
+          return;
+        }
+      } else if (!value.trim()) {
+        toast.error("Informe o valor da condição.");
+        return;
+      }
     }
     const input: CustomRuleInput = {
       entity,
@@ -338,31 +352,99 @@ function RuleFormDialog({
             </div>
           </div>
 
-          <div className={cn("grid gap-2", needsValue ? "grid-cols-2" : "grid-cols-1")}>
-            <div className="space-y-1">
-              <Label className="text-xs">Condição</Label>
-              <Select value={operator} onValueChange={(v) => setOperator(v as RuleOperator)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {operators.map((o) => (
-                    <SelectItem key={o.op} value={o.op}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {needsValue && (
+          <div className="space-y-2">
+            <div
+              className={cn(
+                "grid gap-2",
+                needsValue && valueKind !== "state_days" ? "grid-cols-2" : "grid-cols-1"
+              )}
+            >
               <div className="space-y-1">
-                <Label className="text-xs">Valor</Label>
-                <Input
-                  type="number"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                  placeholder="ex: 15"
-                />
+                <Label className="text-xs">Condição</Label>
+                <Select
+                  value={operator}
+                  onValueChange={(v) => {
+                    setOperator(v as RuleOperator);
+                    setValue("");
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {operators.map((o) => (
+                      <SelectItem key={o.op} value={o.op}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {needsValue && valueKind === "number" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Valor</Label>
+                  <Input
+                    type="number"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="ex: 15"
+                  />
+                </div>
+              )}
+              {needsValue && valueKind === "text" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Texto</Label>
+                  <Input
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    placeholder="ex: pendente"
+                  />
+                </div>
+              )}
+              {needsValue && valueKind === "enum" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Valor</Label>
+                  <Select value={value} onValueChange={setValue}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            {needsValue && valueKind === "state_days" && (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Estado</Label>
+                  <Select value={stateVal} onValueChange={(v) => setValue(encodeStateDays(v, daysVal))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Há mais de (dias)</Label>
+                  <Input
+                    type="number"
+                    value={daysVal}
+                    onChange={(e) => setValue(encodeStateDays(stateVal, e.target.value))}
+                    placeholder="ex: 14"
+                  />
+                </div>
               </div>
             )}
           </div>

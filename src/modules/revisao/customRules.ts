@@ -6,34 +6,48 @@ import type { AlertItem } from "./alerts";
  *
  * Segurança: `entity`, `field` e `operator` NUNCA viram SQL livre — eles só
  * casam contra este catálogo (whitelist). O único dado do usuário que entra na
- * query é o `value`, e ele é BINDADO como parâmetro ($1). Assim não há injeção
- * nem risco de coluna inexistente.
+ * query é o `value`, e ele é BINDADO como parâmetro ($1/$2). Assim não há
+ * injeção nem risco de coluna inexistente.
  */
 
 export type RuleEntityKey =
   | "gig"
   | "track"
   | "contact"
+  | "fan"
   | "task"
   | "party"
   | "class";
-export type RuleFieldType = "activity" | "date" | "number" | "text";
+export type RuleFieldType = "activity" | "date" | "number" | "text" | "enum";
 export type RuleOperator =
   | "stale" // activity: sem movimento há > N dias
   | "before_today" // date < hoje
   | "after_today" // date > hoje
   | "is_today" // date = hoje
+  | "next_days" // date entre hoje e hoje+N
+  | "overdue_days" // date < hoje-N
   | "lt"
   | "gt"
-  | "eq" // number
+  | "eq"
+  | "gte"
+  | "lte" // number
   | "empty"
-  | "filled"; // text
+  | "filled"
+  | "contains" // text
+  | "is"
+  | "is_not"
+  | "state_stale"; // enum: está em X / não é X / está em X há > N dias
+
+/** Como o editor deve coletar o `value` da condição. */
+export type RuleValueKind = "none" | "number" | "text" | "enum" | "state_days";
 
 export type RuleFieldDef = {
   key: string;
   label: string;
   type: RuleFieldType;
   column: string;
+  /** Opções para campos do tipo `enum` (valores exatos gravados no banco). */
+  options?: readonly string[];
 };
 
 export type RuleEntityDef = {
@@ -45,6 +59,18 @@ export type RuleEntityDef = {
   baseWhere?: string;
   fields: RuleFieldDef[];
 };
+
+// Opções de enums (valores exatos como gravados no banco).
+const GIG_STATUS = ["Proposta", "Confirmada", "Concluída", "Cancelada"] as const;
+const TRACK_STAGE = [
+  "Ideação", "Composição", "Produção", "Mix", "Master",
+  "Pré-lançamento", "Lançamento", "Pós-lançamento",
+] as const;
+const TASK_STATUS = ["A fazer", "Em andamento", "Concluída", "Cancelada"] as const;
+const TASK_PRIORITY = ["Baixa", "Média", "Alta", "Urgente"] as const;
+const TASK_CATEGORY = ["GIG", "Produção Musical", "Conteúdo", "Festas", "Administrativo", "Pessoal"] as const;
+const PARTY_STATUS = ["Planejando", "Confirmada", "Realizada", "Cancelada"] as const;
+const FAN_LEVEL = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
 
 export const RULE_ENTITIES: RuleEntityDef[] = [
   {
@@ -58,6 +84,10 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
       { key: "date", label: "Data do evento", type: "date", column: "date" },
       { key: "payment_due_date", label: "Vencimento do cachê", type: "date", column: "payment_due_date" },
       { key: "cache_amount", label: "Cachê (R$)", type: "number", column: "cache_amount" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: GIG_STATUS },
+      { key: "event_name", label: "Nome do evento", type: "text", column: "event_name" },
+      { key: "venue_name", label: "Local", type: "text", column: "venue_name" },
+      { key: "briefing_file_path", label: "Briefing (arquivo)", type: "text", column: "briefing_file_path" },
     ],
   },
   {
@@ -67,6 +97,9 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     route: "/musica",
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "current_stage", label: "Estágio", type: "enum", column: "current_stage", options: TRACK_STAGE },
+      { key: "deadline", label: "Prazo de conclusão", type: "date", column: "deadline" },
+      { key: "bpm", label: "BPM", type: "number", column: "bpm" },
     ],
   },
   {
@@ -76,6 +109,25 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     route: "/pessoas",
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "last_interaction_at", label: "Última interação", type: "activity", column: "last_interaction_at" },
+      { key: "rating", label: "Avaliação (1–5)", type: "number", column: "rating" },
+      { key: "phone", label: "Telefone", type: "text", column: "phone" },
+      { key: "email", label: "E-mail", type: "text", column: "email" },
+      { key: "city", label: "Cidade", type: "text", column: "city" },
+    ],
+  },
+  {
+    key: "fan",
+    label: "Fã",
+    table: "fans",
+    route: "/fas",
+    fields: [
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "last_interaction_at", label: "Última interação", type: "activity", column: "last_interaction_at" },
+      { key: "level", label: "Nível", type: "enum", column: "level", options: FAN_LEVEL },
+      { key: "city", label: "Cidade", type: "text", column: "city" },
+      { key: "phone", label: "Telefone", type: "text", column: "phone" },
+      { key: "email", label: "E-mail", type: "text", column: "email" },
     ],
   },
   {
@@ -87,6 +139,9 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "due_date", label: "Prazo", type: "date", column: "due_date" },
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: TASK_STATUS },
+      { key: "priority", label: "Prioridade", type: "enum", column: "priority", options: TASK_PRIORITY },
+      { key: "category", label: "Categoria", type: "enum", column: "category", options: TASK_CATEGORY },
     ],
   },
   {
@@ -97,6 +152,10 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "date", label: "Data", type: "date", column: "date" },
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: PARTY_STATUS },
+      { key: "description", label: "Descrição", type: "text", column: "description" },
+      { key: "venue_name", label: "Local", type: "text", column: "venue_name" },
+      { key: "expected_capacity", label: "Público estimado", type: "number", column: "expected_capacity" },
     ],
   },
   {
@@ -113,22 +172,34 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
 
 export const OPERATORS_BY_TYPE: Record<
   RuleFieldType,
-  { op: RuleOperator; label: string; needsValue: boolean }[]
+  { op: RuleOperator; label: string; needsValue: boolean; valueKind: RuleValueKind }[]
 > = {
-  activity: [{ op: "stale", label: "sem movimento há mais de … dias", needsValue: true }],
+  activity: [
+    { op: "stale", label: "sem movimento há mais de … dias", needsValue: true, valueKind: "number" },
+  ],
   date: [
-    { op: "before_today", label: "antes de hoje (< hoje)", needsValue: false },
-    { op: "after_today", label: "depois de hoje (> hoje)", needsValue: false },
-    { op: "is_today", label: "é hoje (= hoje)", needsValue: false },
+    { op: "before_today", label: "antes de hoje (< hoje)", needsValue: false, valueKind: "none" },
+    { op: "after_today", label: "depois de hoje (> hoje)", needsValue: false, valueKind: "none" },
+    { op: "is_today", label: "é hoje (= hoje)", needsValue: false, valueKind: "none" },
+    { op: "next_days", label: "nos próximos … dias", needsValue: true, valueKind: "number" },
+    { op: "overdue_days", label: "venceu há mais de … dias", needsValue: true, valueKind: "number" },
   ],
   number: [
-    { op: "lt", label: "menor que (<)", needsValue: true },
-    { op: "gt", label: "maior que (>)", needsValue: true },
-    { op: "eq", label: "igual a (=)", needsValue: true },
+    { op: "lt", label: "menor que (<)", needsValue: true, valueKind: "number" },
+    { op: "gt", label: "maior que (>)", needsValue: true, valueKind: "number" },
+    { op: "eq", label: "igual a (=)", needsValue: true, valueKind: "number" },
+    { op: "gte", label: "maior ou igual (≥)", needsValue: true, valueKind: "number" },
+    { op: "lte", label: "menor ou igual (≤)", needsValue: true, valueKind: "number" },
   ],
   text: [
-    { op: "empty", label: "está vazio", needsValue: false },
-    { op: "filled", label: "está preenchido", needsValue: false },
+    { op: "empty", label: "está vazio", needsValue: false, valueKind: "none" },
+    { op: "filled", label: "está preenchido", needsValue: false, valueKind: "none" },
+    { op: "contains", label: "contém o texto …", needsValue: true, valueKind: "text" },
+  ],
+  enum: [
+    { op: "is", label: "é …", needsValue: true, valueKind: "enum" },
+    { op: "is_not", label: "não é …", needsValue: true, valueKind: "enum" },
+    { op: "state_stale", label: "está em … há mais de … dias", needsValue: true, valueKind: "state_days" },
   ],
 };
 
@@ -161,8 +232,20 @@ export function entityDef(key: string): RuleEntityDef | undefined {
 export function fieldDef(entity: RuleEntityDef, fieldKey: string): RuleFieldDef | undefined {
   return entity.fields.find((f) => f.key === fieldKey);
 }
+export function operatorDef(type: RuleFieldType, op: RuleOperator) {
+  return OPERATORS_BY_TYPE[type].find((o) => o.op === op);
+}
 export function operatorNeedsValue(type: RuleFieldType, op: RuleOperator): boolean {
-  return OPERATORS_BY_TYPE[type].find((o) => o.op === op)?.needsValue ?? false;
+  return operatorDef(type, op)?.needsValue ?? false;
+}
+
+/** Codifica/decodifica o valor composto do operador `state_stale` ("estado::dias"). */
+export function encodeStateDays(state: string, days: string): string {
+  return `${state}::${days}`;
+}
+export function decodeStateDays(value: string | null): { state: string; days: string } {
+  const [state = "", days = ""] = (value ?? "").split("::");
+  return { state, days };
 }
 
 /** Texto legível "Se {entidade} · {campo} {operador} {valor}". */
@@ -171,11 +254,17 @@ export function describeRule(
 ): string {
   const e = entityDef(r.entity);
   const f = e ? fieldDef(e, r.field) : undefined;
+  const eLabel = e?.label ?? r.entity;
+  const fLabel = f?.label ?? r.field;
+  if (r.operator === "state_stale") {
+    const { state, days } = decodeStateDays(r.value);
+    return `Se ${eLabel} · ${fLabel} está em "${state}" há mais de ${days} dias`;
+  }
   const opLabel = f
-    ? OPERATORS_BY_TYPE[f.type].find((o) => o.op === r.operator)?.label ?? r.operator
+    ? operatorDef(f.type, r.operator)?.label ?? r.operator
     : r.operator;
   const valuePart = r.value ? ` ${r.value}` : "";
-  return `Se ${e?.label ?? r.entity} · ${f?.label ?? r.field} ${opLabel}${valuePart}`;
+  return `Se ${eLabel} · ${fLabel} ${opLabel}${valuePart}`;
 }
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -209,32 +298,73 @@ export async function deleteCustomRule(id: number): Promise<void> {
 
 // ── Avaliação ─────────────────────────────────────────────────────────────────
 /** Monta a condição WHERE a partir do catálogo (colunas/operadores seguros). */
-function buildCondition(
-  field: RuleFieldDef,
-  operator: RuleOperator
-): { sql: string; needsValue: boolean } | null {
+function buildSql(field: RuleFieldDef, operator: RuleOperator): string | null {
   const col = field.column;
   switch (operator) {
     case "stale":
-      return { sql: `(julianday('now') - julianday(${col})) > $1`, needsValue: true };
+      return `${col} IS NOT NULL AND (julianday('now') - julianday(${col})) > $1`;
     case "before_today":
-      return { sql: `date(${col}) < date('now')`, needsValue: false };
+      return `date(${col}) < date('now')`;
     case "after_today":
-      return { sql: `date(${col}) > date('now')`, needsValue: false };
+      return `date(${col}) > date('now')`;
     case "is_today":
-      return { sql: `date(${col}) = date('now')`, needsValue: false };
+      return `date(${col}) = date('now')`;
+    case "next_days":
+      return `${col} IS NOT NULL AND julianday(${col}) >= julianday('now') AND julianday(${col}) <= julianday('now') + $1`;
+    case "overdue_days":
+      return `${col} IS NOT NULL AND julianday(${col}) < julianday('now') - $1`;
     case "lt":
-      return { sql: `${col} < $1`, needsValue: true };
+      return `${col} < $1`;
     case "gt":
-      return { sql: `${col} > $1`, needsValue: true };
+      return `${col} > $1`;
     case "eq":
-      return { sql: `${col} = $1`, needsValue: true };
+      return `${col} = $1`;
+    case "gte":
+      return `${col} >= $1`;
+    case "lte":
+      return `${col} <= $1`;
     case "empty":
-      return { sql: `(${col} IS NULL OR ${col} = '')`, needsValue: false };
+      return `(${col} IS NULL OR ${col} = '')`;
     case "filled":
-      return { sql: `(${col} IS NOT NULL AND ${col} <> '')`, needsValue: false };
+      return `(${col} IS NOT NULL AND ${col} <> '')`;
+    case "contains":
+      return `${col} LIKE '%' || $1 || '%'`;
+    case "is":
+      return `${col} = $1`;
+    case "is_not":
+      return `(${col} IS NULL OR ${col} <> $1)`;
+    case "state_stale":
+      return `${col} = $1 AND updated_at IS NOT NULL AND (julianday('now') - julianday(updated_at)) > $2`;
     default:
       return null;
+  }
+}
+
+/** Parâmetros bindados ($1/$2), na ordem em que aparecem no SQL. */
+function buildParams(operator: RuleOperator, value: string | null): unknown[] {
+  switch (operator) {
+    case "stale":
+    case "next_days":
+    case "overdue_days":
+    case "lt":
+    case "gt":
+    case "eq":
+    case "gte":
+    case "lte": {
+      const num = Number(value);
+      return [Number.isFinite(num) ? num : value];
+    }
+    case "contains":
+    case "is":
+    case "is_not":
+      return [value ?? ""];
+    case "state_stale": {
+      const { state, days } = decodeStateDays(value);
+      const num = Number(days);
+      return [state, Number.isFinite(num) ? num : 0];
+    }
+    default:
+      return [];
   }
 }
 
@@ -246,16 +376,12 @@ async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
   if (!f) return null;
   // o operador precisa pertencer ao tipo do campo (combinação válida)
   if (!OPERATORS_BY_TYPE[f.type].some((o) => o.op === rule.operator)) return null;
-  const cond = buildCondition(f, rule.operator);
+  const cond = buildSql(f, rule.operator);
   if (!cond) return null;
 
-  const where = [e.baseWhere, cond.sql].filter(Boolean).join(" AND ");
+  const where = [e.baseWhere, `(${cond})`].filter(Boolean).join(" AND ");
   const sql = `SELECT COUNT(*) AS n FROM ${e.table} WHERE ${where}`;
-  const params: unknown[] = [];
-  if (cond.needsValue) {
-    const num = Number(rule.value);
-    params.push(Number.isFinite(num) ? num : rule.value);
-  }
+  const params = buildParams(rule.operator, rule.value);
   try {
     const rows = await getDb().select<{ n: number }[]>(sql, params);
     return rows[0]?.n ?? 0;
