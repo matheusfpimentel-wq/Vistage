@@ -30,6 +30,18 @@ export async function syncAllIntegrations(opts?: { silent?: boolean }): Promise<
     /* best-effort */
   }
 
+  // ── Notion (1 via: ideias → Notion) ─────────────────────────────────────────
+  try {
+    const { getNotionConfig, syncNotion } = await import("./notion");
+    const { token, databaseId } = await getNotionConfig();
+    if (token && databaseId) {
+      await syncNotion();
+      done.push("Notion");
+    }
+  } catch {
+    /* best-effort */
+  }
+
   // ── Google Calendar ──────────────────────────────────────────────────────────
   try {
     const { loadAuth, syncAll } = await import("./gcal");

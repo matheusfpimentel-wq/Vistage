@@ -1827,6 +1827,13 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 127,
+    description: "ideas — notion_page_id (sync 1 via com o Notion)",
+    sql: `
+      ALTER TABLE ideas ADD COLUMN notion_page_id TEXT;
+    `,
+  },
 ];
 
 

@@ -42,7 +42,10 @@
     "notification:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "https://api.todoist.com/*" }]
+      "allow": [
+        { "url": "https://api.todoist.com/*" },
+        { "url": "https://api.notion.com/*" }
+      ]
     }
   ]
 }
