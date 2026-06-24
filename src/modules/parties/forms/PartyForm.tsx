@@ -737,7 +737,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       className={cn(
                         "rounded-md border px-2.5 py-1 text-xs transition",
                         state.lineup.includes(c.id)
-                          ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
+                          ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
                           : "border-input hover:bg-accent"
                       )}
                     >

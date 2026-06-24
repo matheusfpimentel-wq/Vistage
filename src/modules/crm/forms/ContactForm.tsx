@@ -293,7 +293,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                     className={cn(
                       "rounded-md border px-2.5 py-1 text-xs transition",
                       active
-                        ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
+                        ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
                         : "border-input bg-background hover:bg-accent"
                     )}
                   >
@@ -315,7 +315,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                   className={cn(
                     "rounded-md border px-2.5 py-1 text-xs transition",
                     active
-                      ? "border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/20"
+                      ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
                       : "border-input bg-background hover:bg-accent"
                   )}
                 >

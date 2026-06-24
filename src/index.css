@@ -89,9 +89,10 @@
 }
 
 @layer components {
-  /* Pílula de filtro/segmento — visual moderno (estilo iOS): cantos bem
-     arredondados, estado ativo "elevado" com sombra colorida suave e um brilho
-     sutil na borda (em vez do preenchimento chapado antigo). */
+  /* Pílula de filtro/segmento — visual "liquid glass" (estilo iOS recente): o
+     estado ativo é uma cápsula TINGIDA e translúcida (tom suave do acento +
+     texto na cor do acento), não o preenchimento chapado/saturado antigo —
+     que ficava com cara de velho. */
   .seg-pill {
     @apply rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-150 active:scale-[0.97];
   }
@@ -99,6 +100,6 @@
     @apply border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground;
   }
   .seg-pill-on {
-    @apply border-transparent bg-primary text-primary-foreground shadow-sm shadow-primary/30 ring-1 ring-inset ring-white/15;
+    @apply border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm;
   }
 }
