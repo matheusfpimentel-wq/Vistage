@@ -73,6 +73,15 @@ export function MindMapPage() {
     return { nodes, edges };
   }, [graph, hidden]);
 
+  // índice id→nó: a cor de cada aresta era resolvida com um .find() linear por
+  // aresta DENTRO do render, que roda a ~60fps enquanto a simulação esfria
+  // (O(arestas × nós) por frame). Com o Map é O(1).
+  const nodeById = useMemo(() => {
+    const m = new Map<string, MindNode>();
+    for (const n of visible.nodes) m.set(n.id, n);
+    return m;
+  }, [visible.nodes]);
+
   // grau de cada nó (para tamanho do círculo)
   const degree = useMemo(() => {
     const d = new Map<string, number>();
@@ -430,7 +439,7 @@ export function MindMapPage() {
               if (!a || !b) return null;
               const active = !neighbors || (neighbors.has(e.source) && neighbors.has(e.target));
               // cor derivada da ponta-fonte para dar identidade visual à aresta
-              const srcNode = visible.nodes.find((n) => n.id === e.source);
+              const srcNode = nodeById.get(e.source);
               const edgeColor = srcNode ? mindColor(srcNode.type, colorOverrides) : "#94a3b8";
               return (
                 <line

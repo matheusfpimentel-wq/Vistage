@@ -8,6 +8,7 @@ import {
   remove,
 } from "@tauri-apps/plugin-fs";
 import { open as openShell } from "@tauri-apps/plugin-shell";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useConfigStore } from "./config";
 
 export const IMAGE_EXTS = ["jpg", "jpeg", "png", "webp", "gif"];
@@ -82,9 +83,71 @@ export async function saveAttachment(
   return dest;
 }
 
+// ── Streaming nativo de mídia (asset://) ─────────────────────────────────────
+// Antes, CADA foto/vídeo era lido inteiro e convertido em base64 num data URL
+// guardado em estado React. Numa galeria com dezenas de fotos — e PIOR, com
+// vídeos inteiros — isso enchia a memória do JS e travava/estourava. Agora a
+// mídia é servida pelo protocolo `asset:` do Tauri (streaming direto do disco,
+// sem cópia em memória, com lazy-decode do navegador). Detectamos UMA vez se o
+// protocolo está disponível nesta máquina; se não estiver, caímos no base64 de
+// antes — então nunca há regressão, só ganho quando o asset funciona.
+type AssetMode = "unknown" | "ok" | "off";
+let assetMode: AssetMode = "unknown";
+let assetProbe: Promise<void> | null = null;
+
+/** Testa se uma URL `asset:` realmente carrega (via <img>), com timeout. */
+function probeAssetUrl(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    let settled = false;
+    const finish = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      img.onload = null;
+      img.onerror = null;
+      resolve(ok);
+    };
+    img.onload = () => finish(true);
+    img.onerror = () => finish(false);
+    img.src = url;
+    setTimeout(() => finish(false), 2500);
+  });
+}
+
+/** Detecta o modo do protocolo asset uma única vez (compartilhado entre hooks). */
+async function ensureAssetMode(sampleImagePath: string): Promise<void> {
+  if (assetMode !== "unknown") return;
+  if (!assetProbe) {
+    assetProbe = probeAssetUrl(convertFileSrc(sampleImagePath)).then((ok) => {
+      assetMode = ok ? "ok" : "off";
+    });
+  }
+  await assetProbe;
+}
+
+/** Resolve o caminho que REALMENTE existe (cobre .vistage de outra máquina). */
+async function resolveExistingPath(path: string): Promise<string> {
+  try {
+    if (await exists(path)) return path;
+  } catch {
+    /* segue pro fallback */
+  }
+  const alt = resolveUnderCurrentUploads(path);
+  if (alt && alt !== path) {
+    try {
+      if (await exists(alt)) return alt;
+    } catch {
+      /* ignora */
+    }
+  }
+  return path;
+}
+
 /**
- * Hook React que carrega uma imagem como data URL.
- * Funciona pra qualquer caminho que o app tenha permissão fs:allow-read-file.
+ * Hook React que devolve a URL de uma mídia para usar em <img>/<video>.
+ * Prefere streaming nativo (asset://) e só cai no data URL base64 quando o
+ * protocolo asset não está disponível. Vídeo NUNCA é carregado em base64 a não
+ * ser que o asset comprovadamente não funcione (era a maior fonte de estouro).
  */
 export function useImageUrl(path: string | null | undefined): string | null {
   const [url, setUrl] = useState<string | null>(null);
@@ -95,16 +158,28 @@ export function useImageUrl(path: string | null | undefined): string | null {
     }
     let cancelled = false;
     void (async () => {
-      // 1. tenta o caminho absoluto como está salvo no banco
-      let data = await readAsDataUrl(path);
-      // 2. fallback: resolve sob o uploadsDir ATUAL. Cobre o caso de abrir um
-      //    .vistage cujos caminhos absolutos são de outra máquina/pasta — os
-      //    bytes foram restaurados em uploads/<subdir>/<arquivo>, mas a linha no
-      //    banco ainda aponta para o caminho antigo, que não existe aqui.
-      if (!data) {
-        const alt = resolveUnderCurrentUploads(path);
-        if (alt && alt !== path) data = await readAsDataUrl(alt);
+      const resolved = await resolveExistingPath(path);
+      const isVideo = VIDEO_EXTS.includes(getExtension(resolved));
+
+      if (isVideo) {
+        // Vídeo: streaming nativo (evita o base64 gigante). Só base64 se o asset
+        // já se provou indisponível nesta máquina.
+        if (assetMode === "off") {
+          const data = await readAsDataUrl(resolved);
+          if (!cancelled) setUrl(data);
+        } else if (!cancelled) {
+          setUrl(convertFileSrc(resolved));
+        }
+        return;
       }
+
+      // Imagem: usa asset se disponível; detecta uma vez; senão base64.
+      if (assetMode === "unknown") await ensureAssetMode(resolved);
+      if (assetMode === "ok") {
+        if (!cancelled) setUrl(convertFileSrc(resolved));
+        return;
+      }
+      const data = await readAsDataUrl(resolved);
       if (!cancelled) setUrl(data);
     })();
     return () => {
