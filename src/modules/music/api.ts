@@ -133,6 +133,7 @@ const TRACK_INSERT_COLS = [
   "creative_block_notes",
   "standby",
   "related_track_id",
+  "deadline",
 ];
 
 export async function listTracks(): Promise<TrackWithProject[]> {
@@ -228,6 +229,7 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
     input.creative_block_notes,
     0,
     input.related_track_id ?? null,
+    input.deadline ?? null,
   ];
   const placeholders = TRACK_INSERT_COLS.map((_, i) => `$${i + 1}`).join(", ");
   const res = await db.execute(
@@ -235,26 +237,30 @@ export async function createTrack(input: TrackCreateInput): Promise<number> {
     values
   );
   const id = Number(res.lastInsertId);
-  // Cria tarefa vinculada
-  try {
-    const { createTask } = await import("@/modules/tasks/api");
-    const taskStage = "Ideação";
-    const taskId = await createTask({
-      title: `${input.title_working} (${taskStage})`,
-      description: null,
-      category: "Produção Musical",
-      gig_id: null,
-      contact_id: null,
-      priority: "Média",
-      status: "A fazer",
-      due_date: null,
-      tags: ["música"],
-      derived_type: "track",
-      derived_id: id,
-    });
-    await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
-  } catch {
-    /* não interrompe */
+  // Cria tarefa vinculada SOMENTE quando há prazo de conclusão. Sem prazo, a
+  // track não gera tarefa (regra do usuário: "se preenchido gera tarefa, se
+  // não, não cria"). A tarefa vence no prazo informado.
+  if (input.deadline) {
+    try {
+      const { createTask } = await import("@/modules/tasks/api");
+      const taskStage = "Ideação";
+      const taskId = await createTask({
+        title: `${input.title_working} (${taskStage})`,
+        description: null,
+        category: "Produção Musical",
+        gig_id: null,
+        contact_id: null,
+        priority: "Média",
+        status: "A fazer",
+        due_date: input.deadline,
+        tags: ["música"],
+        derived_type: "track",
+        derived_id: id,
+      });
+      await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
+    } catch {
+      /* não interrompe */
+    }
   }
   emitDataChanged();
   return id;
@@ -297,6 +303,37 @@ export async function updateTrack(input: TrackUpdateInput): Promise<void> {
         await updateTask({ id: taskId, due_date: rest.date as string | null });
       } catch { /* não interrompe */ }
     }
+  }
+  // Prazo de conclusão (deadline) ↔ tarefa vinculada. Se há tarefa, sincroniza o
+  // vencimento; se passou a ter prazo e ainda não havia tarefa, cria agora.
+  if ("deadline" in rest) {
+    const deadline = (rest.deadline as string | null) || null;
+    const rows = await db.select<
+      { task_id: number | null; title_working: string; title_final: string | null; current_stage: string }[]
+    >("SELECT task_id, title_working, title_final, current_stage FROM tracks WHERE id = $1", [id]);
+    const r = rows[0];
+    try {
+      const { createTask, updateTask } = await import("@/modules/tasks/api");
+      if (r?.task_id) {
+        await updateTask({ id: r.task_id, due_date: deadline });
+      } else if (deadline && r) {
+        const display = (r.title_final && r.title_final.trim()) || r.title_working;
+        const taskId = await createTask({
+          title: `${display} (${r.current_stage})`,
+          description: null,
+          category: "Produção Musical",
+          gig_id: null,
+          contact_id: null,
+          priority: "Média",
+          status: "A fazer",
+          due_date: deadline,
+          tags: ["música"],
+          derived_type: "track",
+          derived_id: id,
+        });
+        await db.execute("UPDATE tracks SET task_id = $1 WHERE id = $2", [taskId, id]);
+      }
+    } catch { /* não interrompe */ }
   }
   // Renomear a track atualiza a tarefa correspondente ("{título} ({estágio})").
   if ("title_working" in rest || "title_final" in rest) {

@@ -35,6 +35,7 @@ import {
   TASK_LINK_TYPES,
   TASK_PRIORITIES,
   TASK_STATUSES,
+  type EisenhowerQuadrant,
   type Task,
   type TaskCategory,
   type TaskLinkType,
@@ -133,6 +134,11 @@ export function TasksPage() {
 
   async function handleMove(id: number, status: TaskStatus) {
     await updateTask({ id, status });
+    await refresh();
+  }
+
+  async function handleSetQuadrant(task: Task, quadrant: EisenhowerQuadrant) {
+    await updateTask({ id: task.id, eisenhower_quadrant: quadrant });
     await refresh();
   }
 
@@ -332,6 +338,7 @@ export function TasksPage() {
             tasks={tasks}
             onEdit={openEdit}
             onToggleDone={handleToggleDone}
+            onSetQuadrant={handleSetQuadrant}
           />
         </TabsContent>
 

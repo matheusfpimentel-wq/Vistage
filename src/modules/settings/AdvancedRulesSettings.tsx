@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Info } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -50,36 +49,6 @@ export function AdvancedRulesSettings() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Info className="h-4 w-4 text-primary" />
-            Como funcionam os alertas
-          </CardTitle>
-          <CardDescription>
-            Cada alerta observa seus dados e, quando a condição bate, aparece no
-            sininho 🔔 e nos painéis de pendências.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>
-            • Abaixo você vê <strong className="text-foreground">a mensagem que
-            aparece</strong> em cada alerta e <strong className="text-foreground">quando
-            ela dispara</strong>.
-          </p>
-          <p>
-            • <strong className="text-foreground">Desligar</strong> faz o alerta
-            parar de aparecer — sem apagar nada do seu conteúdo.
-          </p>
-          <p>
-            • Você pode criar os seus em <strong className="text-foreground">Minhas
-            regras</strong> (operadores <code>&lt;</code>, <code>&gt;</code>,{" "}
-            <code>=</code> e “sem movimento há X dias”). As mudanças viajam com o
-            seu <code>.vistage</code>.
-          </p>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Regras padrão</CardTitle>

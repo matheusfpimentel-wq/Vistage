@@ -111,6 +111,7 @@ const EMPTY: FormState = {
   stage_notes: null,
   creative_block_notes: null,
   related_track_id: null,
+  deadline: null,
 };
 
 const COLLAB_TYPES = ["DJ parceiro", "Músico"];
@@ -182,6 +183,7 @@ export function TrackForm({
         stage_notes: track.stage_notes,
         creative_block_notes: track.creative_block_notes,
         related_track_id: track.related_track_id,
+        deadline: track.deadline,
       });
       setStandbyUntil(track.standby_until ?? "");
       setLoaded(track);
@@ -366,6 +368,17 @@ export function TrackForm({
                 />
               </Field>
             </div>
+            <Field label="Prazo de conclusão">
+              <Input
+                type="date"
+                value={state.deadline ?? ""}
+                onChange={(e) => set("deadline", e.target.value || null)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Se preenchido, cria/atualiza uma tarefa com esse vencimento. Em
+                branco, a track não gera tarefa.
+              </p>
+            </Field>
             <Field label="Projeto (pasta que agrupa as músicas)">
               <Select
                 value={projectId === null ? "_none" : projectId.toString()}

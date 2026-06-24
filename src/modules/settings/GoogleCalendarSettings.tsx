@@ -309,9 +309,6 @@ export function GoogleCalendarSettings() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Calendário e sincronização</CardTitle>
-            <CardDescription>
-              Escolha qual calendário receberá os eventos das GIGs.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="space-y-1.5">

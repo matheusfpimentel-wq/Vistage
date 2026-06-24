@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Star, Trash2 } from "lucide-react";
+import { Clock, Flame, Plus, Star, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +33,8 @@ import {
   loadHeatmap,
   loadActivityStats,
   loadTimePerProject,
+  loadFocusStreak,
+  loadPeakFocusHour,
   listSessions,
   deleteSession,
   listHighlights,
@@ -37,6 +45,7 @@ import {
   type TimePerProject,
   type WorkSession,
   type Highlight,
+  type PeakFocusHour,
 } from "./api";
 
 function formatHours(minutes: number): string {
@@ -56,21 +65,27 @@ export function FocoPage() {
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [timePerProject, setTimePerProject] = useState<TimePerProject[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [peakHour, setPeakHour] = useState<PeakFocusHour>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   async function refresh() {
-    const [h, a, sess, hl, tpp] = await Promise.all([
+    const [h, a, sess, hl, tpp, stk, peak] = await Promise.all([
       loadHeatmap(),
       loadActivityStats(),
       listSessions(100),
       listHighlights(),
       loadTimePerProject(),
+      loadFocusStreak(),
+      loadPeakFocusHour(),
     ]);
     setHeatmap(h);
     setActivityStats(a);
     setSessions(sess);
     setHighlights(hl);
     setTimePerProject(tpp);
+    setStreak(stk);
+    setPeakHour(peak);
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -78,13 +93,63 @@ export function FocoPage() {
   const totalMinutes = activityStats.reduce((s, a) => s + a.total_minutes, 0);
 
   return (
-    <div className="space-y-6">
-      <WeekTrack />
+    <Tabs defaultValue="trilha" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="trilha">Trilha da Semana</TabsTrigger>
+        <TabsTrigger value="foco">Modo Foco</TabsTrigger>
+        <TabsTrigger value="highlights">Highlights</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="trilha">
+        <WeekTrack />
+      </TabsContent>
+
+      <TabsContent value="foco" className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+                <Flame className="h-5 w-5" />
+              </span>
+              <div>
+                <div className="text-2xl font-semibold leading-none">{streak}</div>
+                <div className="text-xs text-muted-foreground">
+                  dia{streak === 1 ? "" : "s"} seguidos de foco
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex items-center gap-3 py-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Clock className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                {peakHour ? (
+                  <>
+                    <div className="text-2xl font-semibold leading-none">{peakHour.hour}h</div>
+                    <div className="text-xs text-muted-foreground">
+                      seu horário de maior foco · média {peakHour.avg_focus} em{" "}
+                      {peakHour.sessions} sessõe{peakHour.sessions === 1 ? "" : "s"}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium">Horário de pico</div>
+                    <div className="text-xs text-muted-foreground">
+                      registre sessões pra descobrir quando você foca melhor
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
       {activityStats.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Ainda sem sessões encerradas. Planeje sua semana acima e inicie uma
-          sessão pelo botão "▶ Sessão" no topo.
+          Ainda sem sessões encerradas. Planeje sua semana na aba Trilha e inicie
+          uma sessão pelo botão "▶ Sessão" no topo.
         </div>
       ) : (
         <>
@@ -206,7 +271,9 @@ export function FocoPage() {
           </CardContent>
         </Card>
       )}
+      </TabsContent>
 
+      <TabsContent value="highlights">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -260,13 +327,14 @@ export function FocoPage() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
 
       <AddHighlightDialog
         open={addOpen}
         onOpenChange={setAddOpen}
         onSaved={() => { setAddOpen(false); void refresh(); }}
       />
-    </div>
+    </Tabs>
   );
 }
 

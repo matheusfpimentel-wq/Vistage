@@ -31,7 +31,6 @@ const CREATE_ITEMS = [
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -40,6 +39,7 @@ export function AppLayout() {
   // (antes ficava fixo em "Ctrl K" mesmo após o usuário trocar).
   const shortcuts = useShortcutsConfig();
   const sidebarLayout = useThemeStore((s) => s.sidebarLayout);
+  const setSidebarLayout = useThemeStore((s) => s.setSidebarLayout);
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform);
 
   // Fecha o drawer mobile sempre que a rota muda.
@@ -73,12 +73,14 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Sidebar fixa — só no desktop. Layout clássico ou rail compacto (opt-in). */}
-      <div className={cn("hidden md:block transition-all duration-200", sidebarCollapsed ? "w-0 overflow-hidden" : "")}>
+      {/* Sidebar fixa — só no desktop. Recolher = modo ícones (rail); expandir =
+          nomes (clássico). z-30 + overflow visível: ao magnificar, os tiles do
+          rail sobrepõem a área do módulo. */}
+      <div className="relative z-30 hidden md:block">
         {sidebarLayout === "rail" ? (
           <SidebarRail />
         ) : (
-          <Sidebar onCollapse={() => setSidebarCollapsed(true)} />
+          <Sidebar onCollapse={() => setSidebarLayout("rail")} />
         )}
       </div>
 
@@ -109,18 +111,6 @@ export function AppLayout() {
             >
               <PanelLeftOpen className="h-5 w-5" />
             </button>
-            {/* Expand sidebar — só no desktop quando recolhido */}
-            {sidebarCollapsed && (
-              <button
-                type="button"
-                onClick={() => setSidebarCollapsed(false)}
-                className="hidden md:flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
-                aria-label="Expandir painel lateral"
-                title="Expandir painel lateral"
-              >
-                <PanelLeftOpen className="h-4 w-4" />
-              </button>
-            )}
             {/* FileMenu */}
             <div className="hidden md:block">
               <FileMenu />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Cloud, Loader2, LogOut, RefreshCw } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
@@ -80,12 +80,6 @@ export function MobileSyncSettings() {
         <CardTitle className="text-base flex items-center gap-2">
           <Cloud className="h-4 w-4" /> Sincronização mobile
         </CardTitle>
-        <CardDescription>
-          Espelha agenda, saldo, catálogo e aparência para você consultar no
-          celular (PWA). As novidades feitas no telefone chegam aqui pra você
-          revisar (fundir ou descartar). Finanças detalhadas nunca saem do
-          computador.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (
@@ -143,10 +137,6 @@ export function MobileSyncSettings() {
               )}
               Entrar
             </Button>
-            <p className="text-xs text-muted-foreground">
-              Use a conta criada para este arquivo. (Cadastro pela própria tela
-              vem na próxima fase.)
-            </p>
           </>
         )}
       </CardContent>

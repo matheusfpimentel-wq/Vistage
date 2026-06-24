@@ -1850,6 +1850,22 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 129,
+    description:
+      "tracks.deadline — prazo de conclusão (gera tarefa só quando preenchido)",
+    sql: `ALTER TABLE tracks ADD COLUMN deadline TEXT;`,
+  },
+  {
+    version: 130,
+    description:
+      "focus_blocks — classificação, cor e plano por bloco (Trilha da semana)",
+    sql: `
+      ALTER TABLE focus_blocks ADD COLUMN category TEXT;
+      ALTER TABLE focus_blocks ADD COLUMN color TEXT;
+      ALTER TABLE focus_blocks ADD COLUMN plan TEXT;
+    `,
+  },
 ];
 
 
