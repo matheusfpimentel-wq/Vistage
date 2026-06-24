@@ -24,9 +24,13 @@ export function PendingTasksBadge({
   useEffect(() => {
     let alive = true;
     function load() {
-      void countOpenTasksLinkedTo(entityType, entityId).then((n) => {
-        if (alive) setCount(n);
-      });
+      void countOpenTasksLinkedTo(entityType, entityId)
+        .then((n) => {
+          if (alive) setCount(n);
+        })
+        .catch(() => {
+          /* contagem é só um selo; falha não deve derrubar a lista */
+        });
     }
     load();
     window.addEventListener(DATA_CHANGED, load);
