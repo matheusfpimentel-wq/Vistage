@@ -1,12 +1,12 @@
 [package]
-name = "musicgest"
+name = "vistage"
 version = "1.0.0"
 description = "Sistema de gestão para negócio musical"
 authors = ["Matheus Pimentel"]
 edition = "2021"
 
 [lib]
-name = "musicgest_lib"
+name = "vistage_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

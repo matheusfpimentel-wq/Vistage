@@ -8,6 +8,7 @@ mod gdrive;
 
 use db::DbState;
 use gcal::GcalState;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,6 +18,21 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_http::init())
+        // Lifecycle das janelas: ao fechar a PRINCIPAL, fecha também a mini-janela
+        // de foco ("work-session") — senão ela fica órfã na tela e o encerramento
+        // desordenado derruba o app com erro. Fechar só a auxiliar NÃO encerra o
+        // app: a principal continua aberta (o Tauri só sai quando a última fecha).
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                if window.label() == "main" {
+                    for (label, w) in window.app_handle().webview_windows() {
+                        if label.as_str() != "main" {
+                            let _ = w.close();
+                        }
+                    }
+                }
+            }
+        })
         .manage(DbState::default())
         .manage(GcalState::default())
         .invoke_handler(tauri::generate_handler![
