@@ -112,6 +112,9 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .alerts-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
 .alerts-empty { padding: 0.4rem 0.2rem; margin: 0; }
+.bell-badge.crit { background: var(--danger); }
+.alert-emoji { flex: 0 0 auto; font-size: 1.1rem; line-height: 1; }
+.alert-crit { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
 
 .content { flex: 1; overflow-y: auto; padding: 1rem 1rem 5.5rem; }
 
@@ -214,6 +217,7 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .kind-ic.track { color: #c084fc; background: color-mix(in srgb, #c084fc 14%, transparent); }
 .kind-ic.contact { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); }
 .kind-ic.venue { color: #f472b6; background: color-mix(in srgb, #f472b6 14%, transparent); }
+.kind-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
 .kind-chevron { color: var(--muted); flex: 0 0 auto; align-self: center; }
 
 .bars { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }

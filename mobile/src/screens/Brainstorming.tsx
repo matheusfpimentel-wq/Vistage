@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
+import { loadProvocations } from "../insights";
 
 // Provocações com pegada de neurociência/criatividade — pra DESTRAVAR ideias.
 // (Paridade com o banco do PC vem pela sincronização; aqui é o fallback.)
@@ -23,16 +24,19 @@ const PROVOCATIONS = [
 
 type IdeaRow = { source_id: string; title: string; subtitle: string | null };
 
-function pick(exclude?: string): string {
-  let p = PROVOCATIONS[Math.floor(Math.random() * PROVOCATIONS.length)];
-  if (exclude && PROVOCATIONS.length > 1) {
-    while (p === exclude) p = PROVOCATIONS[Math.floor(Math.random() * PROVOCATIONS.length)];
+function pick(list: string[], exclude?: string): string {
+  if (list.length === 0) return "";
+  let p = list[Math.floor(Math.random() * list.length)];
+  if (exclude && list.length > 1) {
+    while (p === exclude) p = list[Math.floor(Math.random() * list.length)];
   }
   return p;
 }
 
 export function Brainstorming() {
-  const [insight, setInsight] = useState<string>(() => pick());
+  // Provocações vêm do PC (provocations_mirror) p/ coincidir; fallback embutido.
+  const [provs, setProvs] = useState<string[]>(PROVOCATIONS);
+  const [insight, setInsight] = useState<string>(() => pick(PROVOCATIONS));
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,6 +50,13 @@ export function Brainstorming() {
 
   const canSend = useMemo(() => title.trim().length > 0, [title]);
 
+  useEffect(() => {
+    void loadProvocations(PROVOCATIONS).then((list) => {
+      setProvs(list);
+      setInsight((cur) => (cur && list.includes(cur) ? cur : pick(list)));
+    });
+  }, []);
+
   async function add() {
     if (!canSend) return;
     setBusy(true);
@@ -55,7 +66,7 @@ export function Brainstorming() {
       setCount((n) => n + 1);
       setTitle("");
       setBody("");
-      setInsight((cur) => pick(cur)); // novo insight a cada ideia
+      setInsight((cur) => pick(provs, cur)); // novo insight a cada ideia
     } catch {
       /* silencioso — tenta de novo */
     } finally {
@@ -88,7 +99,7 @@ export function Brainstorming() {
 
       <section className="card insight">
         <p className="insight-text">{insight}</p>
-        <button className="ghost" onClick={() => setInsight((cur) => pick(cur))}>
+        <button className="ghost" onClick={() => setInsight((cur) => pick(provs, cur))}>
           Novo insight
         </button>
       </section>

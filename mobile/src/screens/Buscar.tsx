@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 
-type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue";
+type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class";
 type Row = {
   kind: string;
   source_id: string;
@@ -21,6 +21,7 @@ const CATEGORIES: { id: Kind; label: string; hint: string; icon: ReactNode }[] =
   { id: "track", label: "Músicas", hint: "Faixas em produção", icon: <IcNote /> },
   { id: "contact", label: "Pessoas", hint: "Contatos e fornecedores", icon: <IcUser /> },
   { id: "venue", label: "Venues", hint: "Casas e locais", icon: <IcPin /> },
+  { id: "class", label: "Aulas", hint: "Sessões e alunos", icon: <IcClass /> },
 ];
 const CAT_LABEL: Record<Kind, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c.label])
@@ -33,6 +34,7 @@ const KIND_LABEL: Record<string, string> = {
   track: "Música",
   contact: "Pessoa",
   venue: "Venue",
+  class: "Aula",
 };
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -225,6 +227,10 @@ function Detail({ r }: { r: Row }) {
     if (str(m.maturation)) out.push(["Estágio", str(m.maturation)]);
     if (str(m.category)) out.push(["Categoria", str(m.category)]);
     if (str(m.body)) out.push(["Nota", str(m.body)]);
+  } else if (r.kind === "class") {
+    if (str(m.student_name)) out.push(["Aluno", str(m.student_name)]);
+    if (str(m.date)) out.push(["Data", str(m.date)]);
+    if (str(m.status)) out.push(["Status", str(m.status)]);
   }
 
   return (
@@ -292,6 +298,7 @@ function IcBulb() { return <svg {...IP}><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-
 function IcNote() { return <svg {...IP}><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /><path d="M9 18V5l12-2v13" /></svg>; }
 function IcUser() { return <svg {...IP}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>; }
 function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>; }
+function IcClass() { return <svg {...IP}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>; }
 
 /** Ícone por tipo de resultado (no lugar do rótulo de texto). */
 function kindIcon(kind: string) {
@@ -302,6 +309,7 @@ function kindIcon(kind: string) {
     case "track": return <IcNote />;
     case "contact": return <IcUser />;
     case "venue": return <IcPin />;
+    case "class": return <IcClass />;
     default: return <IcLayers />;
   }
 }
