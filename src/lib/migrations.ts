@@ -1917,6 +1917,12 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE finance_transactions ADD COLUMN exchange_rate REAL;
     `,
   },
+  {
+    version: 135,
+    description:
+      "gigs.gcal_synced_at — quando o app gravou o evento por último (detecta edição feita no Google depois disso)",
+    sql: `ALTER TABLE gigs ADD COLUMN gcal_synced_at TEXT;`,
+  },
 ];
 
 

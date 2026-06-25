@@ -92,6 +92,8 @@ export type Gig = {
   debrief_pending: number; // 0 ou 1
 
   gcal_event_id: string | null;
+  /** Quando o app gravou o evento por último (ISO). Edição no Google depois disso = drift. */
+  gcal_synced_at?: string | null;
   main_goal: string | null;
   /** JSON string com `{ [itemId: string]: 1 }` para itens marcados. */
   prep_state: string | null;

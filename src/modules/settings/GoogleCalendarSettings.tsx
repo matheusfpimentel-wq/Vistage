@@ -38,12 +38,15 @@ import {
   setCalendarId,
   setModuleCalendarId,
   syncAll,
+  checkCalendarDrift,
   GCAL_MODULES,
   GCAL_MODULE_LABELS,
   type CalendarListItem,
+  type CalendarDrift,
   type GcalConfig,
   type GcalModule,
 } from "@/lib/gcal";
+import { CalendarDriftDialog } from "@/components/shared/CalendarDriftDialog";
 import { formatDate } from "@/lib/format";
 
 const TIMEZONES = [
@@ -74,6 +77,9 @@ export function GoogleCalendarSettings() {
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [loadingCalendars, setLoadingCalendars] = useState(false);
+  const [checkingDrift, setCheckingDrift] = useState(false);
+  const [drifts, setDrifts] = useState<CalendarDrift[]>([]);
+  const [driftOpen, setDriftOpen] = useState(false);
 
   async function refresh() {
     const [c, a] = await Promise.all([loadGcalConfig(), loadAuth()]);
@@ -173,6 +179,27 @@ export function GoogleCalendarSettings() {
       toast.error(`Erro na sync: ${String(e)}`);
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleCheckDrift() {
+    if (!calendarId) {
+      toast.error("Selecione um calendário antes");
+      return;
+    }
+    setCheckingDrift(true);
+    try {
+      const found = await checkCalendarDrift();
+      if (found.length === 0) {
+        toast.success("Nenhuma GIG foi editada no Google desde o último envio.");
+        return;
+      }
+      setDrifts(found);
+      setDriftOpen(true);
+    } catch (e) {
+      toast.error(`Erro ao verificar: ${String(e)}`);
+    } finally {
+      setCheckingDrift(false);
     }
   }
 
@@ -397,6 +424,29 @@ export function GoogleCalendarSettings() {
               </Button>
             </div>
 
+            {/* Drift: o que foi editado direto no Google desde o último envio. */}
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div className="text-sm">
+                <div className="font-medium">Mudou algo no Google?</div>
+                <div className="text-xs text-muted-foreground">
+                  Verifica se alguma GIG foi remarcada (data/hora) direto no
+                  calendário e deixa você aceitar ou descartar — sem duplicar.
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleCheckDrift}
+                disabled={checkingDrift || !calendarId}
+              >
+                {checkingDrift ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Verificar mudanças
+              </Button>
+            </div>
+
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
               <strong className="text-foreground">Como funciona:</strong> ao
               salvar/editar uma GIG no Vistage, o evento correspondente é
@@ -408,6 +458,13 @@ export function GoogleCalendarSettings() {
           </CardContent>
         </Card>
       )}
+
+      <CalendarDriftDialog
+        open={driftOpen}
+        onOpenChange={setDriftOpen}
+        drifts={drifts}
+        onResolved={() => void refresh()}
+      />
     </div>
   );
 }

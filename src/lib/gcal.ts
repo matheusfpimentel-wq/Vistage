@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { getDb } from "./db";
+import { decideDrift } from "./gcalDrift";
 
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 const SETTINGS_KEYS = {
@@ -101,6 +102,20 @@ type EventInput = {
   end: string;
   time_zone?: string | null;
   status?: string | null;
+};
+
+/** Evento devolvido pelo Google (espelha o GcalEvent do Rust em gcal_list_events). */
+type GcalEvent = {
+  id: string;
+  summary?: string | null;
+  description?: string | null;
+  location?: string | null;
+  /** "YYYY-MM-DD" (dia inteiro) ou "YYYY-MM-DDTHH:MM:SS±TZ" (com hora). */
+  start?: string | null;
+  end?: string | null;
+  status?: string | null;
+  /** Timestamp ISO da última modificação no Google. */
+  updated?: string | null;
 };
 
 // ============================================================
@@ -339,6 +354,20 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
   };
 }
 
+/**
+ * Marca o instante em que o app gravou o evento (push). Detecção de drift
+ * compara o `updated` do Google contra este carimbo. UPDATE direto de propósito:
+ * NÃO mexe em `updated_at` da GIG (senão o syncAll re-empurraria sem necessidade
+ * e o drift se confundiria com mudança nossa).
+ */
+async function stampGigSynced(gigId: number): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE gigs SET gcal_synced_at = $1 WHERE id = $2", [
+    new Date().toISOString(),
+    gigId,
+  ]);
+}
+
 /** Cria/atualiza o evento no GCal correspondente a uma GIG. Salva o id no banco. */
 export async function pushGigToCalendar(gigId: number): Promise<void> {
   const gig = await getGig(gigId);
@@ -363,6 +392,7 @@ export async function pushGigToCalendar(gigId: number): Promise<void> {
     });
     await updateGig({ id: gig.id, gcal_event_id: id });
   }
+  await stampGigSynced(gig.id);
 }
 
 /** Deleta o evento no GCal correspondente a uma GIG (se houver). */
@@ -407,6 +437,7 @@ export async function syncAll(): Promise<{
         event: gigToEvent(g, cfg.timezone),
       });
       await updateGig({ id: g.id, gcal_event_id: id });
+      await stampGigSynced(g.id);
       pushed += 1;
     } else if (
       cfg.lastSyncAt &&
@@ -419,12 +450,119 @@ export async function syncAll(): Promise<{
         eventId: g.gcal_event_id,
         event: gigToEvent(g, cfg.timezone),
       });
+      await stampGigSynced(g.id);
       pushed += 1;
     }
   }
 
   await saveGcalConfig({ lastSyncAt: new Date().toISOString() });
   return { pushed, pulled: 0 };
+}
+
+// ============================================================
+// Drift — detecta edições feitas DO LADO DO GOOGLE
+// ============================================================
+
+/** Uma GIG cujo evento foi editado no Google depois do último push do app. */
+export type CalendarDrift = {
+  gigId: number;
+  eventId: string;
+  gigName: string;
+  /** Data/hora atuais NA GIG (app). */
+  appDate: string;
+  appStartTime: string | null;
+  /** Data/hora atuais NO GOOGLE (o que o usuário mudou lá). */
+  googleDate: string | null;
+  googleStartTime: string | null;
+  googleUpdated: string | null;
+  /** O que mudou (só rastreamos data/hora — o caso real de remarcação). */
+  changed: ("data" | "hora")[];
+};
+
+/**
+ * Procura GIGs cujo evento foi editado NO GOOGLE depois do nosso último push.
+ * Só push, então isto NÃO altera nada — apenas devolve a lista de divergências
+ * para o usuário decidir (aceitar do Google × manter a sua). A decisão por GIG
+ * mora em `decideDrift` (módulo puro, testável).
+ */
+export async function checkCalendarDrift(): Promise<CalendarDrift[]> {
+  const calendarId = await resolveCalendarId("gigs");
+  const accessToken = await getValidAccessToken();
+  const cfg = await loadGcalConfig();
+
+  const gigs = await listGigs();
+  const linked = gigs.filter((g) => g.gcal_event_id);
+  if (linked.length === 0) return [];
+
+  // updatedMin = baseline mais antigo entre as GIGs (pra não baixar mais que o
+  // necessário, mas sem perder nenhuma). Fallback: 90 dias atrás.
+  const baselines = linked
+    .map((g) => g.gcal_synced_at ?? cfg.lastSyncAt)
+    .filter((v): v is string => !!v)
+    .sort();
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 86_400_000).toISOString();
+  const updatedMin = baselines[0] ?? ninetyDaysAgo;
+
+  let events: GcalEvent[];
+  try {
+    events = await invoke<GcalEvent[]>("gcal_list_events", {
+      accessToken,
+      calendarId,
+      updatedMin,
+    });
+  } catch (e) {
+    throw new Error(`Não foi possível ler o Google Calendar: ${String(e)}`);
+  }
+  const byId = new Map(events.map((e) => [e.id, e]));
+
+  const drifts: CalendarDrift[] = [];
+  for (const g of linked) {
+    const e = byId.get(g.gcal_event_id!);
+    if (!e) continue;
+    const decision = decideDrift({
+      gigDate: g.date,
+      gigStartTime: g.start_time,
+      eventStart: e.start,
+      eventUpdated: e.updated,
+      baseline: g.gcal_synced_at ?? cfg.lastSyncAt,
+    });
+    if (!decision.isDrift) continue;
+    drifts.push({
+      gigId: g.id,
+      eventId: g.gcal_event_id!,
+      gigName: gigDisplayName(g),
+      appDate: g.date,
+      appStartTime: g.start_time,
+      googleDate: decision.googleDate,
+      googleStartTime: decision.googleStartTime,
+      googleUpdated: e.updated ?? null,
+      changed: decision.changed,
+    });
+  }
+  return drifts;
+}
+
+/**
+ * ACEITA a mudança do Google numa GIG: aplica a data/hora do evento na GIG.
+ * Conservador de propósito — só data e hora de início (o caso de remarcação),
+ * sem tentar reconstruir título/briefing (mapeamento ambíguo).
+ */
+export async function acceptDriftFromGoogle(drift: CalendarDrift): Promise<void> {
+  const patch: { id: number; date?: string; start_time?: string | null } = { id: drift.gigId };
+  if (drift.googleDate) patch.date = drift.googleDate;
+  if (drift.changed.includes("hora")) patch.start_time = drift.googleStartTime;
+  await updateGig(patch);
+  // Reempurra pro Google pra alinhar os dois lados e recarimba o synced_at —
+  // assim a mesma divergência não reaparece no próximo check.
+  await pushGigToCalendar(drift.gigId);
+}
+
+/**
+ * MANTÉM a versão do app: reescreve o evento no Google com os dados da GIG
+ * (descarta a edição feita lá). Recarimba o synced_at.
+ */
+export async function keepMineOverGoogle(gigId: number): Promise<void> {
+  await pushGigToCalendar(gigId);
 }
 
 
