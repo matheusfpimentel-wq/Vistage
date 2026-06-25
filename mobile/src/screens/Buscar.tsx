@@ -146,11 +146,16 @@ export function Buscar() {
             return (
               <li key={key} className="item col" onClick={() => setOpenKey(open ? null : key)}>
                 <div className="item-head">
-                  <span className={"tag " + r.kind}>{KIND_LABEL[r.kind] ?? r.kind}</span>
+                  <span className={"kind-ic " + r.kind} title={KIND_LABEL[r.kind] ?? r.kind} aria-label={KIND_LABEL[r.kind] ?? r.kind}>
+                    {kindIcon(r.kind)}
+                  </span>
                   <div className="grow">
                     <strong>{r.title}</strong>
                     {r.subtitle && <span className="muted"> · {r.subtitle}</span>}
                   </div>
+                  <span className="kind-chevron" aria-hidden>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={open ? "M18 15l-6-6-6 6" : "M9 6l6 6-6 6"} /></svg>
+                  </span>
                 </div>
                 {open && <Detail r={r} />}
               </li>
@@ -287,3 +292,16 @@ function IcBulb() { return <svg {...IP}><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-
 function IcNote() { return <svg {...IP}><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /><path d="M9 18V5l12-2v13" /></svg>; }
 function IcUser() { return <svg {...IP}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>; }
 function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>; }
+
+/** Ícone por tipo de resultado (no lugar do rótulo de texto). */
+function kindIcon(kind: string) {
+  switch (kind) {
+    case "gig": return <IcGig />;
+    case "task": return <IcCheck />;
+    case "idea": return <IcBulb />;
+    case "track": return <IcNote />;
+    case "contact": return <IcUser />;
+    case "venue": return <IcPin />;
+    default: return <IcLayers />;
+  }
+}

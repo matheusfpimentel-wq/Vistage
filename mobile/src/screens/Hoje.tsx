@@ -41,6 +41,15 @@ function fmtDate(d?: string): string {
   return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
+/** "hoje 22:00" / "12 jul 23:00" / "amanhã" — rótulo curto de quando. */
+function whenLabel(iso: string | null, today: string): string {
+  if (!iso) return "";
+  const d = localDateOf(iso);
+  const t = timeOf(iso);
+  if (d === today) return t ? `hoje ${t}` : "hoje";
+  return t ? `${fmtDate(d ?? undefined)} ${t}` : fmtDate(d ?? undefined);
+}
+
 // Ícone por tipo de compromisso (só ícone — pouco texto, como pedido).
 function SourceIcon({ source }: { source: string }) {
   const p = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -56,7 +65,13 @@ function suggestActivity(items: Agenda[]): string {
   return "Gestão";
 }
 
-export function Hoje({ onGoFocus, onGoSearch }: { onGoFocus: () => void; onGoSearch: () => void }) {
+export function Hoje({
+  onGoFocus,
+  onGoBrainstorm,
+}: {
+  onGoFocus: () => void;
+  onGoBrainstorm: () => void;
+}) {
   const [agenda, setAgenda] = useState<Agenda[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [lastGig, setLastGig] = useState<CatalogGig | null>(null);
@@ -97,15 +112,20 @@ export function Hoje({ onGoFocus, onGoSearch }: { onGoFocus: () => void; onGoSea
   }
 
   const today = localToday();
+  // Grade do dia = itens de HOJE (qualquer um). Compromissos = próximos (hoje +
+  // futuro), porque o que importa é o que vem, não só hoje.
   const todays = agenda.filter((i) => localDateOf(i.start_at) === today);
   const grid = todays
     .map((i) => ({ ...i, t: timeOf(i.start_at) }))
-    .filter((i) => i.t)
-    .sort((a, b) => (a.t! < b.t! ? -1 : 1));
+    .sort((a, b) => (a.t ?? "99") < (b.t ?? "99") ? -1 : 1);
+  const upcoming = agenda
+    .filter((i) => i.start_at == null || (localDateOf(i.start_at) ?? "") >= today)
+    .slice(0, 10);
+  const coldContact = contacts[0] ?? null;
 
   function goFocus() {
     try {
-      localStorage.setItem("vistage.foco.suggestedActivity", suggestActivity(todays));
+      localStorage.setItem("vistage.foco.suggestedActivity", suggestActivity(upcoming));
     } catch {
       /* ok */
     }
@@ -129,7 +149,7 @@ export function Hoje({ onGoFocus, onGoSearch }: { onGoFocus: () => void; onGoSea
             <ul className="grid-list">
               {grid.map((i) => (
                 <li key={i.id}>
-                  <span className="grid-time">{i.t}</span>
+                  <span className="grid-time">{i.t ?? "•"}</span>
                   <span className="grid-ic"><SourceIcon source={i.source} /></span>
                   <span className="grid-title">{i.title}</span>
                 </li>
@@ -139,35 +159,47 @@ export function Hoje({ onGoFocus, onGoSearch }: { onGoFocus: () => void; onGoSea
         </section>
       </div>
 
-      {/* Compromissos do dia — card grande com degradê, pouco texto */}
+      {/* Compromissos (hoje + futuros) — card grande com degradê, pouco texto */}
       <section className="today-commit">
         <div className="today-commit-head">
-          <strong>Compromissos de hoje</strong>
-          <span className="commit-count">{todays.length}</span>
+          <strong>Compromissos</strong>
+          <span className="commit-count">{upcoming.length}</span>
         </div>
-        {todays.length === 0 ? (
+        {upcoming.length === 0 ? (
           <p className="commit-empty">Nada marcado. Bom momento pra agir no que move a carreira.</p>
         ) : (
           <ul className="commit-list">
-            {todays.map((i) => (
+            {upcoming.map((i) => (
               <li key={i.id}>
                 <span className={"commit-ic " + i.source}><SourceIcon source={i.source} /></span>
                 <span className="commit-title">{i.title}</span>
-                {timeOf(i.start_at) && <span className="commit-time">{timeOf(i.start_at)}</span>}
+                <span className="commit-time">{whenLabel(i.start_at, today)}</span>
               </li>
             ))}
           </ul>
         )}
-        {/* Sugestão de ação com link */}
-        {todays.length > 0 ? (
-          <button className="commit-cta" onClick={goFocus}>
-            ▶ Focar agora em {suggestActivity(todays)}
-          </button>
-        ) : (
-          <button className="commit-cta" onClick={onGoSearch}>
-            Buscar contatos pra aquecer ou mapear venues →
-          </button>
-        )}
+        {/* Sugestão de ação REAL dentro do app */}
+        <div className="commit-actions">
+          {upcoming.length > 0 ? (
+            <button className="commit-cta" onClick={goFocus}>
+              ▶ Focar agora em {suggestActivity(upcoming)}
+            </button>
+          ) : (
+            <button className="commit-cta" onClick={onGoBrainstorm}>
+              💡 Soltar uma ideia no Brainstorming
+            </button>
+          )}
+          {coldContact?.handle && (
+            <a
+              className="commit-cta-2"
+              href={`https://wa.me/${coldContact.handle.replace(/\D/g, "")}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Reaquecer: falar com {coldContact.name.split(" ")[0]}
+            </a>
+          )}
+        </div>
       </section>
 
       {/* Split: contatos esfriando | última GIG */}

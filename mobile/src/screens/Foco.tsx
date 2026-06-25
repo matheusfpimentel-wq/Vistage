@@ -36,21 +36,28 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ── Círculo do foco (anel de progresso + contador) ───────────────────────────
-// Só MOSTRA: o contador fica sempre visível (00:00 parado). Play/pause/encerrar
-// são botões dedicados fora do círculo.
+// ── Círculo do foco (anel + play/pause NO CENTRO + contador embaixo) ──────────
+// O play e o pause ocupam o MESMO lugar (centro), com ícones de verdade (sem
+// emoji). Tocar no círculo alterna iniciar/pausar/retomar. O contador fica
+// logo abaixo do ícone (começa em 00:00).
 function FocusRing({
   size,
   progress,
   timeLabel,
   subLabel,
   expired,
+  paused,
+  running,
+  onToggle,
 }: {
   size: number;
   progress: number | null;
   timeLabel: string;
   subLabel: string;
   expired: boolean;
+  paused: boolean;
+  running: boolean;
+  onToggle: () => void;
 }) {
   const stroke = Math.round(size * 0.06);
   const r = (size - stroke) / 2;
@@ -58,9 +65,17 @@ function FocusRing({
   const clamped = progress == null ? 0 : Math.min(1, Math.max(0, progress));
   const dash = circ * clamped;
   const ringColor = expired ? "#f59e0b" : "var(--accent)";
+  const showPause = running && !paused;
+  const ic = Math.round(size * 0.16);
 
   return (
-    <div className="focus-ring" style={{ width: size, height: size }}>
+    <button
+      type="button"
+      className="focus-ring"
+      style={{ width: size, height: size }}
+      onClick={onToggle}
+      aria-label={!running ? "Iniciar foco" : paused ? "Retomar" : "Pausar"}
+    >
       <svg width={size} height={size} className="focus-ring-svg">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
         {progress != null && (
@@ -78,12 +93,24 @@ function FocusRing({
         )}
       </svg>
       <span className="focus-ring-center">
-        <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.19 }}>
+        <span className="focus-ring-ic" style={{ color: ringColor }}>
+          {showPause ? (
+            <svg width={ic} height={ic} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <rect x="6" y="5" width="4" height="14" rx="1" />
+              <rect x="14" y="5" width="4" height="14" rx="1" />
+            </svg>
+          ) : (
+            <svg width={ic} height={ic} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          )}
+        </span>
+        <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.16 }}>
           {timeLabel}
         </span>
         <span className="focus-ring-sub">{subLabel}</span>
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -569,6 +596,9 @@ export function Foco() {
             timeLabel={fmtClock(elapsedMs)}
             subLabel={subLabel}
             expired={expired}
+            paused={paused}
+            running={phase === "running"}
+            onToggle={phase === "running" ? togglePause : start}
           />
 
           {expired && phase === "running" && (
@@ -576,48 +606,33 @@ export function Foco() {
           )}
 
           {phase === "idle" ? (
-            <>
-              <button className="primary big-btn" onClick={start}>
-                ▶ Iniciar foco
-              </button>
-              <div className="form" style={{ width: "100%", maxWidth: 360 }}>
-                <label>
-                  Tipo de foco
-                  <select value={activity} onChange={(e) => setActivity(e.target.value)}>
-                    {ACTIVITIES.map((a) => (
-                      <option key={a} value={a}>
-                        {a}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Tempo previsto (opcional)
-                  <input
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    placeholder="ex: 45 (minutos)"
-                    value={plannedStr}
-                    onChange={(e) => setPlannedStr(e.target.value)}
-                  />
-                </label>
-              </div>
-            </>
-          ) : (
-            <div className="foco-controls">
-              <button
-                type="button"
-                className="focus-pause"
-                onClick={togglePause}
-                aria-label={paused ? "Retomar" : "Pausar"}
-              >
-                {paused ? "▶️" : "⏸️"}
-              </button>
-              <button className="danger focus-encerrar" onClick={encerrar}>
-                Encerrar
-              </button>
+            <div className="form" style={{ width: "100%", maxWidth: 360 }}>
+              <label>
+                Tipo de foco
+                <select value={activity} onChange={(e) => setActivity(e.target.value)}>
+                  {ACTIVITIES.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Tempo previsto (opcional)
+                <input
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  placeholder="ex: 45 (minutos)"
+                  value={plannedStr}
+                  onChange={(e) => setPlannedStr(e.target.value)}
+                />
+              </label>
             </div>
+          ) : (
+            <button className="focus-encerrar" onClick={encerrar}>
+              Encerrar
+            </button>
           )}
 
           <ContextPanel activity={activity} />
