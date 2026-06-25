@@ -129,8 +129,7 @@ export function FocoPage() {
                   <>
                     <div className="text-2xl font-semibold leading-none">{peakHour.hour}h</div>
                     <div className="text-xs text-muted-foreground">
-                      seu horário de maior foco · média {peakHour.avg_focus} em{" "}
-                      {peakHour.sessions} sessõe{peakHour.sessions === 1 ? "" : "s"}
+                      seu horário de maior foco
                     </div>
                   </>
                 ) : (

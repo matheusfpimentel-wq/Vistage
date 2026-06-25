@@ -443,7 +443,7 @@ function BlockEditor({
                 <button
                   key={k}
                   type="button"
-                  onClick={() => setKind(k)}
+                  onClick={() => { setKind(k); if (k === "morto") setCategory(""); }}
                   className={cn(
                     "flex-1 rounded-md border px-2.5 py-1.5 text-xs transition",
                     kind === k ? "border-primary bg-primary/15 text-primary" : "hover:bg-accent"
@@ -454,21 +454,23 @@ function BlockEditor({
               ))}
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Classificação</Label>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="">Sem classificação</option>
-              {BLOCK_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
+          {kind === "foco" && (
+            <div className="space-y-1.5">
+              <Label>Classificação</Label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Sem classificação</option>
+                {BLOCK_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Cor</Label>
             <div className="flex flex-wrap items-center gap-1.5">
