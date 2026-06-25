@@ -191,7 +191,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1 min-h-0 overflow-hidden">
       <nav ref={scrollRef} onScroll={updateArrows} className="h-full overflow-y-auto p-3">
         {editing ? (
           // Modo de reordenação: arraste os itens (inclusive entre grupos).
