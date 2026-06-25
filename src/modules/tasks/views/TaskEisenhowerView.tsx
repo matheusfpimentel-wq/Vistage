@@ -130,7 +130,11 @@ export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant 
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  if (tasks.length === 0) {
+  // A matriz é uma ferramenta de decisão sobre o que fazer a seguir — tarefas
+  // já executadas (concluídas/canceladas) só poluiriam os quadrantes.
+  const open = tasks.filter((t) => t.status !== "Concluída" && t.status !== "Cancelada");
+
+  if (open.length === 0) {
     return (
       <EmptyState
         icon={CheckSquare}
@@ -142,9 +146,9 @@ export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant 
 
   const byQuad = new Map<EisenhowerQuadrant, Task[]>();
   for (const q of QUADRANTS) byQuad.set(q.id, []);
-  for (const t of tasks) byQuad.get(quadrantOf(t))!.push(t);
+  for (const t of open) byQuad.get(quadrantOf(t))!.push(t);
 
-  const activeTask = activeId != null ? tasks.find((t) => t.id === activeId) ?? null : null;
+  const activeTask = activeId != null ? open.find((t) => t.id === activeId) ?? null : null;
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(Number(e.active.id));
@@ -153,7 +157,7 @@ export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant 
     setActiveId(null);
     const { active, over } = e;
     if (!over) return;
-    const task = tasks.find((t) => t.id === Number(active.id));
+    const task = open.find((t) => t.id === Number(active.id));
     if (!task) return;
     const target = over.id as EisenhowerQuadrant;
     if (quadrantOf(task) === target) return;

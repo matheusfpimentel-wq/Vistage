@@ -30,6 +30,7 @@ import { PortfolioView } from "./views/PortfolioView";
 import { ProjectsView } from "./views/ProjectsView";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { ListDensityToggle, useListDensity } from "@/components/shared/ListDensityToggle";
 
 type StageFilter = Stage | "Todos";
 type KindFilter = TrackKind | "Todos";
@@ -104,6 +105,7 @@ export function MusicPage() {
   const [view, setView] = useModuleView<
     "projetos" | "kanban" | "list" | "roadmap" | "portfolio"
   >("music", "list");
+  const [density, setDensity] = useListDensity("music");
 
   return (
     <div className="space-y-4">
@@ -167,16 +169,21 @@ export function MusicPage() {
       />
 
       <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
-        <TabsList>
-          <TabsTrigger value="projetos">
-            <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
-            Projetos
-          </TabsTrigger>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="list">Lista</TabsTrigger>
-          <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
-          <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="projetos">
+              <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+              Projetos
+            </TabsTrigger>
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="roadmap">Roadmap</TabsTrigger>
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+          </TabsList>
+          {view === "list" && (
+            <ListDensityToggle value={density} onChange={setDensity} />
+          )}
+        </div>
 
         <TabsContent value="projetos">
           {projects.length === 0 && tracks.length === 0 ? (
@@ -210,6 +217,7 @@ export function MusicPage() {
             tracks={filtered}
             onEdit={openEdit}
             onDelete={handleDelete}
+            density={density}
           />
         </TabsContent>
         <TabsContent value="roadmap">

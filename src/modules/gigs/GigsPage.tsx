@@ -26,6 +26,8 @@ import { BulkListView } from "./views/BulkListView";
 import { CalendarView } from "./views/CalendarView";
 import { InsightsView } from "./views/InsightsView";
 import { SpreadsheetView } from "./views/SpreadsheetView";
+import { GigListFormatToggle, type GigListFormat } from "./views/GigListFormatToggle";
+import { ShowSheetDialog } from "./views/ShowSheetDialog";
 import {
   deleteGig,
   getGig,
@@ -36,6 +38,7 @@ import {
 import { GIG_STATUSES, type Gig, type GigStatus } from "./types";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { ListDensityToggle, useListDensity } from "@/components/shared/ListDensityToggle";
 
 type StatusFilter = GigStatus | "Todas";
 
@@ -46,7 +49,23 @@ export function GigsPage() {
     { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
   );
   const [recurringNames, setRecurringNames] = useState<string[]>([]);
-  const [view, setView] = useModuleView<"list" | "bulk" | "sheet" | "calendar" | "insights">("gigs", "list");
+  // "Seleção múltipla" e "Planilha" deixaram de ser abas: viraram formatos dentro
+  // de "Lista". Migra quem tinha essas views salvas pro formato correspondente.
+  const [view, setView] = useModuleView<"list" | "calendar" | "insights">("gigs", "list");
+  const safeView: "list" | "calendar" | "insights" =
+    view === "calendar" || view === "insights" ? view : "list";
+  const [listFormat, setListFormat] = useModuleView<GigListFormat>(
+    "gigs.listFormat",
+    (() => {
+      try {
+        const v = localStorage.getItem("vistage.view.gigs");
+        return v === "bulk" ? "bulk" : v === "sheet" ? "sheet" : "normal";
+      } catch {
+        return "normal";
+      }
+    })()
+  );
+  const [density, setDensity] = useListDensity("gigs");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Gig | null>(null);
@@ -54,6 +73,8 @@ export function GigsPage() {
   const [debriefOpen, setDebriefOpen] = useState(false);
   const [debriefGig, setDebriefGig] = useState<Gig | null>(null);
   const [debriefRequired, setDebriefRequired] = useState(false);
+
+  const [showSheetGig, setShowSheetGig] = useState<Gig | null>(null);
 
   // Aba inicial do editor (ex.: "prep" ao clicar em Preparar/Debrief na lista).
   const [formInitialTab, setFormInitialTab] = useState<string | undefined>(undefined);
@@ -284,35 +305,45 @@ export function GigsPage() {
         }
       />
 
-      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
-        <TabsList>
-          <TabsTrigger value="list">Lista</TabsTrigger>
-          <TabsTrigger value="bulk">Seleção múltipla</TabsTrigger>
-          <TabsTrigger value="sheet">Planilha</TabsTrigger>
-          <TabsTrigger value="calendar">Calendário</TabsTrigger>
-          <TabsTrigger value="insights">Insights</TabsTrigger>
-        </TabsList>
+      <Tabs value={safeView} onValueChange={(v) => setView(v as typeof view)}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="calendar">Calendário</TabsTrigger>
+            <TabsTrigger value="insights">Insights</TabsTrigger>
+          </TabsList>
+          {safeView === "list" && (
+            <div className="flex items-center gap-2">
+              {listFormat === "normal" && (
+                <ListDensityToggle value={density} onChange={setDensity} />
+              )}
+              <GigListFormatToggle
+                value={listFormat}
+                onChange={(f) => {
+                  setListFormat(f);
+                  setView("list");
+                }}
+              />
+            </div>
+          )}
+        </div>
 
         <TabsContent value="list">
-          <ListView
-            gigs={gigs}
-            onEdit={openEdit}
-            onPrep={openPrepTab}
-            onDebrief={openDebriefTab}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
-
-        <TabsContent value="bulk">
-          <BulkListView
-            gigs={gigs}
-            onEdit={openEdit}
-            onRefresh={refresh}
-          />
-        </TabsContent>
-
-        <TabsContent value="sheet">
-          <SpreadsheetView gigs={gigs} onRefresh={refresh} />
+          {listFormat === "bulk" ? (
+            <BulkListView gigs={gigs} onEdit={openEdit} onRefresh={refresh} />
+          ) : listFormat === "sheet" ? (
+            <SpreadsheetView gigs={gigs} onRefresh={refresh} />
+          ) : (
+            <ListView
+              gigs={gigs}
+              onEdit={openEdit}
+              onPrep={openPrepTab}
+              onDebrief={openDebriefTab}
+              onDelete={handleDelete}
+              onShowSheet={setShowSheetGig}
+              density={density}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="calendar">
@@ -342,6 +373,12 @@ export function GigsPage() {
           onCompleted={() => void refresh()}
         />
       )}
+
+      <ShowSheetDialog
+        gig={showSheetGig}
+        open={showSheetGig != null}
+        onOpenChange={(v) => !v && setShowSheetGig(null)}
+      />
     </div>
   );
 }

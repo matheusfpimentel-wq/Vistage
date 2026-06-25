@@ -35,6 +35,7 @@ import { loadIdentity } from "@/modules/identity/api";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { ListDensityToggle, useListDensity } from "@/components/shared/ListDensityToggle";
 
 type StatusFilter = ContentStatus | "Todos";
 type FormatFilter = ContentFormat | "Todos";
@@ -134,6 +135,7 @@ export function ContentPage() {
   }
 
   const [view, setView] = useModuleView<string>("content", "list");
+  const [density, setDensity] = useListDensity("content");
 
   return (
     <div className="space-y-4">
@@ -223,17 +225,23 @@ export function ContentPage() {
 
       {items.length > 0 && (
         <Tabs value={view} onValueChange={setView}>
-          <TabsList>
-            <TabsTrigger value="list">Lista</TabsTrigger>
-            <TabsTrigger value="calendar">Calendário editorial</TabsTrigger>
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2">
+            <TabsList>
+              <TabsTrigger value="list">Lista</TabsTrigger>
+              <TabsTrigger value="calendar">Calendário editorial</TabsTrigger>
+              <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            </TabsList>
+            {view === "list" && (
+              <ListDensityToggle value={density} onChange={setDensity} />
+            )}
+          </div>
 
           <TabsContent value="list">
             <ContentList
               items={items}
               onEdit={openEdit}
               onDelete={handleDelete}
+              density={density}
             />
           </TabsContent>
 
