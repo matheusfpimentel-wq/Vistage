@@ -9,6 +9,7 @@
 import { create } from "zustand";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
+import { toLocalISODate, toLocalYearMonth } from "./format";
 
 // ── Config (app_settings) ───────────────────────────────────────────────────
 async function getSetting(key: string): Promise<string | null> {
@@ -42,18 +43,20 @@ export async function getLastSyncAt(): Promise<string | null> {
 }
 
 // ── Helpers de data ─────────────────────────────────────────────────────────
+// Fuso LOCAL, não UTC: com toISOString() no Brasil (UTC-3) das 21h à meia-noite
+// o "hoje"/"este mês" pulava pro dia/mês seguinte, bagunçando os buckets do sync.
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalISODate();
 }
 function monthKey(): string {
-  return new Date().toISOString().slice(0, 7); // YYYY-MM
+  return toLocalYearMonth(); // YYYY-MM local
 }
 /** Segunda-feira da semana atual (chave do foco). */
 function weekStartISO(): string {
-  const d = new Date(todayISO());
+  const d = new Date();
   const day = d.getDay();
   d.setDate(d.getDate() - ((day + 6) % 7));
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 /** Combina data + hora "HH:MM" num timestamp ISO; só data se sem hora. */
 function startAt(date: string, time: string | null): string {

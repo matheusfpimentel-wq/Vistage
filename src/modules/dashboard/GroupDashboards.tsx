@@ -72,6 +72,7 @@ function useAsync<T>(load: () => Promise<T>) {
     setLoading(true);
     void load()
       .then(setData)
+      .catch(() => setData(null)) // sem isto, uma query que rejeita vira unhandled e os dados nunca carregam
       .finally(() => setLoading(false));
   }, [load]);
 

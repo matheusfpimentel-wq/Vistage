@@ -92,7 +92,7 @@ export async function loadExtraStats(): Promise<ExtraStats> {
       ),
       db.select<{ n: number }[]>(
         `SELECT COUNT(*) as n FROM fans
-         WHERE superfan = 1 AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
+         WHERE level = 'Superfã' AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
         [thirtyDaysAgo]
       ),
       db.select<{ n: number }[]>(

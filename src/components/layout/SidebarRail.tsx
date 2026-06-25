@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { PanelLeftOpen } from "lucide-react";
+import { ChevronDown, ChevronUp, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -75,19 +75,88 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
     }
   }
 
+  // ── Rolagem para janelas baixas ──────────────────────────────────────────
+  // O magnify precisa de overflow VISÍVEL (o tile cresce sobre o módulo), o que
+  // conflita com rolagem nativa. Então só ligamos a rolagem QUANDO os ícones não
+  // cabem na altura; aí aparecem setas que rolam ao passar o mouse — senão, em
+  // janela pequena, não dava pra alcançar os ícones de baixo.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const [scrollable, setScrollable] = useState(false);
+  const [arrows, setArrows] = useState({ up: false, down: false });
+
+  const updateArrows = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const can = el.scrollHeight - el.clientHeight > 4;
+    setScrollable(can);
+    setArrows({
+      up: can && el.scrollTop > 4,
+      down: can && el.scrollTop < el.scrollHeight - el.clientHeight - 4,
+    });
+  }, []);
+
+  useEffect(() => {
+    updateArrows();
+    const onResize = () => updateArrows();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [updateArrows, nav]);
+
+  const stopAutoScroll = useCallback(() => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+  }, []);
+  const startAutoScroll = useCallback(
+    (dir: number) => {
+      stopAutoScroll();
+      const tick = () => {
+        const el = scrollRef.current;
+        if (el) {
+          el.scrollTop += dir * 5;
+          updateArrows();
+        }
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    [stopAutoScroll, updateArrows]
+  );
+  useEffect(() => stopAutoScroll, [stopAutoScroll]);
+
   // Índice só dos itens (separadores não entram no array de refs).
   let itemIdx = -1;
 
   return (
     <TooltipProvider delayDuration={120}>
-      {/* Coluna transparente (sem barra). overflow-visible: ao magnificar, o tile
-          cresce pra DIREITA e sobrepõe o módulo, sem recorte da borda. */}
-      <div className="flex h-screen w-[4.5rem] shrink-0 flex-col items-center overflow-visible">
+      {/* Coluna transparente. Normalmente overflow visível (o tile cresce sobre o
+          módulo ao magnificar); quando os ícones não cabem, vira rolável + setas. */}
+      <div className="relative flex h-screen w-[4.5rem] shrink-0 flex-col items-center">
+        {arrows.up && (
+          <button
+            type="button"
+            aria-label="Rolar para cima"
+            onMouseEnter={() => startAutoScroll(-1)}
+            onMouseLeave={stopAutoScroll}
+            onClick={() => scrollRef.current?.scrollBy({ top: -140, behavior: "smooth" })}
+            className="absolute top-0 z-20 flex h-5 w-9 items-center justify-center rounded-b-xl border border-t-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+        )}
         <div
-          className="my-auto flex flex-col items-center gap-2 py-3"
-          onMouseMove={(e) => magnify(e.clientY)}
-          onMouseLeave={reset}
+          ref={scrollRef}
+          onScroll={updateArrows}
+          className={cn(
+            "flex w-full flex-1 flex-col items-center no-scrollbar",
+            scrollable ? "overflow-y-auto" : "overflow-visible"
+          )}
         >
+          <div
+            className={cn("flex flex-col items-center gap-2 py-3", !scrollable && "my-auto")}
+            onMouseMove={(e) => magnify(e.clientY)}
+            onMouseLeave={reset}
+          >
           {rows.map((row, i) => {
             if (row.kind === "sep") {
               return (
@@ -131,10 +200,11 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
                                 : "border-white/15 from-white/20 to-white/[0.03] dark:from-white/[0.12] dark:to-white/0"
                             )}
                           />
-                          {/* reflexo: brilho de vidro no topo */}
+                          {/* reflexo: brilho de vidro no topo (mais discreto no escuro,
+                              onde o branco forte ficava "sujo") */}
                           <span
                             aria-hidden
-                            className="pointer-events-none absolute inset-x-1 top-1 h-[42%] rounded-[inherit] bg-gradient-to-b from-white/55 to-transparent opacity-70"
+                            className="pointer-events-none absolute inset-x-1 top-1 h-[42%] rounded-[inherit] bg-gradient-to-b from-white/55 to-transparent opacity-70 dark:from-white/20 dark:opacity-40"
                           />
                           <Icon
                             className={cn(
@@ -154,14 +224,30 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
             );
           })}
 
-          <div className="my-1 h-px w-7 rounded-full bg-border/70" aria-hidden />
+          </div>
+        </div>
+        {arrows.down && (
+          <button
+            type="button"
+            aria-label="Rolar para baixo"
+            onMouseEnter={() => startAutoScroll(1)}
+            onMouseLeave={stopAutoScroll}
+            onClick={() => scrollRef.current?.scrollBy({ top: 140, behavior: "smooth" })}
+            className="absolute bottom-[3.75rem] z-20 flex h-5 w-9 items-center justify-center rounded-t-xl border border-b-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        )}
+        {/* rodapé fixo: expandir menu (sempre acessível, fora da rolagem) */}
+        <div className="flex shrink-0 flex-col items-center pb-3 pt-1">
+          <div className="mb-1 h-px w-7 rounded-full bg-border/70" aria-hidden />
           <Tooltip delayDuration={120}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => setSidebarLayout("classic")}
                 aria-label="Expandir menu (mostrar nomes)"
-                className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-muted-foreground shadow-sm backdrop-blur-md transition-transform duration-150 ease-out hover:scale-110 hover:text-foreground"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-white/15 bg-white/10 text-muted-foreground shadow-sm backdrop-blur-md transition-transform duration-150 ease-out hover:scale-110 hover:text-foreground dark:bg-white/[0.06]"
               >
                 <PanelLeftOpen className="h-4 w-4" />
               </button>

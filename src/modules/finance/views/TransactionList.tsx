@@ -1,5 +1,7 @@
+import { useRef } from "react";
 import { ArrowDownCircle, ArrowUpCircle, Pencil, Trash2, Wallet } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -14,8 +16,22 @@ type Props = {
   onDelete: (t: FinanceTransactionWithCategory) => void;
 };
 
+const COL_COUNT = 7;
+
 export function TransactionList({ transactions, onEdit, onDelete }: Props) {
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(transactions);
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  // Virtualização: o extrato pode ter milhares de linhas (anos de lançamentos).
+  // Renderizamos só a janela visível + overscan; measureElement corrige a altura
+  // das linhas que têm a 2ª linha de selos (GIG/Aula/Fixa/imposto…).
+  const rowVirtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 49,
+    overscan: 12,
+    getItemKey: (i) => sorted[i].id,
+  });
 
   if (sorted.length === 0) {
     return (
@@ -26,12 +42,30 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
     );
   }
 
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom =
+    virtualItems.length > 0
+      ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+      : 0;
+
   return (
-    <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+    <div ref={parentRef} className="max-h-[70vh] overflow-auto rounded-md border">
+      {/* table-fixed + colgroup fixam as larguras: como só uma janela de linhas
+          existe no DOM, sem isso as colunas “pulariam” conforme se rola. */}
+      <table className="w-full table-fixed text-sm">
+        <colgroup>
+          <col style={{ width: 44 }} />
+          <col style={{ width: 112 }} />
+          <col />
+          <col style={{ width: 116 }} />
+          <col style={{ width: 140 }} />
+          <col style={{ width: 168 }} />
+          <col style={{ width: 96 }} />
+        </colgroup>
+        <thead className="sticky top-0 z-10 bg-muted text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="w-8 px-3 py-2 text-left"></th>
+            <th className="px-3 py-2 text-left"></th>
             <SortableHeader col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
             <SortableHeader col="description" label="Descrição" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
             <SortableHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground" />
@@ -41,12 +75,20 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((t) => {
+          {paddingTop > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={COL_COUNT} style={{ height: paddingTop, padding: 0 }} />
+            </tr>
+          )}
+          {virtualItems.map((vi) => {
+            const t = sorted[vi.index];
             const isIncome = t.kind === "income";
             const hasLinks = t.gig_id || t.class_id || t.student_package_id || t.track_id || t.party_id;
             return (
               <tr
                 key={t.id}
+                data-index={vi.index}
+                ref={rowVirtualizer.measureElement}
                 className="border-t transition-colors hover:bg-muted/40"
               >
                 <td className="px-3 py-2">
@@ -60,7 +102,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   {formatDate(t.date, "dd/MM/yyyy")}
                 </td>
                 <td className="px-3 py-2">
-                  <div className={cn(t.description ? "" : "text-muted-foreground")}>
+                  <div className={cn("break-words", t.description ? "" : "text-muted-foreground")}>
                     {t.description ?? "—"}
                   </div>
                   {(hasLinks || t.expense_type === "Fixa" || t.tax_relevant === 1) && (
@@ -112,7 +154,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                 >
                   {isIncome ? "+" : "−"} {formatCurrency(t.amount)}
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">
+                <td className="px-3 py-2 text-muted-foreground truncate">
                   {t.category_name ?? "—"}
                 </td>
                 <td className="px-3 py-2">
@@ -138,6 +180,11 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
               </tr>
             );
           })}
+          {paddingBottom > 0 && (
+            <tr aria-hidden="true">
+              <td colSpan={COL_COUNT} style={{ height: paddingBottom, padding: 0 }} />
+            </tr>
+          )}
         </tbody>
       </table>
     </div>

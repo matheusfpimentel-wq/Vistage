@@ -22,6 +22,7 @@ import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
 import { TodoistSettings } from "./TodoistSettings";
 import { NotionSettings } from "./NotionSettings";
+import { GoogleDriveSettings } from "./GoogleDriveSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 import { InsightsBankSettings } from "./InsightsBankSettings";
@@ -106,6 +107,7 @@ export function SettingsPage() {
         <TodoistSettings />
         <NotionSettings />
         <GoogleCalendarSettings />
+        <GoogleDriveSettings />
       </TabsContent>
 
       {/* ─── Personalização ──────────────────────────────────── */}
@@ -169,7 +171,7 @@ export function SettingsPage() {
                   size="sm"
                   onClick={() => setSidebarLayout("rail")}
                 >
-                  Compacto (ícones)
+                  Ícones
                 </Button>
               </div>
             </div>

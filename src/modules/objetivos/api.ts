@@ -28,10 +28,13 @@ export type Okr = {
 type OkrRow = Omit<Okr, "key_results"> & { key_results: string };
 
 function parseOkr(row: OkrRow): Okr {
-  return {
-    ...row,
-    key_results: JSON.parse(row.key_results || "[]") as KeyResult[],
-  };
+  let key_results: KeyResult[] = [];
+  try {
+    key_results = JSON.parse(row.key_results || "[]") as KeyResult[];
+  } catch {
+    /* key_results corrompido — não derruba a lista inteira de OKRs */
+  }
+  return { ...row, key_results };
 }
 
 export async function listOkrs(): Promise<Okr[]> {
@@ -149,7 +152,7 @@ async function countsForRange(
   }
   if (needs.has("finance_revenue")) {
     const rows = await db.select<{ total: number }[]>(
-      `SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE kind='income' AND date >= $1 AND date <= $2`,
+      `SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE kind='income' AND status='Recebido' AND date >= $1 AND date <= $2`,
       [qStart, qEnd]
     );
     counts.finance_revenue = Math.round(rows[0]?.total ?? 0);

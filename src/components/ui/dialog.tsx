@@ -33,7 +33,8 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         // Mobile: vira um bottom-sheet de tela quase cheia, ancorado embaixo.
-        "fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 border bg-background p-4 shadow-lg duration-200 max-h-[92vh] overflow-y-auto rounded-t-2xl",
+        // Janela "fosca": leve translucidez + backdrop-blur sobre o overlay.
+        "fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 border border-border/60 bg-background/95 backdrop-blur-xl p-4 shadow-xl duration-200 max-h-[92vh] overflow-y-auto rounded-t-2xl",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
         // Desktop (sm+): volta a ser um modal centralizado.
         "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-w-3xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-lg sm:p-6 sm:max-h-[90vh] sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",

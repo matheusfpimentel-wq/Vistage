@@ -36,7 +36,7 @@ import {
   listFanInteractions,
   setGigFans,
 } from "@/modules/fans/api";
-import { formatRating } from "@/lib/format";
+import { formatDate, formatRating } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -203,9 +203,9 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
   async function flushDebriefInsights(gig: Gig, state: DebriefState): Promise<number> {
     let count = 0;
-    const gigDate = gig.date
-      ? new Date(gig.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
-      : "";
+    // formatDate (date-fns parseISO) lê a data-only como LOCAL — toLocaleDateString
+    // sobre new Date("YYYY-MM-DD") interpretava UTC e gravava o dia anterior no BR.
+    const gigDate = gig.date ? formatDate(gig.date, "dd/MM") : "";
 
     // As dificuldades (pontos fracos) NÃO viram ideia — passam a aparecer como
     // insight no "dado de insights" (lê debrief_weaknesses), pra refletir sem

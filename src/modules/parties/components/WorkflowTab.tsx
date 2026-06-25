@@ -245,7 +245,7 @@ export function WorkflowTab({
                   if (fd.key === "fornecedores_fechados") {
                     const raw = String(editFields[fd.key] ?? "");
                     let selectedIds: number[] = [];
-                    try { selectedIds = JSON.parse(raw); } catch { /* texto legado */ }
+                    try { const p = JSON.parse(raw); if (Array.isArray(p)) selectedIds = p; } catch { /* texto legado */ }
                     const selectedSuppliers = suppliers.filter((s) => selectedIds.includes(s.id));
                     const unselected = suppliers.filter((s) => !selectedIds.includes(s.id));
                     return (

@@ -63,6 +63,7 @@ import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
 
@@ -250,6 +251,7 @@ export function FansPage() {
           title="Nenhum fã cadastrado ainda."
         />
       ) : view === "cards" ? (
+        <PendingTasksProvider entityType="fan">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {fans.map((f) => (
             <FanCard
@@ -263,6 +265,7 @@ export function FansPage() {
             />
           ))}
         </div>
+        </PendingTasksProvider>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="table-fixed text-sm" style={{ width: tableWidth }}>

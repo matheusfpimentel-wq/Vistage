@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, FolderOpen, Loader2, Lock, LockOpen, Save, SaveAll, ShieldAlert } from "lucide-react";
+import { FileText, Flame, FolderOpen, Loader2, Lock, LockOpen, Save, SaveAll, ShieldAlert } from "lucide-react";
 import { useDocumentStore, displayDocName } from "@/lib/document";
 import { hasAnyDocumentData } from "@/lib/backup";
 import { useDocPassword, setDocPassword } from "@/lib/docPassword";
 import { promptPassword } from "@/lib/passwordPrompt";
 import { confirmDialog } from "@/components/ui/confirm";
 import { toast } from "@/components/ui/toaster";
+import { loadFocusStreak } from "@/modules/foco/api";
+import { DATA_CHANGED } from "@/lib/events";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,7 +19,16 @@ export function FileMenu() {
   const { currentName, busy, dirty, open, save, saveAs } = useDocumentStore();
   const isProtected = useDocPassword((s) => s.password != null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [streak, setStreak] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Streak de foco ao lado do nome do arquivo — atualiza ao registrar sessões.
+  useEffect(() => {
+    const refresh = () => void loadFocusStreak().then(setStreak).catch(() => {});
+    refresh();
+    window.addEventListener(DATA_CHANGED, refresh);
+    return () => window.removeEventListener(DATA_CHANGED, refresh);
+  }, []);
 
   // Define uma senha e grava o documento já cifrado.
   async function handleProtect() {
@@ -76,7 +87,7 @@ export function FileMenu() {
   }
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative flex items-center gap-2" ref={ref}>
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
@@ -108,6 +119,16 @@ export function FileMenu() {
           />
         )}
       </button>
+
+      {streak > 0 && (
+        <span
+          className="flex items-center gap-1 rounded-full border border-orange-300/50 bg-orange-50 px-2 py-1 text-xs font-semibold text-orange-600 dark:border-orange-400/30 dark:bg-orange-950/40 dark:text-orange-400"
+          title={`${streak} dia${streak === 1 ? "" : "s"} seguidos de foco`}
+        >
+          <Flame className="h-3.5 w-3.5" />
+          {streak}
+        </span>
+      )}
 
       {menuOpen && (
         <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md border bg-popover shadow-md">

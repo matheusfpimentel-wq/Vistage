@@ -94,14 +94,18 @@ export function TodayPage() {
   const navigate = useNavigate();
 
   const load = useCallback(async () => {
-    const [gigs, tasks, content, classes, parties] = await Promise.all([
-      listGigs(),
-      listTasks(),
-      listContent(),
-      listClasses({ fromDate: todayISO(), toDate: todayISO() }),
-      listParties(),
-    ]);
-    setData({ gigs, tasks, content, classes, parties });
+    try {
+      const [gigs, tasks, content, classes, parties] = await Promise.all([
+        listGigs(),
+        listTasks(),
+        listContent(),
+        listClasses({ fromDate: todayISO(), toDate: todayISO() }),
+        listParties(),
+      ]);
+      setData({ gigs, tasks, content, classes, parties });
+    } catch (e) {
+      console.error("Falha ao carregar a tela Hoje", e);
+    }
   }, []);
 
   useEffect(() => {

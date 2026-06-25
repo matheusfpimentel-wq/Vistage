@@ -302,10 +302,15 @@ export async function getSetlistsForGig(gigId: number): Promise<GigSetlist[]> {
     "SELECT * FROM gig_setlists WHERE gig_id = $1 ORDER BY imported_at DESC",
     [gigId]
   );
-  return rows.map((r) => ({
-    ...r,
-    tracks: JSON.parse(r.tracks) as SetlistTrack[],
-  }));
+  return rows.map((r) => {
+    let tracks: SetlistTrack[] = [];
+    try {
+      tracks = JSON.parse(r.tracks) as SetlistTrack[];
+    } catch {
+      /* tracks corrompido — não derruba a lista inteira de setlists */
+    }
+    return { ...r, tracks };
+  });
 }
 
 export async function saveSetlist(gigId: number, parsed: ParsedSetlist): Promise<number> {

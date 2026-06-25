@@ -20,6 +20,7 @@ import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
+import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { cn } from "@/lib/utils";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { ViewToggle } from "@/components/shared/ViewToggle";
@@ -212,6 +213,7 @@ export function VenuesPage() {
           title="Nenhum venue cadastrado ainda."
         />
       ) : view === "cards" ? (
+        <PendingTasksProvider entityType="venue">
         <div className="space-y-6">
           {groupedCards.map((group) => (
             <div key={group.key}>
@@ -236,6 +238,7 @@ export function VenuesPage() {
             </div>
           ))}
         </div>
+        </PendingTasksProvider>
       ) : (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-sm">

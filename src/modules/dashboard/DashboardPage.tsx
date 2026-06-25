@@ -30,7 +30,6 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
 import { MindMapPage } from "@/modules/dashboard/MindMapPage";
-import { MonthlyReportPage } from "@/modules/dashboard/MonthlyReportPage";
 import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
 import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
@@ -56,7 +55,7 @@ import { gateAfter } from "@/modules/music/gates";
 import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
-import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -141,11 +140,12 @@ function daysUntil(iso: string): number {
 
 function nextNDays(n: number): string[] {
   const out: string[] = [];
-  const base = new Date(todayISO());
+  // Meio-dia local evita que turnos de DST cruzem a fronteira do dia.
+  const base = new Date(todayISO() + "T12:00:00");
   for (let i = 0; i < n; i++) {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    out.push(d.toISOString().slice(0, 10));
+    out.push(toLocalISODate(d));
   }
   return out;
 }
@@ -185,6 +185,8 @@ export function DashboardPage() {
       ]);
       setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
       setUpdatedAt(new Date());
+    } catch (e) {
+      console.error("Falha ao carregar o dashboard", e);
     } finally {
       setRefreshing(false);
     }
@@ -200,7 +202,6 @@ export function DashboardPage() {
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
           <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
-          <TabsTrigger value="report">Relatório mensal</TabsTrigger>
           <TabsTrigger value="career">Carreira em números</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
@@ -255,10 +256,6 @@ export function DashboardPage() {
 
       <TabsContent value="metodologias">
         <MetodologiasPage />
-      </TabsContent>
-
-      <TabsContent value="report">
-        <MonthlyReportPage />
       </TabsContent>
 
       <TabsContent value="career">

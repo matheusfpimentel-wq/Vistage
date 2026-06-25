@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   Check,
@@ -55,7 +55,10 @@ type SessionRow = Pick<
  * tempo previsto, só alerta. O "Encerrar" traz a janela principal pra frente.
  */
 export function SessionOverlay() {
-  const params = readOverlayParams();
+  // A URL da janela é fixa durante a vida dela; sem o memo, readOverlayParams()
+  // devolvia um objeto novo a cada render → o effect do cronômetro (que depende
+  // de `params`) era destruído/recriado a cada render.
+  const params = useMemo(() => readOverlayParams(), []);
   const [session, setSession] = useState<SessionRow | null>(null);
   const [secs, setSecs] = useState(0);
   const [paused, setPaused] = useState(false);
