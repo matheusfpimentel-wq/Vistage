@@ -13,6 +13,7 @@ import {
   setBackupDirOverride,
   resolveBackupDir,
 } from "@/lib/rotatingBackup";
+import { isReopenLastEnabled, setReopenLast } from "@/lib/document";
 
 /** Controles dos backups rotativos (cópia de segurança a cada salvamento). */
 export function BackupSettings() {
@@ -104,6 +105,38 @@ export function BackupSettings() {
             (regra 3-2-1).
           </p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Comportamento de inicialização: reabrir o último documento. */
+export function StartupSettings() {
+  const [on, setOn] = useState(isReopenLastEnabled());
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Inicialização</CardTitle>
+        <CardDescription>
+          Por padrão o Vistage abre em branco e você abre seu <code>.vistage</code> manualmente.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <label className="flex cursor-pointer items-center justify-between gap-3">
+          <span className="text-sm">Reabrir o último documento ao iniciar</span>
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={on}
+            onChange={(e) => {
+              setOn(e.target.checked);
+              setReopenLast(e.target.checked);
+            }}
+          />
+        </label>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Documento com senha não reabre sozinho — abra pelo menu para digitar a senha.
+        </p>
       </CardContent>
     </Card>
   );

@@ -19,8 +19,8 @@ import { ConfirmProvider } from "@/components/ui/confirm";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
-import { buildBackup, clearDocumentData, hasAnyDocumentData } from "@/lib/backup";
-import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY } from "@/lib/document";
+import { buildBackup, clearDocumentData, hasAnyDocumentData, readBackupFromPath, restoreBackup, restoreBackupFiles } from "@/lib/backup";
+import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY, isReopenLastEnabled } from "@/lib/document";
 import { peekUnsavedRecovery, unsavedSince, clearUnsavedWork } from "@/lib/recovery";
 import { RecoveryModal } from "@/components/shared/RecoveryModal";
 import { toast } from "@/components/ui/toaster";
@@ -195,6 +195,8 @@ function MainApp() {
         // (flag síncrona) e a réplica ainda tem dados, NÃO zera — mantém os dados
         // e oferece recuperar (modal abaixo). Senão, "abre em branco" normal.
         const recover = !skipWipe ? await peekUnsavedRecovery().catch(() => false) : false;
+        // Caminho do último documento, capturado ANTES do wipe limpar a chave.
+        const lastDocPath = localStorage.getItem("vistage.currentDocument");
         if (!skipWipe && !recover) {
           let safe = true;
           // Transição única: se já houver dados de uso anterior, exporta um
@@ -217,6 +219,23 @@ function MainApp() {
             await clearDocumentData();
             localStorage.removeItem("vistage.currentDocument");
             useDocumentStore.setState({ currentPath: null, currentName: null, dirty: false });
+            // Reabrir último documento (opt-in): recarrega o .vistage no banco
+            // recém-zerado, sem reload. Cifrado/sumido/corrompido → segue em branco.
+            if (isReopenLastEnabled() && lastDocPath) {
+              try {
+                const backup = await readBackupFromPath(lastDocPath);
+                await restoreBackup(backup);
+                await restoreBackupFiles(backup);
+                localStorage.setItem("vistage.currentDocument", lastDocPath);
+                useDocumentStore.setState({
+                  currentPath: lastDocPath,
+                  currentName: lastDocPath.split(/[\\/]/).pop() ?? null,
+                });
+                sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
+              } catch {
+                /* arquivo sumiu / cifrado / corrompido → segue em branco */
+              }
+            }
           }
         }
 

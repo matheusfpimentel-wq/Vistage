@@ -51,6 +51,17 @@ export function reloadKeepingData(): void {
   window.location.reload();
 }
 
+// "Reabrir último documento ao iniciar" — opt-in (padrão DESLIGADO). O caminho
+// do último .vistage já fica em LS_KEY; o boot, se ligado, recarrega-o em vez de
+// abrir em branco. Arquivo com senha não reabre sozinho (precisa do prompt).
+const LS_REOPEN = "vistage.reopenLast";
+export function isReopenLastEnabled(): boolean {
+  return localStorage.getItem(LS_REOPEN) === "1";
+}
+export function setReopenLast(on: boolean): void {
+  localStorage.setItem(LS_REOPEN, on ? "1" : "0");
+}
+
 // Resolução imperativa de diálogo de 3 opções (Mesclar / Sobrescrever / Cancelar).
 // O componente OpenDocumentDialog registra o resolver ao montar.
 export type OpenMode = "merge" | "overwrite" | "cancel";
