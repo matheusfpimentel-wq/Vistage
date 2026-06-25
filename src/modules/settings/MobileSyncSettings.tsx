@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Cloud, Loader2, LogOut, RefreshCw } from "lucide-react";
+import { Cloud, KeyRound, Loader2, RefreshCw, Unplug } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
-import { currentUser, signIn, signOut } from "@/lib/supabase";
+import { currentUser, signIn, signOut, updatePassword } from "@/lib/supabase";
 import { getLastSyncAt, syncNow } from "@/lib/mobileSync";
 
 export function MobileSyncSettings() {
@@ -14,6 +15,10 @@ export function MobileSyncSettings() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [showPwForm, setShowPwForm] = useState(false);
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [changingPw, setChangingPw] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -74,6 +79,29 @@ export function MobileSyncSettings() {
     }
   }
 
+  async function handleChangePassword() {
+    if (newPw.length < 6) {
+      toast.error("A senha precisa ter ao menos 6 caracteres.");
+      return;
+    }
+    if (newPw !== confirmPw) {
+      toast.error("As senhas não conferem.");
+      return;
+    }
+    setChangingPw(true);
+    try {
+      await updatePassword(newPw);
+      toast.success("Senha alterada. Use a nova senha no celular.");
+      setNewPw("");
+      setConfirmPw("");
+      setShowPwForm(false);
+    } catch (e) {
+      toast.error(`Não foi possível trocar a senha: ${(e as Error).message ?? String(e)}`);
+    } finally {
+      setChangingPw(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -86,14 +114,15 @@ export function MobileSyncSettings() {
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : userEmail ? (
           <>
-            <p className="text-sm">
-              Conectado como <span className="font-medium">{userEmail}</span>.
-            </p>
-            {lastSync && (
-              <p className="text-xs text-muted-foreground">
-                Última sincronização: {new Date(lastSync).toLocaleString("pt-BR")}.
-              </p>
-            )}
+            <div className="rounded-md border p-3 text-sm">
+              <div className="text-xs text-muted-foreground">Conta da sincronização</div>
+              <div className="font-medium break-all">{userEmail}</div>
+              {lastSync && (
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Última sincronização: {new Date(lastSync).toLocaleString("pt-BR")}
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => void handleSync()} disabled={busy}>
                 {busy ? (
@@ -101,12 +130,53 @@ export function MobileSyncSettings() {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                Sincronizar agora
+                Sincronizar
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowPwForm((v) => !v)}
+                disabled={busy}
+              >
+                <KeyRound className="h-4 w-4" /> Trocar senha
               </Button>
               <Button variant="outline" onClick={() => void handleLogout()} disabled={busy}>
-                <LogOut className="h-4 w-4" /> Sair
+                <Unplug className="h-4 w-4" /> Desconectar
               </Button>
             </div>
+
+            {showPwForm && (
+              <div className="space-y-2 rounded-md border p-3 sm:max-w-sm">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nova senha</Label>
+                  <Input
+                    type="password"
+                    value={newPw}
+                    autoComplete="new-password"
+                    onChange={(e) => setNewPw(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Confirmar nova senha</Label>
+                  <Input
+                    type="password"
+                    value={confirmPw}
+                    autoComplete="new-password"
+                    onChange={(e) => setConfirmPw(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleChangePassword();
+                    }}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => void handleChangePassword()}
+                  disabled={changingPw || !newPw || !confirmPw}
+                >
+                  {changingPw && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Salvar nova senha
+                </Button>
+              </div>
+            )}
           </>
         ) : (
           <>

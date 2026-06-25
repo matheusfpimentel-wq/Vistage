@@ -148,20 +148,72 @@ const DRIVE_FOLDER: Record<string, string> = {
   finance: "Financeiro",
 };
 
+// ── O que sincronizar (preferência da máquina, em localStorage) ───────────────
+// "Imagens e vídeos" (inclui áudio/mídia pesada) e "Documentos". Default: ambos.
+const LS_SYNC_MEDIA = "vistage.drive.syncMedia";
+const LS_SYNC_DOCS = "vistage.drive.syncDocs";
+
+function lsBool(key: string): boolean {
+  try {
+    return localStorage.getItem(key) !== "0"; // ausente = ligado
+  } catch {
+    return true;
+  }
+}
+function lsSet(key: string, on: boolean): void {
+  try {
+    localStorage.setItem(key, on ? "1" : "0");
+  } catch {
+    /* ignora */
+  }
+}
+
+export function isDriveSyncMedia(): boolean { return lsBool(LS_SYNC_MEDIA); }
+export function isDriveSyncDocs(): boolean { return lsBool(LS_SYNC_DOCS); }
+export function setDriveSyncMedia(on: boolean): void { lsSet(LS_SYNC_MEDIA, on); }
+export function setDriveSyncDocs(on: boolean): void { lsSet(LS_SYNC_DOCS, on); }
+
+const MEDIA_EXTS = new Set([
+  // imagens
+  "jpg", "jpeg", "png", "webp", "gif", "heic", "bmp", "tiff",
+  // vídeos
+  "mp4", "mov", "webm", "avi", "mkv", "m4v",
+  // áudio (mídia pesada — acompanha "Imagens e vídeos")
+  "mp3", "wav", "flac", "aiff", "aif", "m4a", "ogg", "aac",
+]);
+const DOC_EXTS_SET = new Set([
+  "pdf", "doc", "docx", "txt", "rtf", "md", "odt",
+  "ttf", "otf", "woff", "woff2",
+]);
+
+/** Classifica o anexo pela extensão para casar com os checkboxes do usuário. */
+function fileKind(rel: string): "media" | "doc" | "other" {
+  const ext = rel.split(".").pop()?.toLowerCase() ?? "";
+  if (MEDIA_EXTS.has(ext)) return "media";
+  if (DOC_EXTS_SET.has(ext)) return "doc";
+  return "other";
+}
+
 /** true se este anexo (pela parte relativa) deve ir pro Drive em vez de embutir. */
 export function isDriveMedia(rel: string): boolean {
   const r = rel.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
   const top = r.split("/")[0];
+  // 1) política de PASTA — quais módulos podem ir pro Drive.
+  let pathOk: boolean;
   if (top === "identity") {
     // logo/isótipo/fontes ficam LOCAIS; galeria/presskit/manual vão pro Drive.
-    return (
+    pathOk =
       r.startsWith("identity/photos/") ||
       r.includes("presskit") ||
       r.includes("brand") ||
-      r.includes("manual")
-    );
+      r.includes("manual");
+  } else {
+    pathOk = ["gigs", "tracks", "music", "content", "parties", "equipment", "finance"].includes(top);
   }
-  return ["gigs", "tracks", "music", "content", "parties", "equipment", "finance"].includes(top);
+  if (!pathOk) return false;
+  // 2) política de TIPO — respeita o que o usuário escolheu sincronizar.
+  const kind = fileKind(r);
+  return kind === "doc" ? isDriveSyncDocs() : isDriveSyncMedia();
 }
 
 function driveFolderForRel(rel: string): string {

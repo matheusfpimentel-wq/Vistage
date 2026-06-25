@@ -3,7 +3,7 @@ import { FileText, Flame, FolderOpen, Loader2, Lock, LockOpen, Save, SaveAll, Sh
 import { useDocumentStore, displayDocName } from "@/lib/document";
 import { hasAnyDocumentData } from "@/lib/backup";
 import { useDocPassword, setDocPassword } from "@/lib/docPassword";
-import { promptPassword } from "@/lib/passwordPrompt";
+import { promptPasswordWithHint } from "@/lib/passwordPrompt";
 import { confirmDialog } from "@/components/ui/confirm";
 import { toast } from "@/components/ui/toaster";
 import { loadFocusStreak } from "@/modules/foco/api";
@@ -30,17 +30,17 @@ export function FileMenu() {
     return () => window.removeEventListener(DATA_CHANGED, refresh);
   }, []);
 
-  // Define uma senha e grava o documento já cifrado.
+  // Define uma senha (e dica opcional) e grava o documento já cifrado.
   async function handleProtect() {
     setMenuOpen(false);
-    const pw = await promptPassword({
+    const res = await promptPasswordWithHint({
       title: "Proteger com senha",
       description: "Defina uma senha — ela será pedida toda vez que este arquivo for aberto.",
       confirmLabel: "Proteger",
       requireConfirm: true,
     });
-    if (!pw) return;
-    setDocPassword(pw);
+    if (!res?.password) return;
+    setDocPassword(res.password, res.hint);
     const saved = await save();
     if (saved) toast.success("Documento protegido por senha.");
   }

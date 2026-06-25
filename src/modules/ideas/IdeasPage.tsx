@@ -27,7 +27,11 @@ import { TrackForm } from "@/modules/music/forms/TrackForm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
   IDEA_CATEGORIES,
+  IDEA_HEATS,
+  IDEA_HEAT_MAX,
+  IDEA_HEAT_NEUTRAL,
   IDEA_MATURATIONS,
+  heatLabel,
   type Idea,
   type IdeaCategory,
   type IdeaHeat,
@@ -136,8 +140,8 @@ export function IdeasPage() {
   }
 
   async function handleToggleHot(i: Idea) {
-    // Marca/desmarca a ideia como quente (calor 3 ↔ 2/morna como padrão neutro).
-    const next: IdeaHeat = i.heat === 3 ? 2 : 3;
+    // Marca/desmarca a ideia como quente (máx ↔ morna como padrão neutro).
+    const next: IdeaHeat = i.heat === IDEA_HEAT_MAX ? IDEA_HEAT_NEUTRAL : IDEA_HEAT_MAX;
     await updateIdea({ id: i.id, heat: next });
     await refresh();
   }
@@ -215,9 +219,11 @@ export function IdeasPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Calor: todos</SelectItem>
-                  <SelectItem value="3">Quente</SelectItem>
-                  <SelectItem value="2">Morna</SelectItem>
-                  <SelectItem value="1">Fria</SelectItem>
+                  {[...IDEA_HEATS].reverse().map((h) => (
+                    <SelectItem key={h} value={h.toString()}>
+                      {heatLabel(h)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

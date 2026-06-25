@@ -1907,6 +1907,28 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_content_snapshots_content ON content_snapshots(content_id);
     `,
   },
+  {
+    version: 134,
+    description:
+      "finance_transactions — multi-moeda (amount continua em BRL; original_amount/exchange_rate só para exibição)",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'BRL';
+      ALTER TABLE finance_transactions ADD COLUMN original_amount REAL;
+      ALTER TABLE finance_transactions ADD COLUMN exchange_rate REAL;
+    `,
+  },
+  {
+    version: 135,
+    description:
+      "gigs.gcal_synced_at — quando o app gravou o evento por último (detecta edição feita no Google depois disso)",
+    sql: `ALTER TABLE gigs ADD COLUMN gcal_synced_at TEXT;`,
+  },
+  {
+    version: 136,
+    description:
+      "ideas.heat — escala 1..5 (fria→quente). Remapeia o esquema antigo 1/2/3: morna 2→3, quente 3→5",
+    sql: `UPDATE ideas SET heat = CASE heat WHEN 3 THEN 5 WHEN 2 THEN 3 ELSE 1 END;`,
+  },
 ];
 
 

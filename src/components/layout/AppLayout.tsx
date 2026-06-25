@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, PanelLeftOpen, Plus, Search, Settings } from "lucide-react";
+import { ChevronDown, PanelLeftOpen, Plus, Search, Settings, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarRail } from "./SidebarRail";
 import { MobileTabBar } from "./MobileTabBar";
@@ -13,7 +13,7 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { WorkSessionWidget } from "@/modules/foco/WorkSessionWidget";
 import { SettingsPage } from "@/modules/settings/SettingsPage";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { requestNewItemAt, triggerNewItem, useShortcutsConfig } from "@/lib/shortcuts";
+import { requestNewItemAt, triggerNewItem, triggerQuickCapture, useShortcutsConfig } from "@/lib/shortcuts";
 import { useThemeStore } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +111,16 @@ export function AppLayout() {
             >
               <PanelLeftOpen className="h-5 w-5" />
             </button>
+            {/* Captura rápida — botão flutuante no header (mobile). */}
+            <button
+              type="button"
+              onClick={() => triggerQuickCapture()}
+              className="flex h-11 w-11 items-center justify-center rounded-md text-primary transition hover:bg-accent md:hidden"
+              aria-label="Captura rápida"
+              title="Captura rápida"
+            >
+              <Zap className="h-5 w-5" />
+            </button>
             {/* FileMenu */}
             <div className="hidden md:block">
               <FileMenu />
@@ -197,7 +207,7 @@ export function AppLayout() {
             <Outlet />
           </ErrorBoundary>
         </main>
-        <MobileTabBar onOpenMenu={() => setMobileNavOpen(true)} />
+        <MobileTabBar />
       </div>
       <Toaster />
 

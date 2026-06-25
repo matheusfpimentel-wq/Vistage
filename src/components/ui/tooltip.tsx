@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { Info } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
@@ -41,7 +41,7 @@ export function InfoHint({ children }: { children: React.ReactNode }) {
           className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:text-primary"
           aria-label="Mais informações"
         >
-          <Info className="h-3 w-3" />
+          <HelpCircle className="h-3 w-3" />
         </button>
       </TooltipTrigger>
       <TooltipContent>{children}</TooltipContent>

@@ -58,6 +58,17 @@ export async function pickFile(opts: PickOptions): Promise<string | null> {
   return result;
 }
 
+/** Abre o diálogo nativo permitindo VÁRIOS arquivos; retorna a lista de caminhos. */
+export async function pickFiles(opts: PickOptions): Promise<string[]> {
+  const result = await openDialog({
+    multiple: true,
+    title: opts.title,
+    filters: [{ name: opts.filterName, extensions: opts.extensions }],
+  });
+  if (!result) return [];
+  return Array.isArray(result) ? result : [result];
+}
+
 function joinPath(...parts: string[]): string {
   const sep = parts[0]?.includes("\\") && !parts[0].includes("/") ? "\\" : "/";
   return parts

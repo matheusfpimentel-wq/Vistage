@@ -11,8 +11,9 @@ import {
   isEncryptedContainer,
   encryptBytes,
   decryptBytes,
+  readEncryptedHint,
 } from "./crypto";
-import { getDocPassword, setDocPassword } from "./docPassword";
+import { getDocPassword, getDocPasswordHint, setDocPassword } from "./docPassword";
 import { promptPassword } from "./passwordPrompt";
 import { toast } from "@/components/ui/toaster";
 import { zipSync, unzipSync, strToU8, strFromU8 } from "fflate";
@@ -585,10 +586,11 @@ export async function writeContainer(path: string, data: Backup): Promise<string
 export async function writeEncryptedContainer(
   path: string,
   data: Backup,
-  password: string
+  password: string,
+  hint?: string | null
 ): Promise<string[]> {
   const { bytes, skipped } = await buildContainerBytes(data);
-  const sealed = await encryptBytes(bytes, password);
+  const sealed = await encryptBytes(bytes, password, hint);
   await writeFile(path, sealed);
   return skipped;
 }
@@ -620,7 +622,7 @@ export async function saveBackupToPath(path: string): Promise<{ skipped: string[
   const data = await buildBackupData();
   const pw = getDocPassword();
   const skipped = pw
-    ? await writeEncryptedContainer(path, data, pw)
+    ? await writeEncryptedContainer(path, data, pw, getDocPasswordHint())
     : await writeContainer(path, data);
   return { skipped };
 }
@@ -650,10 +652,12 @@ async function readMaybeEncrypted(path: string): Promise<Backup | null> {
   // Contêiner CIFRADO (novo formato com senha): pede a senha, decifra os bytes
   // do zip e reconstrói o documento. Leve na memória (sem base64/JSON gigante).
   if (isEncryptedContainer(bytes)) {
+    const savedHint = readEncryptedHint(bytes); // legível antes de decifrar (v2)
     const pw = await promptPassword({
       title: "Documento protegido",
       description: "Este arquivo .vistage está protegido por senha. Digite-a para abrir.",
       confirmLabel: "Abrir",
+      hint: savedHint,
     });
     if (pw == null) return null; // cancelou
     let zipBytes: Uint8Array;
@@ -663,7 +667,7 @@ async function readMaybeEncrypted(path: string): Promise<Backup | null> {
       toast.error((e as Error).message ?? "Não foi possível decifrar o arquivo.");
       return null;
     }
-    setDocPassword(pw); // lembra pra re-cifrar nos próximos Salvar
+    setDocPassword(pw, savedHint); // lembra senha + dica pros próximos Salvar
     try {
       return readContainer(zipBytes);
     } catch (e) {

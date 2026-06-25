@@ -270,7 +270,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
             <Label>Corpo</Label>
             <Textarea
               rows={5}
-              placeholder="Solta o que vier — desenvolve depois."
+              placeholder="Solta o que vier, desenvolvemos depois"
               value={state.body ?? ""}
               onChange={(e) => set("body", e.target.value || null)}
             />

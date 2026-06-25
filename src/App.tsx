@@ -38,6 +38,7 @@ import {
   triggerNewItem,
   triggerQuickCapture,
   useQuickCaptureEvent,
+  useSearchEvent,
 } from "@/lib/shortcuts";
 import { useAlertNotifications } from "@/lib/notify";
 import { startAutoSync } from "@/lib/mobileSync";
@@ -82,6 +83,9 @@ const ContentPage = lazy(() =>
 );
 const IdeasPage = lazy(() =>
   import("@/modules/ideas/IdeasPage").then((m) => ({ default: m.IdeasPage }))
+);
+const BrainstormPage = lazy(() =>
+  import("@/modules/ideas/BrainstormPage").then((m) => ({ default: m.BrainstormPage }))
 );
 const ClassesPage = lazy(() =>
   import("@/modules/classes/ClassesPage").then((m) => ({ default: m.ClassesPage }))
@@ -406,6 +410,7 @@ function RoutedApp() {
   }, []);
 
   useQuickCaptureEvent(() => setQuickCaptureOpen(true));
+  useSearchEvent(() => setPaletteOpen(true));
 
   // Notificações locais do sistema para alertas críticos.
   useAlertNotifications();
@@ -451,6 +456,7 @@ function RoutedApp() {
             <Route path="festas" element={<PartiesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
             <Route path="ideias" element={<IdeasPage />} />
+            <Route path="brainstorm" element={<BrainstormPage />} />
             <Route path="insights" element={<InsightsPage />} />
 
             <Route path="foco" element={<FocoPage />} />

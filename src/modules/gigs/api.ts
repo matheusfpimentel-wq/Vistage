@@ -59,6 +59,7 @@ const GIG_COLUMNS = [
   "debrief_completed_at",
   "debrief_pending",
   "gcal_event_id",
+  "gcal_synced_at",
   "main_goal",
   "prep_state",
   "main_goal_task_id",

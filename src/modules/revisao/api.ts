@@ -31,6 +31,14 @@ export type WeekStats = {
   gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
   gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
+  // Pacotes de aulas ativos quase no fim (≤2 aulas ou ≤2h restantes) — renovar/cobrar
+  lowBalanceStudents: {
+    packageId: number;
+    studentId: number;
+    studentName: string;
+    remaining: number;
+    unit: "aula" | "h";
+  }[];
 };
 
 function weekRange(): { start: string; end: string } {
@@ -114,6 +122,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     upcomingGigsPrepRows,
     gigsUnpaidRows,
     standbyOverdueRows,
+    activePackagesRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -234,6 +243,20 @@ async function computeWeekStats(): Promise<WeekStats> {
         WHERE standby = 1 AND standby_until IS NOT NULL AND standby_until <= $1`,
       [today]
     ), []),
+    // pacotes de aulas ATIVOS (saldo calculado em JS — lida com pacote por aula
+    // e por hora). Filtra "quase no fim" depois.
+    safeSelect<{
+      id: number; student_id: number; student_name: string;
+      total_classes: number | null; used_classes: number | null;
+      total_hours: number | null; used_minutes: number | null;
+    }>(() => db.select(
+      `SELECT sp.id, sp.student_id, s.name AS student_name,
+              sp.total_classes, sp.used_classes, sp.total_hours, sp.used_minutes
+         FROM student_packages sp
+         JOIN students s ON s.id = sp.student_id
+        WHERE sp.status = 'Ativo'`,
+      []
+    ), []),
   ]);
 
   // GIGs com prep musical incompleta
@@ -277,6 +300,38 @@ async function computeWeekStats(): Promise<WeekStats> {
     return d !== null && d > 15;
   }).length;
 
+  // Saldo de pacotes de aulas: "quase no fim" = ≤2 aulas (pacote por aula) ou
+  // ≤2h (pacote por hora). Pacote zerado já vira "Concluído" no recalc, então
+  // aqui pegamos a janela de aviso (>0).
+  type PkgRow = {
+    id: number; student_id: number; student_name: string;
+    total_classes: number | null; used_classes: number | null;
+    total_hours: number | null; used_minutes: number | null;
+  };
+  const lowBalanceStudents: WeekStats["lowBalanceStudents"] = (
+    activePackagesRows as PkgRow[]
+  ).flatMap((p): WeekStats["lowBalanceStudents"] => {
+    const hourBased = p.total_hours != null && p.total_hours > 0;
+    if (hourBased) {
+      const remMin = Math.round(p.total_hours! * 60 - (p.used_minutes ?? 0));
+      if (remMin > 0 && remMin <= 120) {
+        return [{
+          packageId: p.id, studentId: p.student_id, studentName: p.student_name,
+          remaining: Math.round(remMin / 6) / 10, unit: "h" as const,
+        }];
+      }
+      return [];
+    }
+    const rem = (p.total_classes ?? 0) - (p.used_classes ?? 0);
+    if (rem > 0 && rem <= 2) {
+      return [{
+        packageId: p.id, studentId: p.student_id, studentName: p.student_name,
+        remaining: rem, unit: "aula" as const,
+      }];
+    }
+    return [];
+  });
+
   const ratings = gigRatingRows
     .map((g: RatingRow) => {
       const vals = [g.rating_charisma, g.rating_technique, g.rating_repertoire].filter(
@@ -315,6 +370,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     gigsUnpaidAfter48h: (gigsUnpaidRows as { id: number }[]).length,
     gigsUnpaidIds: (gigsUnpaidRows as { id: number }[]).map((r) => r.id),
     tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],
+    lowBalanceStudents,
   };
 }
 

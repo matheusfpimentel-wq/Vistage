@@ -95,7 +95,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
         {sorted.map((g) => {
           const avg = averageRating(g);
           return (
-            <div key={g.id} className="rounded-lg border p-3 space-y-2">
+            <div key={g.id} className="glass-panel rounded-lg p-3 space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-medium">

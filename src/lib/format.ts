@@ -10,13 +10,29 @@ export function formatDate(iso: string | null | undefined, pattern = "dd MMM yyy
   }
 }
 
-export function formatCurrency(n: number | null | undefined): string {
+/**
+ * Formata um valor numa moeda qualquer (padrão BRL). Usa Intl com o código da
+ * moeda; se o código for inválido/desconhecido, cai num formato genérico em vez
+ * de quebrar.
+ */
+export function formatMoney(
+  n: number | null | undefined,
+  currency = "BRL"
+): string {
   if (typeof n !== "number") return "—";
-  return n.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  });
+  try {
+    return n.toLocaleString("pt-BR", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+    });
+  } catch {
+    return `${currency} ${n.toFixed(2)}`;
+  }
+}
+
+export function formatCurrency(n: number | null | undefined): string {
+  return formatMoney(n, "BRL");
 }
 
 export function formatRating(n: number | null | undefined): string {

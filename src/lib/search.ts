@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 
 export type SearchHit = {
   kind:
@@ -34,10 +35,19 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
 
   const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties] = await Promise.all([
     db.select<
-      { id: number; venue_name: string; venue_city: string | null; date: string; status: string }[]
+      {
+        id: number;
+        venue_name: string;
+        event_name: string | null;
+        recurring_event_name: string | null;
+        venue_city: string | null;
+        date: string;
+        status: string;
+      }[]
     >(
-      `SELECT id, venue_name, venue_city, date, status FROM gigs
+      `SELECT id, venue_name, event_name, recurring_event_name, venue_city, date, status FROM gigs
         WHERE venue_name LIKE $1 OR venue_city LIKE $1 OR briefing LIKE $1
+          OR event_name LIKE $1 OR recurring_event_name LIKE $1
         ORDER BY date DESC LIMIT $2`,
       [like, limit]
     ),
@@ -147,7 +157,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
     hits.push({
       kind: "gig",
       id: g.id,
-      title: g.venue_name,
+      title: gigDisplayName(g),
       subtitle: `${g.date}${g.venue_city ? ` · ${g.venue_city}` : ""} · ${g.status}`,
       route: "/gigs",
     });

@@ -94,7 +94,7 @@ export function QuickCapture({ open, onOpenChange }: Props) {
               Captura rápida
             </DialogTitle>
             <DialogDescription>
-              Solta a ideia agora e desenvolve depois. Cmd/Ctrl + Enter pra salvar.
+              Solta a ideia agora, desenvolvemos depois. Cmd/Ctrl + Enter pra salvar.
             </DialogDescription>
           </div>
           <button

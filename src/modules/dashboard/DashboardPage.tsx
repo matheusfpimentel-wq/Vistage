@@ -64,6 +64,13 @@ const FinanceDashboard = lazy(() =>
   }))
 );
 
+// Aba de gráficos (também usa recharts): carrega só quando aberta.
+const ChartsTab = lazy(() =>
+  import("@/modules/dashboard/views/ChartsTab").then((m) => ({
+    default: m.ChartsTab,
+  }))
+);
+
 // ============================================================
 // Painel temático colapsável (estado lembrado em localStorage)
 // ============================================================
@@ -199,6 +206,7 @@ export function DashboardPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
+          <TabsTrigger value="graficos">Gráficos</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
           <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
@@ -244,6 +252,18 @@ export function DashboardPage() {
           deformar o resultado real.{" "}
           <span className="italic">(Lei de Goodhart)</span>
         </p>
+      </TabsContent>
+
+      <TabsContent value="graficos">
+        <Suspense
+          fallback={
+            <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+              Carregando gráficos…
+            </div>
+          }
+        >
+          <ChartsTab />
+        </Suspense>
       </TabsContent>
 
       <TabsContent value="timeline">

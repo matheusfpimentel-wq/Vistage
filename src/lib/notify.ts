@@ -10,6 +10,7 @@ import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 
 // Lembra a INTENÇÃO do usuário (por máquina, em app_settings). Assim, depois de
 // ativar uma vez, o app re-estabelece sozinho a cada boot — sem ficar pedindo
@@ -116,6 +117,7 @@ export async function restoreNotificationPreference(): Promise<void> {
   try {
     if (await effectivelyGranted()) {
       void syncAlertNotifications();
+      void syncTrilhaNotification();
     }
   } catch {
     /* best-effort */
@@ -177,11 +179,62 @@ async function syncAlertNotifications(): Promise<void> {
   saveNotified(currentKeys);
 }
 
+// ── Trilha da semana: lembrete diário dos blocos de foco do dia ───────────────
+const TRILHA_NOTIFIED_KEY = "vistage:trilha-notified-date";
+
+function minToHHMM(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/**
+ * Uma vez por dia, notifica os blocos de FOCO planejados na Trilha para HOJE —
+ * "manda fazer o que está lá no dia". De-dup por data local (só 1×/dia).
+ */
+export async function syncTrilhaNotification(): Promise<void> {
+  try {
+    if (!(await effectivelyGranted())) return;
+  } catch {
+    return;
+  }
+  const today = toLocalISODate();
+  if (localStorage.getItem(TRILHA_NOTIFIED_KEY) === today) return;
+
+  let blocks: { start_min: number; label: string | null }[] = [];
+  try {
+    const weekday = new Date().getDay(); // 0=Dom … 6=Sáb (igual focus_blocks)
+    blocks = await getDb().select(
+      `SELECT start_min, label FROM focus_blocks
+        WHERE weekday = $1 AND kind = 'foco' ORDER BY start_min`,
+      [weekday]
+    );
+  } catch {
+    return; // sem tabela / banco não pronto — tenta de novo depois
+  }
+  // Marca como avisado hoje mesmo se não houver bloco (não fica reabrindo).
+  localStorage.setItem(TRILHA_NOTIFIED_KEY, today);
+  if (blocks.length === 0) return;
+
+  const body = blocks
+    .map((b) => `${minToHHMM(b.start_min)} ${b.label?.trim() || "Foco"}`)
+    .join(" · ");
+  try {
+    sendNotification({ title: "Trilha de hoje", body });
+  } catch {
+    /* best-effort */
+  }
+}
+
 /** Mantém as notificações em dia enquanto o app está aberto. */
 export function useAlertNotifications(): void {
   useEffect(() => {
     void syncAlertNotifications();
-    const onChange = () => void syncAlertNotifications();
+    void syncTrilhaNotification();
+    const onChange = () => {
+      void syncAlertNotifications();
+      void syncTrilhaNotification();
+    };
     const interval = setInterval(onChange, 5 * 60_000);
     window.addEventListener(DATA_CHANGED, onChange);
     window.addEventListener("focus", onChange);

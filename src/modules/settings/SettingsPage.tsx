@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, Palette, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -142,7 +142,17 @@ export function SettingsPage() {
                 >
                   <Moon className="h-4 w-4" /> Escuro
                 </Button>
+                <Button
+                  variant={theme === "color" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("color")}
+                >
+                  <Palette className="h-4 w-4" /> Cor
+                </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                No modo Cor, o fundo usa uma versão clara da cor de destaque escolhida.
+              </p>
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Cor de destaque</p>

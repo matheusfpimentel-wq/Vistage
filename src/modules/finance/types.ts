@@ -35,6 +35,32 @@ export const EQUIPMENT_STATES = [
 ] as const;
 export type EquipmentState = (typeof EQUIPMENT_STATES)[number];
 
+/**
+ * Moedas suportadas em lançamentos. BRL é a moeda-base do app: `amount` é
+ * SEMPRE em reais (já convertido), então todos os totais/dashboards somam BRL
+ * sem precisar saber de câmbio. Quando a moeda é estrangeira, guardamos também
+ * o valor original e a cotação só para exibição e auditoria.
+ */
+export const CURRENCIES = [
+  { code: "BRL", symbol: "R$", label: "Real brasileiro" },
+  { code: "USD", symbol: "US$", label: "Dólar americano" },
+  { code: "EUR", symbol: "€", label: "Euro" },
+  { code: "GBP", symbol: "£", label: "Libra esterlina" },
+  { code: "ARS", symbol: "AR$", label: "Peso argentino" },
+  { code: "CHF", symbol: "CHF", label: "Franco suíço" },
+  { code: "MXN", symbol: "MX$", label: "Peso mexicano" },
+  { code: "CAD", symbol: "CA$", label: "Dólar canadense" },
+  { code: "AUD", symbol: "AU$", label: "Dólar australiano" },
+  { code: "JPY", symbol: "¥", label: "Iene japonês" },
+] as const;
+
+export type CurrencyCode = (typeof CURRENCIES)[number]["code"];
+
+/** Símbolo de uma moeda pelo código (cai no próprio código se desconhecida). */
+export function currencySymbol(code: string | null | undefined): string {
+  return CURRENCIES.find((c) => c.code === code)?.symbol ?? code ?? "R$";
+}
+
 export type FinanceCategory = {
   id: number;
   name: string;
@@ -46,7 +72,14 @@ export type FinanceCategory = {
 export type FinanceTransaction = {
   id: number;
   kind: TransactionKind;
+  /** SEMPRE em BRL (moeda-base). Para moeda estrangeira, é o equivalente já convertido. */
   amount: number;
+  /** Código da moeda original do lançamento ('BRL' = nativo). */
+  currency: string;
+  /** Valor na moeda original (null quando BRL nativo). */
+  original_amount: number | null;
+  /** Cotação moeda→BRL usada na conversão (null/1 quando BRL nativo). */
+  exchange_rate: number | null;
   date: string;
   description: string | null;
   category_id: number | null;
@@ -77,8 +110,14 @@ export type FinanceTransactionWithCategory = FinanceTransaction & {
 
 export type FinanceTransactionCreateInput = Omit<
   FinanceTransaction,
-  "id" | "created_at" | "updated_at" | "source_ref"
-> & { source_ref?: string | null };
+  "id" | "created_at" | "updated_at" | "source_ref" | "currency" | "original_amount" | "exchange_rate"
+> & {
+  source_ref?: string | null;
+  // Multi-moeda é opcional na criação: ausente = BRL nativo (defaults do banco).
+  currency?: string;
+  original_amount?: number | null;
+  exchange_rate?: number | null;
+};
 export type FinanceTransactionUpdateInput =
   Partial<FinanceTransactionCreateInput> & { id: number };
 

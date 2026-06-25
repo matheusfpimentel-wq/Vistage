@@ -17,9 +17,18 @@ export const IDEA_MATURATIONS = [
 ] as const;
 export type IdeaMaturation = (typeof IDEA_MATURATIONS)[number];
 
-/** 1 = fria, 2 = morna, 3 = quente. */
-export const IDEA_HEATS = [1, 2, 3] as const;
+/**
+ * Calor da ideia numa escala fria→quente de 5 níveis. Quanto mais quente, mais
+ * vermelha. 1 = fria, 3 = morna, 5 = quente; 2 e 4 são as gradações intermédias.
+ * (Dados antigos no esquema 1/2/3 são remapeados na migração v136: 2→3, 3→5.)
+ */
+export const IDEA_HEATS = [1, 2, 3, 4, 5] as const;
 export type IdeaHeat = (typeof IDEA_HEATS)[number];
+
+/** Nível máximo (ideia mais "quente") — usado pelo atalho do mural. */
+export const IDEA_HEAT_MAX = 5;
+/** Nível "neutro" pra onde o atalho de quente volta ao desmarcar. */
+export const IDEA_HEAT_NEUTRAL = 3;
 
 export type IdeaConversion = "task" | "content" | "gig" | "track";
 
@@ -47,24 +56,43 @@ export type IdeaCreateInput = Omit<
 };
 export type IdeaUpdateInput = Partial<IdeaCreateInput> & { id: number };
 
+const HEAT_LABELS: Record<IdeaHeat, string> = {
+  1: "Fria",
+  2: "Esfriando",
+  3: "Morna",
+  4: "Esquentando",
+  5: "Quente",
+};
+
 export function heatLabel(h: IdeaHeat): string {
-  return h === 1 ? "Fria" : h === 2 ? "Morna" : "Quente";
+  return HEAT_LABELS[h] ?? "Morna";
 }
+
+/** Badge de calor — rampa fria→quente (azul → vermelho). */
+const HEAT_BADGE: Record<IdeaHeat, string> = {
+  1: "bg-sky-500/20 text-sky-500 border-sky-500/30",
+  2: "bg-cyan-500/20 text-cyan-500 border-cyan-500/30",
+  3: "bg-amber-500/20 text-amber-500 border-amber-500/30",
+  4: "bg-orange-500/20 text-orange-500 border-orange-500/30",
+  5: "bg-red-500/20 text-red-500 border-red-500/30",
+};
 
 export function heatColor(h: IdeaHeat): string {
-  return h === 1
-    ? "bg-sky-500/20 text-sky-400 border-sky-500/30"
-    : h === 2
-    ? "bg-amber-500/20 text-amber-500 border-amber-500/30"
-    : "bg-red-500/20 text-red-500 border-red-500/30";
+  return HEAT_BADGE[h] ?? HEAT_BADGE[3];
 }
 
-/** Cor de fundo do card no mural — tons pastel rotativos. */
-export const STICKY_COLORS = [
-  "bg-yellow-200/20 border-yellow-500/30",
-  "bg-pink-200/20 border-pink-500/30",
-  "bg-purple-200/20 border-purple-500/30",
-  "bg-emerald-200/20 border-emerald-500/30",
-  "bg-sky-200/20 border-sky-500/30",
-  "bg-orange-200/20 border-orange-500/30",
-];
+/**
+ * Fundo do card no mural pintado pelo CALOR (não mais cores rotativas de
+ * post-it): quanto mais quente, mais vermelho e mais forte.
+ */
+const HEAT_CARD_BG: Record<IdeaHeat, string> = {
+  1: "bg-sky-500/[0.07] border-sky-500/25",
+  2: "bg-cyan-500/[0.07] border-cyan-500/25",
+  3: "bg-amber-500/[0.08] border-amber-500/25",
+  4: "bg-orange-500/[0.10] border-orange-500/30",
+  5: "bg-red-500/[0.13] border-red-500/35",
+};
+
+export function heatCardBg(h: IdeaHeat): string {
+  return HEAT_CARD_BG[h] ?? HEAT_CARD_BG[3];
+}
