@@ -1,13 +1,15 @@
-import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, ScrollText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { cn } from "@/lib/utils";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
+import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 type Props = {
   gigs: Gig[];
@@ -15,6 +17,8 @@ type Props = {
   onPrep: (gig: Gig) => void;
   onDebrief: (gig: Gig) => void;
   onDelete: (gig: Gig) => void;
+  onShowSheet: (gig: Gig) => void;
+  density?: ListDensity;
 };
 
 /**
@@ -39,7 +43,8 @@ function cacheOverdue(g: Gig): boolean {
   return true;
 }
 
-export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
+export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowSheet, density = "full" }: Props) {
+  const compact = density === "compact";
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
   const cols = useResizableColumns("gigs", [
     { id: "date", width: 110, min: 90 },
@@ -150,6 +155,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                     Debrief
                   </Button>
                 )}
+                <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">
+                  <ScrollText className="h-4 w-4" />
+                </Button>
                 <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -164,7 +172,10 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
 
       {/* Desktop: tabela com colunas redimensionáveis (arraste a alça; 2 cliques reseta). */}
       <div className="hidden overflow-x-auto rounded-md border sm:block">
-        <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+        <table
+          className={cn("table-fixed", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}
+          style={{ width: tableWidth }}
+        >
           <colgroup>
             {cols.defs.map((c) => (
               <col key={c.id} style={cols.colStyle(c.id)} />
@@ -256,6 +267,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete }: Props) {
                           Debrief
                         </Button>
                       )}
+                      <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">
+                        <ScrollText className="h-4 w-4" />
+                      </Button>
                       <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
                         <Pencil className="h-4 w-4" />
                       </Button>

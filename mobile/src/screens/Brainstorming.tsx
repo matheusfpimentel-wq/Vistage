@@ -66,7 +66,6 @@ export function Brainstorming() {
 
       <section className="card form">
         <input
-          autoFocus
           placeholder="Solta o que vier, desenvolvemos depois"
           value={title}
           onChange={(e) => setTitle(e.target.value)}

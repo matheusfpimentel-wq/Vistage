@@ -9,6 +9,7 @@ import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge"
 import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
+import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
 
@@ -16,10 +17,12 @@ export function ListView({
   tracks,
   onEdit,
   onDelete,
+  density = "full",
 }: {
   tracks: TrackWithProject[];
   onEdit: (t: TrackWithProject) => void;
   onDelete: (t: TrackWithProject) => void;
+  density?: ListDensity;
 }) {
   const navigate = useNavigate();
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(tracks);
@@ -32,10 +35,14 @@ export function ListView({
     { id: "actions", width: 110, min: 90 },
   ]);
   const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
+  const compact = density === "compact";
   return (
     <PendingTasksProvider entityType="track">
     <div className="overflow-x-auto rounded-md border">
-      <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+      <table
+        className={cn("table-fixed", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}
+        style={{ width: tableWidth }}
+      >
         <colgroup>
           {cols.defs.map((c) => (
             <col key={c.id} style={cols.colStyle(c.id)} />

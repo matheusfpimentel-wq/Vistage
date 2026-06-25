@@ -33,6 +33,7 @@ import {
 import type { Supplier } from "@/modules/suppliers/types";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import { ViewToggle } from "@/components/shared/ViewToggle";
+import { ListDensityToggle, useListDensity, type ListDensity } from "@/components/shared/ListDensityToggle";
 import { useModuleView } from "@/lib/moduleView";
 import { useImageUrl } from "@/lib/uploads";
 import { persistDocSetting } from "@/lib/docSettings";
@@ -90,6 +91,7 @@ export function PessoasPage() {
   const [city, setCity] = useState("");
   const [roleFilter, setRoleFilter] = useState<Role[]>(loadRoleFilter);
   const [view, setView] = useModuleView<"cards" | "list">("pessoas", "cards");
+  const [density, setDensity] = useListDensity("pessoas");
 
   // Filtro de papéis por ícones (multi-seleção). Persiste no .vistage.
   function toggleRoleFilter(t: Role) {
@@ -337,6 +339,9 @@ export function PessoasPage() {
                 </button>
               )}
             </div>
+            {view === "list" && (
+              <ListDensityToggle value={density} onChange={setDensity} />
+            )}
             <ViewToggle
               options={[
                 { value: "cards", label: "Cards", icon: LayoutGrid },
@@ -389,6 +394,7 @@ export function PessoasPage() {
           onEdit={editPerson}
           onMakeContact={(p) => void makeContact(p)}
           onDelete={(p) => void handleDelete(p)}
+          density={density}
         />
       )}
 
@@ -583,6 +589,7 @@ function PersonTable({
   sortDir,
   onSort,
   onOpen,
+  density = "full",
   ...handlers
 }: {
   persons: Person[];
@@ -593,6 +600,7 @@ function PersonTable({
   onEdit: (p: Person) => void;
   onMakeContact: (p: Person) => void;
   onDelete: (p: Person) => void;
+  density?: ListDensity;
 }) {
   const cols = useResizableColumns("pessoas", [
     { id: "name", width: 240, min: 160 },
@@ -603,9 +611,13 @@ function PersonTable({
     { id: "actions", width: 130, min: 110 },
   ]);
   const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
+  const compact = density === "compact";
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+      <table
+        className={cn("table-fixed", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}
+        style={{ width: tableWidth }}
+      >
         <colgroup>
           {cols.defs.map((c) => (
             <col key={c.id} style={cols.colStyle(c.id)} />

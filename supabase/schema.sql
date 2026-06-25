@@ -202,8 +202,15 @@ create table if not exists public.user_preferences (
   user_id     uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   theme       text,                                -- 'light' | 'dark'
   accent      text,                                -- 'violet' | 'blue' | ...
+  artist_name  text,                               -- nome artístico (header do celular)
+  isotype      text,                               -- isótipo em data URL (base64), opcional
+  focus_streak integer,                            -- 🔥 dias seguidos de foco
   updated_at  timestamptz not null default now()
 );
+-- Colunas adicionadas depois (idempotente p/ bancos já criados):
+alter table public.user_preferences add column if not exists artist_name  text;
+alter table public.user_preferences add column if not exists isotype      text;
+alter table public.user_preferences add column if not exists focus_streak integer;
 
 alter table public.catalog_mirror   enable row level security;
 alter table public.user_preferences enable row level security;

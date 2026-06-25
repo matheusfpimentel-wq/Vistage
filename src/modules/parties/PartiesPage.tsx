@@ -23,6 +23,7 @@ import { PartyList } from "./views/PartyList";
 import { PartyCards } from "./views/PartyCards";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { ListDensityToggle, useListDensity } from "@/components/shared/ListDensityToggle";
 
 type StatusFilter = PartyStatus | "Todas";
 
@@ -77,6 +78,7 @@ export function PartiesPage() {
   }, [parties, search, statusFilter]);
 
   const [view, setView] = useModuleView<"cards" | "lista">("parties", "cards");
+  const [density, setDensity] = useListDensity("parties");
 
   return (
     <div className="space-y-4">
@@ -124,10 +126,15 @@ export function PartiesPage() {
         </div>
       ) : (
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
-          <TabsList>
-            <TabsTrigger value="cards">Cards</TabsTrigger>
-            <TabsTrigger value="lista">Lista</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2">
+            <TabsList>
+              <TabsTrigger value="cards">Cards</TabsTrigger>
+              <TabsTrigger value="lista">Lista</TabsTrigger>
+            </TabsList>
+            {view === "lista" && (
+              <ListDensityToggle value={density} onChange={setDensity} />
+            )}
+          </div>
           <TabsContent value="cards" className="pt-2">
             <PartyCards parties={filtered} onEdit={openEdit} onDelete={handleDelete} />
           </TabsContent>
@@ -136,6 +143,7 @@ export function PartiesPage() {
               parties={filtered}
               onEdit={openEdit}
               onDelete={handleDelete}
+              density={density}
             />
           </TabsContent>
         </Tabs>

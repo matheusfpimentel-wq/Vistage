@@ -7,10 +7,13 @@
 //       consumida. RLS garante que tudo é da própria conta (user_id = auth.uid()).
 
 import { create } from "zustand";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
 import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
+import { loadIdentity } from "@/modules/identity/api";
+import { loadFocusStreak } from "@/modules/foco/api";
 
 // ── Config (app_settings) ───────────────────────────────────────────────────
 async function getSetting(key: string): Promise<string | null> {
@@ -59,9 +62,20 @@ function weekStartISO(): string {
   d.setDate(d.getDate() - ((day + 6) % 7));
   return toLocalISODate(d);
 }
-/** Combina data + hora "HH:MM" num timestamp ISO; só data se sem hora. */
+/** Offset local ("-03:00") na data dada — pra o timestamptz do Supabase guardar
+ *  o INSTANTE certo. Sem isso, "20:00" sem fuso virava UTC e o celular voltava
+ *  3h a menos. Meio-dia evita pular o dia ao calcular o offset. */
+function tzOffset(date: string): string {
+  const mins = -new Date(`${date}T12:00:00`).getTimezoneOffset();
+  const sign = mins >= 0 ? "+" : "-";
+  const a = Math.abs(mins);
+  return `${sign}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`;
+}
+
+/** Combina data + hora "HH:MM" num timestamp COM fuso local. Sem hora → meia-noite
+ *  local (o celular trata meia-noite como "dia inteiro" na exibição). */
 function startAt(date: string, time: string | null): string {
-  return time ? `${date}T${time}:00` : date;
+  return `${date}T${time ?? "00:00"}:00${tzOffset(date)}`;
 }
 
 // ── Builders do espelho (lêem o banco LOCAL) ────────────────────────────────
@@ -80,8 +94,8 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
   const db = getDb();
   const today = todayISO();
   const [gigs, classes, tasks] = await Promise.all([
-    db.select<{ id: number; date: string; start_time: string | null; end_time: string | null; venue_name: string; venue_city: string | null; status: string }[]>(
-      `SELECT id, date, start_time, end_time, venue_name, venue_city, status FROM gigs
+    db.select<{ id: number; date: string; start_time: string | null; end_time: string | null; venue_name: string; event_name: string | null; recurring_event_name: string | null; venue_city: string | null; status: string }[]>(
+      `SELECT id, date, start_time, end_time, venue_name, event_name, recurring_event_name, venue_city, status FROM gigs
         WHERE date >= $1 AND status != 'Cancelada' ORDER BY date LIMIT 100`,
       [today]
     ),
@@ -100,11 +114,11 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
 
   const rows: AgendaRow[] = [];
   for (const g of gigs)
-    rows.push({ user_id: uid, source: "gig", source_id: String(g.id), title: g.venue_name, start_at: startAt(g.date, g.start_time), end_at: g.end_time ? startAt(g.date, g.end_time) : null, location: g.venue_city, meta: { status: g.status } });
+    rows.push({ user_id: uid, source: "gig", source_id: String(g.id), title: gigDisplayName(g), start_at: startAt(g.date, g.start_time), end_at: g.end_time ? startAt(g.date, g.end_time) : null, location: g.venue_city, meta: { status: g.status } });
   for (const c of classes)
     rows.push({ user_id: uid, source: "class", source_id: String(c.id), title: c.subject ?? "Aula", start_at: startAt(c.date, c.start_time), end_at: null, location: null, meta: {} });
   for (const t of tasks)
-    rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date, end_at: null, location: null, meta: { priority: t.priority } });
+    rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date ? startAt(t.due_date, null) : null, end_at: null, location: null, meta: { priority: t.priority } });
   return rows;
 }
 
@@ -396,7 +410,38 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
 }
 
 /** Tema/acento do DOCUMENTO (document_settings) → espelho pro celular. */
-async function buildPreferences(uid: string): Promise<{ user_id: string; theme: string; accent: string }> {
+/** Lê o isótipo do disco e devolve como data URL (base64), pra exibir no header
+ *  do celular. Best-effort: arquivo grande/ilegível → null (cai no monograma). */
+async function isotypeDataUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  try {
+    const bytes = (await readFile(path)) as Uint8Array;
+    if (!bytes || bytes.length === 0 || bytes.length > 500_000) return null;
+    const ext = (path.toLowerCase().split(".").pop() ?? "").trim();
+    const mime =
+      ext === "png" ? "image/png"
+      : ext === "svg" ? "image/svg+xml"
+      : ext === "webp" ? "image/webp"
+      : ext === "gif" ? "image/gif"
+      : "image/jpeg";
+    let bin = "";
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return `data:${mime};base64,${btoa(bin)}`;
+  } catch {
+    return null;
+  }
+}
+
+type Preferences = {
+  user_id: string;
+  theme: string;
+  accent: string;
+  artist_name: string | null;
+  isotype: string | null;
+  focus_streak: number;
+};
+
+async function buildPreferences(uid: string): Promise<Preferences> {
   let theme = "dark";
   let accent = "violet";
   try {
@@ -413,7 +458,25 @@ async function buildPreferences(uid: string): Promise<{ user_id: string; theme: 
       accent = localStorage.getItem("vistage.accent") ?? "violet";
     }
   }
-  return { user_id: uid, theme, accent };
+
+  // Identidade (nome artístico + isótipo) e streak de foco — pro header do celular.
+  let artist_name: string | null = null;
+  let isotype: string | null = null;
+  let focus_streak = 0;
+  try {
+    const id = await loadIdentity();
+    artist_name = id.artist_name?.trim() || null;
+    isotype = await isotypeDataUrl(id.isotype_path);
+  } catch {
+    /* sem identidade ainda */
+  }
+  try {
+    focus_streak = await loadFocusStreak();
+  } catch {
+    /* 0 */
+  }
+
+  return { user_id: uid, theme, accent, artist_name, isotype, focus_streak };
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -674,6 +737,19 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     if (taskId) {
       const { updateTask } = await import("@/modules/tasks/api");
       await updateTask({ id: taskId, status: "Concluída" });
+    }
+  } else if (kind === "identity") {
+    // Edição de identidade no celular (hoje: nome artístico). Atualiza o registro
+    // local; o isótipo e o resto seguem editáveis só no PC.
+    const name = s("artist_name");
+    if (name != null) {
+      await db.execute(
+        `INSERT OR IGNORE INTO artist_identity (id, socials, palette) VALUES (1, '[]', '[]')`
+      );
+      await db.execute(
+        `UPDATE artist_identity SET artist_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = 1`,
+        [name.trim()]
+      );
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

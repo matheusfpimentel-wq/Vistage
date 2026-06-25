@@ -46,6 +46,7 @@ import { cn } from "@/lib/utils";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { useModuleView } from "@/lib/moduleView";
+import { ListDensityToggle, useListDensity } from "@/components/shared/ListDensityToggle";
 
 type StatusFilter = TaskStatus | "Todas";
 type CategoryFilter = TaskCategory | "Todas";
@@ -173,14 +174,24 @@ export function TasksPage() {
   }
 
   const [view, setView] = useModuleView<
-    "list" | "compact" | "kanban" | "eisenhower" | "sprint"
+    "list" | "kanban" | "eisenhower" | "sprint"
   >("tasks", "list");
-  // Se uma view removida (linha do tempo/energia) estiver salva de uma visita
-  // antiga, cai pra "list" pra não ficar sem conteúdo.
+  // "Lista" e "Compacta" viraram uma view só ("Lista") com toggle de densidade.
+  // Quem tinha "Compacta" salva da versão antiga começa já em densidade compacta.
+  const [density, setDensity] = useListDensity(
+    "tasks",
+    (() => {
+      try {
+        return localStorage.getItem("vistage.view.tasks") === "compact" ? "compact" : "full";
+      } catch {
+        return "full";
+      }
+    })()
+  );
+  // Se uma view removida (compacta/linha do tempo/energia) estiver salva de uma
+  // visita antiga, cai pra "list" pra não ficar sem conteúdo.
   const safeView: typeof view =
-    view === "compact" || view === "kanban" || view === "eisenhower" || view === "sprint"
-      ? view
-      : "list";
+    view === "kanban" || view === "eisenhower" || view === "sprint" ? view : "list";
 
   return (
     <div className="space-y-4">
@@ -296,32 +307,36 @@ export function TasksPage() {
       )}
 
       <Tabs value={safeView} onValueChange={(v) => setView(v as typeof view)}>
-        <TabsList>
-          <TabsTrigger value="list">Lista</TabsTrigger>
-          <TabsTrigger value="compact">Compacta</TabsTrigger>
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="eisenhower">Eisenhower</TabsTrigger>
-          <TabsTrigger value="sprint">Sprint</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="eisenhower">Eisenhower</TabsTrigger>
+            <TabsTrigger value="sprint">Sprint</TabsTrigger>
+          </TabsList>
+          {safeView === "list" && (
+            <ListDensityToggle value={density} onChange={setDensity} />
+          )}
+        </div>
 
         <TabsContent value="list">
-          <TaskListView
-            tasks={tasks}
-            onEdit={openEdit}
-            onToggleDone={handleToggleDone}
-            onDelete={handleDelete}
-            onBulkComplete={handleBulkComplete}
-            onBulkSetStatus={handleBulkSetStatus}
-            onBulkDelete={handleBulkDelete}
-          />
-        </TabsContent>
-
-        <TabsContent value="compact">
-          <TaskCompactListView
-            tasks={tasks}
-            onEdit={openEdit}
-            onToggleDone={handleToggleDone}
-          />
+          {density === "compact" ? (
+            <TaskCompactListView
+              tasks={tasks}
+              onEdit={openEdit}
+              onToggleDone={handleToggleDone}
+            />
+          ) : (
+            <TaskListView
+              tasks={tasks}
+              onEdit={openEdit}
+              onToggleDone={handleToggleDone}
+              onDelete={handleDelete}
+              onBulkComplete={handleBulkComplete}
+              onBulkSetStatus={handleBulkSetStatus}
+              onBulkDelete={handleBulkDelete}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="kanban">

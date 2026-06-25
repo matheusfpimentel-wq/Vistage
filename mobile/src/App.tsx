@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { currentTheme, loadAndApplyPrefs, toggleTheme } from "./theme";
+import { loadHeaderInfo, type HeaderInfo } from "./identity";
 import { NotificationBell } from "./components/NotificationBell";
+import { IdentitySheet } from "./components/IdentitySheet";
 import { Login } from "./screens/Login";
 import { Hoje } from "./screens/Hoje";
 import { Buscar } from "./screens/Buscar";
@@ -12,22 +14,6 @@ import { Brainstorming } from "./screens/Brainstorming";
 import { Tarefas } from "./screens/Tarefas";
 
 type Tab = "hoje" | "foco" | "brainstorm" | "buscar" | "tarefas";
-
-function SunIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  );
-}
-function MoonIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  );
-}
 
 const I = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 const TAB_ICON: Record<Tab, JSX.Element> = {
@@ -42,10 +28,10 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 const TABS: Tab[] = ["hoje", "foco", "brainstorm", "buscar", "tarefas"];
 
-function ZapIcon() {
+function PlusIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M13 2L3 14h7l-1 8 10-12h-7z" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14" />
     </svg>
   );
 }
@@ -55,17 +41,26 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("hoje");
   const [capturing, setCapturing] = useState(false);
+  const [navHidden, setNavHidden] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
+  const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });
+  const [identityOpen, setIdentityOpen] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setReady(true);
-      if (data.session) void loadAndApplyPrefs().then(setThemeState);
+      if (data.session) {
+        void loadAndApplyPrefs().then(setThemeState);
+        void loadHeaderInfo().then(setHeader);
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (s) void loadAndApplyPrefs().then(setThemeState);
+      if (s) {
+        void loadAndApplyPrefs().then(setThemeState);
+        void loadHeaderInfo().then(setHeader);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -82,41 +77,59 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">Vistage</span>
+        <button className="identity-chip" onClick={() => setIdentityOpen(true)} aria-label="Identidade">
+          {header.isotype ? (
+            <img className="identity-chip-iso" src={header.isotype} alt="" />
+          ) : (
+            <span className="identity-chip-mono">{(header.artistName || "V").slice(0, 1).toUpperCase()}</span>
+          )}
+          <span className="identity-chip-name">{header.artistName || "Sua identidade"}</span>
+        </button>
         <div className="topbar-actions">
-          <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Captura rápida" title="Capturar">
-            <ZapIcon />
+          <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Capturar" title="Capturar">
+            <PlusIcon />
           </button>
-          <button
-            className="iconbtn"
-            onClick={() => setThemeState(toggleTheme())}
-            aria-label={theme === "dark" ? "Modo claro" : "Modo escuro"}
-          >
-            {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-          </button>
-          <NotificationBell />
-          <button className="link" onClick={() => void supabase.auth.signOut()}>
-            Sair
-          </button>
+          <div className="bell-streak">
+            <NotificationBell />
+            {header.streak > 0 && (
+              <span className="streak-chip" title={`${header.streak} dias de foco seguidos`}>🔥 {header.streak}</span>
+            )}
+          </div>
         </div>
       </header>
 
       <main className="content">
-        {tab === "hoje" && <Hoje />}
+        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoSearch={() => setTab("buscar")} />}
         {tab === "foco" && <Foco />}
         {tab === "brainstorm" && <Brainstorming />}
         {tab === "buscar" && <Buscar />}
         {tab === "tarefas" && <Tarefas />}
       </main>
 
-      <nav className="tabbar tabbar-icons">
-        {TABS.map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-            <span className="tab-ic">{TAB_ICON[t]}</span>
-            <span className="tab-lb">{TAB_LABEL[t]}</span>
-          </button>
-        ))}
-      </nav>
+      <div className={"tabwrap" + (navHidden ? " hidden" : "")}>
+        <button
+          className="tab-handle"
+          onClick={() => setNavHidden((v) => !v)}
+          aria-label={navHidden ? "Mostrar menu" : "Recolher menu"}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d={navHidden ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+          </svg>
+        </button>
+        <nav className="tabbar tabbar-rail">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              className={"tab-tile" + (tab === t ? " active" : "")}
+              onClick={() => setTab(t)}
+              aria-label={TAB_LABEL[t]}
+              title={TAB_LABEL[t]}
+            >
+              {TAB_ICON[t]}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {/* Captura rápida em overlay (acionada pelo botão do header). */}
       {capturing && (
@@ -132,6 +145,19 @@ export function App() {
           </div>
         </div>
       )}
+
+      <IdentitySheet
+        open={identityOpen}
+        onClose={() => setIdentityOpen(false)}
+        info={header}
+        onReload={() => void loadHeaderInfo().then(setHeader)}
+        theme={theme}
+        onToggleTheme={() => setThemeState(toggleTheme())}
+        onSignOut={() => {
+          setIdentityOpen(false);
+          void supabase.auth.signOut();
+        }}
+      />
     </div>
   );
 }

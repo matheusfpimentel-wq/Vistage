@@ -1,17 +1,20 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { formatDate, formatCurrency } from "@/lib/format";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 type Props = {
   parties: PartyDeserialized[];
   onEdit: (p: PartyDeserialized) => void;
   onDelete: (p: PartyDeserialized) => void;
+  density?: ListDensity;
 };
 
-export function PartyList({ parties, onEdit, onDelete }: Props) {
+export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props) {
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(parties);
   if (parties.length === 0) {
     return (
@@ -21,9 +24,10 @@ export function PartyList({ parties, onEdit, onDelete }: Props) {
     );
   }
 
+  const compact = density === "compact";
   return (
     <div className="overflow-x-auto rounded-md border">
-      <table className="w-full text-sm">
+      <table className={cn("w-full", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}>
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
             <SortableHeader<PartyDeserialized> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />

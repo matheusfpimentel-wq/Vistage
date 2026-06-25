@@ -2,16 +2,19 @@ import { CalendarClock, ExternalLink, MessageSquare, Pencil, Trash2 } from "luci
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { cn } from "@/lib/utils";
 import { contentStatusVariant, type Content } from "../types";
 import { formatDate } from "@/lib/format";
+import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 type Props = {
   items: Content[];
   onEdit: (c: Content) => void;
   onDelete: (c: Content) => void;
+  density?: ListDensity;
 };
 
-export function ContentList({ items, onEdit, onDelete }: Props) {
+export function ContentList({ items, onEdit, onDelete, density = "full" }: Props) {
   if (items.length === 0) {
     return (
       <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
@@ -19,14 +22,18 @@ export function ContentList({ items, onEdit, onDelete }: Props) {
       </div>
     );
   }
+  const compact = density === "compact";
   return (
-    <div className="space-y-1.5">
+    <div className={compact ? "space-y-0.5" : "space-y-1.5"}>
       {items.map((c) => (
         <div
           key={c.id}
-          className="flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40"
+          className={cn(
+            "flex items-start gap-3 rounded-md border transition-colors hover:bg-muted/40",
+            compact ? "p-2" : "p-3"
+          )}
         >
-          <div className="flex-1 space-y-1.5">
+          <div className={cn("flex-1", compact ? "min-w-0" : "space-y-1.5")}>
             <div className="flex items-start justify-between gap-2">
               <button
                 onClick={() => onEdit(c)}
@@ -35,6 +42,11 @@ export function ContentList({ items, onEdit, onDelete }: Props) {
                 {c.title}
               </button>
               <div className="flex items-center gap-1.5">
+                {compact && c.due_date && (
+                  <span className="tabular-nums text-xs text-muted-foreground">
+                    {formatDate(c.due_date)}
+                  </span>
+                )}
                 <Badge variant={contentStatusVariant(c.status)}>
                   {c.status}
                 </Badge>
@@ -46,10 +58,11 @@ export function ContentList({ items, onEdit, onDelete }: Props) {
               </div>
             </div>
 
-            {c.purpose && (
+            {!compact && c.purpose && (
               <p className="text-xs text-muted-foreground">{c.purpose}</p>
             )}
 
+            {!compact && (
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {c.networks.map((n) => (
                 <Badge key={n} variant="secondary">
@@ -87,6 +100,7 @@ export function ContentList({ items, onEdit, onDelete }: Props) {
                 </span>
               )}
             </div>
+            )}
           </div>
 
           <div className="flex gap-0.5">
