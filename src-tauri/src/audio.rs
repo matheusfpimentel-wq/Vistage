@@ -2,10 +2,9 @@
 // `lofty` e varredura recursiva via `walkdir`. Os bytes do áudio NUNCA saem
 // daqui pro app (nem pro .vistage): só metadados em texto + duração.
 
-use lofty::config::WriteOptions;
-use lofty::prelude::*;
-use lofty::read_from_path;
-use lofty::tag::{ItemKey, Tag};
+// lofty 0.18: os traits ficam na raiz do crate (não há `prelude`) e
+// save_to_path(path) não recebe WriteOptions (isso é 0.19+).
+use lofty::{read_from_path, Accessor, AudioFile, ItemKey, Tag, TagExt, TaggedFileExt};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use walkdir::WalkDir;
@@ -113,21 +112,24 @@ pub fn audio_write_tags(path: String, fields: TagFields) -> Result<ScannedTrack,
     if let Some(v) = &fields.genre {
         if v.is_empty() { tag.remove_genre(); } else { tag.set_genre(v.clone()); }
     }
-    let mut set_text = |key: ItemKey, v: &Option<String>| {
-        if let Some(s) = v {
-            if s.is_empty() {
-                tag.remove_key(&key);
-            } else {
-                tag.insert_text(key, s.clone());
+    // Bloco próprio: o empréstimo mutável da closure precisa ser solto antes do
+    // save_to_path (que também empresta a tag).
+    {
+        let mut set_text = |key: ItemKey, v: &Option<String>| {
+            if let Some(s) = v {
+                if s.is_empty() {
+                    tag.remove_key(&key);
+                } else {
+                    tag.insert_text(key, s.clone());
+                }
             }
-        }
-    };
-    set_text(ItemKey::IntegerBpm, &fields.bpm);
-    set_text(ItemKey::InitialKey, &fields.key);
-    set_text(ItemKey::Comment, &fields.comments);
+        };
+        set_text(ItemKey::IntegerBpm, &fields.bpm);
+        set_text(ItemKey::InitialKey, &fields.key);
+        set_text(ItemKey::Comment, &fields.comments);
+    }
 
-    tag.save_to_path(p, WriteOptions::default())
-        .map_err(|e| format!("Falha ao gravar: {e}"))?;
+    tag.save_to_path(p).map_err(|e| format!("Falha ao gravar: {e}"))?;
 
     read_one(p).ok_or_else(|| "Gravou, mas não consegui reler para verificar".into())
 }
