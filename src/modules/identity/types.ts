@@ -95,7 +95,8 @@ export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
 export type ArtistTemplate = {
   id: number;
   name: string;
-  category: TemplateCategory | null;
+  /** Tipo: um dos TEMPLATE_CATEGORIES ou um nome livre (via "Outro"). */
+  category: string | null;
   file_path: string | null;
   thumbnail_path: string | null;
   content: string | null;

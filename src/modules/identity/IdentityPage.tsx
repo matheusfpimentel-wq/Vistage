@@ -83,7 +83,7 @@ import {
   IMAGE_EXTS,
   VIDEO_EXTS,
   deleteAttachment,
-  pickFile,
+  pickFiles,
   saveAttachment,
   useImageUrl,
 } from "@/lib/uploads";
@@ -696,6 +696,7 @@ function TemplateForm({
 }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<TemplateCategory | "">("");
+  const [customCategory, setCustomCategory] = useState("");
   const [content, setContent] = useState("");
   const [filePath, setFilePath] = useState<string | null>(null);
   const [thumbnailPath, setThumbnailPath] = useState<string | null>(null);
@@ -706,6 +707,7 @@ function TemplateForm({
     if (open) {
       setName("");
       setCategory("");
+      setCustomCategory("");
       setContent("");
       setFilePath(null);
       setThumbnailPath(null);
@@ -722,9 +724,13 @@ function TemplateForm({
     }
     setSaving(true);
     try {
+      const resolvedCategory =
+        category === "Outro"
+          ? customCategory.trim() || "Outro"
+          : category || null;
       await createTemplate({
         name: name.trim(),
-        category: (category || null) as TemplateCategory | null,
+        category: resolvedCategory,
         content: content.trim() || null,
         file_path: filePath,
         thumbnail_path: thumbnailPath,
@@ -756,7 +762,7 @@ function TemplateForm({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Categoria</Label>
+            <Label>Tipo</Label>
             <Select
               value={category}
               onValueChange={(v) => setCategory(v as TemplateCategory)}
@@ -772,6 +778,14 @@ function TemplateForm({
                 ))}
               </SelectContent>
             </Select>
+            {category === "Outro" && (
+              <Input
+                className="mt-1.5"
+                placeholder="Qual o tipo?"
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Texto do template</Label>
@@ -1019,15 +1033,19 @@ function PhotosTab({
   async function handleAddPhoto() {
     setAddingPhoto(true);
     try {
-      const src = await pickFile({
-        title: "Selecionar foto",
+      const srcs = await pickFiles({
+        title: "Selecionar fotos",
         extensions: IMAGE_EXTS,
         filterName: "Imagens",
       });
-      if (!src) return;
-      const dest = await saveAttachment(src, "identity/photos");
-      onPhotosChange([...photos, { path: dest, caption: "", type: "photo" }]);
-      toast.success("Foto adicionada");
+      if (srcs.length === 0) return;
+      const added: IdentityPhoto[] = [];
+      for (const src of srcs) {
+        const dest = await saveAttachment(src, "identity/photos");
+        added.push({ path: dest, caption: "", type: "photo" });
+      }
+      onPhotosChange([...photos, ...added]);
+      toast.success(added.length === 1 ? "Foto adicionada" : `${added.length} fotos adicionadas`);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -1038,20 +1056,48 @@ function PhotosTab({
   async function handleAddVideo() {
     setAddingVideo(true);
     try {
-      const src = await pickFile({
-        title: "Selecionar vídeo",
+      const srcs = await pickFiles({
+        title: "Selecionar vídeos",
         extensions: VIDEO_EXTS,
         filterName: "Vídeos",
       });
-      if (!src) return;
-      const dest = await saveAttachment(src, "identity/videos");
-      onPhotosChange([...photos, { path: dest, caption: "", type: "video" }]);
-      toast.success("Vídeo adicionado");
+      if (srcs.length === 0) return;
+      const added: IdentityPhoto[] = [];
+      for (const src of srcs) {
+        const dest = await saveAttachment(src, "identity/videos");
+        added.push({ path: dest, caption: "", type: "video" });
+      }
+      onPhotosChange([...photos, ...added]);
+      toast.success(added.length === 1 ? "Vídeo adicionado" : `${added.length} vídeos adicionados`);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
       setAddingVideo(false);
     }
+  }
+
+  async function handleDeleteSelected() {
+    if (selected.size === 0) return;
+    if (
+      !(await confirmDialog({
+        title: "Excluir selecionadas",
+        description: `Excluir ${selected.size} arquivo(s) da galeria? Essa ação não pode ser desfeita.`,
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    const toRemove = new Set(selected);
+    for (const path of toRemove) {
+      try {
+        await deleteAttachment(path);
+      } catch {
+        /* arquivo ausente — segue */
+      }
+    }
+    onPhotosChange(photos.filter((p) => !toRemove.has(p.path)));
+    setSelected(new Set());
+    toast.success(`${toRemove.size} arquivo(s) excluído(s)`);
   }
 
   async function handleRemove(originalIdx: number, label: string) {
@@ -1073,7 +1119,7 @@ function PhotosTab({
   async function handleDownloadSelected() {
     const targets =
       selected.size > 0
-        ? onlyPhotos.filter((p) => selected.has(p.path))
+        ? photos.filter((p) => selected.has(p.path))
         : onlyPhotos;
     if (targets.length === 0) return;
     setDownloading(true);
@@ -1176,6 +1222,16 @@ function PhotosTab({
                     ? `Baixar selecionadas (${selected.size})`
                     : "Baixar todas"}
                 </Button>
+                {selected.size > 0 && (
+                  <Button
+                    variant="outline"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => void handleDeleteSelected()}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Excluir ({selected.size})
+                  </Button>
+                )}
               </>
             )}
           </div>
