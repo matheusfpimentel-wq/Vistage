@@ -14,9 +14,11 @@ import { getDb } from "./db";
  * espelho direto, sem mapear nomes.
  */
 
-/** Prefixos das chaves de preferência de view que são portáteis. */
+// Prefixos PORTÁTEIS (viajam no .vistage). `vistage.view.` saiu daqui de
+// propósito: o modo de visualização agora é preferência da MÁQUINA
+// (localStorage, ver moduleView.ts) — não deve ser sobrescrito ao abrir um
+// arquivo nem depender de salvar o documento.
 const PORTABLE_PREFIXES = [
-  "vistage.view.",
   "vistage.cols.",
   "vistage.filter.",
   "vistage.mindmap.",
@@ -57,10 +59,11 @@ export function persistDocSetting(key: string, value: string): void {
  */
 export async function hydrateViewPrefsFromDocument(): Promise<void> {
   try {
+    // NÃO inclui 'vistage.view.%': o modo de visualização é da máquina
+    // (localStorage) e não pode ser sobrescrito pelo que está salvo no arquivo.
     const rows = await getDb().select<{ key: string; value: string }[]>(
       `SELECT key, value FROM document_settings
-        WHERE key LIKE 'vistage.view.%'
-           OR key LIKE 'vistage.cols.%'
+        WHERE key LIKE 'vistage.cols.%'
            OR key LIKE 'vistage.filter.%'
            OR key LIKE 'vistage.mindmap.%'
            OR key LIKE 'vistage.rules.%'`

@@ -537,9 +537,12 @@ export async function deleteFocusBlock(id: number): Promise<void> {
  */
 export async function loadFocusStreak(): Promise<number> {
   const db = getDb();
+  // date(..., 'localtime') converte o started_at (gravado em UTC) para a data
+  // LOCAL — senão uma sessão à noite no BR cai no dia seguinte (UTC) e a sequência
+  // "de hoje" some. Casado com toLocalISODate no cursor abaixo.
   const rows = await db
     .select<{ d: string }[]>(
-      `SELECT DISTINCT date(started_at) AS d FROM work_sessions
+      `SELECT DISTINCT date(started_at, 'localtime') AS d FROM work_sessions
         WHERE ended_at IS NOT NULL ORDER BY d DESC`
     )
     .catch(() => [] as { d: string }[]);
@@ -548,7 +551,7 @@ export async function loadFocusStreak(): Promise<number> {
 
   const dayMs = 86400000;
   const today = new Date();
-  const iso = (dt: Date) => dt.toISOString().slice(0, 10);
+  const iso = (dt: Date) => toLocalISODate(dt);
   // âncora: hoje se focou hoje, senão ontem (sequência ainda viva durante o dia)
   let cursor = new Date(today);
   if (!days.has(iso(cursor))) {

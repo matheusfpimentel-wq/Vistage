@@ -399,7 +399,7 @@ function OkrMiniCard({ okrs }: { okrs: Okr[] }) {
   return (
     <Link
       to="/objetivos"
-      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
+      className="block h-full glass-panel px-3 py-2 transition hover:border-primary"
     >
       <div className="text-xs text-muted-foreground">OKRs</div>
       <div className="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
@@ -428,7 +428,7 @@ function KpiCard({
   return (
     <Link
       to={to}
-      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
+      className="block h-full glass-panel px-3 py-2 transition hover:border-primary"
     >
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-0.5 text-2xl font-semibold tabular-nums text-primary">

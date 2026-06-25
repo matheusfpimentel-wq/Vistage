@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { getDb } from "./db";
 
 export type Theme = "light" | "dark";
-export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan";
+export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan" | "bordo";
 /** Layout do menu lateral no desktop: clássico (rótulos) ou rail compacto (ícones). */
 export type SidebarLayout = "classic" | "rail";
 
@@ -57,6 +57,7 @@ export const ACCENTS: AccentDef[] = [
   { id: "rose",    label: "Rosa",      swatch: "345 82% 66%", primaryLight: "346 80% 56%", primaryDark: "345 82% 66%", glowLight: "330 80% 63%", glowDark: "332 85% 70%" },
   { id: "amber",   label: "Âmbar",     swatch: "38 92% 56%",  primaryLight: "32 95% 48%",  primaryDark: "38 92% 56%",  glowLight: "45 95% 56%",  glowDark: "45 95% 62%" },
   { id: "cyan",    label: "Ciano",     swatch: "188 82% 52%", primaryLight: "190 85% 40%", primaryDark: "188 82% 52%", glowLight: "198 88% 50%", glowDark: "196 86% 60%" },
+  { id: "bordo",   label: "Bordô",     swatch: "345 58% 35%", primaryLight: "345 60% 33%", primaryDark: "345 62% 52%", glowLight: "350 60% 45%", glowDark: "345 68% 60%" },
 ];
 
 type ThemeState = {

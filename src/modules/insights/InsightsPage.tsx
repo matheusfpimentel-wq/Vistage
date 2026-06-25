@@ -162,7 +162,7 @@ export function InsightsPage() {
             return (
               <div
                 key={key}
-                className="rounded-md border bg-card p-4 transition-colors hover:bg-muted/30"
+                className="glass-panel p-4"
               >
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span

@@ -1,10 +1,12 @@
 import { useCallback, useState } from "react";
-import { persistDocSetting } from "./docSettings";
 
 /**
  * View persistente por módulo: lembra a escolha do usuário (lista/cards/etc.)
- * entre aberturas. Grava no cache local (síncrono) e no document_settings, então
- * a escolha viaja com o .vistage. `key` identifica o módulo.
+ * entre aberturas. É uma preferência da MÁQUINA — fica no localStorage do
+ * aparelho, NÃO viaja com o .vistage e NÃO depende de salvar o documento. Assim
+ * "o jeito que deixei a tela" persiste mesmo em outra sessão, abrindo o mesmo
+ * arquivo ou não. (Antes ia pro document_settings e o abrir-arquivo, que recarrega
+ * o app, sobrescrevia a escolha local com a que estava salva no arquivo.)
  */
 export function useModuleView<T extends string>(
   key: string,
@@ -20,7 +22,11 @@ export function useModuleView<T extends string>(
   });
   const set = useCallback(
     (v: T) => {
-      persistDocSetting(storageKey, v);
+      try {
+        localStorage.setItem(storageKey, v);
+      } catch {
+        /* storage cheio/indisponível */
+      }
       setValue(v);
     },
     [storageKey]
