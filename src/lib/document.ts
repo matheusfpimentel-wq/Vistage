@@ -11,6 +11,7 @@ import {
 } from "./backup";
 import { getDb } from "./db";
 import { rotateBackup } from "./rotatingBackup";
+import { clearUnsavedWork } from "./recovery";
 import { toast } from "@/components/ui/toaster";
 
 // "Documento" no estilo Office: um arquivo .vistage que contém TODOS os dados
@@ -185,6 +186,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     try {
       const { skipped } = await saveBackupToPath(path);
       set({ dirty: false });
+      clearUnsavedWork(); // salvou no .vistage → nada a recuperar
       // Backup rotativo (rede de segurança) — best-effort, não bloqueia.
       void rotateBackup(path);
       if (skipped.length > 0) {
@@ -222,6 +224,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
+      clearUnsavedWork();
       void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(

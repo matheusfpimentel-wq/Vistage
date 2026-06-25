@@ -21,6 +21,9 @@ import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
 import { buildBackup, clearDocumentData, hasAnyDocumentData } from "@/lib/backup";
 import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY } from "@/lib/document";
+import { peekUnsavedRecovery, unsavedSince, clearUnsavedWork } from "@/lib/recovery";
+import { RecoveryModal } from "@/components/shared/RecoveryModal";
+import { toast } from "@/components/ui/toaster";
 import { autoGenerateRecurringUpToNow, retroactiveSyncAllLinked } from "@/modules/finance/api";
 
 // Modelo "abre em branco": o app inicia vazio a cada boot; os dados vivem nos
@@ -135,6 +138,7 @@ function MainApp() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbRetry, setDbRetry] = useState(0);
+  const [recoveryPending, setRecoveryPending] = useState(false);
 
   // hidrata config + tema na primeira renderização
   useEffect(() => {
@@ -187,7 +191,11 @@ function MainApp() {
         // pular o zeramento — senão apagaria o que acabou de ser carregado.
         const skipWipe = sessionStorage.getItem(SKIP_BLANK_WIPE_KEY) === "1";
         sessionStorage.removeItem(SKIP_BLANK_WIPE_KEY);
-        if (!skipWipe) {
+        // Recuperação de crash: se a sessão anterior tinha trabalho não salvo
+        // (flag síncrona) e a réplica ainda tem dados, NÃO zera — mantém os dados
+        // e oferece recuperar (modal abaixo). Senão, "abre em branco" normal.
+        const recover = !skipWipe ? await peekUnsavedRecovery().catch(() => false) : false;
+        if (!skipWipe && !recover) {
           let safe = true;
           // Transição única: se já houver dados de uso anterior, exporta um
           // .vistage de backup antes do primeiro zeramento — nada se perde.
@@ -222,6 +230,7 @@ function MainApp() {
         if (!cancelled) {
           setDbReady(true);
           setDbError(null);
+          setRecoveryPending(recover);
           // Aparência salva NO documento (.vistage) e intenção de notificações.
           void useThemeStore.getState().hydrateFromDocument();
           void import("@/lib/notify").then(({ restoreNotificationPreference }) =>
@@ -323,6 +332,21 @@ function MainApp() {
           <BrowserRouter>
             <RoutedApp />
           </BrowserRouter>
+          <RecoveryModal
+            open={recoveryPending}
+            since={unsavedSince()}
+            onRecover={() => {
+              setRecoveryPending(false);
+              useDocumentStore.getState().markDirty();
+              toast.success(
+                "Alterações recuperadas. Salve (Ctrl+S) para guardar no .vistage."
+              );
+            }}
+            onDiscard={() => {
+              clearUnsavedWork();
+              window.location.reload();
+            }}
+          />
         </ErrorBoundary>
       </ConfirmProvider>
     </TooltipProvider>

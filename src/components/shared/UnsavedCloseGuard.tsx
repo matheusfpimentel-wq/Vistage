@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useDocumentStore } from "@/lib/document";
 import { DATA_CHANGED } from "@/lib/events";
+import { markUnsavedWork, clearUnsavedWork } from "@/lib/recovery";
 
 /**
  * No modelo "abre em branco", o banco é zerado a cada inicialização — então a
@@ -33,6 +34,8 @@ export function UnsavedCloseGuard() {
     const onChange = () => {
       if (!useDocumentStore.getState().bootSettled) return;
       useDocumentStore.getState().markDirty();
+      // Flag síncrona que sobrevive a um crash → recuperação no próximo boot.
+      markUnsavedWork();
     };
     window.addEventListener(DATA_CHANGED, onChange);
     return () => window.removeEventListener(DATA_CHANGED, onChange);
@@ -58,6 +61,9 @@ export function UnsavedCloseGuard() {
   async function closeNow() {
     confirmed.current = true;
     setOpen(false);
+    // Saída deliberada SEM salvar → descarta a marca, pra não oferecer
+    // recuperação dessas mudanças que o usuário escolheu não guardar.
+    clearUnsavedWork();
     const win = getCurrentWindow();
     try {
       await win.close();
