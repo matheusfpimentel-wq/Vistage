@@ -81,18 +81,26 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
   // cabem na altura; aí aparecem setas que rolam ao passar o mouse — senão, em
   // janela pequena, não dava pra alcançar os ícones de baixo.
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const [scrollable, setScrollable] = useState(false);
   const [arrows, setArrows] = useState({ up: false, down: false });
 
   const updateArrows = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    const can = el.scrollHeight - el.clientHeight > 4;
+    const content = contentRef.current;
+    if (!el || !content) return;
+    // Mede a altura REAL do conteúdo (offsetHeight), não o scrollHeight do
+    // container: com overflow:visible (necessário pro magnify crescer sobre o
+    // módulo) o scrollHeight fica = clientHeight e a rolagem NUNCA era detectada
+    // — por isso, em janela baixa, não apareciam setas nem dava pra alcançar os
+    // ícones de baixo. offsetHeight do conteúdo é confiável nos dois modos.
+    const contentH = content.offsetHeight;
+    const can = contentH - el.clientHeight > 4;
     setScrollable(can);
     setArrows({
       up: can && el.scrollTop > 4,
-      down: can && el.scrollTop < el.scrollHeight - el.clientHeight - 4,
+      down: can && el.scrollTop < contentH - el.clientHeight - 4,
     });
   }, []);
 
@@ -148,11 +156,12 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
           ref={scrollRef}
           onScroll={updateArrows}
           className={cn(
-            "flex w-full flex-1 flex-col items-center no-scrollbar",
+            "flex w-full min-h-0 flex-1 flex-col items-center no-scrollbar",
             scrollable ? "overflow-y-auto" : "overflow-visible"
           )}
         >
           <div
+            ref={contentRef}
             className={cn("flex flex-col items-center gap-2 py-3", !scrollable && "my-auto")}
             onMouseMove={(e) => magnify(e.clientY)}
             onMouseLeave={reset}
@@ -197,7 +206,7 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
                               "pointer-events-none absolute inset-0 rounded-[inherit] border bg-gradient-to-br shadow-[0_4px_12px_-4px_rgba(0,0,0,0.45)] backdrop-blur-md transition-colors",
                               isActive
                                 ? "border-primary/45 from-primary/30 to-primary/[0.08] ring-1 ring-inset ring-primary/30"
-                                : "border-white/15 from-white/20 to-white/[0.03] dark:from-white/[0.12] dark:to-white/0"
+                                : "border-white/15 from-white/25 to-white/[0.04] dark:border-white/25 dark:from-white/[0.18] dark:to-white/[0.06]"
                             )}
                           />
                           {/* reflexo: brilho de vidro no topo (mais discreto no escuro,
