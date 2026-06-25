@@ -3,13 +3,13 @@ import { Check, Loader2, RefreshCw, Unplug } from "lucide-react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -119,11 +119,13 @@ export function NotionSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Notion — depósito de ideias</CardTitle>
-        <CardDescription>
-          Envia suas ideias (1 via) para um database criado no Notion. Elas
-          continuam vivendo no Vistage; o Notion vira um depósito/vitrine.
-        </CardDescription>
+        <CardTitle className="text-base flex items-center gap-2">
+          Notion
+          <InfoHint>
+            Envia suas ideias (1 via) para um database criado no Notion. Elas
+            continuam vivendo no Vistage; o Notion vira um depósito/vitrine.
+          </InfoHint>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {!connected ? (
@@ -198,8 +200,8 @@ export function NotionSettings() {
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Criar database e sincronizar
               </Button>
-              <Button variant="ghost" onClick={() => void handleDisconnect()}>
-                Desconectar
+              <Button variant="outline" onClick={() => void handleDisconnect()}>
+                <Unplug className="h-4 w-4" /> Desconectar
               </Button>
             </div>
           </>
@@ -220,9 +222,9 @@ export function NotionSettings() {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                Sincronizar agora
+                Sincronizar
               </Button>
-              <Button variant="ghost" onClick={() => void handleDisconnect()}>
+              <Button variant="outline" onClick={() => void handleDisconnect()}>
                 <Unplug className="h-4 w-4" /> Desconectar
               </Button>
             </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   ExternalLink,
+  HelpCircle,
   Loader2,
   RefreshCw,
   Unplug,
@@ -11,7 +12,6 @@ import { confirmDialog } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -47,7 +47,7 @@ import {
   type GcalModule,
 } from "@/lib/gcal";
 import { CalendarDriftDialog } from "@/components/shared/CalendarDriftDialog";
-import { formatDate } from "@/lib/format";
+import { InfoHint } from "@/components/ui/tooltip";
 
 const TIMEZONES = [
   "America/Sao_Paulo",
@@ -80,6 +80,7 @@ export function GoogleCalendarSettings() {
   const [checkingDrift, setCheckingDrift] = useState(false);
   const [drifts, setDrifts] = useState<CalendarDrift[]>([]);
   const [driftOpen, setDriftOpen] = useState(false);
+  const [showCredHelp, setShowCredHelp] = useState(false);
 
   async function refresh() {
     const [c, a] = await Promise.all([loadGcalConfig(), loadAuth()]);
@@ -215,17 +216,17 @@ export function GoogleCalendarSettings() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 Google Calendar
+                <InfoHint>
+                  Sincronização bidirecional entre suas GIGs e um calendário do
+                  Google. Recomendado usar um calendário dedicado tipo "GIGs" pra
+                  não misturar com sua agenda pessoal.
+                </InfoHint>
                 {authConnected && (
                   <Badge variant="success" className="gap-1">
                     <CheckCircle2 className="h-3 w-3" /> conectado
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription>
-                Sincronização bidirecional entre suas GIGs e um calendário do
-                Google. Recomendado usar um calendário dedicado tipo "GIGs"
-                pra não misturar com sua agenda pessoal.
-              </CardDescription>
             </div>
             {authConnected && (
               <Button variant="outline" size="sm" onClick={handleDisconnect}>
@@ -236,19 +237,8 @@ export function GoogleCalendarSettings() {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1.5">
-            <div className="font-medium text-foreground">
-              Como obter Client ID e Client Secret
-            </div>
-            <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground">
-              <li>Acesse o Google Cloud Console (botão abaixo)</li>
-              <li>Crie um projeto novo (ou use um existente)</li>
-              <li>"APIs &amp; Services" → "Library" → ative <strong>Google Calendar API</strong></li>
-              <li>"APIs &amp; Services" → "OAuth consent screen" → escolha <strong>External</strong>, preencha os básicos e adicione seu email como Test user</li>
-              <li>"APIs &amp; Services" → "Credentials" → "Create credentials" → <strong>OAuth client ID</strong> → tipo <strong>Desktop app</strong></li>
-              <li>Copie o <strong>Client ID</strong> e <strong>Client secret</strong> que aparecem e cole aqui</li>
-            </ol>
-            <div className="pt-1">
+          <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-2">
+            <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -258,7 +248,26 @@ export function GoogleCalendarSettings() {
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Abrir Google Cloud Console
               </Button>
+              <button
+                type="button"
+                onClick={() => setShowCredHelp((v) => !v)}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition hover:text-primary"
+                aria-label="Como obter Client ID e Client Secret"
+                aria-expanded={showCredHelp}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
             </div>
+            {showCredHelp && (
+              <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground">
+                <li>Acesse o Google Cloud Console (botão acima)</li>
+                <li>Crie um projeto novo (ou use um existente)</li>
+                <li>"APIs &amp; Services" → "Library" → ative <strong>Google Calendar API</strong></li>
+                <li>"APIs &amp; Services" → "OAuth consent screen" → escolha <strong>External</strong>, preencha os básicos e adicione seu email como Test user</li>
+                <li>"APIs &amp; Services" → "Credentials" → "Create credentials" → <strong>OAuth client ID</strong> → tipo <strong>Desktop app</strong></li>
+                <li>Copie o <strong>Client ID</strong> e <strong>Client secret</strong> que aparecem e cole aqui</li>
+              </ol>
+            )}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -403,7 +412,14 @@ export function GoogleCalendarSettings() {
 
             <div className="flex items-center justify-between rounded-md border p-3">
               <div className="text-sm">
-                <div className="font-medium">Sincronizar agora</div>
+                <div className="flex items-center gap-1.5 font-medium">
+                  Sincronizar
+                  <InfoHint>
+                    Ao salvar/editar uma GIG, o evento é criado/atualizado no
+                    Google automaticamente. "Sincronizar" envia de uma vez as GIGs
+                    ainda não enviadas.
+                  </InfoHint>
+                </div>
                 <div className="text-xs text-muted-foreground">
                   Última sync:{" "}
                   {cfg.lastSyncAt
@@ -445,15 +461,6 @@ export function GoogleCalendarSettings() {
                 )}
                 Verificar mudanças
               </Button>
-            </div>
-
-            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-              <strong className="text-foreground">Como funciona:</strong> ao
-              salvar/editar uma GIG no Vistage, o evento correspondente é
-              atualizado no Google Calendar automaticamente. Eventos novos no
-              calendário escolhido viram GIGs em <Badge variant="outline">Proposta</Badge>
-              {" "}quando você clicar em "Sincronizar".
-              {cfg.lastSyncAt && ` Última sync: ${formatDate(cfg.lastSyncAt.slice(0, 10))}.`}
             </div>
           </CardContent>
         </Card>

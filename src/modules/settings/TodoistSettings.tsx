@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Link2, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { CheckCircle2, Link2, Loader2, RefreshCw, Unlink, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -232,10 +232,10 @@ export function TodoistSettings() {
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                Sincronizar agora
+                Sincronizar
               </Button>
               <Button variant="outline" onClick={handleDisconnect}>
-                Desconectar
+                <Unplug className="h-4 w-4" /> Desconectar
               </Button>
             </div>
 
