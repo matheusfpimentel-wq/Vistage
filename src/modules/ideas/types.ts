@@ -44,6 +44,8 @@ export type Idea = {
   converted_id: number | null;
   related_idea_id: number | null;
   task_id?: number | null;
+  /** Nota da Biblioteca que originou esta ideia (rastreabilidade da procedência). */
+  source_note_id?: number | null;
   created_at: string;
   updated_at: string;
 };

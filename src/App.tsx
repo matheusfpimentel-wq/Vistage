@@ -16,6 +16,7 @@ import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ConfirmProvider } from "@/components/ui/confirm";
+import { PromptProvider } from "@/components/ui/prompt";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
@@ -80,6 +81,9 @@ const FansPage = lazy(() =>
 );
 const ContentPage = lazy(() =>
   import("@/modules/content/ContentPage").then((m) => ({ default: m.ContentPage }))
+);
+const BibliotecaPage = lazy(() =>
+  import("@/modules/biblioteca/BibliotecaPage").then((m) => ({ default: m.BibliotecaPage }))
 );
 const IdeasPage = lazy(() =>
   import("@/modules/ideas/IdeasPage").then((m) => ({ default: m.IdeasPage }))
@@ -351,6 +355,7 @@ function MainApp() {
   return (
     <TooltipProvider delayDuration={200}>
       <ConfirmProvider>
+        <PromptProvider>
         <ErrorBoundary>
           <BrowserRouter>
             <RoutedApp />
@@ -371,6 +376,7 @@ function MainApp() {
             }}
           />
         </ErrorBoundary>
+        </PromptProvider>
       </ConfirmProvider>
     </TooltipProvider>
   );
@@ -455,6 +461,7 @@ function RoutedApp() {
             <Route path="musica" element={<MusicPage />} />
             <Route path="festas" element={<PartiesPage />} />
             <Route path="conteudo" element={<ContentPage />} />
+            <Route path="biblioteca" element={<BibliotecaPage />} />
             <Route path="ideias" element={<IdeasPage />} />
             <Route path="brainstorm" element={<BrainstormPage />} />
             <Route path="insights" element={<InsightsPage />} />

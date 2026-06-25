@@ -1929,6 +1929,99 @@ const MIGRATIONS: Migration[] = [
       "ideas.heat — escala 1..5 (fria→quente). Remapeia o esquema antigo 1/2/3: morna 2→3, quente 3→5",
     sql: `UPDATE ideas SET heat = CASE heat WHEN 3 THEN 5 WHEN 2 THEN 3 ELSE 1 END;`,
   },
+  {
+    version: 137,
+    description:
+      "Biblioteca de Músicas — library_tracks (espelho consultável; áudio NUNCA embutido, só caminho+metadados)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS library_tracks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        artist TEXT,
+        genre TEXT,
+        bpm REAL,
+        music_key TEXT,
+        comments TEXT,
+        file_path TEXT,
+        file_missing INTEGER NOT NULL DEFAULT 0,
+        duration_sec INTEGER,
+        match_key TEXT,
+        source TEXT NOT NULL DEFAULT 'scan',
+        archived_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_library_tracks_path ON library_tracks(file_path);
+      CREATE INDEX IF NOT EXISTS idx_library_tracks_match ON library_tracks(match_key);
+      CREATE INDEX IF NOT EXISTS idx_library_tracks_archived ON library_tracks(archived_at);
+    `,
+  },
+  {
+    version: 138,
+    description:
+      "Biblioteca de Documentos — drive_documents (cache da pasta do Drive) + document_links (associação polimórfica a GIG/festa/contato)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS drive_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        drive_file_id TEXT NOT NULL,
+        name TEXT,
+        mime_type TEXT,
+        web_view_link TEXT,
+        modified_time TEXT,
+        cached_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_drive_documents_fileid ON drive_documents(drive_file_id);
+      CREATE TABLE IF NOT EXISTS document_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        drive_document_id INTEGER REFERENCES drive_documents(id) ON DELETE CASCADE,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_document_links_doc ON document_links(drive_document_id);
+      CREATE INDEX IF NOT EXISTS idx_document_links_entity ON document_links(entity_type, entity_id);
+    `,
+  },
+  {
+    version: 139,
+    description:
+      "Biblioteca de Conhecimento — note_folders/notes/note_tags/note_note_tags/note_links + ideas.source_note_id (rastreabilidade nota→ideia)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS note_folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        parent_id INTEGER REFERENCES note_folders(id) ON DELETE SET NULL,
+        sort INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        folder_id INTEGER REFERENCES note_folders(id) ON DELETE SET NULL,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_notes_folder ON notes(folder_id);
+      CREATE TABLE IF NOT EXISTS note_tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE
+      );
+      CREATE TABLE IF NOT EXISTS note_note_tags (
+        note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        tag_id INTEGER NOT NULL REFERENCES note_tags(id) ON DELETE CASCADE,
+        PRIMARY KEY (note_id, tag_id)
+      );
+      CREATE TABLE IF NOT EXISTS note_links (
+        source_note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        target_note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        PRIMARY KEY (source_note_id, target_note_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target_note_id);
+      ALTER TABLE ideas ADD COLUMN source_note_id INTEGER;
+    `,
+  },
 ];
 
 
