@@ -62,7 +62,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Criação" },
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
-  { to: "/biblioteca", label: "Biblioteca", icon: Library, group: "Criação" },
+  { to: "/biblioteca", label: "Biblioteca", icon: Library, group: "Gestão" },
 
   { to: "/pessoas", label: "Pessoas", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },

@@ -11,12 +11,7 @@ export function BibliotecaPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Biblioteca</h1>
-        <p className="text-sm text-muted-foreground">
-          Músicas, documentos e conhecimento — tudo o que alimenta a sua produção.
-        </p>
-      </div>
+      <h1 className="text-xl font-semibold">Biblioteca</h1>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
