@@ -10,6 +10,8 @@ import {
   type Backup,
 } from "./backup";
 import { getDb } from "./db";
+import { rotateBackup } from "./rotatingBackup";
+import { clearUnsavedWork } from "./recovery";
 import { toast } from "@/components/ui/toaster";
 
 // "Documento" no estilo Office: um arquivo .vistage que contém TODOS os dados
@@ -47,6 +49,17 @@ export const SYNC_INTEGRATIONS_KEY = "vistage.syncIntegrationsOnBoot";
 export function reloadKeepingData(): void {
   sessionStorage.setItem(SKIP_BLANK_WIPE_KEY, "1");
   window.location.reload();
+}
+
+// "Reabrir último documento ao iniciar" — opt-in (padrão DESLIGADO). O caminho
+// do último .vistage já fica em LS_KEY; o boot, se ligado, recarrega-o em vez de
+// abrir em branco. Arquivo com senha não reabre sozinho (precisa do prompt).
+const LS_REOPEN = "vistage.reopenLast";
+export function isReopenLastEnabled(): boolean {
+  return localStorage.getItem(LS_REOPEN) === "1";
+}
+export function setReopenLast(on: boolean): void {
+  localStorage.setItem(LS_REOPEN, on ? "1" : "0");
 }
 
 // Resolução imperativa de diálogo de 3 opções (Mesclar / Sobrescrever / Cancelar).
@@ -184,6 +197,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     try {
       const { skipped } = await saveBackupToPath(path);
       set({ dirty: false });
+      clearUnsavedWork(); // salvou no .vistage → nada a recuperar
+      // Backup rotativo (rede de segurança) — best-effort, não bloqueia.
+      void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
           `Salvo em ${fileName(path)} — mas ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora do arquivo. Confira se ainda existem na pasta de uploads.`
@@ -219,6 +235,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
+      clearUnsavedWork();
+      void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
           `Salvo como ${fileName(path)} — ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora.`

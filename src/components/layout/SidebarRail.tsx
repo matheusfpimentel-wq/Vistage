@@ -156,13 +156,20 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
           ref={scrollRef}
           onScroll={updateArrows}
           className={cn(
-            "flex w-full min-h-0 flex-1 flex-col items-center no-scrollbar",
-            scrollable ? "overflow-y-auto" : "overflow-visible"
+            "flex min-h-0 flex-1 flex-col items-center no-scrollbar",
+            // Rolando: o overflow-y-auto cortava também na horizontal, comendo a
+            // borda/sombra e a animação do tile na fronteira com o módulo. Aqui a
+            // caixa de recorte é esticada pra DIREITA (w + pr) sobre o módulo, e o
+            // container vira pointer-events-none (o conteúdo reativa) pra cliques
+            // no módulo, na faixa esticada, passarem direto.
+            scrollable
+              ? "self-start w-[calc(4.5rem+2.5rem)] overflow-y-auto pr-10 pointer-events-none"
+              : "w-full overflow-visible"
           )}
         >
           <div
             ref={contentRef}
-            className={cn("flex flex-col items-center gap-2 py-3", !scrollable && "my-auto")}
+            className={cn("pointer-events-auto flex flex-col items-center gap-2 py-3", !scrollable && "my-auto")}
             onMouseMove={(e) => magnify(e.clientY)}
             onMouseLeave={reset}
           >
