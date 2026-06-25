@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 
-type Kind = "all" | "gig" | "track" | "contact" | "venue";
+type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue";
 type Row = {
   kind: string;
   source_id: string;
@@ -15,12 +15,16 @@ type Row = {
 const KIND_TABS: { id: Kind; label: string }[] = [
   { id: "all", label: "Tudo" },
   { id: "gig", label: "GIGs" },
+  { id: "task", label: "Tarefas" },
+  { id: "idea", label: "Ideias" },
   { id: "track", label: "Músicas" },
   { id: "contact", label: "Pessoas" },
   { id: "venue", label: "Venues" },
 ];
 const KIND_LABEL: Record<string, string> = {
   gig: "GIG",
+  task: "Tarefa",
+  idea: "Ideia",
   track: "Música",
   contact: "Pessoa",
   venue: "Venue",
@@ -68,7 +72,7 @@ export function Buscar() {
     <div className="screen">
       <input
         className="search"
-        placeholder="Buscar GIGs, músicas, pessoas…"
+        placeholder="Buscar GIGs, tarefas, ideias, pessoas…"
         value={term}
         autoFocus
         onChange={(e) => setTerm(e.target.value)}
@@ -160,6 +164,15 @@ function Detail({ r }: { r: Row }) {
     if (num(m.capacity)) out.push(["Capacidade", String(num(m.capacity))]);
     const loc = [str(m.city), str(m.state)].filter(Boolean).join(", ");
     if (loc) out.push(["Local", loc]);
+  } else if (r.kind === "task") {
+    if (str(m.status)) out.push(["Status", str(m.status)]);
+    if (str(m.priority)) out.push(["Prioridade", str(m.priority)]);
+    if (str(m.due_date)) out.push(["Prazo", str(m.due_date)]);
+    if (str(m.category)) out.push(["Categoria", str(m.category)]);
+  } else if (r.kind === "idea") {
+    if (str(m.maturation)) out.push(["Estágio", str(m.maturation)]);
+    if (str(m.category)) out.push(["Categoria", str(m.category)]);
+    if (str(m.body)) out.push(["Nota", str(m.body)]);
   }
 
   return (
@@ -174,7 +187,7 @@ function Detail({ r }: { r: Row }) {
           ))}
         </dl>
       )}
-      <AnotarBox r={r} />
+      {["contact", "gig", "track", "venue"].includes(r.kind) && <AnotarBox r={r} />}
     </div>
   );
 }

@@ -8,8 +8,10 @@ import { Hoje } from "./screens/Hoje";
 import { Buscar } from "./screens/Buscar";
 import { Foco } from "./screens/Foco";
 import { Capturar } from "./screens/Capturar";
+import { Brainstorming } from "./screens/Brainstorming";
+import { Tarefas } from "./screens/Tarefas";
 
-type Tab = "hoje" | "buscar" | "foco" | "capturar";
+type Tab = "hoje" | "foco" | "brainstorm" | "buscar" | "tarefas";
 
 function SunIcon() {
   return (
@@ -27,10 +29,32 @@ function MoonIcon() {
   );
 }
 
+const I = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+const TAB_ICON: Record<Tab, JSX.Element> = {
+  hoje: <svg {...I}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>,
+  foco: <svg {...I}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" /></svg>,
+  brainstorm: <svg {...I}><path d="M12 3l1.6 4.2L18 8.8l-3.4 2.7L15.6 16 12 13.4 8.4 16l1-4.5L6 8.8l4.4-1.6z" /></svg>,
+  buscar: <svg {...I}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>,
+  tarefas: <svg {...I}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>,
+};
+const TAB_LABEL: Record<Tab, string> = {
+  hoje: "Hoje", foco: "Foco", brainstorm: "Brainstorm", buscar: "Pesquisa", tarefas: "Tarefas",
+};
+const TABS: Tab[] = ["hoje", "foco", "brainstorm", "buscar", "tarefas"];
+
+function ZapIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M13 2L3 14h7l-1 8 10-12h-7z" />
+    </svg>
+  );
+}
+
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("hoje");
+  const [capturing, setCapturing] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
 
   useEffect(() => {
@@ -60,6 +84,9 @@ export function App() {
       <header className="topbar">
         <span className="brand">Vistage</span>
         <div className="topbar-actions">
+          <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Captura rápida" title="Capturar">
+            <ZapIcon />
+          </button>
           <button
             className="iconbtn"
             onClick={() => setThemeState(toggleTheme())}
@@ -73,26 +100,38 @@ export function App() {
           </button>
         </div>
       </header>
+
       <main className="content">
         {tab === "hoje" && <Hoje />}
-        {tab === "buscar" && <Buscar />}
         {tab === "foco" && <Foco />}
-        {tab === "capturar" && <Capturar />}
+        {tab === "brainstorm" && <Brainstorming />}
+        {tab === "buscar" && <Buscar />}
+        {tab === "tarefas" && <Tarefas />}
       </main>
-      <nav className="tabbar tabbar-4">
-        <button className={tab === "hoje" ? "active" : ""} onClick={() => setTab("hoje")}>
-          Hoje
-        </button>
-        <button className={tab === "buscar" ? "active" : ""} onClick={() => setTab("buscar")}>
-          Buscar
-        </button>
-        <button className={tab === "foco" ? "active" : ""} onClick={() => setTab("foco")}>
-          Foco
-        </button>
-        <button className={tab === "capturar" ? "active" : ""} onClick={() => setTab("capturar")}>
-          Capturar
-        </button>
+
+      <nav className="tabbar tabbar-icons">
+        {TABS.map((t) => (
+          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
+            <span className="tab-ic">{TAB_ICON[t]}</span>
+            <span className="tab-lb">{TAB_LABEL[t]}</span>
+          </button>
+        ))}
       </nav>
+
+      {/* Captura rápida em overlay (acionada pelo botão do header). */}
+      {capturing && (
+        <div className="overlay" onClick={() => setCapturing(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-head">
+              <strong>Capturar</strong>
+              <button className="iconbtn" onClick={() => setCapturing(false)} aria-label="Fechar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <Capturar />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

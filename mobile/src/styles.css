@@ -223,3 +223,78 @@ button { font-family: inherit; cursor: pointer; }
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Port do mobile (modos, brainstorm, tarefas, captura FAB) ─────────── */
+.tag.idea { color: #fb923c; }
+
+/* Cards/itens com cara mais "glass" (modelo do PC) */
+.card {
+  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 160%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 6px 18px -10px rgba(0,0,0,0.5);
+}
+.item {
+  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
+  box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
+}
+
+/* Tabbar com ícones (5 modos) */
+.tabbar-icons { grid-template-columns: repeat(5, 1fr); }
+.tabbar-icons button {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
+  font-size: 0.62rem; font-weight: 600;
+}
+.tab-ic { display: flex; }
+.tab-lb { line-height: 1; }
+
+/* Botão de captura no header */
+.capture-fab {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 11px;
+  background: var(--accent); color: #fff; border: none;
+}
+.capture-fab:active { filter: brightness(0.92); }
+
+/* Cabeçalhos de tela + pílula contadora */
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
+.screen-title { font-size: 1.1rem; font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0.25rem 0; }
+.pill {
+  flex: 0 0 auto; font-size: 0.72rem; font-weight: 600;
+  padding: 0.25rem 0.6rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.small { font-size: 0.78rem; }
+
+/* Brainstorming */
+.insight { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.insight-text { margin: 0 0 0.6rem; font-size: 0.98rem; line-height: 1.35; }
+.card.form { display: flex; flex-direction: column; gap: 0.55rem; }
+.card.form input, .card.form textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); border-radius: 10px; padding: 0.6rem 0.7rem; font: inherit;
+}
+
+/* Tarefas — checkbox circular */
+.task-row { gap: 0.7rem; }
+.check {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px;
+  border: 2px solid var(--muted); background: transparent;
+}
+.check:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* Overlay de captura (sheet) */
+.overlay {
+  position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,0.5);
+  display: flex; align-items: flex-end;
+}
+.sheet {
+  width: 100%; max-height: 88vh; overflow-y: auto;
+  background: var(--bg); border-top-left-radius: 18px; border-top-right-radius: 18px;
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+.sheet-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.5rem 0 0.75rem; position: sticky; top: 0; background: var(--bg);
+}
