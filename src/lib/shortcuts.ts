@@ -9,6 +9,7 @@ import { getDb } from "./db";
  */
 const NEW_ITEM_EVENT = "vistage:new-item";
 const QUICK_CAPTURE_EVENT = "vistage:quick-capture";
+const SEARCH_EVENT = "vistage:open-search";
 
 export function triggerNewItem(): void {
   window.dispatchEvent(new CustomEvent(NEW_ITEM_EVENT));
@@ -16,6 +17,19 @@ export function triggerNewItem(): void {
 
 export function triggerQuickCapture(): void {
   window.dispatchEvent(new CustomEvent(QUICK_CAPTURE_EVENT));
+}
+
+/** Abre a busca global (command palette) — usado pelo modo PESQUISA no mobile. */
+export function triggerSearch(): void {
+  window.dispatchEvent(new CustomEvent(SEARCH_EVENT));
+}
+
+export function useSearchEvent(handler: () => void): void {
+  useEffect(() => {
+    const listener = () => handler();
+    window.addEventListener(SEARCH_EVENT, listener);
+    return () => window.removeEventListener(SEARCH_EVENT, listener);
+  }, [handler]);
 }
 
 // Intenção de "criar item" disparada por NAVEGAÇÃO (command palette, menu "+").

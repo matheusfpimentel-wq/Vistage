@@ -1,26 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Bell, CalendarRange, CheckSquare, LayoutDashboard, Menu, Wallet } from "lucide-react";
+import { CheckSquare, Search, Sparkles, Sun, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { triggerSearch } from "@/lib/shortcuts";
 import { DATA_CHANGED } from "@/lib/events";
 
 /**
  * Barra de navegação inferior — só aparece em telas pequenas (mobile).
- * Concentra os destinos mais usados; o botão "Menu" abre o drawer completo
- * com todos os módulos.
+ * Os MODOS do celular: Hoje | Foco | Brainstorm | Pesquisa | Tarefas.
+ * Captura rápida é um botão flutuante no header; o menu completo de módulos
+ * abre pelo hambúrguer do header.
  */
 const TABS = [
-  { to: "/", label: "Início", icon: LayoutDashboard, end: true },
-  { to: "/alertas", label: "Alertas", icon: Bell, end: false },
-  { to: "/gigs", label: "GIGs", icon: CalendarRange, end: false },
+  { to: "/", label: "Hoje", icon: Sun, end: true, badge: true },
+  { to: "/foco", label: "Foco", icon: Target, end: false },
+  { to: "/brainstorm", label: "Brainstorm", icon: Sparkles, end: false },
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, end: false },
-  { to: "/financeiro", label: "Financeiro", icon: Wallet, end: false },
 ];
 
-export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
+export function MobileTabBar() {
   const [criticalCount, setCriticalCount] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,23 +49,20 @@ export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     };
   }, []);
 
+  const itemCls = (active: boolean) =>
+    cn(
+      "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] transition-colors",
+      active ? "text-primary" : "text-muted-foreground"
+    );
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t bg-card/95 backdrop-blur md:hidden">
-      {TABS.map(({ to, label, icon: Icon, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={({ isActive }) =>
-            cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] transition-colors",
-              isActive ? "text-primary" : "text-muted-foreground"
-            )
-          }
-        >
+      {/* Hoje | Foco | Brainstorm (3 primeiros) */}
+      {TABS.slice(0, 3).map(({ to, label, icon: Icon, end, badge }) => (
+        <NavLink key={to} to={to} end={end} className={({ isActive }) => itemCls(isActive)}>
           <span className="relative">
             <Icon className="h-5 w-5" />
-            {to === "/alertas" && criticalCount > 0 && (
+            {badge && criticalCount > 0 && (
               <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
                 {criticalCount}
               </span>
@@ -73,14 +71,16 @@ export function MobileTabBar({ onOpenMenu }: { onOpenMenu: () => void }) {
           {label}
         </NavLink>
       ))}
-      <button
-        type="button"
-        onClick={onOpenMenu}
-        className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] text-muted-foreground"
-      >
-        <Menu className="h-5 w-5" />
-        Menu
+      {/* Pesquisa — abre a busca global (não é rota). */}
+      <button type="button" onClick={triggerSearch} className={itemCls(false)}>
+        <Search className="h-5 w-5" />
+        Pesquisa
       </button>
+      {/* Tarefas */}
+      <NavLink to="/tarefas" className={({ isActive }) => itemCls(isActive)}>
+        <CheckSquare className="h-5 w-5" />
+        Tarefas
+      </NavLink>
     </nav>
   );
 }
