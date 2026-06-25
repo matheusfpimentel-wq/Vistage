@@ -1,7 +1,7 @@
 import { Flame, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { STICKY_COLORS, heatColor, heatLabel, type Idea } from "../types";
+import { heatCardBg, heatColor, heatLabel, IDEA_HEAT_MAX, type Idea } from "../types";
 
 type Props = {
   items: Idea[];
@@ -25,12 +25,12 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete }: Props) {
   }
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {items.map((i, idx) => (
+      {items.map((i) => (
         <div
           key={i.id}
           className={cn(
             "group relative flex h-full flex-col gap-2 rounded-md border-2 p-3 text-left transition hover:scale-[1.02] hover:shadow-md",
-            STICKY_COLORS[idx % STICKY_COLORS.length]
+            heatCardBg(i.heat)
           )}
         >
           <button
@@ -75,14 +75,14 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete }: Props) {
               onClick={(e) => { e.stopPropagation(); onToggleHot(i); }}
               className={cn(
                 "absolute right-8 top-2 rounded p-0.5 transition",
-                i.heat === 3
+                i.heat === IDEA_HEAT_MAX
                   ? "flex text-red-500"
                   : "hidden text-muted-foreground hover:text-red-500 group-hover:flex"
               )}
-              aria-label={i.heat === 3 ? "Desmarcar ideia quente" : "Marcar como ideia quente"}
-              title={i.heat === 3 ? "Ideia quente" : "Marcar como quente"}
+              aria-label={i.heat === IDEA_HEAT_MAX ? "Desmarcar ideia quente" : "Marcar como ideia quente"}
+              title={i.heat === IDEA_HEAT_MAX ? "Ideia quente" : "Marcar como quente"}
             >
-              <Flame className={cn("h-3.5 w-3.5", i.heat === 3 && "fill-current")} />
+              <Flame className={cn("h-3.5 w-3.5", i.heat === IDEA_HEAT_MAX && "fill-current")} />
             </button>
           )}
           {onDelete && (
