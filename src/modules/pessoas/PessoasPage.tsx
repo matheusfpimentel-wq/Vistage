@@ -556,7 +556,7 @@ function PersonCard({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
-      className="group relative flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border bg-card p-3 text-left transition hover:border-primary hover:shadow-md"
+      className="group relative flex cursor-pointer items-center gap-3 overflow-hidden glass-panel p-3 text-left transition hover:border-primary hover:shadow-md"
     >
       <div
         className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
