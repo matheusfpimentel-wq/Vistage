@@ -51,7 +51,47 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .brand { font-weight: 700; letter-spacing: 0.02em; }
 
+/* Header: identidade (isótipo + nome) à esquerda */
+.identity-chip {
+  display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 60vw;
+  background: none; border: none; padding: 0.15rem 0.3rem 0.15rem 0.15rem; border-radius: 999px;
+  color: var(--text);
+}
+.identity-chip:active { background: var(--surface-2); }
+.identity-chip-iso { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; background: var(--surface-2); }
+.identity-chip-mono {
+  width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-weight: 800;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.identity-chip-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .topbar-actions { display: flex; align-items: center; gap: 0.35rem; }
+.bell-streak { display: flex; align-items: center; gap: 0.15rem; }
+.streak-chip {
+  font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+  padding: 0.1rem 0.4rem; border-radius: 999px;
+  background: color-mix(in srgb, #fb923c 18%, transparent); color: #fb923c;
+}
+
+/* Folha de identidade */
+.identity-sheet { display: flex; flex-direction: column; gap: 0.8rem; padding-bottom: 0.5rem; }
+.identity-hero { display: flex; align-items: center; justify-content: center; padding: 0.5rem 0; }
+.identity-iso { width: 96px; height: 96px; border-radius: 24px; object-fit: cover; background: var(--surface-2); border: 1px solid var(--border); }
+.identity-mono {
+  width: 96px; height: 96px; border-radius: 24px; display: flex; align-items: center; justify-content: center;
+  font-size: 2.4rem; font-weight: 800; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.identity-stats { display: flex; gap: 0.5rem; }
+.identity-stats > div {
+  flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem;
+}
+.identity-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+.identity-actions .full { margin-top: 0; }
 .iconbtn {
   position: relative; display: flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 10px;
@@ -137,6 +177,31 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .anotar textarea { font-size: 0.9rem; }
 .anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
+/* Prompt de categorias (Pesquisa) — ícone + texto, antes de digitar */
+.cat-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+.cat-btn {
+  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
+  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
+  border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 0.9rem;
+  color: var(--text); box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.cat-btn:active { transform: scale(0.985); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.cat-ic {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 12px; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.cat-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.cat-text strong { font-size: 0.98rem; }
+.cat-text .muted { font-size: 0.8rem; }
+.cat-chevron { color: var(--muted); flex: 0 0 auto; }
+
+/* Cabeçalho da busca: voltar + campo */
+.search-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.search-head .search { margin-bottom: 0; flex: 1; }
+
 .bars { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
 .bars li { display: flex; justify-content: space-between; font-size: 0.85rem; }
 
@@ -208,6 +273,17 @@ button { font-family: inherit; cursor: pointer; }
 .focus-task:active { background: var(--surface); }
 .focus-task-box { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--accent); flex-shrink: 0; }
 .focus-task-title { flex: 1; font-size: 0.9rem; }
+
+/* Controles do foco: pause (emoji) + encerrar, fora do círculo */
+.foco-controls { display: flex; align-items: center; justify-content: center; gap: 0.9rem; width: 100%; }
+.focus-pause {
+  display: flex; align-items: center; justify-content: center;
+  width: 60px; height: 60px; border-radius: 999px; font-size: 1.5rem; line-height: 1;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+  box-shadow: 0 6px 18px -10px rgba(0,0,0,0.6);
+}
+.focus-pause:active { transform: scale(0.92); }
+.focus-encerrar { min-width: 140px; }
 
 /* ── Login / utilidades ────────────────────────── */
 .center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; }
@@ -297,6 +373,62 @@ button { font-family: inherit; cursor: pointer; }
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 10px; padding: 0.6rem 0.7rem; font: inherit;
 }
+
+/* ── Tela Hoje (redesenhada) ─────────────────────────────────────────── */
+.today-top { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 0.5rem; }
+.today-streak { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; text-align: center; }
+.streak-flame { font-size: 1.6rem; line-height: 1; }
+.streak-num { font-size: 2.2rem; font-weight: 800; line-height: 1; color: var(--accent); }
+.today-grid { display: flex; flex-direction: column; }
+.grid-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.grid-list li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; min-width: 0; }
+.grid-time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); flex: 0 0 auto; }
+.grid-ic { color: var(--muted); flex: 0 0 auto; display: flex; }
+.grid-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Card grande de compromissos: degradê, borda menos arredondada */
+.today-commit {
+  margin: 0.6rem 0 0.5rem; padding: 1rem; border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--accent) 20%, transparent) 0%, transparent 55%),
+    linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 150%);
+  box-shadow: 0 10px 26px -16px rgba(0,0,0,0.6);
+}
+.today-commit-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.commit-count {
+  font-size: 0.78rem; font-weight: 800; min-width: 22px; height: 22px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent);
+}
+.commit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.commit-list li { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.commit-ic {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 9px; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.commit-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
+.commit-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
+.commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commit-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
+.commit-empty { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.commit-cta {
+  margin-top: 0.8rem; width: 100%; text-align: center; padding: 0.7rem;
+  border-radius: 10px; font-weight: 700; font-size: 0.92rem;
+  background: var(--accent); color: #fff; border: none;
+}
+.commit-cta:active { filter: brightness(0.93); }
+
+/* Split inferior: contatos esfriando | última GIG */
+.today-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.mini-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; }
+.mini-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-title { display: block; margin-top: 0.2rem; font-size: 1rem; }
+
+.today-motivation { display: flex; gap: 0.6rem; align-items: flex-start; border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.today-motivation p { margin: 0; font-size: 0.92rem; line-height: 1.4; }
+.motivation-spark { color: var(--accent); font-size: 1.1rem; line-height: 1.3; flex: 0 0 auto; }
 
 /* Tarefas — checkbox circular */
 .task-row { gap: 0.7rem; }

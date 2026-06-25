@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
@@ -12,15 +12,20 @@ type Row = {
   meta: Record<string, unknown>;
 };
 
-const KIND_TABS: { id: Kind; label: string }[] = [
-  { id: "all", label: "Tudo" },
-  { id: "gig", label: "GIGs" },
-  { id: "task", label: "Tarefas" },
-  { id: "idea", label: "Ideias" },
-  { id: "track", label: "Músicas" },
-  { id: "contact", label: "Pessoas" },
-  { id: "venue", label: "Venues" },
+/** Categorias do prompt inicial — ícone + texto. "all" = todas as informações. */
+const CATEGORIES: { id: Kind; label: string; hint: string; icon: ReactNode }[] = [
+  { id: "all", label: "Todas as informações", hint: "Busca em tudo", icon: <IcLayers /> },
+  { id: "gig", label: "GIGs", hint: "Shows e festas", icon: <IcGig /> },
+  { id: "task", label: "Tarefas", hint: "A fazer e em andamento", icon: <IcCheck /> },
+  { id: "idea", label: "Ideias", hint: "Insights e brainstorm", icon: <IcBulb /> },
+  { id: "track", label: "Músicas", hint: "Faixas em produção", icon: <IcNote /> },
+  { id: "contact", label: "Pessoas", hint: "Contatos e fornecedores", icon: <IcUser /> },
+  { id: "venue", label: "Venues", hint: "Casas e locais", icon: <IcPin /> },
 ];
+const CAT_LABEL: Record<Kind, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.id, c.label])
+) as Record<Kind, string>;
+
 const KIND_LABEL: Record<string, string> = {
   gig: "GIG",
   task: "Tarefa",
@@ -42,49 +47,92 @@ function num(v: unknown): number | null {
 }
 
 export function Buscar() {
+  const [category, setCategory] = useState<Kind | null>(null);
   const [term, setTerm] = useState("");
-  const [kind, setKind] = useState<Kind>("all");
   const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
+    const t = term.trim().toLowerCase();
+    if (!category || !t) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     let q = supabase
       .from("catalog_mirror")
       .select("kind, source_id, title, subtitle, meta")
       .order("title")
       .limit(60);
-    if (kind !== "all") q = q.eq("kind", kind);
-    const t = term.trim().toLowerCase();
-    if (t) q = q.ilike("search_text", `%${t}%`);
+    if (category !== "all") q = q.eq("kind", category);
+    q = q.ilike("search_text", `%${t}%`);
     const { data } = await q;
     setRows((data ?? []) as Row[]);
     setLoading(false);
-  }, [term, kind]);
+  }, [term, category]);
 
+  // Busca ao digitar (debounce). Sem termo → nada na tela.
   useEffect(() => {
+    if (!category) return;
     const id = setTimeout(() => void load(), 220);
     return () => clearTimeout(id);
-  }, [load]);
+  }, [load, category]);
 
+  // Volta pro prompt de categorias.
+  function back() {
+    setCategory(null);
+    setTerm("");
+    setRows([]);
+    setOpenKey(null);
+  }
+
+  // ── Prompt inicial: o que você quer pesquisar? ──────────────────────────────
+  if (!category) {
+    return (
+      <div className="screen">
+        <h2 className="screen-title">O que você quer pesquisar?</h2>
+        <div className="cat-grid">
+          {CATEGORIES.map((c) => (
+            <button key={c.id} className="cat-btn" onClick={() => setCategory(c.id)}>
+              <span className="cat-ic">{c.icon}</span>
+              <span className="cat-text">
+                <strong>{c.label}</strong>
+                <span className="muted">{c.hint}</span>
+              </span>
+              <span className="cat-chevron" aria-hidden>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const t = term.trim();
   return (
     <div className="screen">
-      <input
-        className="search"
-        placeholder="Buscar GIGs, tarefas, ideias, pessoas…"
-        value={term}
-        onChange={(e) => setTerm(e.target.value)}
-      />
-      <div className="seg seg-scroll">
-        {KIND_TABS.map((k) => (
-          <button key={k.id} className={kind === k.id ? "active" : ""} onClick={() => setKind(k.id)}>
-            {k.label}
-          </button>
-        ))}
+      <div className="search-head">
+        <button className="iconbtn" onClick={back} aria-label="Voltar">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+        </button>
+        <input
+          ref={inputRef}
+          className="search"
+          placeholder={`Buscar em ${CAT_LABEL[category]}…`}
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+        />
       </div>
 
-      {loading ? (
+      {t === "" ? (
+        <p className="muted center-text" style={{ marginTop: "2rem" }}>
+          Digite pra buscar em <strong>{CAT_LABEL[category]}</strong>.
+        </p>
+      ) : loading ? (
         <div className="center">
           <span className="spinner" />
         </div>
@@ -229,3 +277,13 @@ function AnotarBox({ r }: { r: Row }) {
     </div>
   );
 }
+
+// ── Ícones (inline, no estilo do app) ────────────────────────────────────────
+const IP = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+function IcLayers() { return <svg {...IP}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5M2 12l10 5 10-5" /></svg>; }
+function IcGig() { return <svg {...IP}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg>; }
+function IcCheck() { return <svg {...IP}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>; }
+function IcBulb() { return <svg {...IP}><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>; }
+function IcNote() { return <svg {...IP}><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /><path d="M9 18V5l12-2v13" /></svg>; }
+function IcUser() { return <svg {...IP}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>; }
+function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>; }

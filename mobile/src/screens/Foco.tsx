@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { clearFocusNotification, showFocusNotification } from "../push";
 
@@ -36,23 +36,21 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ── Círculo do foco (anel de progresso + play/pause) ─────────────────────────
+// ── Círculo do foco (anel de progresso + contador) ───────────────────────────
+// Só MOSTRA: o contador fica sempre visível (00:00 parado). Play/pause/encerrar
+// são botões dedicados fora do círculo.
 function FocusRing({
   size,
   progress,
   timeLabel,
   subLabel,
-  phase,
   expired,
-  onTap,
 }: {
   size: number;
   progress: number | null;
   timeLabel: string;
   subLabel: string;
-  phase: "idle" | "running";
   expired: boolean;
-  onTap: () => void;
 }) {
   const stroke = Math.round(size * 0.06);
   const r = (size - stroke) / 2;
@@ -62,13 +60,7 @@ function FocusRing({
   const ringColor = expired ? "#f59e0b" : "var(--accent)";
 
   return (
-    <button
-      type="button"
-      className="focus-ring"
-      style={{ width: size, height: size }}
-      onClick={onTap}
-      aria-label={phase === "idle" ? "Iniciar foco" : "Pausar/retomar"}
-    >
+    <div className="focus-ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="focus-ring-svg">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
         {progress != null && (
@@ -86,21 +78,47 @@ function FocusRing({
         )}
       </svg>
       <span className="focus-ring-center">
-        {phase === "idle" ? (
-          <svg width={size * 0.28} height={size * 0.28} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        ) : (
-          <>
-            <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.19 }}>
-              {timeLabel}
-            </span>
-            <span className="focus-ring-sub">{subLabel}</span>
-          </>
-        )}
+        <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.19 }}>
+          {timeLabel}
+        </span>
+        <span className="focus-ring-sub">{subLabel}</span>
       </span>
-    </button>
+    </div>
   );
+}
+
+// ── Persistência do cronômetro ───────────────────────────────────────────────
+// Mantém a sessão viva mesmo se sair da tela ou fechar o app: guarda os marcos
+// (timestamps absolutos) no localStorage e recompõe o tempo ao voltar.
+const LS_SESSION = "vistage.foco.session";
+type Persisted = {
+  startedAtMs: number;
+  pauseOffsetMs: number;
+  pausedAtMs: number | null;
+  activity: string;
+  plannedStr: string;
+};
+function loadSession(): Persisted | null {
+  try {
+    const v = localStorage.getItem(LS_SESSION);
+    return v ? (JSON.parse(v) as Persisted) : null;
+  } catch {
+    return null;
+  }
+}
+function saveSession(p: Persisted) {
+  try {
+    localStorage.setItem(LS_SESSION, JSON.stringify(p));
+  } catch {
+    /* storage cheio/indisponível */
+  }
+}
+function clearSession() {
+  try {
+    localStorage.removeItem(LS_SESSION);
+  } catch {
+    /* ok */
+  }
 }
 
 // ── Painel: PALCO ────────────────────────────────────────────────────────────
@@ -349,6 +367,9 @@ export function Foco() {
   const tickRef = useRef<number | undefined>(undefined);
   const notifRef = useRef<number | undefined>(undefined);
   const expiredNotifiedRef = useRef(false);
+  // Refs lidos pelos timers (evita closure velha ao restaurar a sessão).
+  const activityRef = useRef(ACTIVITIES[0]);
+  const plannedMsRef = useRef<number | null>(null);
 
   const [doneAt, setDoneAt] = useState<{ startedAt: string; endedAt: string } | null>(null);
   const [energy, setEnergy] = useState(3);
@@ -364,15 +385,51 @@ export function Foco() {
   const plannedMs = plannedMin ? plannedMin * 60_000 : null;
   const progress = plannedMs ? elapsedMs / plannedMs : null;
 
-  const notifBody = useCallback(
-    (ms: number) => `${activity} · ${fmtClock(ms)}${plannedMin ? ` / ${fmtPlanned(plannedMin)}` : ""}`,
-    [activity, plannedMin]
-  );
-
   function computeElapsed(): number {
     if (startRef.current == null) return 0;
     const end = pauseStartRef.current ?? Date.now();
     return Math.max(0, end - startRef.current - pauseOffsetRef.current);
+  }
+
+  function notifBody(): string {
+    const ms = computeElapsed();
+    const pMin = plannedMsRef.current ? Math.round(plannedMsRef.current / 60_000) : null;
+    return `${activityRef.current} · ${fmtClock(ms)}${pMin ? ` / ${fmtPlanned(pMin)}` : ""}`;
+  }
+
+  function persist() {
+    if (startRef.current == null) return;
+    saveSession({
+      startedAtMs: startRef.current,
+      pauseOffsetMs: pauseOffsetRef.current,
+      pausedAtMs: pauseStartRef.current,
+      activity: activityRef.current,
+      plannedStr,
+    });
+  }
+
+  // Liga os timers (contador + notificação persistente). Lê os refs, então
+  // funciona tanto no start quanto ao restaurar uma sessão já em andamento.
+  function runTimers() {
+    stopTimers();
+    tickRef.current = window.setInterval(() => {
+      const ms = computeElapsed();
+      setElapsedMs(ms);
+      const pMs = plannedMsRef.current;
+      if (pMs && ms >= pMs && !expiredNotifiedRef.current) {
+        expiredNotifiedRef.current = true;
+        setExpired(true);
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        void showFocusNotification(`Tempo previsto atingido — continue ou encerre. (${activityRef.current})`, {
+          title: "⏰ Tempo previsto atingido",
+          renotify: true,
+        });
+      }
+    }, 1000);
+    void showFocusNotification(notifBody());
+    notifRef.current = window.setInterval(() => {
+      void showFocusNotification(notifBody());
+    }, 30_000);
   }
 
   function start() {
@@ -380,31 +437,15 @@ export function Foco() {
     pauseOffsetRef.current = 0;
     pauseStartRef.current = null;
     expiredNotifiedRef.current = false;
+    activityRef.current = activity;
+    plannedMsRef.current = plannedMs;
     setElapsedMs(0);
     setExpired(false);
     setPaused(false);
     setMsg(null);
     setPhase("running");
-
-    tickRef.current = window.setInterval(() => {
-      const ms = computeElapsed();
-      setElapsedMs(ms);
-      if (plannedMs && ms >= plannedMs && !expiredNotifiedRef.current) {
-        expiredNotifiedRef.current = true;
-        setExpired(true);
-        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        void showFocusNotification(`Tempo previsto atingido — continue ou encerre. (${activity})`, {
-          title: "⏰ Tempo previsto atingido",
-          renotify: true,
-        });
-      }
-    }, 1000);
-
-    // Notificação persistente com o tempo (atualiza a cada 30s, tag "foco").
-    void showFocusNotification(notifBody(0));
-    notifRef.current = window.setInterval(() => {
-      void showFocusNotification(notifBody(computeElapsed()));
-    }, 30_000);
+    persist();
+    runTimers();
   }
 
   function togglePause() {
@@ -417,8 +458,10 @@ export function Foco() {
       setPaused(false);
     } else {
       pauseStartRef.current = Date.now();
+      setElapsedMs(computeElapsed()); // congela o número no instante da pausa
       setPaused(true);
     }
+    persist();
   }
 
   function stopTimers() {
@@ -428,6 +471,7 @@ export function Foco() {
 
   function encerrar() {
     stopTimers();
+    clearSession();
     void clearFocusNotification();
     const end = Date.now();
     setDoneAt({
@@ -437,7 +481,40 @@ export function Foco() {
     setPhase("done");
   }
 
-  useEffect(() => () => stopTimers(), []);
+  // Restaura uma sessão em andamento ao montar (trocar de aba/fechar e voltar).
+  useEffect(() => {
+    const s = loadSession();
+    if (s && typeof s.startedAtMs === "number") {
+      startRef.current = s.startedAtMs;
+      pauseOffsetRef.current = s.pauseOffsetMs ?? 0;
+      pauseStartRef.current = s.pausedAtMs ?? null;
+      activityRef.current = s.activity || ACTIVITIES[0];
+      const n = Number(s.plannedStr);
+      plannedMsRef.current = s.plannedStr.trim() && !isNaN(n) && n > 0 ? Math.round(n) * 60_000 : null;
+      setActivity(s.activity || ACTIVITIES[0]);
+      setPlannedStr(s.plannedStr ?? "");
+      setPaused(s.pausedAtMs != null);
+      const ms = computeElapsed();
+      setElapsedMs(ms);
+      if (plannedMsRef.current && ms >= plannedMsRef.current) {
+        expiredNotifiedRef.current = true;
+        setExpired(true);
+      }
+      setPhase("running");
+      runTimers();
+    } else {
+      // Sem sessão ativa: aplica a atividade sugerida pela tela Hoje (se houver).
+      try {
+        const suggested = localStorage.getItem("vistage.foco.suggestedActivity");
+        if (suggested && ACTIVITIES.includes(suggested)) setActivity(suggested);
+        localStorage.removeItem("vistage.foco.suggestedActivity");
+      } catch {
+        /* ok */
+      }
+    }
+    return () => stopTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save() {
     if (!doneAt) return;
@@ -471,7 +548,16 @@ export function Foco() {
     }
   }
 
-  const subLabel = paused ? "▶ pausado" : plannedMin ? `⏸ / ${fmtPlanned(plannedMin)}` : "⏸ foco";
+  const subLabel =
+    phase === "running"
+      ? paused
+        ? "pausado"
+        : plannedMin
+          ? `/ ${fmtPlanned(plannedMin)}`
+          : "em foco"
+      : plannedMin
+        ? `previsto ${fmtPlanned(plannedMin)}`
+        : "pronto pra focar";
 
   return (
     <div className="screen foco">
@@ -482,9 +568,7 @@ export function Foco() {
             progress={phase === "running" ? progress : plannedMs ? 0 : null}
             timeLabel={fmtClock(elapsedMs)}
             subLabel={subLabel}
-            phase={phase === "running" ? "running" : "idle"}
             expired={expired}
-            onTap={phase === "running" ? togglePause : start}
           />
 
           {expired && phase === "running" && (
@@ -492,33 +576,48 @@ export function Foco() {
           )}
 
           {phase === "idle" ? (
-            <div className="form" style={{ width: "100%", maxWidth: 360 }}>
-              <label>
-                Tipo de foco
-                <select value={activity} onChange={(e) => setActivity(e.target.value)}>
-                  {ACTIVITIES.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Tempo previsto (opcional)
-                <input
-                  type="number"
-                  min={1}
-                  inputMode="numeric"
-                  placeholder="ex: 45 (minutos)"
-                  value={plannedStr}
-                  onChange={(e) => setPlannedStr(e.target.value)}
-                />
-              </label>
-            </div>
+            <>
+              <button className="primary big-btn" onClick={start}>
+                ▶ Iniciar foco
+              </button>
+              <div className="form" style={{ width: "100%", maxWidth: 360 }}>
+                <label>
+                  Tipo de foco
+                  <select value={activity} onChange={(e) => setActivity(e.target.value)}>
+                    {ACTIVITIES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Tempo previsto (opcional)
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    placeholder="ex: 45 (minutos)"
+                    value={plannedStr}
+                    onChange={(e) => setPlannedStr(e.target.value)}
+                  />
+                </label>
+              </div>
+            </>
           ) : (
-            <button className="danger big-btn" onClick={encerrar}>
-              Encerrar
-            </button>
+            <div className="foco-controls">
+              <button
+                type="button"
+                className="focus-pause"
+                onClick={togglePause}
+                aria-label={paused ? "Retomar" : "Pausar"}
+              >
+                {paused ? "▶️" : "⏸️"}
+              </button>
+              <button className="danger focus-encerrar" onClick={encerrar}>
+                Encerrar
+              </button>
+            </div>
           )}
 
           <ContextPanel activity={activity} />
