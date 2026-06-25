@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Monitor, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,6 +97,7 @@ function formatSecs(total: number): string {
 }
 
 export function WorkSessionWidget() {
+  const navigate = useNavigate();
   const [session, setSession] = useState<WorkSession | null>(null);
   const [timer, setTimer] = useState("");
   const [startOpen, setStartOpen] = useState(false);
@@ -271,6 +273,13 @@ export function WorkSessionWidget() {
   async function handleEnd() {
     if (!session) return;
     setSaving(true);
+    // Pós-set (o "ouro"): se foi sessão de PALCO ligada a um gig, ao encerrar
+    // manda direto pro debrief — o After-Action Review no momento de maior sinal,
+    // logo depois de tocar. Captura o gig antes de limpar o estado da sessão.
+    const stageGigId =
+      session.activity_type === "Tempo de palco" && session.context_type === "gig"
+        ? session.context_id
+        : null;
     try {
       const ctxType = contextType === "none" ? null : contextType;
       const ctxId = contextId === "none" ? null : Number(contextId);
@@ -293,7 +302,12 @@ export function WorkSessionWidget() {
       setContextId("none");
       setEnergy(3);
       setFocus(3);
-      toast.success("Sessão encerrada");
+      if (stageGigId) {
+        toast.success("Set encerrado — vamos pro debrief enquanto está fresco.");
+        navigate(`/gigs?debrief=${stageGigId}`);
+      } else {
+        toast.success("Sessão encerrada");
+      }
     } finally {
       setSaving(false);
     }

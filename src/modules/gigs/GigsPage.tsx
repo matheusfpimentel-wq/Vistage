@@ -116,7 +116,9 @@ export function GigsPage() {
       }
     });
     setSearchParams({}, { replace: true });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    // Observa searchParams (não só mount): ao encerrar um set vindo de outra
+    // tela OU já estando em /gigs, o ?debrief=<id> abre o debrief mesmo assim.
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function openCreate() {
     setEditing(null);
