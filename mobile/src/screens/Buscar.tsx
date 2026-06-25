@@ -74,7 +74,6 @@ export function Buscar() {
         className="search"
         placeholder="Buscar GIGs, tarefas, ideias, pessoas…"
         value={term}
-        autoFocus
         onChange={(e) => setTerm(e.target.value)}
       />
       <div className="seg seg-scroll">

@@ -18,12 +18,13 @@ const SOURCE_LABEL: Record<string, string> = { gig: "GIG", class: "Aula", task: 
 
 function fmtWhen(iso: string | null): string {
   if (!iso) return "";
-  const hasTime = iso.includes("T");
-  const d = new Date(hasTime ? iso : iso + "T00:00:00");
+  const d = new Date(iso);
   const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  return hasTime
-    ? `${date} · ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-    : date;
+  // start_at agora vem sempre com fuso; "dia inteiro" = meia-noite local.
+  const allDay = d.getHours() === 0 && d.getMinutes() === 0;
+  return allDay
+    ? date
+    : `${date} · ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function Hoje() {

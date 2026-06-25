@@ -59,9 +59,20 @@ function weekStartISO(): string {
   d.setDate(d.getDate() - ((day + 6) % 7));
   return toLocalISODate(d);
 }
-/** Combina data + hora "HH:MM" num timestamp ISO; só data se sem hora. */
+/** Offset local ("-03:00") na data dada — pra o timestamptz do Supabase guardar
+ *  o INSTANTE certo. Sem isso, "20:00" sem fuso virava UTC e o celular voltava
+ *  3h a menos. Meio-dia evita pular o dia ao calcular o offset. */
+function tzOffset(date: string): string {
+  const mins = -new Date(`${date}T12:00:00`).getTimezoneOffset();
+  const sign = mins >= 0 ? "+" : "-";
+  const a = Math.abs(mins);
+  return `${sign}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`;
+}
+
+/** Combina data + hora "HH:MM" num timestamp COM fuso local. Sem hora → meia-noite
+ *  local (o celular trata meia-noite como "dia inteiro" na exibição). */
 function startAt(date: string, time: string | null): string {
-  return time ? `${date}T${time}:00` : date;
+  return `${date}T${time ?? "00:00"}:00${tzOffset(date)}`;
 }
 
 // ── Builders do espelho (lêem o banco LOCAL) ────────────────────────────────
@@ -80,8 +91,8 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
   const db = getDb();
   const today = todayISO();
   const [gigs, classes, tasks] = await Promise.all([
-    db.select<{ id: number; date: string; start_time: string | null; end_time: string | null; venue_name: string; venue_city: string | null; status: string }[]>(
-      `SELECT id, date, start_time, end_time, venue_name, venue_city, status FROM gigs
+    db.select<{ id: number; date: string; start_time: string | null; end_time: string | null; venue_name: string; event_name: string | null; recurring_event_name: string | null; venue_city: string | null; status: string }[]>(
+      `SELECT id, date, start_time, end_time, venue_name, event_name, recurring_event_name, venue_city, status FROM gigs
         WHERE date >= $1 AND status != 'Cancelada' ORDER BY date LIMIT 100`,
       [today]
     ),
@@ -100,11 +111,11 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
 
   const rows: AgendaRow[] = [];
   for (const g of gigs)
-    rows.push({ user_id: uid, source: "gig", source_id: String(g.id), title: g.venue_name, start_at: startAt(g.date, g.start_time), end_at: g.end_time ? startAt(g.date, g.end_time) : null, location: g.venue_city, meta: { status: g.status } });
+    rows.push({ user_id: uid, source: "gig", source_id: String(g.id), title: gigDisplayName(g), start_at: startAt(g.date, g.start_time), end_at: g.end_time ? startAt(g.date, g.end_time) : null, location: g.venue_city, meta: { status: g.status } });
   for (const c of classes)
     rows.push({ user_id: uid, source: "class", source_id: String(c.id), title: c.subject ?? "Aula", start_at: startAt(c.date, c.start_time), end_at: null, location: null, meta: {} });
   for (const t of tasks)
-    rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date, end_at: null, location: null, meta: { priority: t.priority } });
+    rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date ? startAt(t.due_date, null) : null, end_at: null, location: null, meta: { priority: t.priority } });
   return rows;
 }
 

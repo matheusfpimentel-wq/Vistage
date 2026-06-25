@@ -15,6 +15,7 @@ const ACCENT_HSL: Record<string, string> = {
   rose: "345 82% 66%",
   amber: "38 92% 56%",
   cyan: "188 82% 52%",
+  bordo: "345 62% 52%",
 };
 
 const LS_THEME = "vistage.mobile.theme"; // override manual de dia/noite no aparelho
