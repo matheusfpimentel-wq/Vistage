@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
 import { toLocalISODate, toLocalYearMonth } from "./format";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 
 // ── Config (app_settings) ───────────────────────────────────────────────────
 async function getSetting(key: string): Promise<string | null> {
@@ -269,24 +270,28 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   // alimentar o modo foco/palco depois. Cachê é da própria conta (RLS).
   const gigs = await db.select<{
     id: number; date: string; start_time: string | null; end_time: string | null;
-    venue_name: string; venue_city: string | null; status: string; cache_amount: number | null;
+    venue_name: string; event_name: string | null; recurring_event_name: string | null;
+    venue_city: string | null; status: string; cache_amount: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
     time_slots: string | null; gig_research: string | null;
   }[]>(
-    `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.venue_city, g.status,
-            g.cache_amount, g.day_contact_name, g.day_contact_phone, pc.name AS promoter_name,
-            g.time_slots, g.gig_research
+    `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
+            g.venue_city, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
+            pc.name AS promoter_name, g.time_slots, g.gig_research
        FROM gigs g
        LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
       ORDER BY g.date DESC LIMIT 800`,
     []
   );
-  for (const g of gigs)
+  for (const g of gigs) {
+    // Título da festa (recorrente - edição / evento), com fallback pro venue —
+    // mesmo padrão do desktop (gigDisplayName). Antes ia só o venue.
+    const gigTitle = gigDisplayName(g);
     rows.push({
       user_id: uid, kind: "gig", source_id: String(g.id),
-      title: g.venue_name,
+      title: gigTitle,
       subtitle: [g.date, g.venue_city, g.status].filter(Boolean).join(" · "),
-      search_text: lc(g.venue_name, g.venue_city, g.status, g.date, g.promoter_name, g.day_contact_name),
+      search_text: lc(gigTitle, g.venue_name, g.event_name, g.recurring_event_name, g.venue_city, g.status, g.date, g.promoter_name, g.day_contact_name),
       meta: {
         date: g.date, start_time: g.start_time, end_time: g.end_time, city: g.venue_city,
         status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
@@ -296,6 +301,7 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         ideas: parseMirrorIdeas(g.gig_research),
       },
     });
+  }
 
   // Músicas (tracks) — título final ou de trabalho; estágio/projeto/gênero.
   const tracks = await db.select<{
@@ -355,6 +361,35 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       subtitle: [v.city, v.state].filter(Boolean).join(", ") || null,
       search_text: lc(v.name, v.city, v.state),
       meta: { city: v.city, state: v.state, capacity: v.capacity },
+    });
+
+  // Tarefas em aberto — pesquisáveis no celular (busca por tarefa).
+  const ctasks = await db.select<{ id: number; title: string; status: string; priority: string | null; due_date: string | null; category: string | null }[]>(
+    `SELECT id, title, status, priority, due_date, category FROM tasks
+      WHERE status NOT IN ('Concluída','Cancelada') ORDER BY due_date IS NULL, due_date LIMIT 800`,
+    []
+  );
+  for (const t of ctasks)
+    rows.push({
+      user_id: uid, kind: "task", source_id: String(t.id),
+      title: t.title,
+      subtitle: [t.category, t.priority, t.due_date].filter(Boolean).join(" · ") || null,
+      search_text: lc(t.title, t.category, t.priority),
+      meta: { status: t.status, priority: t.priority, due_date: t.due_date, category: t.category },
+    });
+
+  // Ideias — pesquisáveis no celular (busca por ideia).
+  const cideas = await db.select<{ id: number; title: string; body: string | null; category: string | null; maturation: string; heat: number }[]>(
+    `SELECT id, title, body, category, maturation, heat FROM ideas ORDER BY updated_at DESC LIMIT 800`,
+    []
+  );
+  for (const i of cideas)
+    rows.push({
+      user_id: uid, kind: "idea", source_id: String(i.id),
+      title: i.title,
+      subtitle: [i.category, i.maturation].filter(Boolean).join(" · ") || null,
+      search_text: lc(i.title, i.body, i.category, i.maturation),
+      meta: { body: i.body, category: i.category, maturation: i.maturation, heat: i.heat },
     });
 
   return rows;
@@ -619,6 +654,19 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
         [stamped, Number(targetId)]
       );
     }
+  } else if (kind === "idea") {
+    // Ideia solta do brainstorm no celular (aditivo) — entra como Embrião/fria.
+    const { createIdea } = await import("@/modules/ideas/api");
+    await createIdea({
+      title: s("title") ?? "Ideia",
+      body: s("body"),
+      category: null,
+      tags: [],
+      heat: 1,
+      maturation: "Embrião",
+      converted_to: null,
+      converted_id: null,
+    });
   } else if (kind === "task_done") {
     // Tarefa tickada no celular → conclui de fato no banco local, com os efeitos
     // colaterais reais (sync de derivadas, tombstone do Todoist, etc.).
