@@ -93,10 +93,10 @@ export function FocoPage() {
   const totalMinutes = activityStats.reduce((s, a) => s + a.total_minutes, 0);
 
   return (
-    <Tabs defaultValue="trilha" className="space-y-4">
+    <Tabs defaultValue="foco" className="space-y-4">
       <TabsList>
-        <TabsTrigger value="trilha">Trilha da Semana</TabsTrigger>
         <TabsTrigger value="foco">Modo Foco</TabsTrigger>
+        <TabsTrigger value="trilha">Trilha da Semana</TabsTrigger>
         <TabsTrigger value="highlights">Highlights</TabsTrigger>
       </TabsList>
 
