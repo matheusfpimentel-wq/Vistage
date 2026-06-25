@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { ArrowUpDown, Check, ChevronDown, ChevronRight, GripVertical, PanelLeftClose } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronRight, ChevronUp, GripVertical, PanelLeftClose } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -32,6 +32,7 @@ import {
   type ItemGroups,
   type NavItem,
 } from "@/lib/nav";
+import { useHoverScroll } from "./useHoverScroll";
 
 // Item arrastável — usado só no modo de reordenação. A linha inteira é a alça.
 function SortableNavItem({ item }: { item: NavItem }) {
@@ -79,6 +80,11 @@ export function Sidebar({
 
   const sensors = useSensors(useSensor(PointerSensor));
 
+  // Setas de rolagem com auto-scroll ao pousar o mouse — pro menu caber em telas
+  // baixas. Recalcula quando o conteúdo muda de altura (recolher grupo/editar).
+  const { scrollRef, arrows, updateArrows, startAutoScroll, stopAutoScroll, scrollByStep } =
+    useHoverScroll<HTMLElement>();
+
   const reload = useCallback(() => {
     void Promise.all([loadOrderedNav(), loadGroupLabels()]).then(([ordered, labels]) => {
       setNav(ordered);
@@ -100,6 +106,10 @@ export function Sidebar({
       return next;
     });
   }, []);
+
+  useEffect(() => {
+    updateArrows();
+  }, [nav, collapsed, editing, updateArrows]);
 
   const reorderable = nav.filter((i) => !i.fixed);
   // Lista achatada com os grupos contíguos (na ordem dos grupos) — é a base do
@@ -181,7 +191,8 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3">
+      <div className="relative flex-1 overflow-hidden">
+      <nav ref={scrollRef} onScroll={updateArrows} className="h-full overflow-y-auto p-3">
         {editing ? (
           // Modo de reordenação: arraste os itens (inclusive entre grupos).
           <DndContext
@@ -274,6 +285,31 @@ export function Sidebar({
           </>
         )}
       </nav>
+        {arrows.up && (
+          <button
+            type="button"
+            aria-label="Rolar para cima"
+            onMouseEnter={() => startAutoScroll(-1)}
+            onMouseLeave={stopAutoScroll}
+            onClick={() => scrollByStep(-160)}
+            className="absolute left-1/2 top-0 z-20 flex h-5 w-10 -translate-x-1/2 items-center justify-center rounded-b-xl border border-t-0 border-border/60 bg-card/90 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+        )}
+        {arrows.down && (
+          <button
+            type="button"
+            aria-label="Rolar para baixo"
+            onMouseEnter={() => startAutoScroll(1)}
+            onMouseLeave={stopAutoScroll}
+            onClick={() => scrollByStep(160)}
+            className="absolute bottom-0 left-1/2 z-20 flex h-5 w-10 -translate-x-1/2 items-center justify-center rounded-t-xl border border-b-0 border-border/60 bg-card/90 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        )}
+      </div>
 
       <div className="border-t p-2 flex items-center justify-between gap-1">
         <button
