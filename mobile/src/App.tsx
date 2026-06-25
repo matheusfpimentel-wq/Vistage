@@ -55,6 +55,7 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [tab, setTab] = useState<Tab>("hoje");
   const [capturing, setCapturing] = useState(false);
+  const [navHidden, setNavHidden] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
 
   useEffect(() => {
@@ -109,14 +110,30 @@ export function App() {
         {tab === "tarefas" && <Tarefas />}
       </main>
 
-      <nav className="tabbar tabbar-icons">
-        {TABS.map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>
-            <span className="tab-ic">{TAB_ICON[t]}</span>
-            <span className="tab-lb">{TAB_LABEL[t]}</span>
-          </button>
-        ))}
-      </nav>
+      <div className={"tabwrap" + (navHidden ? " hidden" : "")}>
+        <button
+          className="tab-handle"
+          onClick={() => setNavHidden((v) => !v)}
+          aria-label={navHidden ? "Mostrar menu" : "Recolher menu"}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d={navHidden ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+          </svg>
+        </button>
+        <nav className="tabbar tabbar-rail">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              className={"tab-tile" + (tab === t ? " active" : "")}
+              onClick={() => setTab(t)}
+              aria-label={TAB_LABEL[t]}
+              title={TAB_LABEL[t]}
+            >
+              {TAB_ICON[t]}
+            </button>
+          ))}
+        </nav>
+      </div>
 
       {/* Captura rápida em overlay (acionada pelo botão do header). */}
       {capturing && (

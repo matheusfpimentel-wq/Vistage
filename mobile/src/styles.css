@@ -237,15 +237,38 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
 }
 
-/* Tabbar com ícones (5 modos) */
-.tabbar-icons { grid-template-columns: repeat(5, 1fr); }
-.tabbar-icons button {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 0.5rem 0 calc(0.5rem + env(safe-area-inset-bottom));
-  font-size: 0.62rem; font-weight: 600;
+/* Tabbar estilo "rail" — só ícones em tiles, recolhível com animação */
+.tabwrap {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+  display: flex; flex-direction: column; align-items: center;
+  transition: transform 0.28s cubic-bezier(.4, 0, .2, 1);
 }
-.tab-ic { display: flex; }
-.tab-lb { line-height: 1; }
+.tabwrap.hidden { transform: translateY(calc(100% - 24px)); }
+.tab-handle {
+  width: 60px; height: 22px; display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); color: var(--muted);
+  border: 1px solid var(--border); border-bottom: none;
+  border-radius: 12px 12px 0 0;
+}
+.tabbar-rail {
+  position: static; display: flex; justify-content: space-around; gap: 0.4rem;
+  width: 100%; padding: 0.45rem 0.6rem calc(0.45rem + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0; box-shadow: 0 -8px 22px -14px rgba(0,0,0,0.55);
+  grid-template-columns: none;
+}
+.tab-tile {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; height: 46px; border-radius: 13px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.tab-tile:active { transform: scale(0.9); }
+.tab-tile.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 
 /* Botão de captura no header */
 .capture-fab {
