@@ -370,7 +370,7 @@ async function buildPreferences(uid: string): Promise<{ user_id: string; theme: 
     );
     const map = new Map(rows.map((r) => [r.key, r.value]));
     const dt = map.get("theme");
-    if (dt === "light" || dt === "dark") theme = dt;
+    if (dt === "light" || dt === "dark" || dt === "color") theme = dt;
     if (map.get("accent")) accent = map.get("accent")!;
   } catch {
     if (typeof localStorage !== "undefined") {
