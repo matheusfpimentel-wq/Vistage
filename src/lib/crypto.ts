@@ -16,6 +16,11 @@ const PBKDF2_ITER = 210_000;
 // em base64/JSON gigante na memória — a causa do "salvamento eterno"/OOM.
 const ENC_MAGIC = new Uint8Array([0x56, 0x45, 0x4e, 0x43]); // "VENC"
 const ENC_HEADER_LEN = 39; // magic(4)+ver(1)+iter(4 BE)+saltLen(1)+salt(16)+ivLen(1)+iv(12)
+// Versão 2 adiciona, LOGO APÓS o cabeçalho e ANTES do ciphertext, um bloco de
+// DICA DE SENHA em texto puro: hintLen(2 BE) + hint(UTF-8). Fica fora do que é
+// cifrado de propósito — a dica precisa ser lida antes de decifrar. Arquivos v1
+// (sem dica) continuam válidos; o leitor decide pelo byte de versão.
+const ENC_HINT_MAX_BYTES = 1024;
 
 type Envelope = {
   app: typeof ENC_APP;
@@ -105,39 +110,88 @@ export function isEncryptedContainer(bytes: Uint8Array): boolean {
   );
 }
 
-/** Cifra bytes (o zip do contêiner) com a senha. Retorna o envelope binário. */
-export async function encryptBytes(plain: Uint8Array, password: string): Promise<Uint8Array> {
+/**
+ * Cifra bytes (o zip do contêiner) com a senha. Retorna o envelope binário.
+ * Com `hint`, grava também a dica de senha em texto puro (envelope v2) — útil
+ * para lembrar a senha sem comprometer o conteúdo (a dica não destranca nada).
+ */
+export async function encryptBytes(
+  plain: Uint8Array,
+  password: string,
+  hint?: string | null
+): Promise<Uint8Array> {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(password, salt, PBKDF2_ITER);
   const cipher = new Uint8Array(
     await crypto.subtle.encrypt({ name: "AES-GCM", iv: iv as BufferSource }, key, plain as BufferSource)
   );
-  const header = new Uint8Array(ENC_HEADER_LEN);
+
+  const hintBytes =
+    hint && hint.trim()
+      ? new TextEncoder().encode(hint.trim()).slice(0, ENC_HINT_MAX_BYTES)
+      : null;
+  const version = hintBytes ? 2 : 1;
+  const hintBlockLen = hintBytes ? 2 + hintBytes.length : 0;
+
+  const header = new Uint8Array(ENC_HEADER_LEN + hintBlockLen);
   header.set(ENC_MAGIC, 0);
-  header[4] = 1; // versão do envelope
+  header[4] = version; // versão do envelope (1 = sem dica, 2 = com dica)
   new DataView(header.buffer).setUint32(5, PBKDF2_ITER, false); // big-endian
   header[9] = salt.length; // 16
   header.set(salt, 10);
   header[26] = iv.length; // 12
   header.set(iv, 27);
+  if (hintBytes) {
+    new DataView(header.buffer).setUint16(ENC_HEADER_LEN, hintBytes.length, false); // BE
+    header.set(hintBytes, ENC_HEADER_LEN + 2);
+  }
   const out = new Uint8Array(header.length + cipher.length);
   out.set(header, 0);
   out.set(cipher, header.length);
   return out;
 }
 
+/**
+ * Lê a DICA DE SENHA (texto puro) de um envelope "VENC" v2, SEM decifrar nada.
+ * Retorna null se não houver dica (v1) ou se o arquivo não for um envelope.
+ */
+export function readEncryptedHint(bytes: Uint8Array): string | null {
+  if (!isEncryptedContainer(bytes)) return null;
+  if (bytes[4] < 2) return null; // v1: sem dica
+  const saltLen = bytes[9];
+  const ivOff = 10 + saltLen;
+  const ivLen = bytes[ivOff];
+  const hintOff = ivOff + 1 + ivLen;
+  if (bytes.length < hintOff + 2) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const hintLen = view.getUint16(hintOff, false);
+  if (hintLen === 0 || bytes.length < hintOff + 2 + hintLen) return null;
+  try {
+    return new TextDecoder().decode(bytes.slice(hintOff + 2, hintOff + 2 + hintLen));
+  } catch {
+    return null;
+  }
+}
+
 /** Decifra um envelope binário "VENC". Lança "Senha incorreta." se não bater. */
 export async function decryptBytes(envelope: Uint8Array, password: string): Promise<Uint8Array> {
   if (!isEncryptedContainer(envelope)) throw new Error("Arquivo criptografado inválido.");
   const view = new DataView(envelope.buffer, envelope.byteOffset, envelope.byteLength);
+  const version = envelope[4];
   const iter = view.getUint32(5, false);
   const saltLen = envelope[9];
   const salt = envelope.slice(10, 10 + saltLen);
   const ivOff = 10 + saltLen;
   const ivLen = envelope[ivOff];
   const iv = envelope.slice(ivOff + 1, ivOff + 1 + ivLen);
-  const cipher = envelope.slice(ivOff + 1 + ivLen);
+  let dataOff = ivOff + 1 + ivLen;
+  // v2: pula o bloco de dica em texto puro (hintLen BE + hint) antes do cipher.
+  if (version >= 2) {
+    const hintLen = view.getUint16(dataOff, false);
+    dataOff += 2 + hintLen;
+  }
+  const cipher = envelope.slice(dataOff);
   const key = await deriveKey(password, salt, iter);
   let plain: ArrayBuffer;
   try {
