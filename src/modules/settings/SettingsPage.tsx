@@ -20,6 +20,7 @@ import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
+import { BackupSettings } from "./BackupSettings";
 import { TodoistSettings } from "./TodoistSettings";
 import { NotionSettings } from "./NotionSettings";
 import { GoogleDriveSettings } from "./GoogleDriveSettings";
@@ -95,6 +96,8 @@ export function SettingsPage() {
             envie para terceiros.
           </p>
         </div>
+        {/* Backups rotativos (cópia a cada salvamento) */}
+        <BackupSettings />
         {/* Importação/Exportação CSV */}
         <CsvImportExport />
         {/* Capturas do celular descartadas (recuperáveis) */}

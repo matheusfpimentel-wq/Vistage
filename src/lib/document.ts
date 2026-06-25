@@ -10,6 +10,7 @@ import {
   type Backup,
 } from "./backup";
 import { getDb } from "./db";
+import { rotateBackup } from "./rotatingBackup";
 import { toast } from "@/components/ui/toaster";
 
 // "Documento" no estilo Office: um arquivo .vistage que contém TODOS os dados
@@ -184,6 +185,8 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     try {
       const { skipped } = await saveBackupToPath(path);
       set({ dirty: false });
+      // Backup rotativo (rede de segurança) — best-effort, não bloqueia.
+      void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
           `Salvo em ${fileName(path)} — mas ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora do arquivo. Confira se ainda existem na pasta de uploads.`
@@ -219,6 +222,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
       set({ currentPath: path, currentName: fileName(path), dirty: false });
+      void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
           `Salvo como ${fileName(path)} — ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora.`
