@@ -2022,6 +2022,23 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE ideas ADD COLUMN source_note_id INTEGER;
     `,
   },
+  {
+    version: 140,
+    description:
+      "Biblioteca → setlist do GIG: gig_library_tracks (faixa da biblioteca tocada + snapshot título/artista; ON DELETE SET NULL preserva o que foi tocado se a faixa for excluída da biblioteca)",
+    sql: `
+      CREATE TABLE IF NOT EXISTS gig_library_tracks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gig_id INTEGER NOT NULL REFERENCES gigs(id) ON DELETE CASCADE,
+        library_track_id INTEGER REFERENCES library_tracks(id) ON DELETE SET NULL,
+        played_title TEXT,
+        played_artist TEXT,
+        position INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE INDEX IF NOT EXISTS idx_glt_gig ON gig_library_tracks(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_glt_track ON gig_library_tracks(library_track_id);
+    `,
+  },
 ];
 
 

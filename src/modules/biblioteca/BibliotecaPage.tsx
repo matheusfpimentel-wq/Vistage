@@ -2,6 +2,7 @@ import { Music2, FileText, NotebookPen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModuleView } from "@/lib/moduleView";
 import { Conhecimento } from "./views/Conhecimento";
+import { Musicas } from "./views/Musicas";
 
 export function BibliotecaPage() {
   const [tab, setTab] = useModuleView<"musicas" | "documentos" | "conhecimento">(
@@ -27,15 +28,7 @@ export function BibliotecaPage() {
         </TabsList>
 
         <TabsContent value="musicas">
-          <ComingSoon
-            icon={Music2}
-            title="Biblioteca de Músicas"
-            lines={[
-              "Espelho consultável da sua biblioteca real, em planilha editável.",
-              "Lê ID3 (título, artista, gênero, BPM, tonalidade, comentários) e grava as tags de volta nos arquivos por ação explícita.",
-              "Alimenta o setlist da GIG. O áudio nunca entra no .vistage — só caminho + metadados.",
-            ]}
-          />
+          <Musicas />
         </TabsContent>
 
         <TabsContent value="documentos">

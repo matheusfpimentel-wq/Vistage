@@ -2,6 +2,7 @@
 // embarcada roda aqui no Rust (não funciona no JS do webview). Os comandos
 // `db_*` expõem a mesma interface (`select`/`execute`) que o frontend usa.
 
+mod audio;
 mod db;
 mod gcal;
 mod gdrive;
@@ -52,6 +53,10 @@ pub fn run() {
             gdrive::gdrive_ensure_folder,
             gdrive::gdrive_upload,
             gdrive::gdrive_download,
+            audio::audio_scan_folder,
+            audio::audio_read_tags,
+            audio::audio_write_tags,
+            audio::audio_paths_exist,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar a aplicação Tauri");
