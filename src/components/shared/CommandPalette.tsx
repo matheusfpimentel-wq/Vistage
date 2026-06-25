@@ -8,8 +8,10 @@ import {
   Film,
   GraduationCap,
   Heart,
+  Library,
   Lightbulb,
   Music,
+  NotebookPen,
   PartyPopper,
   Search,
   Store,
@@ -56,6 +58,8 @@ const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: str
   student: GraduationCap,
   track: Music,
   party: PartyPopper,
+  library_track: Library,
+  note: NotebookPen,
 };
 
 type QuickAction = {

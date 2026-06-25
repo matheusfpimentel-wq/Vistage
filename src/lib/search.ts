@@ -14,7 +14,9 @@ export type SearchHit = {
     | "idea"
     | "student"
     | "track"
-    | "party";
+    | "party"
+    | "library_track"
+    | "note";
   id: number;
   title: string;
   subtitle: string;
@@ -33,7 +35,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   const db = getDb();
   const like = `%${q}%`;
 
-  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties, libraryTracks, notes] = await Promise.all([
     db.select<
       {
         id: number;
@@ -147,6 +149,22 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, title, status, date FROM parties
         WHERE title LIKE $1 OR venue_name LIKE $1 OR description LIKE $1
         ORDER BY date IS NULL, date DESC LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; title: string | null; artist: string | null }[]
+    >(
+      `SELECT id, title, artist FROM library_tracks
+        WHERE archived_at IS NULL AND (title LIKE $1 OR artist LIKE $1 OR genre LIKE $1 OR comments LIKE $1)
+        ORDER BY artist, title LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; title: string }[]
+    >(
+      `SELECT id, title FROM notes
+        WHERE title LIKE $1 OR body LIKE $1
+        ORDER BY updated_at DESC LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -270,6 +288,24 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/festas",
     });
   }
+  for (const lt of libraryTracks) {
+    hits.push({
+      kind: "library_track",
+      id: lt.id,
+      title: lt.title || lt.artist || "(sem título)",
+      subtitle: lt.artist ?? "Biblioteca",
+      route: "/biblioteca",
+    });
+  }
+  for (const n of notes) {
+    hits.push({
+      kind: "note",
+      id: n.id,
+      title: n.title || "(sem título)",
+      subtitle: "Nota",
+      route: "/biblioteca",
+    });
+  }
   return hits;
 }
 
@@ -286,4 +322,6 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   student: "Aluno",
   track: "Track",
   party: "Festa",
+  library_track: "Música",
+  note: "Nota",
 };

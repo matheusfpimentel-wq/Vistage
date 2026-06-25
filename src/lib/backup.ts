@@ -79,6 +79,15 @@ const TABLES = [
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks
   "okr_kr_tasks",            // okr_id → okrs, task_id → tasks
+  // ── Biblioteca (sem deps externas; ordem interna pais→filhos) ──────────────
+  "library_tracks",          // Músicas — só caminho+metadados (áudio NUNCA embutido)
+  "drive_documents",         // Documentos — cache da pasta do Drive
+  "note_folders",            // Conhecimento — parent_id self-ref (DEFERRED_FK)
+  "note_tags",
+  "notes",                   // folder_id → note_folders
+  "note_note_tags",          // note_id → notes, tag_id → note_tags
+  "note_links",              // source/target → notes
+  "document_links",          // drive_document_id → drive_documents
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -779,6 +788,10 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   classes: { student_package_id: "student_packages" },
   party_tasks: { stage_id: "party_stages" },
   music_project_costs: { project_id: "music_projects", track_id: "tracks" },
+  // Biblioteca: ideas é inserida ANTES de notes (está no topo de TABLES), então
+  // source_note_id é adiado p/ a 2ª passagem. note_folders.parent_id é self-ref.
+  ideas: { source_note_id: "notes" },
+  note_folders: { parent_id: "note_folders" },
 };
 
 export async function restoreBackup(backup: Backup): Promise<{
