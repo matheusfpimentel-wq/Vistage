@@ -604,10 +604,16 @@ async function buildAlerts(uid: string): Promise<
 // ocultas/excluídas (isso é preferência de máquina, localStorage do desktop).
 async function buildProvocations(uid: string): Promise<{ user_id: string; key: string; text: string }[]> {
   const out: { user_id: string; key: string; text: string }[] = [];
-  EVERGREEN.forEach((t, i) => out.push({ user_id: uid, key: `eg:${i}`, text: t }));
+  const seen = new Set<string>();
+  const add = (key: string, text: string) => {
+    if (seen.has(key)) return; // PK é (user_id, key) — chaves repetidas quebram o insert
+    seen.add(key);
+    out.push({ user_id: uid, key, text });
+  };
+  EVERGREEN.forEach((t, i) => add(`eg:${i}`, t));
   try {
     const raw = await generateRaw();
-    for (const r of raw) out.push({ user_id: uid, key: r.key, text: r.text });
+    for (const r of raw) add(r.key, r.text);
   } catch {
     /* dados insuficientes — fica só com as perenes */
   }
