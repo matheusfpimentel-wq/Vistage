@@ -112,6 +112,58 @@ pub fn gdrive_upload(
         .ok_or_else(|| "Resposta sem id ao subir arquivo".to_string())
 }
 
+/// Um arquivo dentro de uma pasta do Drive (Biblioteca de Documentos).
+#[derive(serde::Serialize)]
+pub struct DriveFile {
+    id: String,
+    name: String,
+    mime_type: String,
+    web_view_link: Option<String>,
+    modified_time: Option<String>,
+}
+
+fn parse_file(f: &serde_json::Value) -> DriveFile {
+    DriveFile {
+        id: f.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        name: f.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        mime_type: f.get("mimeType").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        web_view_link: f.get("webViewLink").and_then(|x| x.as_str()).map(|s| s.to_string()),
+        modified_time: f.get("modifiedTime").and_then(|x| x.as_str()).map(|s| s.to_string()),
+    }
+}
+
+/// Lista os arquivos de uma pasta designada (precisa do escopo drive.readonly).
+#[tauri::command]
+pub fn gdrive_list_folder(access_token: String, folder_id: String) -> Result<Vec<DriveFile>, String> {
+    let q = format!("'{}' in parents and trashed = false", folder_id.replace('\'', "\\'"));
+    let url = format!(
+        "https://www.googleapis.com/drive/v3/files?q={}&fields=files(id,name,mimeType,webViewLink,modifiedTime)&orderBy=folder,name&pageSize=300",
+        url_encode(&q)
+    );
+    let resp = ureq::get(&url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .call()
+        .map_err(|e| format!("Falha ao listar a pasta do Drive: {e}"))?;
+    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+    let files = v.get("files").and_then(|f| f.as_array()).cloned().unwrap_or_default();
+    Ok(files.iter().map(parse_file).collect())
+}
+
+/// Metadados de um arquivo do Drive pelo id.
+#[tauri::command]
+pub fn gdrive_file_meta(access_token: String, file_id: String) -> Result<DriveFile, String> {
+    let url = format!(
+        "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,webViewLink,modifiedTime",
+        url_encode(&file_id)
+    );
+    let resp = ureq::get(&url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .call()
+        .map_err(|e| format!("Falha ao obter metadados do arquivo: {e}"))?;
+    let f: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+    Ok(parse_file(&f))
+}
+
 /// Baixa um arquivo do Drive pelo id. Devolve o conteúdo em base64.
 #[tauri::command]
 pub fn gdrive_download(access_token: String, file_id: String) -> Result<String, String> {

@@ -12,6 +12,9 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { getDb } from "./db";
 
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+// readonly: pra LISTAR/abrir arquivos de uma pasta designada (contratos, riders)
+// que o app NÃO criou. Escopo novo → exige novo consentimento (reconectar).
+const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const ROOT_FOLDER_NAME = "Vistage";
 // Credenciais reaproveitadas da seção do Calendar.
 const GCAL_CLIENT_ID = "gcal.client_id";
@@ -60,7 +63,7 @@ export async function connectDrive(): Promise<void> {
   }
   const start = await invoke<{ auth_url: string; port: number; verifier: string; redirect_uri: string }>(
     "gcal_start_oauth",
-    { clientId, scopes: [DRIVE_SCOPE] }
+    { clientId, scopes: [DRIVE_SCOPE, DRIVE_READONLY_SCOPE] }
   );
   await openExternal(start.auth_url);
   const cb = await invoke<{ code: string }>("gcal_wait_callback", {
@@ -106,6 +109,26 @@ async function getValidToken(): Promise<string> {
   });
   await saveTokens(fresh);
   return fresh.access_token;
+}
+
+// ── Biblioteca de Documentos (pasta designada, leitura) ──────────────────────
+export type DriveFile = {
+  id: string;
+  name: string;
+  mime_type: string;
+  web_view_link: string | null;
+  modified_time: string | null;
+};
+
+/** Lista os arquivos de uma pasta do Drive (precisa do escopo readonly). */
+export async function listDriveFolder(folderId: string): Promise<DriveFile[]> {
+  const token = await getValidToken();
+  return invoke<DriveFile[]>("gdrive_list_folder", { accessToken: token, folderId });
+}
+
+export async function driveFileMeta(fileId: string): Promise<DriveFile> {
+  const token = await getValidToken();
+  return invoke<DriveFile>("gdrive_file_meta", { accessToken: token, fileId });
 }
 
 // ── Pastas (raiz "Vistage" + subpasta por módulo, em português) ───────────────
