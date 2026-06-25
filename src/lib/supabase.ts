@@ -25,6 +25,12 @@ export async function signOut(): Promise<void> {
   if (error) throw error;
 }
 
+/** Troca a senha do usuário logado (Supabase Auth). Exige sessão ativa. */
+export async function updatePassword(newPassword: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 export async function currentUser(): Promise<User | null> {
   const { data } = await supabase.auth.getUser();
   return data.user ?? null;
