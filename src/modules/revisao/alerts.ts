@@ -107,6 +107,7 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { id: "parties-stalled", category: "Festas", message: "Festas sem movimento há +15 dias", trigger: "Festa sem nenhuma atualização por mais de 15 dias" },
   { id: "parties-undated", category: "Festas", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
   { id: "classes-unprepared", category: "Aulas", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
+  { id: "students-low-balance", category: "Aulas", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com 2 ou menos aulas (ou 2h) restantes — hora de renovar" },
   { id: "superfans-stale", category: "Pessoas", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
   { id: "superfans-pending-interaction", category: "Pessoas", message: "Superfãs com interação pendente há 30+ dias", trigger: "Fã superfã sem interação registrada há 30 dias ou mais" },
   { id: "crm-no-interaction-week", category: "Pessoas", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
@@ -232,6 +233,24 @@ export function computeAlerts(
       critical: false,
       label: `${stats.unpreparedClasses} aula${plural(stats.unpreparedClasses)} não preparada${plural(stats.unpreparedClasses)} em breve`,
     });
+  if ((stats.lowBalanceStudents?.length ?? 0) > 0) {
+    const list = stats.lowBalanceStudents;
+    const single = list.length === 1 ? list[0] : null;
+    const remLabel = (r: { remaining: number; unit: "aula" | "h" }) =>
+      r.unit === "h"
+        ? `${r.remaining.toLocaleString("pt-BR")} h`
+        : `${r.remaining} aula${plural(r.remaining)}`;
+    alerts.push({
+      key: "students-low-balance",
+      icon: "warning",
+      // Uma só → abre a ficha do aluno (vê o pacote e renova); várias → lista.
+      to: single ? `/aulas?open=${single.studentId}` : "/aulas",
+      critical: false,
+      label: single
+        ? `${single.studentName} está com ${remLabel(single)} no pacote — hora de renovar`
+        : `${list.length} alunos com pacote de aulas quase no fim`,
+    });
+  }
   if (stats.superfasSemInteracao > 0)
     alerts.push({
       key: "superfans-stale",
