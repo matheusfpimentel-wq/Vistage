@@ -165,9 +165,12 @@ function KrRow({ kr, index, okrId, allTasks }: { kr: KeyResult; index: number; o
     setLinkedTasks(tasks);
   }
 
+  // Carrega os vínculos SEMPRE (não só ao abrir o painel) — senão o aviso
+  // "Nenhuma tarefa vinculada" ficava aceso mesmo com tarefa já vinculada,
+  // porque a lista só era buscada quando o painel abria.
   useEffect(() => {
-    if (tasksOpen) void refreshLinked();
-  }, [tasksOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+    void refreshLinked();
+  }, [okrId, index]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleLink() {
     if (selectedTaskId === "none") return;
