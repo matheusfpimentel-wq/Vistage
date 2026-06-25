@@ -206,14 +206,14 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
                               "pointer-events-none absolute inset-0 rounded-[inherit] border bg-gradient-to-br shadow-[0_4px_12px_-4px_rgba(0,0,0,0.45)] backdrop-blur-md transition-colors",
                               isActive
                                 ? "border-primary/45 from-primary/30 to-primary/[0.08] ring-1 ring-inset ring-primary/30"
-                                : "border-white/15 from-white/25 to-white/[0.04] dark:border-white/25 dark:from-white/[0.18] dark:to-white/[0.06]"
+                                : "border-white/15 from-white/25 to-white/[0.04] dark:border-white/[0.35] dark:from-white/[0.42] dark:to-white/[0.14]"
                             )}
                           />
                           {/* reflexo: brilho de vidro no topo (mais discreto no escuro,
                               onde o branco forte ficava "sujo") */}
                           <span
                             aria-hidden
-                            className="pointer-events-none absolute inset-x-1 top-1 h-[42%] rounded-[inherit] bg-gradient-to-b from-white/55 to-transparent opacity-70 dark:from-white/20 dark:opacity-40"
+                            className="pointer-events-none absolute inset-x-1 top-1 h-[42%] rounded-[inherit] bg-gradient-to-b from-white/55 to-transparent opacity-70 dark:from-white/40 dark:opacity-60"
                           />
                           <Icon
                             className={cn(
