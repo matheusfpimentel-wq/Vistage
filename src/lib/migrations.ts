@@ -1907,6 +1907,16 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_content_snapshots_content ON content_snapshots(content_id);
     `,
   },
+  {
+    version: 134,
+    description:
+      "finance_transactions — multi-moeda (amount continua em BRL; original_amount/exchange_rate só para exibição)",
+    sql: `
+      ALTER TABLE finance_transactions ADD COLUMN currency TEXT NOT NULL DEFAULT 'BRL';
+      ALTER TABLE finance_transactions ADD COLUMN original_amount REAL;
+      ALTER TABLE finance_transactions ADD COLUMN exchange_rate REAL;
+    `,
+  },
 ];
 
 

@@ -20,7 +20,8 @@ import type {
   TransactionStatus,
 } from "./types";
 
-const TX_COLUMNS = `t.id, t.kind, t.amount, t.date, t.description, t.category_id,
+const TX_COLUMNS = `t.id, t.kind, t.amount, t.currency, t.original_amount, t.exchange_rate,
+  t.date, t.description, t.category_id,
   t.gig_id, t.contact_id, t.class_id, t.student_package_id, t.track_id, t.party_id,
   t.music_cost_id, t.gig_sync, t.class_sync, t.status, t.payment_method, t.expense_type,
   t.receipt_file_path, t.tax_relevant, t.recurring_id, t.created_at, t.updated_at,

@@ -28,8 +28,10 @@ import {
 } from "../api";
 import { getDb } from "@/lib/db";
 import {
+  CURRENCIES,
   EXPENSE_TYPES,
   PAYMENT_METHODS,
+  currencySymbol,
   defaultStatus,
   statusesForKind,
   type FinanceCategory,
@@ -42,8 +44,13 @@ import type { Gig } from "@/modules/gigs/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listClasses, type ClassWithStudent } from "@/modules/classes/api";
-import { todayISO } from "@/lib/format";
+import { formatCurrency, todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
+
+/** Arredonda para centavos (2 casas) — evita ruído de ponto flutuante no BRL. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
 
 type Props = {
   open: boolean;
@@ -53,12 +60,21 @@ type Props = {
   onSaved: () => void;
 };
 
-type FormState = FinanceTransactionCreateInput;
+// O formulário sempre inicializa os campos de moeda (emptyState/txToState), então
+// os tratamos como obrigatórios aqui — ainda que sejam opcionais na criação.
+type FormState = FinanceTransactionCreateInput & {
+  currency: string;
+  original_amount: number | null;
+  exchange_rate: number | null;
+};
 
 function emptyState(kind: TransactionKind): FormState {
   return {
     kind,
     amount: 0,
+    currency: "BRL",
+    original_amount: null,
+    exchange_rate: null,
     date: todayISO(),
     description: null,
     category_id: null,
@@ -84,6 +100,9 @@ function txToState(t: FinanceTransaction): FormState {
   return {
     kind: t.kind,
     amount: t.amount,
+    currency: t.currency ?? "BRL",
+    original_amount: t.original_amount ?? null,
+    exchange_rate: t.exchange_rate ?? null,
     date: t.date,
     description: t.description,
     category_id: t.category_id,
@@ -132,7 +151,7 @@ export function TransactionForm({
       setGigHasSyncedTx((rows[0]?.n ?? 0) > 0);
     })();
   }, [state.gig_id, state.gig_sync, transaction]);
-  const [errors, setErrors] = useState<{ amount?: string; date?: string }>({});
+  const [errors, setErrors] = useState<{ amount?: string; date?: string; rate?: string }>({});
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
@@ -160,10 +179,52 @@ export function TransactionForm({
     setDirty(true);
   }
 
+  // Multi-moeda: `amount` é SEMPRE em BRL. Em moeda estrangeira, o usuário digita
+  // o valor original + a cotação, e o BRL é recalculado (original × cotação).
+  function changeCurrency(cur: string) {
+    setState((s) => {
+      if (cur === "BRL") {
+        // Volta pra BRL: mantém o equivalente já calculado em `amount`.
+        return { ...s, currency: "BRL", original_amount: null, exchange_rate: null };
+      }
+      const orig = s.original_amount ?? (s.amount || null);
+      const rate = s.exchange_rate ?? 1;
+      const amt = orig != null ? round2(orig * rate) : 0;
+      return { ...s, currency: cur, original_amount: orig, exchange_rate: rate, amount: amt };
+    });
+    setDirty(true);
+  }
+
+  function setForeignAmount(orig: number | null) {
+    setState((s) => {
+      const rate = s.exchange_rate ?? 0;
+      const amt = orig != null ? round2(orig * rate) : 0;
+      return { ...s, original_amount: orig, amount: amt };
+    });
+    setDirty(true);
+  }
+
+  function setRate(rate: number | null) {
+    setState((s) => {
+      const orig = s.original_amount ?? 0;
+      const amt = rate != null ? round2(orig * rate) : 0;
+      return { ...s, exchange_rate: rate, amount: amt };
+    });
+    setDirty(true);
+  }
+
   function validate(): boolean {
     const e: typeof errors = {};
     if (!state.date) e.date = "Obrigatório";
-    if (!state.amount || state.amount <= 0) e.amount = "Valor deve ser maior que zero";
+    const foreign = state.currency !== "BRL";
+    if (foreign) {
+      if (!state.original_amount || state.original_amount <= 0)
+        e.amount = "Valor deve ser maior que zero";
+      if (!state.exchange_rate || state.exchange_rate <= 0)
+        e.rate = "Informe a cotação";
+    } else if (!state.amount || state.amount <= 0) {
+      e.amount = "Valor deve ser maior que zero";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -193,6 +254,8 @@ export function TransactionForm({
   }
 
   const isExpense = state.kind === "expense";
+  const isForeign = state.currency !== "BRL";
+  const sym = currencySymbol(state.currency);
   const isLocked = state.gig_sync === 1 || state.class_sync === 1;
   const lockedSource = state.gig_sync === 1 ? "GIG" : "aula";
   const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
@@ -252,17 +315,23 @@ export function TransactionForm({
           )}
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Valor (R$)" required error={errors.amount}>
-              <Input
-                type="number"
-                min={0}
-                step={0.01}
-                value={state.amount || ""}
-                onChange={(e) =>
-                  set("amount", parseFloat(e.target.value) || 0)
-                }
+            <Field label="Moeda">
+              <Select
+                value={state.currency}
+                onValueChange={changeCurrency}
                 disabled={isLocked}
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCIES.map((c) => (
+                    <SelectItem key={c.code} value={c.code}>
+                      {c.symbol} · {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
             <Field label="Data" required error={errors.date}>
               <Input
@@ -274,6 +343,50 @@ export function TransactionForm({
               />
             </Field>
           </div>
+
+          {isForeign ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <Field label={`Valor (${sym})`} required error={errors.amount}>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={state.original_amount || ""}
+                  onChange={(e) =>
+                    setForeignAmount(parseFloat(e.target.value) || null)
+                  }
+                  disabled={isLocked}
+                />
+              </Field>
+              <Field label={`Cotação (${sym} → R$)`} error={errors.rate}>
+                <Input
+                  type="number"
+                  min={0}
+                  step={0.0001}
+                  value={state.exchange_rate ?? ""}
+                  onChange={(e) => setRate(parseFloat(e.target.value) || null)}
+                  disabled={isLocked}
+                  placeholder="ex.: 5,40"
+                />
+              </Field>
+              <Field label="Equivale a (R$)">
+                <div className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 text-sm tabular-nums">
+                  {formatCurrency(state.amount)}
+                </div>
+              </Field>
+            </div>
+          ) : (
+            <Field label="Valor (R$)" required error={errors.amount}>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                value={state.amount || ""}
+                onChange={(e) => set("amount", parseFloat(e.target.value) || 0)}
+                disabled={isLocked}
+              />
+            </Field>
+          )}
 
           <Field label="Descrição">
             <Textarea

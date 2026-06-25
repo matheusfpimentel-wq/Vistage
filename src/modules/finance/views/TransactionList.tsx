@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatMoney } from "@/lib/format";
 import type { FinanceTransactionWithCategory } from "../types";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -153,6 +153,14 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                   )}
                 >
                   {isIncome ? "+" : "−"} {formatCurrency(t.amount)}
+                  {t.currency && t.currency !== "BRL" && t.original_amount != null && (
+                    <div className="text-[11px] font-normal text-muted-foreground">
+                      {formatMoney(t.original_amount, t.currency)}
+                      {t.exchange_rate
+                        ? ` · ${t.exchange_rate.toLocaleString("pt-BR")}`
+                        : ""}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground truncate">
                   {t.category_name ?? "—"}
