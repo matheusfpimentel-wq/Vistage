@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Lock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -71,13 +72,31 @@ export function AdvancedRulesSettings() {
                       className="flex items-start justify-between gap-3 rounded-md border p-2.5"
                     >
                       <div className={cn("min-w-0", !on && "opacity-60")}>
-                        <p
-                          className={cn(
-                            "text-sm font-medium leading-snug",
-                            !on && "line-through"
+                        <p className="flex items-center gap-1.5 text-sm font-medium leading-snug">
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 shrink-0 rounded-full",
+                              r.severidade === "critico"
+                                ? "bg-red-500"
+                                : r.severidade === "atencao"
+                                ? "bg-amber-500"
+                                : "bg-muted-foreground/40"
+                            )}
+                            title={
+                              r.severidade === "critico"
+                                ? "Crítico"
+                                : r.severidade === "atencao"
+                                ? "Atenção"
+                                : "Informativo"
+                            }
+                          />
+                          {r.inegociavel && (
+                            <Lock
+                              className="h-3 w-3 shrink-0 text-emerald-500"
+                              aria-label="Inegociável — regra de dinheiro/fisco; só pode desativar, não excluir"
+                            />
                           )}
-                        >
-                          {r.message}
+                          <span className={cn(!on && "line-through")}>{r.message}</span>
                         </p>
                         <p className="text-xs leading-snug text-muted-foreground">
                           Dispara quando: {r.trigger}
