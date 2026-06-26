@@ -43,6 +43,12 @@ export function OrcamentoTab({
 }) {
   const navigate = useNavigate();
   const summary = budgetSummary(items);
+  // P&L da festa: o Orçamento é a verdade financeira — receita (ingressos
+  // vendidos + patrocínio) menos custo real = resultado líquido.
+  const ticketRevenue = tickets.reduce((s, t) => s + t.price * (t.quantity_sold || 0), 0);
+  const sponsorRevenue = party.sponsors.reduce((s, sp) => s + (sp.amount_cents || 0) / 100, 0);
+  const revenue = ticketRevenue + sponsorRevenue;
+  const net = revenue - summary.actual;
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
   const [newSubcategory, setNewSubcategory] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -151,25 +157,31 @@ export function OrcamentoTab({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      {/* P&L da festa — o Orçamento é a verdade financeira única */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-md border p-3">
-          <div className="text-xs text-muted-foreground">Projetado</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.projected)}</div>
+          <div className="text-xs text-muted-foreground">Receita</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{formatCurrency(revenue)}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            Ingressos {formatCurrency(ticketRevenue)} · Patrocínio {formatCurrency(sponsorRevenue)}
+          </div>
         </div>
         <div className="rounded-md border p-3">
-          <div className="text-xs text-muted-foreground">Real</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(summary.actual)}</div>
+          <div className="text-xs text-muted-foreground">Custo</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-red-400">{formatCurrency(summary.actual)}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">Projetado {formatCurrency(summary.projected)}</div>
         </div>
         <div className="rounded-md border p-3">
-          <div className="text-xs text-muted-foreground">Diferença</div>
+          <div className="text-xs text-muted-foreground">Resultado líquido</div>
           <div
             className={cn(
               "mt-1 text-lg font-semibold tabular-nums",
-              summary.actual > summary.projected ? "text-red-400" : "text-emerald-400"
+              net >= 0 ? "text-emerald-500" : "text-red-400"
             )}
           >
-            {formatCurrency(summary.actual - summary.projected)}
+            {formatCurrency(net)}
           </div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">Receita − custo real</div>
         </div>
       </div>
 
