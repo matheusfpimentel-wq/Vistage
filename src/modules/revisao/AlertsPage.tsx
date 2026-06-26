@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { BellOff, CheckCircle2, ChevronRight, Loader2, Pause, Play, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
-import { getDisabledRuleIds } from "./ruleConfig";
+import { getDisabledRuleIds, isPauseMode, setPauseMode } from "./ruleConfig";
 import { evaluateCustomRules } from "./customRules";
 import { filterSnoozed, snoozeAlert } from "./snooze";
 import { AlertIcon } from "./alertIcons";
@@ -18,6 +18,7 @@ import { DATA_CHANGED } from "@/lib/events";
 export function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paused, setPaused] = useState(isPauseMode());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(() => {
@@ -27,7 +28,7 @@ export function AlertsPage() {
         const [stats, custom] = await Promise.all([loadWeekStats(), evaluateCustomRules()]);
         setAlerts(
           await filterSnoozed([
-            ...computeAlerts(stats, undefined, getDisabledRuleIds()),
+            ...computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode()),
             ...custom,
           ])
         );
@@ -69,14 +70,35 @@ export function AlertsPage() {
               : `${groups.critico.length} crítico${groups.critico.length === 1 ? "" : "s"} · ${groups.atencao.length} de atenção · ${groups.info.length} informativo${groups.info.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-accent"
-          aria-label="Atualizar"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              const next = !paused;
+              setPaused(next);
+              setPauseMode(next);
+              refresh();
+            }}
+            className={cn(
+              "flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs transition",
+              paused
+                ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                : "text-muted-foreground hover:bg-accent"
+            )}
+            title="Modo pausa — suspende alertas de pipeline/continuidade (mantém dinheiro e prazo)"
+          >
+            {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
+            {paused ? "Pausado" : "Pausar"}
+          </button>
+          <button
+            type="button"
+            onClick={refresh}
+            className="flex h-9 w-9 items-center justify-center rounded-md border text-muted-foreground transition hover:bg-accent"
+            aria-label="Atualizar"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {loading ? (

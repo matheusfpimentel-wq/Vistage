@@ -144,6 +144,25 @@ export function ruleIdForKey(key: string): string {
 }
 
 /**
+ * Regras de PIPELINE/CONTINUIDADE — suspensas no Modo pausa. Dinheiro e prazo
+ * (cachê, tarefa vencida, GIG sem prep, debrief, aulas, aluno) NUNCA entram aqui.
+ */
+const PAUSABLE_RULE_IDS = new Set<string>([
+  "no-upcoming-gigs",
+  "funil-producao-vazio",
+  "tracks-stalled",
+  "content-stalled",
+  "ideas-stuck",
+  "superfans-stale",
+  "crm-no-interaction-week",
+]);
+
+/** O alerta é de pipeline/continuidade (suspenso no Modo pausa)? */
+export function isPausableKey(key: string): boolean {
+  return PAUSABLE_RULE_IDS.has(ruleIdForKey(key));
+}
+
+/**
  * Calcula a lista de alertas a partir das estatísticas da semana e de stats
  * extras (opcionais). `disabledRuleIds` remove as regras padrão que o usuário
  * desligou no editor — passado pelos consumidores (lido do cache local). O
@@ -152,7 +171,8 @@ export function ruleIdForKey(key: string): string {
 export function computeAlerts(
   stats: WeekStats,
   extra?: ExtraStats,
-  disabledRuleIds: string[] = []
+  disabledRuleIds: string[] = [],
+  paused = false
 ): AlertItem[] {
   const alerts: AlertItem[] = [];
 
@@ -318,9 +338,12 @@ export function computeAlerts(
   // Mensagens de motivação/parabéns NÃO são alertas — foram removidas do
   // sininho (os campos de ExtraStats correspondentes ficam sem uso aqui).
 
+  let result = alerts;
   if (disabledRuleIds.length > 0) {
     const disabled = new Set(disabledRuleIds);
-    return alerts.filter((a) => !disabled.has(ruleIdForKey(a.key)));
+    result = result.filter((a) => !disabled.has(ruleIdForKey(a.key)));
   }
-  return alerts;
+  // Modo pausa: tira os alertas de pipeline/continuidade (dinheiro/prazo ficam).
+  if (paused) result = result.filter((a) => !isPausableKey(a.key));
+  return result;
 }

@@ -35,3 +35,23 @@ export function toggleRuleDisabled(id: string, disabled: boolean): string[] {
   setDisabledRuleIds(next);
   return next;
 }
+
+/**
+ * Modo pausa: suspende os alertas de PIPELINE/CONTINUIDADE (gigs à frente, funil
+ * de produção, conteúdo/ideias parados, relacionamento) durante uma pausa
+ * deliberada — sem te xingar por isso. NÃO silencia dinheiro nem prazo. Também
+ * viaja no .vistage.
+ */
+export const PAUSE_MODE_KEY = "vistage.rules.pauseMode";
+
+export function isPauseMode(): boolean {
+  try {
+    return localStorage.getItem(PAUSE_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setPauseMode(on: boolean): void {
+  persistDocSetting(PAUSE_MODE_KEY, on ? "1" : "0");
+}

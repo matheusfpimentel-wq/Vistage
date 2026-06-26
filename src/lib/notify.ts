@@ -4,8 +4,8 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { computeAlerts } from "@/modules/revisao/alerts";
-import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { alertSeverity, computeAlerts } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
@@ -159,16 +159,21 @@ async function syncAlertNotifications(): Promise<void> {
   }
   if (!granted) return;
 
-  let critical;
+  let toPush;
   try {
     const stats = await loadWeekStats();
-    critical = (await filterSnoozed(computeAlerts(stats, undefined, getDisabledRuleIds()))).filter((a) => a.critical);
+    const all = await filterSnoozed(
+      computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode())
+    );
+    // Push segue a severidade: crítico e atenção avisam; informativo não. (Push
+    // por regra, sobreponível, vem numa fatia futura.)
+    toPush = all.filter((a) => alertSeverity(a) !== "info");
   } catch {
     return;
   }
   const notified = new Set(loadNotified());
-  const currentKeys = critical.map((a) => a.key);
-  for (const a of critical) {
+  const currentKeys = toPush.map((a) => a.key);
+  for (const a of toPush) {
     if (notified.has(a.key)) continue;
     try {
       sendNotification({ title: "Vistage — alerta", body: a.label });
