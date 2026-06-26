@@ -119,6 +119,24 @@ export type PartyTeamMember = {
   supplier_id: number | null;
 };
 
+/** Série = a marca durável (Caramelo); cada festa é uma edição dela. */
+export type PartySeries = {
+  id: number;
+  name: string;
+  slug: string | null;
+  conceito: string | null;
+  posicionamento: string | null;
+  publico_alvo: string | null;
+  identidade_visual: string | null;
+  tom_mensagem: string | null;
+  created_at: string;
+  archived_at: string | null;
+};
+export type PartySeriesCreateInput = Omit<PartySeries, "id" | "created_at" | "archived_at"> & {
+  archived_at?: string | null;
+};
+export type PartySeriesUpdateInput = Partial<PartySeriesCreateInput> & { id: number };
+
 export type Party = {
   id: number; title: string; date: string|null; venue_id: number|null;
   venue_name: string|null; status: PartyStatus; description: string|null;
@@ -127,6 +145,7 @@ export type Party = {
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
   gig_id: number|null;
+  series_id: number|null; edition_label: string|null; edition_number: number|null;
   gcal_event_id?: string|null;
   created_at: string; updated_at: string;
 };
@@ -136,13 +155,16 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
   team?: PartyTeamMember[]|string|null;
+  series_id?: number|null;
+  edition_label?: string|null;
+  edition_number?: number|null;
 };
 export type PartyUpdateInput = Partial<PartyCreateInput> & { id: number };
 

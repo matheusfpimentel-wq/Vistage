@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/format";
 import {
@@ -70,6 +70,8 @@ import { OrcamentoTab } from "../components/OrcamentoTab";
 import { IngressosTab } from "../components/IngressosTab";
 import { OperacaoTab } from "../components/OperacaoTab";
 import { PartyCockpit } from "../components/PartyCockpit";
+import { SeriesEditionCard } from "../components/SeriesEditionCard";
+import { BriefingDialog } from "../components/BriefingDialog";
 
 /**
  * Status sugerido por marcos (sugere, NÃO avança sozinho): venue escolhido →
@@ -150,6 +152,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [stages, setStages] = useState<PartyStage[]>([]);
   const [budgetItems, setBudgetItems] = useState<PartyBudgetItem[]>([]);
   const [tickets, setTickets] = useState<PartyTicket[]>([]);
+  const [briefingOpen, setBriefingOpen] = useState(false);
   const [tasks, setTasks] = useState<PartyTask[]>([]);
 
   // Team add-form state
@@ -453,6 +456,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             stage_current: null,
             financial_synced: 0,
             tasks_generated: 0,
+            series_id: null,
+            edition_label: null,
+            edition_number: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -536,6 +542,33 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             )}
             {isEdit && party && state.status === "Realizada" && (
               <PostEventCard partyId={party.id} title={state.title} />
+            )}
+            {isEdit && party && (
+              <SeriesEditionCard
+                partyId={party.id}
+                seriesId={party.series_id}
+                editionLabel={party.edition_label}
+                editionNumber={party.edition_number}
+                partyTitle={state.title}
+              />
+            )}
+            {isEdit && party && (
+              <>
+                <Button type="button" variant="outline" size="sm" onClick={() => setBriefingOpen(true)}>
+                  <FileText className="h-4 w-4" /> Gerar briefing (por etapa)
+                </Button>
+                <BriefingDialog
+                  open={briefingOpen}
+                  onOpenChange={setBriefingOpen}
+                  party={party}
+                  stages={stages}
+                  tickets={tickets}
+                  budget={budgetItems}
+                  lineupNames={state.lineup
+                    .map((id) => contacts.find((c) => c.id === id)?.name)
+                    .filter((n): n is string => !!n)}
+                />
+              </>
             )}
             <Field label="Título *">
               <Input

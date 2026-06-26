@@ -2113,6 +2113,29 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_party_guests_party ON party_guests(party_id);
     `,
   },
+  {
+    version: 146,
+    description:
+      "Festas — Séries/Edições: party_series (marca durável: conceito, posicionamento, público, identidade, tom) + parties.series_id/edition_label/edition_number. Festa avulsa = series_id NULL.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_series (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL DEFAULT '',
+        slug TEXT,
+        conceito TEXT,
+        posicionamento TEXT,
+        publico_alvo TEXT,
+        identidade_visual TEXT,
+        tom_mensagem TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        archived_at TEXT
+      );
+      ALTER TABLE parties ADD COLUMN series_id INTEGER REFERENCES party_series(id) ON DELETE SET NULL;
+      ALTER TABLE parties ADD COLUMN edition_label TEXT;
+      ALTER TABLE parties ADD COLUMN edition_number INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_parties_series ON parties(series_id);
+    `,
+  },
 ];
 
 
