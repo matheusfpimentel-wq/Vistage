@@ -139,8 +139,8 @@ export function FileMenu() {
 
       {menuOpen && (
         <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md border bg-popover shadow-md">
+          <MenuItem icon={<FilePlus2 className="h-4 w-4" />} label="Novo" onClick={() => { setMenuOpen(false); void newDocument(); }} />
           <MenuItem icon={<FolderOpen className="h-4 w-4" />} label="Abrir…" onClick={() => { setMenuOpen(false); void open(); }} />
-          <MenuItem icon={<FilePlus2 className="h-4 w-4" />} label="Novo (em branco)" onClick={() => { setMenuOpen(false); void newDocument(); }} />
           <div className="border-t" />
           <MenuItem
             icon={<Save className="h-4 w-4" />}
