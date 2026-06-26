@@ -437,8 +437,8 @@ export async function deleteTransactionsForMusicCost(
 export async function syncPartyTransactions(partyId: number): Promise<void> {
   const db = getDb();
 
-  const partyRows = await db.select<{ title: string; date: string | null }[]>(
-    "SELECT title, date FROM parties WHERE id = $1",
+  const partyRows = await db.select<{ title: string; date: string | null; sponsors: string | null }[]>(
+    "SELECT title, date, sponsors FROM parties WHERE id = $1",
     [partyId]
   );
   const party = partyRows[0];
@@ -453,7 +453,19 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
     [partyId]
   );
 
-  const income = Number(incomeRows[0]?.income ?? 0);
+  // Patrocínio (parties.sponsors JSON) também é RECEITA — soma na mesma linha de
+  // income da festa (mantém a dedup por party_id+kind simples e idempotente).
+  let sponsorIncome = 0;
+  try {
+    const arr = JSON.parse(party.sponsors ?? "[]") as { amount_cents?: number }[];
+    if (Array.isArray(arr)) {
+      sponsorIncome = arr.reduce((s, sp) => s + (Number(sp?.amount_cents) || 0), 0) / 100;
+    }
+  } catch {
+    /* sponsors inválido — ignora */
+  }
+  const income = Number(incomeRows[0]?.income ?? 0) + sponsorIncome;
+  const incomeDesc = sponsorIncome > 0 ? `Receita: ${party.title}` : `Ingressos: ${party.title}`;
   const expense = Number(expenseRows[0]?.expense ?? 0);
   const dateStr = party.date ?? toLocalISODate();
 
@@ -470,12 +482,12 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
     if (existingIncome.length > 0) {
       await db.execute(
         `UPDATE finance_transactions SET amount=$1, date=$2, description=$3, status='Recebido', updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
-        [income, dateStr, `Ingressos: ${party.title}`, existingIncome[0].id]
+        [income, dateStr, incomeDesc, existingIncome[0].id]
       );
     } else {
       await db.execute(
         `INSERT INTO finance_transactions (kind, amount, date, description, category_id, party_id, status, expense_type) VALUES ('income', $1, $2, $3, $4, $5, 'Recebido', NULL)`,
-        [income, dateStr, `Ingressos: ${party.title}`, categoryId, partyId]
+        [income, dateStr, incomeDesc, categoryId, partyId]
       );
     }
   } else if (existingIncome.length > 0) {

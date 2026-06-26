@@ -84,6 +84,14 @@ export type PartyTicket = {
   sale_start_date: string|null; sale_end_date: string|null; position: number; created_at: string;
 };
 
+/** Linha do run-of-show (cronograma do Dia D) — aba Operação. */
+export type PartyRunsheetItem = {
+  id: number; party_id: number; position: number;
+  time: string | null; end_time: string | null;
+  title: string; performer_contact_id: number | null; notes: string | null;
+  created_at: string;
+};
+
 type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
 
 export type PartyTask = {

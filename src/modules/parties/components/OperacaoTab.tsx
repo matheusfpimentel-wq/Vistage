@@ -1,0 +1,215 @@
+import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronUp, ListOrdered, Plus, Trash2, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toaster";
+import {
+  createPartyRunsheetItem,
+  deletePartyRunsheetItem,
+  getPartyHousePending,
+  listPartyRunsheet,
+  reorderPartyRunsheet,
+  setPartyHousePending,
+  updatePartyRunsheetItem,
+} from "../api";
+import type { PartyRunsheetItem } from "../types";
+
+type Performer = { id: number; name: string };
+type RowPatch = Partial<Omit<PartyRunsheetItem, "id" | "party_id" | "created_at">>;
+
+/**
+ * Aba Operação / Dia D — o cronograma do dia (run-of-show): load-in, passagem de
+ * som, portas, sets por DJ, last call, encerramento, load-out — amarrado ao
+ * line-up. Mais um campo único de "pendências com a casa" (a casa resolve o
+ * pesado na sua escala; aqui é só o que você precisa confirmar com ela).
+ */
+export function OperacaoTab({ partyId, performers }: { partyId: number; performers: Performer[] }) {
+  const [rows, setRows] = useState<PartyRunsheetItem[]>([]);
+  const [housePending, setHousePending] = useState("");
+  const [loaded, setLoaded] = useState(false);
+
+  const reload = useCallback(async () => {
+    const [r, hp] = await Promise.all([listPartyRunsheet(partyId), getPartyHousePending(partyId)]);
+    setRows(r);
+    setHousePending(hp ?? "");
+    setLoaded(true);
+  }, [partyId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  async function addRow() {
+    await createPartyRunsheetItem({
+      party_id: partyId,
+      position: rows.length,
+      time: null,
+      end_time: null,
+      title: "",
+      performer_contact_id: null,
+      notes: null,
+    });
+    void reload();
+  }
+
+  async function seedFromLineup() {
+    const have = new Set(rows.map((r) => r.performer_contact_id).filter(Boolean));
+    const missing = performers.filter((p) => !have.has(p.id));
+    if (missing.length === 0) {
+      toast.info("O line-up já está no cronograma.");
+      return;
+    }
+    let pos = rows.length;
+    for (const p of missing) {
+      await createPartyRunsheetItem({
+        party_id: partyId,
+        position: pos++,
+        time: null,
+        end_time: null,
+        title: `Set — ${p.name}`,
+        performer_contact_id: p.id,
+        notes: null,
+      });
+    }
+    toast.success(`${missing.length} set(s) adicionado(s) do line-up.`);
+    void reload();
+  }
+
+  async function patch(id: number, updates: RowPatch) {
+    await updatePartyRunsheetItem(id, updates);
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+  }
+
+  async function remove(id: number) {
+    await deletePartyRunsheetItem(id);
+    void reload();
+  }
+
+  async function move(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= rows.length) return;
+    const next = [...rows];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setRows(next);
+    await reorderPartyRunsheet(next.map((r) => r.id));
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Run-of-show */}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+            <ListOrdered className="h-4 w-4 text-primary" /> Cronograma do dia
+          </h3>
+          <div className="flex gap-1.5">
+            {performers.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => void seedFromLineup()}>
+                <Users className="mr-1 h-3.5 w-3.5" /> Sets do line-up
+              </Button>
+            )}
+            <Button size="sm" onClick={() => void addRow()}>
+              <Plus className="mr-1 h-3.5 w-3.5" /> Linha
+            </Button>
+          </div>
+        </div>
+
+        {!loaded ? null : rows.length === 0 ? (
+          <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Load-in · passagem de som · abertura de portas · sets por DJ · last call · encerramento · load-out.
+            Comece em "Linha" ou puxe os "Sets do line-up".
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {rows.map((r, i) => (
+              <li key={r.id} className="flex items-center gap-1.5 rounded-md border p-1.5">
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    className="text-muted-foreground/50 transition hover:text-foreground disabled:opacity-30"
+                    disabled={i === 0}
+                    onClick={() => void move(i, -1)}
+                    title="Subir"
+                    aria-label="Subir"
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    className="text-muted-foreground/50 transition hover:text-foreground disabled:opacity-30"
+                    disabled={i === rows.length - 1}
+                    onClick={() => void move(i, 1)}
+                    title="Descer"
+                    aria-label="Descer"
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </div>
+                <input
+                  type="time"
+                  value={r.time ?? ""}
+                  onChange={(e) => void patch(r.id, { time: e.target.value || null })}
+                  className="h-8 w-[84px] rounded border bg-background px-1.5 text-xs"
+                  title="Início"
+                />
+                <span className="text-xs text-muted-foreground/50">→</span>
+                <input
+                  type="time"
+                  value={r.end_time ?? ""}
+                  onChange={(e) => void patch(r.id, { end_time: e.target.value || null })}
+                  className="h-8 w-[84px] rounded border bg-background px-1.5 text-xs"
+                  title="Fim"
+                />
+                <input
+                  value={r.title}
+                  placeholder="O que acontece"
+                  onChange={(e) => void patch(r.id, { title: e.target.value })}
+                  className="h-8 flex-1 rounded border bg-background px-2 text-sm"
+                />
+                <select
+                  value={r.performer_contact_id ?? ""}
+                  onChange={(e) =>
+                    void patch(r.id, { performer_contact_id: e.target.value ? Number(e.target.value) : null })
+                  }
+                  className="h-8 w-[130px] rounded border bg-background px-1 text-xs"
+                  title="Quem"
+                >
+                  <option value="">— quem —</option>
+                  {performers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void remove(r.id)}
+                  className="text-muted-foreground transition hover:text-destructive"
+                  title="Remover linha"
+                  aria-label="Remover linha"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Pendências com a casa */}
+      <section className="space-y-1.5">
+        <h3 className="text-sm font-semibold">Pendências com a casa</h3>
+        <p className="text-[11px] text-muted-foreground">
+          Alvará, segurança, bar, horário-limite — o pesado a casa resolve; aqui é só o que você precisa confirmar com ela.
+        </p>
+        <textarea
+          value={housePending}
+          onChange={(e) => setHousePending(e.target.value)}
+          onBlur={() => void setPartyHousePending(partyId, housePending.trim() || null)}
+          rows={3}
+          placeholder="Ex.: confirmar segurança extra, bar abre 22h, alvará até 4h…"
+          className="w-full resize-y rounded-md border bg-background p-2 text-sm"
+        />
+      </section>
+    </div>
+  );
+}
