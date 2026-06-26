@@ -15,6 +15,8 @@ import {
 } from "@/modules/revisao/alerts";
 import {
   getDisabledRuleIds,
+  isPauseMode,
+  setPauseMode,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
@@ -34,6 +36,7 @@ export function AdvancedRulesSettings() {
   const [disabled, setDisabled] = useState<Set<string>>(
     () => new Set(getDisabledRuleIds())
   );
+  const [paused, setPaused] = useState(isPauseMode());
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
@@ -50,6 +53,27 @@ export function AdvancedRulesSettings() {
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Modo pausa</p>
+            <p className="text-xs leading-snug text-muted-foreground">
+              Suspende os alertas de pipeline/continuidade (gigs à frente, funil de
+              produção, conteúdo/ideias parados, relacionamento) durante uma pausa
+              deliberada. <strong>Dinheiro e prazo continuam avisando.</strong>
+            </p>
+          </div>
+          <Toggle
+            on={paused}
+            onClick={() => {
+              const next = !paused;
+              setPaused(next);
+              setPauseMode(next);
+            }}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Regras padrão</CardTitle>
