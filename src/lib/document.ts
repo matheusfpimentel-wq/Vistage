@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { appDataDir } from "@tauri-apps/api/path";
 import {
   clearDocumentData,
   hasAnyDocumentData,
@@ -124,18 +125,46 @@ function addTab(tabs: string[], path: string): string[] {
 }
 
 /**
+ * Guarda o documento SEM TÍTULO atual (que tem dados) num .vistage de segurança
+ * na pasta de dados do app e o adota como ABA — assim "Abrir"/"Novo" nunca
+ * descartam o que estava na tela, e o trabalho sem título vira uma aba à qual
+ * dá pra voltar (multi-tab de verdade). NÃO abre diálogo: é automático e
+ * silencioso (só um aviso). Devolve false se a escrita falhar — aí a troca deve
+ * ser abortada para não perder dados.
+ */
+async function snapshotUntitled(set: SetState, get: GetState): Promise<boolean> {
+  try {
+    const dir = (await appDataDir()).replace(/[\\/]+$/, "");
+    const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+    const path = `${dir}${sep}Sem título ${stamp}.vistage`;
+    await saveBackupToPath(path);
+    const tabs = addTab(get().tabs, path);
+    saveTabs(tabs);
+    set({ tabs });
+    clearUnsavedWork(); // os dados sem título estão agora salvos no arquivo de segurança
+    toast.info(`Documento sem título guardado na aba "${displayDocName(fileName(path))}".`);
+    return true;
+  } catch (e) {
+    toast.error(`Não consegui guardar o documento atual, então não troquei (nada se perdeu): ${String(e)}`);
+    return false;
+  }
+}
+
+/**
  * Garante que o documento ATUAL não se perca antes de trocar/criar:
  *  - tem caminho e está sujo → salva por cima (silencioso).
- *  - sem caminho mas com dados (doc novo) → oferece "Salvar como"; cancelar aborta.
+ *  - sem caminho mas com dados (doc novo) → guarda automático numa aba (snapshotUntitled).
  *  - em branco/limpo → nada a fazer.
- * Devolve false se o usuário cancelou (a troca deve ser abortada).
+ * Devolve false só se o guard-rail falhar (a troca deve ser abortada). NUNCA
+ * abre "Salvar como" aqui — Abrir é Abrir, Novo é Novo.
  */
-async function ensureCurrentSaved(get: GetState): Promise<boolean> {
+async function ensureCurrentSaved(set: SetState, get: GetState): Promise<boolean> {
   const { currentPath, dirty } = get();
   if (currentPath) return dirty ? get().save() : true;
   const hasData = await hasAnyDocumentData().catch(() => false);
   if (!hasData) return true;
-  return get().saveAs();
+  return snapshotUntitled(set, get);
 }
 
 /** Carrega um backup já lido como documento ativo, vira aba e recarrega. */
@@ -172,32 +201,39 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   open: async () => {
     if (get().busy) return;
-    // Salva o atual antes (sem perguntar mesclar/sobrescrever) e abre o escolhido
-    // como nova aba ativa. Cada arquivo é independente — nada se mistura nem se perde.
-    if (!(await ensureCurrentSaved(get))) return;
+    // Abrir é ABRIR: primeiro escolhe o arquivo; só DEPOIS guarda o atual e troca.
+    // Se cancelar o diálogo, nada muda (não cria aba de segurança à toa). O escolhido
+    // vira a nova aba ativa — cada arquivo é independente, nada se mistura nem se perde.
+    const picked = await pickBackupFile().catch((e) => {
+      toast.error(`Erro ao abrir documento: ${String(e)}`);
+      return null;
+    });
+    if (!picked) return;
+    if (!(await ensureCurrentSaved(set, get))) return;
     set({ busy: true });
     try {
-      const picked = await pickBackupFile();
-      if (!picked) return;
       await applyOpened(set, get, picked.backup, picked.path);
     } catch (e) {
       toast.error(`Erro ao abrir documento: ${String(e)}`);
-    } finally {
       set({ busy: false });
     }
   },
 
   switchToTab: async (path) => {
     if (get().busy || path === get().currentPath) return;
-    if (!(await ensureCurrentSaved(get))) return;
+    // Lê a aba-alvo (pode pedir senha) ANTES de guardar/trocar o atual. Cancelou a
+    // senha → nada muda. Só então guarda o atual (snapshot se sem título) e troca.
+    const backup = await readMaybeEncrypted(path).catch((e) => {
+      toast.error(`Erro ao abrir a aba: ${String(e)}`);
+      return null;
+    });
+    if (!backup) return; // cancelou a senha ou falhou ao ler
+    if (!(await ensureCurrentSaved(set, get))) return;
     set({ busy: true });
     try {
-      const backup = await readMaybeEncrypted(path);
-      if (!backup) return; // cancelou a senha ou falhou ao ler
       await applyOpened(set, get, backup, path);
     } catch (e) {
       toast.error(`Erro ao abrir a aba: ${String(e)}`);
-    } finally {
       set({ busy: false });
     }
   },
@@ -214,7 +250,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   newDocument: async () => {
     if (get().busy) return;
-    if (!(await ensureCurrentSaved(get))) return;
+    if (!(await ensureCurrentSaved(set, get))) return;
     set({ busy: true });
     try {
       await clearDocumentData();
@@ -274,7 +310,10 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       if (!path) return false;
       const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
-      set({ currentPath: path, currentName: fileName(path), dirty: false });
+      // Salvar como cria/abre um arquivo de verdade → vira aba (multi-tab).
+      const tabs = addTab(get().tabs, path);
+      saveTabs(tabs);
+      set({ currentPath: path, currentName: fileName(path), tabs, dirty: false });
       clearUnsavedWork();
       void rotateBackup(path);
       if (skipped.length > 0) {
