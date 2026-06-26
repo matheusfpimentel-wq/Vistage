@@ -63,6 +63,7 @@ import {
   listPartyTickets,
   listPartyTasks,
   syncTeamBudgetItems,
+  addPartyGuestsToFans,
 } from "../api";
 import { WorkflowTab } from "../components/WorkflowTab";
 import { OrcamentoTab } from "../components/OrcamentoTab";
@@ -532,6 +533,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 expectedCapacity={state.expected_capacity}
                 actualAttendance={state.actual_attendance}
               />
+            )}
+            {isEdit && party && state.status === "Realizada" && (
+              <PostEventCard partyId={party.id} title={state.title} />
             )}
             <Field label="Título *">
               <Input
@@ -1147,6 +1151,46 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         }}
       />
     </Dialog>
+  );
+}
+
+/**
+ * Pós-evento (festa Realizada): Financeiro e Aftermovie acontecem automático;
+ * mandar a guest list pro Clube de Fãs é manual (nem toda cortesia é fã).
+ */
+function PostEventCard({ partyId, title }: { partyId: number; title: string }) {
+  const [busy, setBusy] = useState(false);
+  async function sendGuestsToFans() {
+    setBusy(true);
+    try {
+      const { added, existed } = await addPartyGuestsToFans(partyId, title);
+      if (added === 0 && existed === 0) {
+        toast.info("Sem cortesias na guest list para enviar.");
+      } else {
+        toast.success(
+          `${added} cortesia(s) no Clube de Fãs${existed > 0 ? ` · ${existed} já estavam lá` : ""}.`
+        );
+      }
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/20 bg-primary/5 p-3">
+      <div className="text-sm font-medium">Pós-evento</div>
+      <ul className="space-y-0.5 text-xs text-muted-foreground">
+        <li>✓ Resultado lançado no <strong>Financeiro</strong> (receitas e custos reais).</li>
+        <li>✓ Card de <strong>Aftermovie</strong> criado no <strong>Conteúdo</strong>.</li>
+      </ul>
+      <Button size="sm" variant="outline" onClick={() => void sendGuestsToFans()} disabled={busy}>
+        <Plus className="h-4 w-4" /> Mandar guest list pro Clube de Fãs
+      </Button>
+      <p className="text-[11px] text-muted-foreground">
+        Ingressos vendidos são contagem (sem comprador individual) — a fonte das cortesias é a guest list.
+      </p>
+    </div>
   );
 }
 
