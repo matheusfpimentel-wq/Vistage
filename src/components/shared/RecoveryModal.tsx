@@ -32,24 +32,28 @@ export function RecoveryModal({
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
         hideClose
-        className="sm:max-w-sm"
+        // !flex + footer fixo: numa janela pequena no boot, a descrição rola e os
+        // botões de ação continuam SEMPRE visíveis (antes a janela cortava).
+        className="!flex max-h-[85vh] flex-col gap-3 overflow-hidden sm:max-w-sm"
         onEscapeKeyDown={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <LifeBuoy className="h-4 w-4 text-primary" />
             Recuperar trabalho não salvo
           </DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto">
           <DialogDescription>
             A sessão anterior terminou com alterações que não chegaram a ser salvas
             num arquivo <code>.vistage</code>
             {when ? ` (${when})` : ""}. Elas continuam aqui. Manter e salvar quando
             quiser, ou descartar e abrir em branco?
           </DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2 sm:justify-between">
+        </div>
+        <DialogFooter className="shrink-0 gap-2 sm:justify-between">
           <Button variant="ghost" onClick={onDiscard}>
             Descartar (abrir em branco)
           </Button>
