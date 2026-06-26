@@ -93,7 +93,8 @@ export type RuleCategory =
   | "Tarefas"
   | "Festas"
   | "Aulas"
-  | "Objetivos";
+  | "Objetivos"
+  | "Financeiro";
 
 /**
  * Catálogo das regras EMBUTIDAS de ALERTA (as que já existem no `computeAlerts`).
@@ -133,6 +134,14 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { id: "superfans-stale", category: "Pessoas", severidade: "info", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
   { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
   { id: "okrs-lagging", category: "Objetivos", severidade: "atencao", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
+  // ── Dinheiro em primeiro plano (loader partyFinanceAlerts) ──────────────────
+  { id: "recebiveis-acumulados", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Recebíveis acumulados acima do limiar", trigger: "Soma dos recebíveis previstos (ainda não recebidos) passa de R$ 1.000" },
+  { id: "receita-abaixo-custo-fixo", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Receita do mês abaixo do custo fixo", trigger: "Depois do dia 15, receita realizada do mês menor que o custo fixo mensal (recorrentes)" },
+  { id: "festa-vendas-baixas-", category: "Festas", severidade: "critico", message: "Festa em ≤14 dias com vendas < 40% da meta", trigger: "Festa a até 14 dias vendendo menos de 40% da meta de ingressos", dynamic: true },
+  { id: "festa-resultado-negativo-", category: "Festas", severidade: "critico", inegociavel: true, message: "Festa com resultado projetado negativo", trigger: "Custo projetado maior que a receita projetada (ingressos + patrocínio) antes do evento", dynamic: true },
+  { id: "festa-sem-venue-", category: "Festas", severidade: "critico", message: "Festa confirmada em ≤14 dias sem venue", trigger: "Festa confirmada a até 14 dias ainda sem venue definido", dynamic: true },
+  { id: "festa-sem-runsheet-", category: "Festas", severidade: "critico", message: "Festa em ≤7 dias sem run-of-show", trigger: "Festa a até 7 dias sem nenhum item no run-of-show (Operação/Dia D)", dynamic: true },
+  { id: "lote-esgotando-", category: "Festas", severidade: "atencao", message: "Lote esgotando (>80% vendido)", trigger: "Lote de ingressos com mais de 80% vendido — hora de abrir o próximo", dynamic: true },
 ];
 
 /** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */

@@ -22,6 +22,7 @@ import {
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
 
 const CATEGORY_ORDER: RuleCategory[] = [
+  "Financeiro",
   "GIGs",
   "Produção",
   "Pessoas",

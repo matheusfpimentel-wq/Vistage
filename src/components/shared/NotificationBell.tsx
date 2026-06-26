@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { alertSeverity, computeAlerts, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
+import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
@@ -256,8 +257,9 @@ export function NotificationBell() {
         loadRelationshipAlerts(),
         loadStaleGigStatusAlerts(),
         loadOverdueReceivableAlerts(),
-      ]).then(([rel, stale, receivables]) =>
-        setCrmAlerts([...receivables, ...stale, ...rel])
+        loadPartyFinanceAlerts(),
+      ]).then(([rel, stale, receivables, partyFin]) =>
+        setCrmAlerts([...partyFin, ...receivables, ...stale, ...rel])
       );
     }, 500);
   }, []);
@@ -268,8 +270,9 @@ export function NotificationBell() {
         loadRelationshipAlerts(),
         loadStaleGigStatusAlerts(),
         loadOverdueReceivableAlerts(),
-      ]).then(([rel, stale, receivables]) =>
-        setCrmAlerts([...receivables, ...stale, ...rel])
+        loadPartyFinanceAlerts(),
+      ]).then(([rel, stale, receivables, partyFin]) =>
+        setCrmAlerts([...partyFin, ...receivables, ...stale, ...rel])
       );
     load();
     const crmInterval = setInterval(load, 5 * 60_000);
