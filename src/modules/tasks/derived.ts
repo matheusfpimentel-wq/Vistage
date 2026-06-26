@@ -48,7 +48,31 @@ export async function syncDerivedTaskMarkers(): Promise<void> {
       /* coluna/tabela ausente em bancos antigos — ignora */
     }
   }
+  await backfillGigTaskLinks();
   await clearOrphanDerivedMarkers();
+}
+
+/**
+ * Re-preenche o `gig_id` das tarefas de GIG (preparação/debrief/cobrança) que o
+ * têm nulo mas cuja GIG ainda existe. Assim o vínculo aparece EXPLÍCITO no
+ * seletor da tarefa — e não só o aviso "vinculada a Preparação de GIG" sem
+ * mostrar a qual GIG.
+ */
+async function backfillGigTaskLinks(): Promise<void> {
+  const db = getDb();
+  const gigCols = ["prep_task_id", "debrief_task_id", "payment_task_id"];
+  for (const col of gigCols) {
+    try {
+      await db.execute(
+        `UPDATE tasks
+            SET gig_id = (SELECT g.id FROM gigs g WHERE g.${col} = tasks.id LIMIT 1)
+          WHERE gig_id IS NULL
+            AND id IN (SELECT ${col} FROM gigs WHERE ${col} IS NOT NULL)`
+      );
+    } catch {
+      /* coluna ausente em bancos antigos — ignora */
+    }
+  }
 }
 
 /**
