@@ -1,15 +1,15 @@
 import { create } from "zustand";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import {
+  clearDocumentData,
   hasAnyDocumentData,
   pickBackupFile,
+  readMaybeEncrypted,
   restoreBackup,
-  restoreBackupFiles,
   restoreBackupSession,
   saveBackupToPath,
   type Backup,
 } from "./backup";
-import { getDb } from "./db";
 import { rotateBackup } from "./rotatingBackup";
 import { clearUnsavedWork } from "./recovery";
 import { toast } from "@/components/ui/toaster";
@@ -20,6 +20,27 @@ import { toast } from "@/components/ui/toaster";
 // caminho atual é lembrado para o "Salvar" gravar por cima sem perguntar.
 
 const LS_KEY = "vistage.currentDocument";
+// Abas abertas (multi-tab): lista de caminhos .vistage. Só UM banco carrega por
+// vez — trocar de aba salva o atual e carrega o da aba (com reload). Caminhos,
+// não dados; um documento em branco (sem caminho) não vira aba.
+const LS_TABS = "vistage.openTabs";
+
+function loadTabs(): string[] {
+  try {
+    const raw = localStorage.getItem(LS_TABS);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function saveTabs(tabs: string[]): void {
+  try {
+    localStorage.setItem(LS_TABS, JSON.stringify(tabs));
+  } catch {
+    /* ignora cota */
+  }
+}
 
 function fileName(path: string | null): string | null {
   if (!path) return null;
@@ -62,58 +83,6 @@ export function setReopenLast(on: boolean): void {
   localStorage.setItem(LS_REOPEN, on ? "1" : "0");
 }
 
-// Resolução imperativa de diálogo de 3 opções (Mesclar / Sobrescrever / Cancelar).
-// O componente OpenDocumentDialog registra o resolver ao montar.
-export type OpenMode = "merge" | "overwrite" | "cancel";
-let _openModeOpener: (() => Promise<OpenMode>) | null = null;
-
-export function registerOpenModeOpener(fn: () => Promise<OpenMode>) {
-  _openModeOpener = fn;
-}
-export function unregisterOpenModeOpener() {
-  _openModeOpener = null;
-}
-
-function askOpenMode(): Promise<OpenMode> {
-  if (_openModeOpener) return _openModeOpener();
-  // Fallback sem componente montado: sobrescreve (comportamento legado)
-  return Promise.resolve("overwrite");
-}
-
-/**
- * Mescla os dados do backup no banco local usando INSERT OR IGNORE.
- * Registros existentes (mesmo id) são preservados; só novos são adicionados.
- */
-async function mergeBackup(backup: Backup): Promise<void> {
-  const db = getDb();
-  for (const [table, rows] of Object.entries(backup.tables)) {
-    if (!rows || !Array.isArray(rows) || rows.length === 0) continue;
-    let existingCols: Set<string>;
-    try {
-      const info = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
-      existingCols = new Set(info.map((r) => r.name));
-    } catch {
-      continue; // tabela não existe nesta versão
-    }
-    for (const row of rows) {
-      const cols = Object.keys(row).filter((c) => existingCols.has(c));
-      if (cols.length === 0) continue;
-      const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
-      const values = cols.map((c) => row[c]);
-      try {
-        await db.execute(
-          `INSERT OR IGNORE INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`,
-          values
-        );
-      } catch {
-        // ignora erros de row individual
-      }
-    }
-  }
-  // Restaura também os anexos embutidos (imagens, PDFs) no uploadsDir atual.
-  await restoreBackupFiles(backup);
-}
-
 type DocumentState = {
   currentPath: string | null;
   currentName: string | null;
@@ -131,17 +100,69 @@ type DocumentState = {
   markClean: () => void;
   /** Marca o fim do boot: o documento está limpo e mudanças passam a contar. */
   settleBoot: () => void;
-  /** Abre um .vistage (diálogo), pergunta Mesclar/Sobrescrever/Cancelar antes de agir. */
+  /** Caminhos abertos como abas (multi-tab). */
+  tabs: string[];
+  /** Abre um .vistage pelo diálogo e o adota como aba ativa (sem perguntar mesclar/sobrescrever). */
   open: () => Promise<void>;
+  /** Troca pra aba de um caminho já conhecido (salva o atual antes; recarrega). */
+  switchToTab: (path: string) => Promise<void>;
+  /** Fecha uma aba (não apaga o arquivo). Se for a ativa, vai pra outra ou pro branco. */
+  closeTab: (path: string) => Promise<void>;
+  /** Abre um documento NOVO em branco (salva o atual antes). */
+  newDocument: () => Promise<void>;
   /** Salva no arquivo atual; se não houver, cai em "Salvar como". Retorna se salvou. */
   save: () => Promise<boolean>;
   /** Sempre abre o diálogo "Salvar como". Retorna se salvou. */
   saveAs: () => Promise<boolean>;
 };
 
+type SetState = (partial: Partial<DocumentState>) => void;
+type GetState = () => DocumentState;
+
+function addTab(tabs: string[], path: string): string[] {
+  return tabs.includes(path) ? tabs : [...tabs, path];
+}
+
+/**
+ * Garante que o documento ATUAL não se perca antes de trocar/criar:
+ *  - tem caminho e está sujo → salva por cima (silencioso).
+ *  - sem caminho mas com dados (doc novo) → oferece "Salvar como"; cancelar aborta.
+ *  - em branco/limpo → nada a fazer.
+ * Devolve false se o usuário cancelou (a troca deve ser abortada).
+ */
+async function ensureCurrentSaved(get: GetState): Promise<boolean> {
+  const { currentPath, dirty } = get();
+  if (currentPath) return dirty ? get().save() : true;
+  const hasData = await hasAnyDocumentData().catch(() => false);
+  if (!hasData) return true;
+  return get().saveAs();
+}
+
+/** Carrega um backup já lido como documento ativo, vira aba e recarrega. */
+async function applyOpened(set: SetState, get: GetState, backup: Backup, path: string): Promise<void> {
+  sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
+  await restoreBackup(backup);
+  await restoreBackupSession(backup);
+  localStorage.setItem(LS_KEY, path);
+  const tabs = addTab(get().tabs, path);
+  saveTabs(tabs);
+  set({ currentPath: path, currentName: fileName(path), tabs, dirty: false });
+  toast.success(`Documento aberto: ${fileName(path)}. Recarregando…`);
+  setTimeout(() => reloadKeepingData(), 800);
+}
+
 export const useDocumentStore = create<DocumentState>((set, get) => ({
   currentPath: localStorage.getItem(LS_KEY),
   currentName: fileName(localStorage.getItem(LS_KEY)),
+  tabs: (() => {
+    const t = loadTabs();
+    const cur = localStorage.getItem(LS_KEY);
+    if (cur && !t.includes(cur)) {
+      t.unshift(cur);
+      saveTabs(t);
+    }
+    return t;
+  })(),
   busy: false,
   dirty: false,
   bootSettled: false,
@@ -151,39 +172,58 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   open: async () => {
     if (get().busy) return;
+    // Salva o atual antes (sem perguntar mesclar/sobrescrever) e abre o escolhido
+    // como nova aba ativa. Cada arquivo é independente — nada se mistura nem se perde.
+    if (!(await ensureCurrentSaved(get))) return;
     set({ busy: true });
     try {
       const picked = await pickBackupFile();
       if (!picked) return;
-
-      // App em branco → não há o que mesclar ou sobrescrever: abre direto.
-      // Só pergunta Mesclar/Sobrescrever quando já existem dados a preservar.
-      const hasData = await hasAnyDocumentData().catch(() => true);
-      const mode: OpenMode = hasData ? await askOpenMode() : "overwrite";
-      if (mode === "cancel") return;
-
-      // Abrir um documento → sincroniza as integrações no próximo boot.
-      sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
-      if (mode === "merge") {
-        await mergeBackup(picked.backup);
-        // Reconecta o usuário de sincronização que veio no arquivo (se houver).
-        // Persiste na sessão do webview e sobrevive ao reload abaixo.
-        await restoreBackupSession(picked.backup);
-        localStorage.setItem(LS_KEY, picked.path);
-        set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
-        toast.success(`Documento mesclado: ${fileName(picked.path)}. Recarregando…`);
-        setTimeout(() => reloadKeepingData(), 800);
-      } else {
-        // overwrite
-        await restoreBackup(picked.backup);
-        await restoreBackupSession(picked.backup);
-        localStorage.setItem(LS_KEY, picked.path);
-        set({ currentPath: picked.path, currentName: fileName(picked.path), dirty: false });
-        toast.success(`Documento aberto: ${fileName(picked.path)}. Recarregando…`);
-        setTimeout(() => reloadKeepingData(), 800);
-      }
+      await applyOpened(set, get, picked.backup, picked.path);
     } catch (e) {
       toast.error(`Erro ao abrir documento: ${String(e)}`);
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  switchToTab: async (path) => {
+    if (get().busy || path === get().currentPath) return;
+    if (!(await ensureCurrentSaved(get))) return;
+    set({ busy: true });
+    try {
+      const backup = await readMaybeEncrypted(path);
+      if (!backup) return; // cancelou a senha ou falhou ao ler
+      await applyOpened(set, get, backup, path);
+    } catch (e) {
+      toast.error(`Erro ao abrir a aba: ${String(e)}`);
+    } finally {
+      set({ busy: false });
+    }
+  },
+
+  closeTab: async (path) => {
+    const tabs = get().tabs.filter((t) => t !== path);
+    saveTabs(tabs);
+    set({ tabs });
+    if (path === get().currentPath) {
+      if (tabs.length > 0) await get().switchToTab(tabs[tabs.length - 1]);
+      else await get().newDocument();
+    }
+  },
+
+  newDocument: async () => {
+    if (get().busy) return;
+    if (!(await ensureCurrentSaved(get))) return;
+    set({ busy: true });
+    try {
+      await clearDocumentData();
+      localStorage.removeItem(LS_KEY);
+      set({ currentPath: null, currentName: null, dirty: false });
+      toast.success("Novo documento em branco. Recarregando…");
+      setTimeout(() => reloadKeepingData(), 600);
+    } catch (e) {
+      toast.error(`Erro ao criar documento: ${String(e)}`);
     } finally {
       set({ busy: false });
     }

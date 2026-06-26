@@ -10,7 +10,6 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { UnsavedCloseGuard } from "@/components/shared/UnsavedCloseGuard";
 import { MobileChangesDialog } from "@/modules/settings/MobileChangesDialog";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
-import { OpenDocumentDialog } from "@/components/shared/OpenDocumentDialog";
 import { PasswordPromptDialog } from "@/components/shared/PasswordPromptDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
@@ -481,7 +480,6 @@ function RoutedApp() {
       </Suspense>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
-      <OpenDocumentDialog />
       <PasswordPromptDialog />
       <UnsavedCloseGuard />
       <MobileChangesDialog />
