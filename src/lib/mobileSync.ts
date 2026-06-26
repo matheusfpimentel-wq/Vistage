@@ -14,6 +14,12 @@ import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { loadIdentity } from "@/modules/identity/api";
 import { loadFocusStreak } from "@/modules/foco/api";
+import { loadWeekStats } from "@/modules/revisao/api";
+import { computeAlerts } from "@/modules/revisao/alerts";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { evaluateCustomRules } from "@/modules/revisao/customRules";
+import { loadExtraStats } from "@/components/shared/NotificationBell";
+import { EVERGREEN, generateRaw } from "@/modules/ideas/provocations";
 
 // ── Config (app_settings) ───────────────────────────────────────────────────
 async function getSetting(key: string): Promise<string | null> {
@@ -406,6 +412,22 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       meta: { body: i.body, category: i.category, maturation: i.maturation, heat: i.heat },
     });
 
+  // Aulas — pesquisáveis no celular (busca por aula/aluno).
+  const cclasses = await db.select<{ id: number; subject: string | null; date: string; status: string; student_name: string | null }[]>(
+    `SELECT c.id, c.subject, c.date, c.status, s.name AS student_name
+       FROM classes c LEFT JOIN students s ON s.id = c.student_id
+      ORDER BY c.date DESC LIMIT 500`,
+    []
+  );
+  for (const cl of cclasses)
+    rows.push({
+      user_id: uid, kind: "class", source_id: String(cl.id),
+      title: cl.subject ?? "Aula",
+      subtitle: [cl.student_name, cl.date].filter(Boolean).join(" · ") || null,
+      search_text: lc(cl.subject, cl.student_name, cl.date, cl.status),
+      meta: { date: cl.date, status: cl.status, student_name: cl.student_name },
+    });
+
   return rows;
 }
 
@@ -491,13 +513,15 @@ export async function pushMirror(): Promise<void> {
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, contacts, focus, catalog, tasks] = await Promise.all([
+  const [agenda, finance, contacts, focus, catalog, tasks, alerts, provocations] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
     buildContacts(uid),
     buildFocus(uid),
     buildCatalog(uid),
     buildTasks(uid),
+    buildAlerts(uid),
+    buildProvocations(uid),
   ]);
 
   // agenda e contato do dia: snapshot (apaga as próprias linhas e reinsere o set atual).
@@ -532,12 +556,68 @@ export async function pushMirror(): Promise<void> {
     const { error } = await supabase.from("tasks_mirror").insert(tasks);
     if (error) throw error;
   }
+  // alertas (sininho = MESMOS do PC): snapshot.
+  await supabase.from("alerts_mirror").delete().eq("user_id", uid);
+  if (alerts.length) {
+    const { error } = await supabase.from("alerts_mirror").insert(alerts);
+    if (error) throw error;
+  }
+  // provocações (insights iguais aos do PC): snapshot.
+  await supabase.from("provocations_mirror").delete().eq("user_id", uid);
+  if (provocations.length) {
+    for (const part of chunk(provocations, 500)) {
+      const { error } = await supabase.from("provocations_mirror").insert(part);
+      if (error) throw error;
+    }
+  }
   // aparência: tema/acento do documento → 1 linha por conta.
   const prefs = await buildPreferences(uid);
   {
     const { error } = await supabase.from("user_preferences").upsert(prefs, { onConflict: "user_id" });
     if (error) throw error;
   }
+}
+
+// Alertas: exatamente os mesmos que o sininho do PC mostra (computeAlerts +
+// regras próprias). Snapshot por usuário. Se algo falhar, devolve vazio (o
+// celular simplesmente não mostra alarme em vez de quebrar o push inteiro).
+async function buildAlerts(uid: string): Promise<
+  { user_id: string; key: string; label: string; route: string | null; critical: boolean; icon: string }[]
+> {
+  try {
+    const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
+    const items = [...computeAlerts(stats, extra, getDisabledRuleIds()), ...(await evaluateCustomRules())];
+    const seen = new Set<string>();
+    const out: { user_id: string; key: string; label: string; route: string | null; critical: boolean; icon: string }[] = [];
+    for (const a of items) {
+      if (seen.has(a.key)) continue;
+      seen.add(a.key);
+      out.push({ user_id: uid, key: a.key, label: a.label, route: a.to ?? null, critical: !!a.critical, icon: a.icon });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// Provocações: as MESMAS do PC (perenes + derivadas dos dados). Sem filtrar as
+// ocultas/excluídas (isso é preferência de máquina, localStorage do desktop).
+async function buildProvocations(uid: string): Promise<{ user_id: string; key: string; text: string }[]> {
+  const out: { user_id: string; key: string; text: string }[] = [];
+  const seen = new Set<string>();
+  const add = (key: string, text: string) => {
+    if (seen.has(key)) return; // PK é (user_id, key) — chaves repetidas quebram o insert
+    seen.add(key);
+    out.push({ user_id: uid, key, text });
+  };
+  EVERGREEN.forEach((t, i) => add(`eg:${i}`, t));
+  try {
+    const raw = await generateRaw();
+    for (const r of raw) add(r.key, r.text);
+  } catch {
+    /* dados insuficientes — fica só com as perenes */
+  }
+  return out;
 }
 
 // ── Capturas do celular: REVISÃO no desktop (fundir / descartar) ─────────────

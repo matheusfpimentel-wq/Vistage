@@ -19,7 +19,7 @@ const I = { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "
 const TAB_ICON: Record<Tab, JSX.Element> = {
   hoje: <svg {...I}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>,
   foco: <svg {...I}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.5" /></svg>,
-  brainstorm: <svg {...I}><path d="M12 3l1.6 4.2L18 8.8l-3.4 2.7L15.6 16 12 13.4 8.4 16l1-4.5L6 8.8l4.4-1.6z" /></svg>,
+  brainstorm: <svg {...I}><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /></svg>,
   buscar: <svg {...I}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>,
   tarefas: <svg {...I}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>,
 };
@@ -95,11 +95,21 @@ export function App() {
               <span className="streak-chip" title={`${header.streak} dias de foco seguidos`}>🔥 {header.streak}</span>
             )}
           </div>
+          <button
+            className="iconbtn"
+            onClick={() => void supabase.auth.signOut()}
+            aria-label="Sair"
+            title="Sair"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+            </svg>
+          </button>
         </div>
       </header>
 
       <main className="content">
-        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoSearch={() => setTab("buscar")} />}
+        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} />}
         {tab === "foco" && <Foco />}
         {tab === "brainstorm" && <Brainstorming />}
         {tab === "buscar" && <Buscar />}

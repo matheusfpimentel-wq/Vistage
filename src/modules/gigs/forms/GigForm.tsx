@@ -54,6 +54,7 @@ import { PrepChecklist } from "../components/PrepChecklist";
 import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
+import { GigLibraryPicker } from "@/modules/biblioteca/views/GigLibraryPicker";
 import { RecurringFestField } from "./RecurringFestField";
 
 type Props = {
@@ -1202,6 +1203,13 @@ export function GigForm({
                         );
                       })}
                     </div>
+                  </Section>
+                )}
+
+                {gig && (
+                  <Section title="Da Biblioteca de Músicas">
+                    <p className="text-xs text-muted-foreground">Adicione faixas da sua biblioteca; o que foi tocado fica salvo mesmo se a faixa for excluída depois.</p>
+                    <GigLibraryPicker gigId={gig.id} />
                   </Section>
                 )}
 

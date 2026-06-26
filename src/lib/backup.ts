@@ -81,6 +81,7 @@ const TABLES = [
   "okr_kr_tasks",            // okr_id → okrs, task_id → tasks
   // ── Biblioteca (sem deps externas; ordem interna pais→filhos) ──────────────
   "library_tracks",          // Músicas — só caminho+metadados (áudio NUNCA embutido)
+  "gig_library_tracks",      // setlist: gig_id → gigs, library_track_id → library_tracks
   "drive_documents",         // Documentos — cache da pasta do Drive
   "note_folders",            // Conhecimento — parent_id self-ref (DEFERRED_FK)
   "note_tags",
@@ -792,6 +793,8 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   // source_note_id é adiado p/ a 2ª passagem. note_folders.parent_id é self-ref.
   ideas: { source_note_id: "notes" },
   note_folders: { parent_id: "note_folders" },
+  // setlist: a faixa da biblioteca é anulável (ON DELETE SET NULL preserva o snapshot)
+  gig_library_tracks: { library_track_id: "library_tracks" },
 };
 
 export async function restoreBackup(backup: Backup): Promise<{

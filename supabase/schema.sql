@@ -296,3 +296,32 @@ alter table public.app_secrets enable row level security;
 --         'x-cron-secret', (select value from public.app_secrets where key='cron_secret')),
 --       body := '{}'::jsonb);
 --   $$);
+
+-- ── Leitura: alertas (sininho do celular = MESMOS do PC) ──────────────────────
+-- O desktop computa os alertas (computeAlerts + regras próprias) e sobe aqui;
+-- o celular só lê. Snapshot por usuário (delete+insert no push).
+create table if not exists public.alerts_mirror (
+  user_id  uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  key      text not null,
+  label    text,
+  route    text,
+  critical boolean not null default false,
+  icon     text,
+  primary key (user_id, key)
+);
+alter table public.alerts_mirror enable row level security;
+drop policy if exists "own rows" on public.alerts_mirror;
+create policy "own rows" on public.alerts_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ── Leitura: provocações (insights iguais aos do PC) ──────────────────────────
+create table if not exists public.provocations_mirror (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  key     text not null,
+  text    text,
+  primary key (user_id, key)
+);
+alter table public.provocations_mirror enable row level security;
+drop policy if exists "own rows" on public.provocations_mirror;
+create policy "own rows" on public.provocations_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());

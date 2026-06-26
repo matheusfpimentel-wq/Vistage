@@ -1,45 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 
-// Sininho de alertas do celular. Não há tabela de alertas própria — derivamos
-// do mesmo espelho que o desktop sobe (agenda/contato/saldo). Sem custo extra:
-// compromissos nas próximas 48h, tarefas de hoje/atrasadas, follow-ups e cachê
-// a receber. Toca pra abrir o painel; some quando está tudo em dia.
+// Sininho do celular = MESMOS alertas do PC. O desktop computa (computeAlerts +
+// regras próprias) e sobe pra alerts_mirror; aqui a gente só lê e mostra.
 
 type Alert = {
-  id: string;
-  kind: "gig" | "class" | "task" | "contact" | "finance";
-  title: string;
-  detail: string;
+  key: string;
+  label: string;
+  route: string | null;
+  critical: boolean;
+  icon: string;
 };
 
-type AgendaRow = { id: string; source: string; title: string; start_at: string | null };
-type ContactRow = { id: string; name: string; reason: string | null };
-
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-const TAG_LABEL: Record<Alert["kind"], string> = {
-  gig: "GIG",
-  class: "Aula",
-  task: "Tarefa",
-  contact: "Contato",
-  finance: "$",
+// AlertIconKey (PC) → emoji.
+const ICON_EMOJI: Record<string, string> = {
+  clock: "⏰",
+  star: "⭐",
+  flame: "🔥",
+  music: "🎵",
+  party: "🎉",
+  book: "📖",
+  heart: "❤️",
+  target: "🎯",
+  dollar: "💰",
+  warning: "⚠️",
+  trophy: "🏆",
+  zap: "⚡",
 };
-
-function hoursUntil(iso: string | null): number | null {
-  if (!iso) return null;
-  const d = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
-  return (d.getTime() - Date.now()) / 3_600_000;
-}
-
-function fmtWhen(iso: string | null): string {
-  if (!iso) return "";
-  const hasTime = iso.includes("T");
-  const d = new Date(hasTime ? iso : iso + "T00:00:00");
-  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-  return hasTime
-    ? `${date} · ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-    : date;
-}
 
 function BellIcon() {
   return (
@@ -56,63 +43,17 @@ export function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const month = new Date().toISOString().slice(0, 7);
-    const [a, c, f] = await Promise.all([
-      supabase
-        .from("agenda_mirror")
-        .select("id, source, title, start_at")
-        .order("start_at", { ascending: true })
-        .limit(50),
-      supabase.from("contact_today").select("id, name, reason"),
-      supabase.from("finance_summary").select("to_receive").eq("month", month).maybeSingle(),
-    ]);
-
-    const list: Alert[] = [];
-    for (const item of (a.data ?? []) as AgendaRow[]) {
-      if (item.source === "task") {
-        // due_date vem em start_at; vence hoje ou já passou.
-        const due = item.start_at?.slice(0, 10);
-        if (due && due <= today) {
-          list.push({
-            id: `task-${item.id}`,
-            kind: "task",
-            title: item.title,
-            detail: due < today ? "Atrasada" : "Para hoje",
-          });
-        }
-      } else if (item.source === "gig" || item.source === "class") {
-        const h = hoursUntil(item.start_at);
-        if (h != null && h >= -2 && h <= 48) {
-          list.push({
-            id: `${item.source}-${item.id}`,
-            kind: item.source,
-            title: item.title,
-            detail: fmtWhen(item.start_at),
-          });
-        }
-      }
-    }
-    for (const ct of (c.data ?? []) as ContactRow[]) {
-      list.push({
-        id: `contact-${ct.id}`,
-        kind: "contact",
-        title: ct.name,
-        detail: ct.reason ?? "Follow-up",
-      });
-    }
-    const toRecv = (f.data?.to_receive as number | undefined) ?? 0;
-    if (toRecv > 0) {
-      list.push({ id: "finance", kind: "finance", title: "A receber", detail: BRL.format(toRecv) });
-    }
-    setAlerts(list);
+    const { data } = await supabase
+      .from("alerts_mirror")
+      .select("key, label, route, critical, icon")
+      .order("critical", { ascending: false });
+    setAlerts((data ?? []) as Alert[]);
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Fecha o painel ao tocar fora dele.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
@@ -123,6 +64,8 @@ export function NotificationBell() {
   }, [open]);
 
   const count = alerts.length;
+  const criticalCount = alerts.filter((a) => a.critical).length;
+
   return (
     <div className="bell-wrap" ref={ref}>
       <button
@@ -134,7 +77,9 @@ export function NotificationBell() {
         aria-label={count > 0 ? `${count} alertas` : "Alertas"}
       >
         <BellIcon />
-        {count > 0 && <span className="bell-badge">{count > 9 ? "9+" : count}</span>}
+        {count > 0 && (
+          <span className={"bell-badge" + (criticalCount > 0 ? " crit" : "")}>{count > 9 ? "9+" : count}</span>
+        )}
       </button>
       {open && (
         <div className="alerts-panel">
@@ -148,12 +93,11 @@ export function NotificationBell() {
             <p className="muted alerts-empty">Tudo em dia. 🎯</p>
           ) : (
             <ul className="list">
-              {alerts.map((al) => (
-                <li key={al.id} className="item">
-                  <span className={"tag " + al.kind}>{TAG_LABEL[al.kind]}</span>
+              {alerts.map((a) => (
+                <li key={a.key} className={"item" + (a.critical ? " alert-crit" : "")}>
+                  <span className="alert-emoji" aria-hidden>{ICON_EMOJI[a.icon] ?? "•"}</span>
                   <div className="grow">
-                    <strong>{al.title}</strong>
-                    <span className="muted"> · {al.detail}</span>
+                    <span>{a.label}</span>
                   </div>
                 </li>
               ))}

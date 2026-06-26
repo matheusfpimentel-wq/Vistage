@@ -15,7 +15,9 @@ const ACCENT_HSL: Record<string, string> = {
   rose: "345 82% 66%",
   amber: "38 92% 56%",
   cyan: "188 82% 52%",
-  bordo: "345 62% 52%",
+  // Bordô = vinho profundo. O 52% de luz lia como ROSA num fundo neutro do
+  // celular; puxei pro tom do swatch do PC (mais escuro/saturado) p/ virar bordô.
+  bordo: "345 60% 40%",
 };
 
 const LS_THEME = "vistage.mobile.theme"; // override manual de dia/noite no aparelho
