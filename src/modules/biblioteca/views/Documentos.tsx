@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, FileText, FolderOpen, Link2, Link2Off, RefreshCw } from "lucide-react";
+import { ExternalLink, FileText, FolderOpen, Link2, Link2Off, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { connectDrive, isDriveConnected } from "@/lib/gdrive";
 import {
   associateDoc,
+  deleteDoc,
   gigOptions,
   getDocFolderId,
   linksForDoc,
@@ -12,6 +14,7 @@ import {
   openDoc,
   removeLink,
   setDocFolderId,
+  uploadDocsToFolder,
   type DocLink,
   type DriveFile,
   type EntityRef,
@@ -26,6 +29,7 @@ export function Documentos() {
   const [error, setError] = useState<string | null>(null);
   const [gigs, setGigs] = useState<EntityRef[]>([]);
   const [openFile, setOpenFile] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     void isDriveConnected().then(setConnected);
@@ -75,13 +79,51 @@ export function Documentos() {
     if (!id) setFiles([]);
   }
 
+  async function handleUpload() {
+    if (!folderId) return;
+    setUploading(true);
+    try {
+      const n = await uploadDocsToFolder(folderId);
+      if (n > 0) {
+        toast.success(`${n} arquivo(s) enviado(s) ao Drive.`);
+        void loadFiles(folderId);
+      }
+    } catch (e) {
+      toast.error(
+        "Falha ao enviar. Se conectou o Drive antes desta versão, RECONECTE (escrita é um " +
+          "consentimento novo). Detalhe: " + String(e)
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(f: DriveFile) {
+    if (
+      !(await confirmDialog({
+        title: "Excluir do Drive",
+        description: `Excluir "${f.name}" do Google Drive? A ação é permanente.`,
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    try {
+      await deleteDoc(f.id);
+      toast.success("Arquivo excluído.");
+      if (folderId) void loadFiles(folderId);
+    } catch (e) {
+      toast.error("Falha ao excluir (reconecte se necessário). Detalhe: " + String(e));
+    }
+  }
+
   if (connected === false) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center">
         <FolderOpen className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />
         <div className="text-sm font-medium">Conecte o Google Drive</div>
         <p className="mx-auto mt-1 max-w-sm text-xs text-muted-foreground">
-          Acesse uma pasta designada (contratos, modelos, rider). O acesso é de leitura.
+          Liste, envie e exclua arquivos numa pasta designada (contratos, modelos, rider).
         </p>
         <Button size="sm" className="mt-3" onClick={() => void connect()}>
           Conectar Google Drive
@@ -104,11 +146,16 @@ export function Documentos() {
         </div>
         <Button size="sm" onClick={() => void saveFolder()}>Salvar pasta</Button>
         {folderId && (
-          <Button size="sm" variant="outline" onClick={() => void loadFiles(folderId)} disabled={loading}>
-            <RefreshCw className="mr-1.5 h-4 w-4" /> Atualizar
-          </Button>
+          <>
+            <Button size="sm" variant="outline" onClick={() => void handleUpload()} disabled={uploading}>
+              <Upload className="mr-1.5 h-4 w-4" /> {uploading ? "Enviando…" : "Enviar"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void loadFiles(folderId)} disabled={loading}>
+              <RefreshCw className="mr-1.5 h-4 w-4" /> Atualizar
+            </Button>
+          </>
         )}
-        <Button size="sm" variant="ghost" onClick={() => void connect()} title="Reconectar (novo consentimento de leitura)">
+        <Button size="sm" variant="ghost" onClick={() => void connect()} title="Reconectar (novo consentimento — leitura e escrita)">
           Reconectar
         </Button>
       </div>
@@ -134,6 +181,7 @@ export function Documentos() {
               gigs={gigs}
               expanded={openFile === f.id}
               onToggle={() => setOpenFile(openFile === f.id ? null : f.id)}
+              onDelete={() => void handleDelete(f)}
             />
           ))}
         </ul>
@@ -151,11 +199,13 @@ function DocRow({
   gigs,
   expanded,
   onToggle,
+  onDelete,
 }: {
   file: DriveFile;
   gigs: EntityRef[];
   expanded: boolean;
   onToggle: () => void;
+  onDelete: () => void;
 }) {
   const [links, setLinks] = useState<DocLink[]>([]);
   const [gigId, setGigId] = useState<string>("");
@@ -193,6 +243,11 @@ function DocRow({
         {!isFolder(file.mime_type) && (
           <button className="text-muted-foreground hover:text-foreground" title="Associar a uma GIG" onClick={onToggle}>
             <Link2 className="h-4 w-4" />
+          </button>
+        )}
+        {!isFolder(file.mime_type) && (
+          <button className="text-muted-foreground hover:text-destructive" title="Excluir do Drive" onClick={onDelete}>
+            <Trash2 className="h-4 w-4" />
           </button>
         )}
       </div>

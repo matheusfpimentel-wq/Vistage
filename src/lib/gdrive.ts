@@ -11,10 +11,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { getDb } from "./db";
 
-const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-// readonly: pra LISTAR/abrir arquivos de uma pasta designada (contratos, riders)
-// que o app NÃO criou. Escopo novo → exige novo consentimento (reconectar).
-const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+// Escopo completo: ler/criar/editar/EXCLUIR na conta. Necessário pra subir e
+// apagar documentos numa pasta designada que o app NÃO criou (a Biblioteca de
+// Documentos). Supersede drive.file + drive.readonly. Escopo novo → exige novo
+// consentimento (reconectar). No app do próprio usuário (credenciais dele, em
+// modo teste) ele é liberado normalmente.
+const DRIVE_FULL_SCOPE = "https://www.googleapis.com/auth/drive";
 const ROOT_FOLDER_NAME = "Vistage";
 // Credenciais reaproveitadas da seção do Calendar.
 const GCAL_CLIENT_ID = "gcal.client_id";
@@ -63,7 +65,7 @@ export async function connectDrive(): Promise<void> {
   }
   const start = await invoke<{ auth_url: string; port: number; verifier: string; redirect_uri: string }>(
     "gcal_start_oauth",
-    { clientId, scopes: [DRIVE_SCOPE, DRIVE_READONLY_SCOPE] }
+    { clientId, scopes: [DRIVE_FULL_SCOPE] }
   );
   await openExternal(start.auth_url);
   const cb = await invoke<{ code: string }>("gcal_wait_callback", {
@@ -143,6 +145,23 @@ export async function listDriveFolder(folderId: string): Promise<DriveFile[]> {
 export async function driveFileMeta(fileId: string): Promise<DriveFile> {
   const token = await getValidToken();
   return invoke<DriveFile>("gdrive_file_meta", { accessToken: token, fileId });
+}
+
+/** Sobe um arquivo (base64) numa pasta arbitrária do Drive. Devolve o file id. */
+export async function uploadToDriveFolder(
+  folderId: string,
+  name: string,
+  contentB64: string,
+  mime: string
+): Promise<string> {
+  const token = await getValidToken();
+  return invoke<string>("gdrive_upload", { accessToken: token, parentId: folderId, name, contentB64, mime });
+}
+
+/** Exclui um arquivo do Drive pelo id (requer escopo de escrita). */
+export async function deleteDriveFile(fileId: string): Promise<void> {
+  const token = await getValidToken();
+  await invoke("gdrive_delete", { accessToken: token, fileId });
 }
 
 // ── Pastas (raiz "Vistage" + subpasta por módulo, em português) ───────────────

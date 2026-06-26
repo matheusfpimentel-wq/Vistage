@@ -1,7 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { FileAudio2, FolderSearch, Link2, Plus, RefreshCw, Save, Trash2, TriangleAlert } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  ChevronDown,
+  ChevronUp,
+  Columns3,
+  FileAudio2,
+  FolderSearch,
+  Link2,
+  Plus,
+  RefreshCw,
+  Save,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -24,6 +51,79 @@ import {
 const AUDIO_EXTS = ["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "ogg"];
 const ROW_H = 38;
 
+// ── Colunas configuráveis (ordenar/arrastar/mostrar-ocultar) ──────────────────
+type ColDef = {
+  id: string;
+  label: string;
+  width: string; // trilha do CSS grid
+  sortKey: keyof LibraryTrack;
+  editable?: EditableCol;
+  numeric?: boolean;
+};
+
+const ALL_COLS: ColDef[] = [
+  { id: "title", label: "Título", width: "minmax(0, 1.5fr)", sortKey: "title", editable: "title" },
+  { id: "artist", label: "Artista", width: "minmax(0, 1.3fr)", sortKey: "artist", editable: "artist" },
+  { id: "genre", label: "Gênero", width: "minmax(0, 1fr)", sortKey: "genre", editable: "genre" },
+  { id: "bpm", label: "BPM", width: "72px", sortKey: "bpm", editable: "bpm", numeric: true },
+  { id: "music_key", label: "Tom", width: "80px", sortKey: "music_key", editable: "music_key" },
+  { id: "comments", label: "Comentários", width: "minmax(0, 1.6fr)", sortKey: "comments", editable: "comments" },
+  { id: "duration_sec", label: "Duração", width: "84px", sortKey: "duration_sec", numeric: true },
+  { id: "source", label: "Origem", width: "88px", sortKey: "source" },
+  { id: "status", label: "Status", width: "80px", sortKey: "file_missing" },
+];
+const COL_BY_ID = Object.fromEntries(ALL_COLS.map((c) => [c.id, c])) as Record<string, ColDef>;
+
+const COLS_LS = "vistage.biblioteca.musicas.cols.v1";
+type SortState = { id: string; dir: "asc" | "desc" } | null;
+type ColPrefs = { order: string[]; hidden: string[]; sort: SortState };
+
+const DEFAULT_PREFS: ColPrefs = {
+  order: ALL_COLS.map((c) => c.id),
+  hidden: ["duration_sec", "source"],
+  sort: null,
+};
+
+function loadPrefs(): ColPrefs {
+  try {
+    const raw = localStorage.getItem(COLS_LS);
+    if (!raw) return DEFAULT_PREFS;
+    const p = JSON.parse(raw) as Partial<ColPrefs>;
+    // sanitiza: mantém só ids conhecidos e garante que todas as colunas existam
+    const known = new Set(ALL_COLS.map((c) => c.id));
+    const order = (p.order ?? []).filter((id) => known.has(id));
+    for (const c of ALL_COLS) if (!order.includes(c.id)) order.push(c.id);
+    return {
+      order,
+      hidden: (p.hidden ?? []).filter((id) => known.has(id)),
+      sort: p.sort && known.has(p.sort.id) ? p.sort : null,
+    };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
+
+function fmtDuration(sec: number | null): string {
+  if (sec == null || !isFinite(sec)) return "—";
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function compareTracks(a: LibraryTrack, b: LibraryTrack, key: keyof LibraryTrack, dir: "asc" | "desc"): number {
+  const av = a[key];
+  const bv = b[key];
+  const an = av == null || av === "";
+  const bn = bv == null || bv === "";
+  if (an && bn) return 0;
+  if (an) return 1; // nulos sempre por último
+  if (bn) return -1;
+  let cmp: number;
+  if (typeof av === "number" && typeof bv === "number") cmp = av - bv;
+  else cmp = String(av).localeCompare(String(bv), "pt-BR", { sensitivity: "base", numeric: true });
+  return dir === "asc" ? cmp : -cmp;
+}
+
 export function Musicas() {
   const [tracks, setTracks] = useState<LibraryTrack[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +132,8 @@ export function Musicas() {
   const [scanning, setScanning] = useState(false);
   const [diff, setDiff] = useState<ScanDiff | null>(null);
   const [writeProgress, setWriteProgress] = useState<{ done: number; total: number } | null>(null);
+  const [prefs, setPrefs] = useState<ColPrefs>(loadPrefs);
+  const [colMenu, setColMenu] = useState(false);
   // Linhas editadas nesta sessão (e se o COMENTÁRIO foi tocado) → guiam "Gravar tags".
   const edited = useRef<Set<number>>(new Set());
   const commentEdited = useRef<Set<number>>(new Set());
@@ -41,7 +143,9 @@ export function Musicas() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      setTracks(await listTracks());
+      const rows = await listTracks();
+      // Commit não-urgente: em bibliotecas grandes evita travar a UV ao montar.
+      startTransition(() => setTracks(rows));
     } finally {
       setLoading(false);
     }
@@ -51,13 +155,42 @@ export function Musicas() {
     void refresh();
   }, [refresh]);
 
+  function persistPrefs(next: ColPrefs) {
+    setPrefs(next);
+    try {
+      localStorage.setItem(COLS_LS, JSON.stringify(next));
+    } catch {
+      /* ignora cota */
+    }
+  }
+
+  const visibleCols = useMemo(
+    () => prefs.order.map((id) => COL_BY_ID[id]).filter((c): c is ColDef => !!c && !prefs.hidden.includes(c.id)),
+    [prefs]
+  );
+
+  const gridTemplate = useMemo(
+    () => `48px ${visibleCols.map((c) => c.width).join(" ")} 36px`,
+    [visibleCols]
+  );
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return tracks;
-    return tracks.filter((t) =>
-      [t.title, t.artist, t.genre, t.music_key, t.comments].some((v) => (v ?? "").toLowerCase().includes(q))
-    );
-  }, [tracks, filter]);
+    let rows = tracks;
+    if (q) {
+      rows = rows.filter((t) =>
+        [t.title, t.artist, t.genre, t.music_key, t.comments].some((v) => (v ?? "").toLowerCase().includes(q))
+      );
+    }
+    if (prefs.sort) {
+      const col = COL_BY_ID[prefs.sort.id];
+      if (col) {
+        const dir = prefs.sort.dir;
+        rows = [...rows].sort((a, b) => compareTracks(a, b, col.sortKey, dir));
+      }
+    }
+    return rows;
+  }, [tracks, filter, prefs.sort]);
 
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -65,6 +198,36 @@ export function Musicas() {
     estimateSize: () => ROW_H,
     overscan: 12,
   });
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  function onHeaderClick(col: ColDef) {
+    persistPrefs({
+      ...prefs,
+      sort:
+        prefs.sort?.id !== col.id
+          ? { id: col.id, dir: "asc" }
+          : prefs.sort.dir === "asc"
+          ? { id: col.id, dir: "desc" }
+          : null, // 3º clique remove a ordenação
+    });
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = prefs.order.indexOf(String(active.id));
+    const newIndex = prefs.order.indexOf(String(over.id));
+    if (oldIndex < 0 || newIndex < 0) return;
+    persistPrefs({ ...prefs, order: arrayMove(prefs.order, oldIndex, newIndex) });
+  }
+
+  function toggleHidden(id: string) {
+    const hidden = prefs.hidden.includes(id)
+      ? prefs.hidden.filter((x) => x !== id)
+      : [...prefs.hidden, id];
+    persistPrefs({ ...prefs, hidden });
+  }
 
   function patchLocal(id: number, patch: Partial<LibraryTrack>) {
     setTracks((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -180,6 +343,33 @@ export function Musicas() {
         <Button size="sm" variant="outline" onClick={() => void doWriteTags()}>
           <Save className="mr-1.5 h-4 w-4" /> Gravar tags nos arquivos
         </Button>
+
+        {/* Seletor de colunas */}
+        <div className="relative">
+          <Button size="sm" variant="outline" onClick={() => setColMenu((v) => !v)}>
+            <Columns3 className="mr-1.5 h-4 w-4" /> Colunas
+          </Button>
+          {colMenu && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setColMenu(false)} />
+              <div className="absolute right-0 z-50 mt-1 w-48 rounded-md border bg-popover p-1 shadow-md">
+                {prefs.order.map((id) => {
+                  const c = COL_BY_ID[id];
+                  if (!c) return null;
+                  const shown = !prefs.hidden.includes(id);
+                  return (
+                    <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent">
+                      <input type="checkbox" className="accent-primary" checked={shown} onChange={() => toggleHidden(id)} />
+                      {c.label}
+                    </label>
+                  );
+                })}
+                <p className="px-2 pt-1 text-[10px] text-muted-foreground">Arraste o cabeçalho pra reordenar. Clique pra ordenar.</p>
+              </div>
+            </>
+          )}
+        </div>
+
         <input
           className="ml-auto h-8 w-48 rounded-md border bg-background px-2 text-sm"
           placeholder="Filtrar…"
@@ -195,12 +385,25 @@ export function Musicas() {
         <div className="text-xs text-muted-foreground">Gravando {writeProgress.done}/{writeProgress.total}…</div>
       )}
 
-      {/* Cabeçalho da grade */}
+      {/* Cabeçalho da grade (arrastável + ordenável) */}
       <div className="overflow-hidden rounded-md border">
-        <div className="grid-music grid-music-head">
-          <span>Correl.</span><span>Título</span><span>Artista</span><span>Gênero</span>
-          <span>BPM</span><span>Tom</span><span>Comentários</span><span>Status</span><span />
-        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <div className="grid-music grid-music-head" style={{ gridTemplateColumns: gridTemplate }}>
+            <span>Correl.</span>
+            <SortableContext items={visibleCols.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
+              {visibleCols.map((c) => (
+                <HeaderCell
+                  key={c.id}
+                  col={c}
+                  dir={prefs.sort?.id === c.id ? prefs.sort.dir : null}
+                  onClick={() => onHeaderClick(c)}
+                />
+              ))}
+            </SortableContext>
+            <span />
+          </div>
+        </DndContext>
+
         {loading ? (
           <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Carregando…</div>
         ) : filtered.length === 0 ? (
@@ -217,7 +420,7 @@ export function Musicas() {
                   <div
                     key={t.id}
                     className={cn("grid-music grid-music-row", t.file_missing && "is-missing")}
-                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: ROW_H, transform: `translateY(${vi.start}px)` }}
+                    style={{ gridTemplateColumns: gridTemplate, position: "absolute", top: 0, left: 0, width: "100%", height: ROW_H, transform: `translateY(${vi.start}px)` }}
                   >
                     {/* Correlação */}
                     <span className="corr">
@@ -235,15 +438,23 @@ export function Musicas() {
                         </button>
                       )}
                     </span>
-                    <Cell t={t} col="title" onSave={saveCell} />
-                    <Cell t={t} col="artist" onSave={saveCell} />
-                    <Cell t={t} col="genre" onSave={saveCell} />
-                    <Cell t={t} col="bpm" onSave={saveCell} numeric />
-                    <Cell t={t} col="music_key" onSave={saveCell} />
-                    <Cell t={t} col="comments" onSave={saveCell} />
-                    <span className={cn("status", t.file_missing && "text-destructive")}>
-                      {t.file_path ? (t.file_missing ? "ausente" : "ok") : "—"}
-                    </span>
+
+                    {visibleCols.map((c) =>
+                      c.editable ? (
+                        <Cell key={c.id} t={t} col={c.editable} onSave={saveCell} numeric={c.numeric} />
+                      ) : c.id === "status" ? (
+                        <span key={c.id} className={cn("status", t.file_missing && "text-destructive")}>
+                          {t.file_path ? (t.file_missing ? "ausente" : "ok") : "—"}
+                        </span>
+                      ) : c.id === "duration_sec" ? (
+                        <span key={c.id} className="status">{fmtDuration(t.duration_sec)}</span>
+                      ) : c.id === "source" ? (
+                        <span key={c.id} className="status">{t.source === "manual" ? "Manual" : "Pasta"}</span>
+                      ) : (
+                        <span key={c.id} className="status" />
+                      )
+                    )}
+
                     <button className="del" title="Excluir" onClick={() => void doDelete(t)}>
                       <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                     </button>
@@ -274,6 +485,24 @@ export function Musicas() {
         </div>
       )}
     </div>
+  );
+}
+
+function HeaderCell({ col, dir, onClick }: { col: ColDef; dir: "asc" | "desc" | null; onClick: () => void }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.id });
+  return (
+    <span
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      className="flex cursor-pointer select-none items-center gap-1 hover:text-foreground"
+      title="Clique pra ordenar · arraste pra reposicionar"
+    >
+      {col.label}
+      {dir === "asc" ? <ChevronUp className="h-3 w-3" /> : dir === "desc" ? <ChevronDown className="h-3 w-3" /> : null}
+    </span>
   );
 }
 
