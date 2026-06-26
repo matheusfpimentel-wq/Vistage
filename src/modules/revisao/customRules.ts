@@ -69,7 +69,7 @@ const TRACK_STAGE = [
 const TASK_STATUS = ["A fazer", "Em andamento", "Concluída", "Cancelada"] as const;
 const TASK_PRIORITY = ["Baixa", "Média", "Alta", "Urgente"] as const;
 const TASK_CATEGORY = ["GIG", "Produção Musical", "Conteúdo", "Festas", "Administrativo", "Pessoal"] as const;
-const PARTY_STATUS = ["Planejando", "Confirmada", "Realizada", "Cancelada"] as const;
+const PARTY_STATUS = ["Ideia", "Planejando", "Confirmada", "Em vendas", "Realizada", "Cancelada"] as const;
 const FAN_LEVEL = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
 
 export const RULE_ENTITIES: RuleEntityDef[] = [

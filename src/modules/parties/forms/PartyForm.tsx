@@ -74,13 +74,21 @@ import { SeriesEditionCard } from "../components/SeriesEditionCard";
 import { BriefingDialog } from "../components/BriefingDialog";
 
 /**
- * Status sugerido por marcos (sugere, NÃO avança sozinho): venue escolhido →
- * Confirmada; a data já passou → Realizada. Só entre os status existentes.
+ * Status sugerido por marcos (sugere, NÃO avança sozinho): a data já passou →
+ * Realizada; já vendeu ingresso → Em vendas; venue escolhido → Confirmada. Do
+ * mais avançado pro menos. Só sugere enquanto o usuário não fixou manualmente.
  */
-function suggestStatus(status: PartyStatus, date: string | null, venueId: number | null): PartyStatus | null {
+function suggestStatus(
+  status: PartyStatus,
+  date: string | null,
+  venueId: number | null,
+  sold: number
+): PartyStatus | null {
   const today = new Date().toISOString().slice(0, 10);
-  if (date && date < today && status !== "Realizada" && status !== "Cancelada") return "Realizada";
-  if (venueId != null && status === "Planejando") return "Confirmada";
+  if (status === "Cancelada") return null;
+  if (date && date < today && status !== "Realizada") return "Realizada";
+  if (sold > 0 && status !== "Em vendas" && status !== "Realizada") return "Em vendas";
+  if (venueId != null && (status === "Ideia" || status === "Planejando")) return "Confirmada";
   return null;
 }
 
@@ -97,6 +105,7 @@ type FormState = {
   venue_id: number | null;
   venue_name: string | null;
   status: PartyStatus;
+  status_override: number;
   description: string | null;
   expected_capacity: number | null;
   actual_attendance: number | null;
@@ -113,6 +122,7 @@ const EMPTY: FormState = {
   venue_id: null,
   venue_name: null,
   status: "Planejando",
+  status_override: 0,
   description: null,
   expected_capacity: null,
   actual_attendance: null,
@@ -224,6 +234,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         venue_id: party.venue_id,
         venue_name: party.venue_name,
         status: party.status,
+        status_override: party.status_override,
         description: party.description,
         expected_capacity: party.expected_capacity,
         actual_attendance: party.actual_attendance,
@@ -252,6 +263,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   }
 
   const isConfirmedStatus = state.status === "Confirmada" || state.status === "Realizada";
+  // Público real é COMPUTADO (de-dup 3b): total de ingressos vendidos. A festa
+  // pode sobrepor com uma contagem manual de portaria (actual_attendance).
+  const ticketsSold = tickets.reduce((s, t) => s + (t.quantity_sold ?? 0), 0);
 
   function toggleLineup(id: number) {
     set(
@@ -415,6 +429,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         venue_id: venueId,
         venue_name: venueName,
         status: state.status,
+        status_override: state.status_override,
         description: state.description,
         expected_capacity: state.expected_capacity,
         actual_attendance: state.actual_attendance,
@@ -589,7 +604,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               <Field label="Status">
                 <Select
                   value={state.status}
-                  onValueChange={(v) => set("status", v as PartyStatus)}
+                  onValueChange={(v) => {
+                    // Escolha manual fixa o status: a auto-sugestão para de cobrar.
+                    setState((s) => ({ ...s, status: v as PartyStatus, status_override: 1 }));
+                    setDirty(true);
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -606,9 +625,14 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </div>
 
             {(() => {
-              const suggested = suggestStatus(state.status, state.date, state.venue_id);
+              // Só sugere enquanto o usuário não fixou o status manualmente.
+              if (state.status_override) return null;
+              const suggested = suggestStatus(state.status, state.date, state.venue_id, ticketsSold);
               if (!suggested) return null;
-              const reason = suggested === "Realizada" ? "a data já passou" : "o venue já está escolhido";
+              const reason =
+                suggested === "Realizada" ? "a data já passou"
+                : suggested === "Em vendas" ? "os ingressos já estão vendendo"
+                : "o venue já está escolhido";
               return (
                 <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
                   <span className="flex-1">
@@ -767,17 +791,24 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               </Field>
               {isEdit && (
                 <Field label="Público real">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={state.actual_attendance ?? ""}
-                    onChange={(e) =>
-                      set(
-                        "actual_attendance",
-                        e.target.value ? Number(e.target.value) : null
-                      )
-                    }
-                  />
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      Computado dos ingressos:{" "}
+                      <strong className="text-foreground">{ticketsSold}</strong> vendido(s).
+                    </p>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder={`Contagem na portaria (sobrepõe · padrão ${ticketsSold})`}
+                      value={state.actual_attendance ?? ""}
+                      onChange={(e) =>
+                        set(
+                          "actual_attendance",
+                          e.target.value ? Number(e.target.value) : null
+                        )
+                      }
+                    />
+                  </div>
                 </Field>
               )}
             </div>
@@ -790,6 +821,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 partyId={party.id}
                 stages={stages}
                 tasks={tasks}
+                expectedCapacity={state.expected_capacity}
                 onReload={loadSubTabs}
               />
             </TabsContent>
