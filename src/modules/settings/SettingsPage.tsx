@@ -63,8 +63,8 @@ export function SettingsPage() {
       <TabsList className="w-full justify-start">
         <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
-        <TabsTrigger value="avancado">Configurações avançadas</TabsTrigger>
         <TabsTrigger value="backup">Backup</TabsTrigger>
+        <TabsTrigger value="avancado">Configurações avançadas</TabsTrigger>
       </TabsList>
 
       {/* ─── Configurações avançadas (alertas + insights) ─── */}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, PartyPopper, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -120,9 +121,11 @@ export function PartiesPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : parties.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <PartyPopper className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhuma produção cadastrada. Clique em "Nova produção" para começar.
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <PartyPopper className="h-9 w-9 text-muted-foreground/60" />
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova produção
+          </Button>
         </div>
       ) : (
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>

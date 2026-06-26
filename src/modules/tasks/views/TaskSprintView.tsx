@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarClock, CheckSquare, ChevronDown, ChevronRight, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { CalendarClock, CheckSquare, ChevronDown, ChevronRight, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -14,6 +14,8 @@ type Props = {
   onEdit: (task: Task) => void;
   onToggleDone: (task: Task) => void;
   onDelete: (task: Task) => void;
+  /** Cria uma nova tarefa — CTA no estado vazio. */
+  onCreate?: () => void;
 };
 
 const PRIORITY_ORDER: Record<TaskPriority, number> = {
@@ -222,13 +224,19 @@ function CollapsibleGroup({
   );
 }
 
-export function TaskSprintView({ tasks, onEdit, onToggleDone, onDelete }: Props) {
+export function TaskSprintView({ tasks, onEdit, onToggleDone, onDelete, onCreate }: Props) {
   if (tasks.length === 0) {
     return (
       <EmptyState
         icon={CheckSquare}
         title="Nenhuma tarefa por aqui"
-        description="Crie uma nova tarefa ou ajuste os filtros."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          )
+        }
       />
     );
   }
@@ -250,7 +258,13 @@ export function TaskSprintView({ tasks, onEdit, onToggleDone, onDelete }: Props)
       <EmptyState
         icon={CheckSquare}
         title="Nenhuma tarefa por aqui"
-        description="Crie uma nova tarefa ou ajuste os filtros."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          )
+        }
       />
     );
   }

@@ -68,6 +68,7 @@ export function FocoPage() {
   const [streak, setStreak] = useState(0);
   const [peakHour, setPeakHour] = useState<PeakFocusHour>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [tab, setTab] = useState("foco");
 
   async function refresh() {
     const [h, a, sess, hl, tpp, stk, peak] = await Promise.all([
@@ -93,7 +94,7 @@ export function FocoPage() {
   const totalMinutes = activityStats.reduce((s, a) => s + a.total_minutes, 0);
 
   return (
-    <Tabs defaultValue="foco" className="space-y-4">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <TabsList>
         <TabsTrigger value="foco">Modo Foco</TabsTrigger>
         <TabsTrigger value="trilha">Trilha da Semana</TabsTrigger>
@@ -146,9 +147,10 @@ export function FocoPage() {
         </div>
 
       {activityStats.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Ainda sem sessões encerradas. Planeje sua semana na aba Trilha e inicie
-          uma sessão pelo botão "▶ Sessão" no topo.
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <Button size="sm" variant="outline" onClick={() => setTab("trilha")}>
+            <Plus className="h-4 w-4" /> Planejar na Trilha
+          </Button>
         </div>
       ) : (
         <>

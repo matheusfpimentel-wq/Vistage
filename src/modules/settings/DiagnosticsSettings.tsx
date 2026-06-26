@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { appDataDir } from "@tauri-apps/api/path";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/lib/db";
 
 type Diag = {
@@ -56,10 +56,6 @@ export function DiagnosticsSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Diagnóstico</CardTitle>
-        <CardDescription>
-          Estado técnico do banco local — pra investigar se algo falhar, sem precisar de
-          ferramentas de desenvolvedor.
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <Row label="Versão do schema" value={d ? (d.schemaVersion != null ? `v${d.schemaVersion}` : "—") : "…"} />
@@ -70,7 +66,7 @@ export function DiagnosticsSettings() {
             <p className="text-xs text-muted-foreground">…</p>
           ) : d.errors.length === 0 ? (
             <p className="text-xs text-emerald-600 dark:text-emerald-400">
-              Nenhum — todas as migrações aplicaram.
+              Nenhum.
             </p>
           ) : (
             <ul className="space-y-1">

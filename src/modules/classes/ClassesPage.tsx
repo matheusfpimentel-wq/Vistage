@@ -388,6 +388,11 @@ export function ClassesPage() {
             <EmptyState
               icon={GraduationCap}
               title="Nenhum aluno ainda."
+              action={
+                <Button size="sm" onClick={() => { setEditingStudent(null); setStudentFormOpen(true); }}>
+                  <Plus className="h-4 w-4" /> Novo aluno
+                </Button>
+              }
             />
           ) : (
             <div className="overflow-x-auto rounded-md border">

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Lightbulb, Plus, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   Select,
@@ -232,13 +233,11 @@ export function IdeasPage() {
       />
 
       {items.length === 0 && filters.search === "" ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Lightbulb className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Solta uma ideia com{" "}
-          <kbd className="rounded border bg-muted px-1.5 py-0.5 text-xs">
-            Ctrl/Cmd + I
-          </kbd>{" "}
-          em qualquer tela.
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <Lightbulb className="h-9 w-9 text-muted-foreground/60" />
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova ideia
+          </Button>
         </div>
       ) : (
         <Tabs defaultValue="board">
@@ -252,7 +251,7 @@ export function IdeasPage() {
           </TabsList>
 
           <TabsContent value="board">
-            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={(id) => void handleDeleteById(id)} />
+            <IdeaBoard items={items} onEdit={openEdit} onConvertToTrack={openConvertToTrack} onToggleHot={handleToggleHot} onDelete={(id) => void handleDeleteById(id)} onCreate={openCreate} />
           </TabsContent>
 
           <TabsContent value="kanban">

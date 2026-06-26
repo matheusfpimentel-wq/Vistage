@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CalendarClock, CheckSquare, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { CalendarClock, CheckSquare, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -21,6 +21,8 @@ type Props = {
   onEdit: (task: Task) => void;
   onToggleDone: (task: Task) => void;
   onDelete: (task: Task) => void;
+  /** Cria uma nova tarefa — mostrado como CTA no estado vazio. */
+  onCreate?: () => void;
   /** Ações em lote — opcionais. Recebem as tarefas selecionadas. */
   onBulkComplete?: (tasks: Task[]) => void;
   onBulkSetStatus?: (tasks: Task[], status: TaskStatus) => void;
@@ -41,6 +43,7 @@ export function TaskListView({
   onEdit,
   onToggleDone,
   onDelete,
+  onCreate,
   onBulkComplete,
   onBulkSetStatus,
   onBulkDelete,
@@ -69,7 +72,13 @@ export function TaskListView({
       <EmptyState
         icon={CheckSquare}
         title="Nenhuma tarefa por aqui"
-        description="Crie uma nova tarefa ou ajuste os filtros."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          )
+        }
       />
     );
   }

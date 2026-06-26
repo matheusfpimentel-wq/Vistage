@@ -325,6 +325,7 @@ export function TasksPage() {
               tasks={tasks}
               onEdit={openEdit}
               onToggleDone={handleToggleDone}
+              onCreate={openCreate}
             />
           ) : (
             <TaskListView
@@ -332,6 +333,7 @@ export function TasksPage() {
               onEdit={openEdit}
               onToggleDone={handleToggleDone}
               onDelete={handleDelete}
+              onCreate={openCreate}
               onBulkComplete={handleBulkComplete}
               onBulkSetStatus={handleBulkSetStatus}
               onBulkDelete={handleBulkDelete}
@@ -349,6 +351,7 @@ export function TasksPage() {
             onEdit={openEdit}
             onToggleDone={handleToggleDone}
             onSetQuadrant={handleSetQuadrant}
+            onCreate={openCreate}
           />
         </TabsContent>
 
@@ -358,6 +361,7 @@ export function TasksPage() {
             onEdit={openEdit}
             onToggleDone={handleToggleDone}
             onDelete={handleDelete}
+            onCreate={openCreate}
           />
         </TabsContent>
 

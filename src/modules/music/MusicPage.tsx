@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FolderOpen, FolderPlus, Music, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import type { MusicProject } from "./types";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -190,7 +191,11 @@ export function MusicPage() {
             <EmptyState
               icon={Music}
               title="Nenhuma track ainda."
-              description='Clica em "Nova track" — o projeto é criado automaticamente.'
+              action={
+                <Button size="sm" onClick={() => openCreate()}>
+                  <Plus className="h-4 w-4" /> Nova track
+                </Button>
+              }
             />
           ) : (
             <ProjectsView

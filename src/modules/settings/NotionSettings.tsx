@@ -265,7 +265,7 @@ export function NotionSettings() {
           >
             {/* Notas — database própria, separada das ideias */}
             <div className="space-y-2 rounded-md border p-3">
-              <p className="text-xs font-medium">Notas (Conhecimento) — database separada</p>
+              <p className="text-xs font-medium">Notas (Conhecimento)</p>
               {notesDbId ? (
                 <>
                   {notesLastSync && (
@@ -280,9 +280,6 @@ export function NotionSettings() {
                 </>
               ) : (
                 <>
-                  <p className="text-xs text-muted-foreground">
-                    Cria um database "📝 Notas" na mesma página, separado das ideias.
-                  </p>
                   <Button size="sm" variant="outline" onClick={() => void handleCreateNotesDb()} disabled={creatingNotes || !savedParent}>
                     {creatingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Criar database de Notas

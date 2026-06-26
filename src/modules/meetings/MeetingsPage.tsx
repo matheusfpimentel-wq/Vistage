@@ -133,9 +133,10 @@ export function MeetingsPage() {
       />
 
       {visible.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Nenhuma reunião {statusFilter !== "Todas" ? `${statusFilter.toLowerCase()}` : ""} ainda.
-          Marque uma reunião e ela vira uma tarefa-lembrete automaticamente.
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nova reunião
+          </Button>
         </div>
       ) : (
         <div className="grid gap-3">
