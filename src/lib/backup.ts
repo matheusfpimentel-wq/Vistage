@@ -53,6 +53,7 @@ const TABLES = [
   "party_budget_items",      // party_id → parties
   "party_tickets",           // party_id → parties
   "party_venue_candidates",  // party_id → parties, venue_id → venues
+  "party_runsheet",          // party_id → parties, performer_contact_id → contacts
   "supplier_services",       // supplier_id → suppliers
   "content_scenes",          // content_id → content
   "tracks",                  // project_id → music_projects

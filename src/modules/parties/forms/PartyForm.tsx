@@ -67,6 +67,7 @@ import {
 import { WorkflowTab } from "../components/WorkflowTab";
 import { OrcamentoTab } from "../components/OrcamentoTab";
 import { IngressosTab } from "../components/IngressosTab";
+import { OperacaoTab } from "../components/OperacaoTab";
 
 type Props = {
   open: boolean;
@@ -504,6 +505,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             <TabsTrigger value="lineup">Equipe</TabsTrigger>
             {isEdit && <TabsTrigger value="orcamento">Orçamento</TabsTrigger>}
             {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
+            {isEdit && <TabsTrigger value="operacao">Operação</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
             <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
@@ -927,6 +929,18 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 partyId={party.id}
                 tickets={tickets}
                 onReload={loadSubTabs}
+              />
+            </TabsContent>
+          )}
+
+          {/* ===== OPERAÇÃO / DIA D (edit only) ===== */}
+          {isEdit && party && (
+            <TabsContent value="operacao" forceMount hidden={tab !== "operacao"} className="pt-2">
+              <OperacaoTab
+                partyId={party.id}
+                performers={contacts
+                  .filter((c) => state.lineup.includes(c.id))
+                  .map((c) => ({ id: c.id, name: c.name }))}
               />
             </TabsContent>
           )}

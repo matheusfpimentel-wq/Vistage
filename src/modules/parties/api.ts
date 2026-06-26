@@ -12,6 +12,7 @@ import type {
   PartyTicket,
   PartyTask,
   PartyVenueCandidate,
+  PartyRunsheetItem,
 } from "./types";
 import { DEFAULT_STAGE_NAMES } from "./types";
 
@@ -634,6 +635,72 @@ export async function deletePartyTicket(id: number): Promise<void> {
       await syncPartyTransactions(rows[0].party_id);
     }
   } catch { /* não interrompe */ }
+}
+
+// ===== OPERAÇÃO / DIA D (run-of-show) =====
+
+export async function listPartyRunsheet(partyId: number): Promise<PartyRunsheetItem[]> {
+  return getDb().select<PartyRunsheetItem[]>(
+    "SELECT * FROM party_runsheet WHERE party_id = $1 ORDER BY position, time",
+    [partyId]
+  );
+}
+
+export async function createPartyRunsheetItem(
+  item: Omit<PartyRunsheetItem, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      item.party_id, item.position, item.time ?? null, item.end_time ?? null,
+      item.title, item.performer_contact_id ?? null, item.notes ?? null,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyRunsheetItem(
+  id: number,
+  updates: Partial<Omit<PartyRunsheetItem, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(
+    `UPDATE party_runsheet SET ${sets} WHERE id = $${values.length}`,
+    values
+  );
+}
+
+export async function deletePartyRunsheetItem(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_runsheet WHERE id = $1", [id]);
+}
+
+/** Reordena o run-of-show gravando `position` pela posição na lista. */
+export async function reorderPartyRunsheet(orderedIds: number[]): Promise<void> {
+  const db = getDb();
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.execute("UPDATE party_runsheet SET position = $1 WHERE id = $2", [i, orderedIds[i]]);
+  }
+}
+
+/** "Pendências com a casa" — campo único na festa (alvará/segurança/bar). */
+export async function getPartyHousePending(partyId: number): Promise<string | null> {
+  const rows = await getDb().select<{ house_pending: string | null }[]>(
+    "SELECT house_pending FROM parties WHERE id = $1",
+    [partyId]
+  );
+  return rows[0]?.house_pending ?? null;
+}
+
+export async function setPartyHousePending(partyId: number, value: string | null): Promise<void> {
+  await getDb().execute(
+    "UPDATE parties SET house_pending = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [value || null, partyId]
+  );
 }
 
 // ===== PARTY TASKS =====

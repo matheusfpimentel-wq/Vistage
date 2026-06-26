@@ -2075,6 +2075,26 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE notes ADD COLUMN notion_page_id TEXT;
     `,
   },
+  {
+    version: 144,
+    description:
+      "Festas — aba Operação/Dia D: party_runsheet (cronograma do dia, com horário/performer do line-up/notas) + parties.house_pending (pendências com a casa).",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_runsheet (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        position INTEGER NOT NULL DEFAULT 0,
+        time TEXT,
+        end_time TEXT,
+        title TEXT NOT NULL DEFAULT '',
+        performer_contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_runsheet_party ON party_runsheet(party_id, position);
+      ALTER TABLE parties ADD COLUMN house_pending TEXT;
+    `,
+  },
 ];
 
 
