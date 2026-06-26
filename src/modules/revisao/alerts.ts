@@ -29,6 +29,16 @@ export type AlertIconKey =
   | "trophy"
   | "zap";
 
+/** Prioridade do alerta — dirige cor e ordenação (e, adiante, padrões de push/permanência). */
+export type AlertSeverity = "critico" | "atencao" | "info";
+
+export const SEVERITY_ORDER: Record<AlertSeverity, number> = { critico: 0, atencao: 1, info: 2 };
+export const SEVERITY_LABEL: Record<AlertSeverity, string> = {
+  critico: "Crítico",
+  atencao: "Atenção",
+  info: "Informativo",
+};
+
 export type AlertItem = {
   /** Chave estável — usada para deduplicar push e como React key. */
   key: string;
@@ -39,7 +49,18 @@ export type AlertItem = {
   icon: AlertIconKey;
   /** Regra própria marcada como "desaparecer ao clicar" → mostra dispensar. */
   dismissible?: boolean;
+  /** Prioridade (preenchida por regras do usuário; builtins derivam do catálogo). */
+  severidade?: AlertSeverity;
 };
+
+/** Prioridade efetiva de um alerta: a própria, ou a do catálogo builtin, ou via `critical`. */
+export function alertSeverity(item: AlertItem): AlertSeverity {
+  if (item.severidade) return item.severidade;
+  const id = ruleIdForKey(item.key);
+  const builtin = BUILTIN_RULES.find((b) => b.id === id);
+  if (builtin) return builtin.severidade;
+  return item.critical ? "critico" : "info";
+}
 
 export type ExtraStats = {
   /** GIGs esta semana sem nenhuma avaliação de debrief registrada */
@@ -87,31 +108,31 @@ export type BuiltinRule = {
   message: string;
   /** Quando o alerta dispara (a condição). */
   trigger: string;
+  /** Prioridade — crítico (dinheiro/prazo), atenção (acionável), info (lembrete). */
+  severidade: AlertSeverity;
+  /** Regra de dinheiro/fisco — não pode ser excluída do catálogo, só desativada (🔒). */
+  inegociavel?: boolean;
   /** Chave dinâmica: o id é um prefixo (ex.: "track-standby-overdue-"). */
   dynamic?: boolean;
 };
 
 export const BUILTIN_RULES: BuiltinRule[] = [
-  { id: "tasks-overdue", category: "Tarefas", message: "Há tarefas vencidas sem conclusão", trigger: "Tarefa com prazo anterior a hoje e ainda não concluída" },
-  { id: "debriefs-pending", category: "GIGs", message: "Debriefs de GIG pendentes", trigger: "GIG concluída sem o debrief preenchido" },
-  { id: "gigs-unprepared", category: "GIGs", message: "GIGs em 72h sem prep musical completa", trigger: "GIG nas próximas 72h sem a preparação musical concluída" },
-  { id: "gigs-unpaid", category: "GIGs", message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída há mais de 48h com cachê ainda não recebido" },
-  { id: "gigs-no-rating", category: "GIGs", message: "GIGs desta semana sem avaliação no debrief", trigger: "GIG da semana concluída sem a nota do contratante no debrief" },
-  { id: "no-upcoming-gigs", category: "GIGs", message: "Nenhuma GIG marcada à frente", trigger: "Não há nenhuma GIG futura agendada" },
-  { id: "ideas-stuck", category: "Produção", message: "Ideias quentes paradas em Embrião há +15 dias", trigger: "Ideia 'quente' sem evoluir do estágio Embrião por mais de 15 dias" },
-  { id: "tracks-stalled", category: "Produção", message: "Faixas sem movimento há +15 dias", trigger: "Faixa em produção sem nenhuma atualização por mais de 15 dias" },
-  { id: "content-stalled", category: "Produção", message: "Conteúdos sem movimento há +15 dias", trigger: "Conteúdo sem nenhuma atualização por mais de 15 dias" },
-  { id: "no-tracks-production", category: "Produção", message: "Nenhuma música em produção", trigger: "Não há nenhuma faixa em produção no momento" },
-  { id: "no-new-track-30d", category: "Produção", message: "Nenhuma música nova nos últimos 30 dias", trigger: "Nenhuma faixa foi iniciada nos últimos 30 dias" },
-  { id: "track-standby-overdue-", category: "Produção", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
-  { id: "parties-stalled", category: "Festas", message: "Festas sem movimento há +15 dias", trigger: "Festa sem nenhuma atualização por mais de 15 dias" },
-  { id: "parties-undated", category: "Festas", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
-  { id: "classes-unprepared", category: "Aulas", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
-  { id: "students-low-balance", category: "Aulas", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com 2 ou menos aulas (ou 2h) restantes — hora de renovar" },
-  { id: "superfans-stale", category: "Pessoas", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
-  { id: "superfans-pending-interaction", category: "Pessoas", message: "Superfãs com interação pendente há 30+ dias", trigger: "Fã superfã sem interação registrada há 30 dias ou mais" },
-  { id: "crm-no-interaction-week", category: "Pessoas", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
-  { id: "okrs-lagging", category: "Objetivos", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
+  { id: "tasks-overdue", category: "Tarefas", severidade: "atencao", message: "Há tarefas vencidas sem conclusão", trigger: "Tarefa com prazo anterior a hoje e ainda não concluída" },
+  { id: "debriefs-pending", category: "GIGs", severidade: "atencao", message: "Debriefs de GIG pendentes", trigger: "GIG concluída sem o debrief preenchido" },
+  { id: "gigs-unprepared", category: "GIGs", severidade: "critico", message: "GIGs em 72h sem prep musical completa", trigger: "GIG nas próximas 72h sem a preparação musical concluída" },
+  { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída há mais de 48h com cachê ainda não recebido" },
+  { id: "no-upcoming-gigs", category: "GIGs", severidade: "atencao", message: "Nenhuma GIG marcada à frente", trigger: "Não há nenhuma GIG futura agendada" },
+  { id: "ideas-stuck", category: "Produção", severidade: "info", message: "Ideias quentes paradas em Embrião há +15 dias", trigger: "Ideia 'quente' sem evoluir do estágio Embrião por mais de 15 dias" },
+  { id: "tracks-stalled", category: "Produção", severidade: "atencao", message: "Faixas sem movimento há +15 dias", trigger: "Faixa em produção sem nenhuma atualização por mais de 15 dias" },
+  { id: "content-stalled", category: "Produção", severidade: "info", message: "Conteúdos sem movimento há +15 dias", trigger: "Conteúdo sem nenhuma atualização por mais de 15 dias" },
+  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Funil de produção vazio", trigger: "Nada em produção E nenhuma faixa nova há +30 dias (funde os dois alertas antigos)" },
+  { id: "track-standby-overdue-", category: "Produção", severidade: "info", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
+  { id: "parties-undated", category: "Festas", severidade: "info", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
+  { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
+  { id: "students-low-balance", category: "Aulas", severidade: "atencao", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com 2 ou menos aulas (ou 2h) restantes — hora de renovar" },
+  { id: "superfans-stale", category: "Pessoas", severidade: "info", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
+  { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
+  { id: "okrs-lagging", category: "Objetivos", severidade: "atencao", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
 ];
 
 /** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */
@@ -185,14 +206,9 @@ export function computeAlerts(
       critical: false,
       label: `${stats.stalledTracks} track${plural(stats.stalledTracks)} sem movimento há +15 dias`,
     });
-  if (stats.stalledParties > 0)
-    alerts.push({
-      key: "parties-stalled",
-      icon: "party",
-      to: "/festas",
-      critical: false,
-      label: `${stats.stalledParties} festa${plural(stats.stalledParties)} sem movimento há +15 dias`,
-    });
+  // "Festas sem movimento +15d" foi CORTADA: staleness sem gate fingia urgência
+  // (festa a 6 meses não precisa de cobrança). A prontidão por proximidade de
+  // data cobre o que importa.
   if (stats.stalledContent > 0)
     alerts.push({
       key: "content-stalled",
@@ -217,13 +233,16 @@ export function computeAlerts(
       critical: false,
       label: "Nenhuma GIG marcada à frente",
     });
-  if (stats.noTracksInProduction)
+  // Funil de produção vazio = nenhuma faixa em produção E nenhuma nova em 30d.
+  // Funde os dois alertas antigos ("sem produção" + "sem faixa nova em 30d") num
+  // lembrete só — um sem o outro é ruído.
+  if (stats.noTracksInProduction && (extra?.daysSinceLastTrack ?? 0) >= 30)
     alerts.push({
-      key: "no-tracks-production",
+      key: "funil-producao-vazio",
       icon: "warning",
       to: "/musica",
       critical: false,
-      label: "Nenhuma música em produção",
+      label: "Funil de produção vazio — nada em produção e nenhuma faixa nova há +30 dias",
     });
   if (stats.unpreparedClasses > 0)
     alerts.push({
@@ -278,28 +297,10 @@ export function computeAlerts(
     });
   }
 
-  // ── Fraquezas / gaps ───────────────────────────────────────────
-  if ((extra?.gigsWithoutRating ?? 0) > 0) {
-    const n = extra!.gigsWithoutRating!;
-    alerts.push({
-      key: "gigs-no-rating",
-      icon: "star",
-      to: "/gigs",
-      critical: false,
-      label: `${n} GIG${plural(n)} esta semana sem avaliação registrada no debrief`,
-    });
-  }
+  // "GIGs sem avaliação no debrief" foi FUNDIDA em "Debrief de GIG pendente" — a
+  // nota do contratante faz parte do debrief, não é um alerta separado.
 
-  if ((extra?.daysSinceLastTrack ?? null) != null && (extra?.daysSinceLastTrack ?? 0) >= 30) {
-    const d = extra!.daysSinceLastTrack!;
-    alerts.push({
-      key: "no-new-track-30d",
-      icon: "music",
-      to: "/musica",
-      critical: false,
-      label: `Nenhuma música nova iniciada nos últimos ${d} dias`,
-    });
-  }
+  // "Nenhuma música nova em 30d" foi FUNDIDA no "Funil de produção vazio" acima.
 
   if ((extra?.crmNoInteractionThisWeek ?? 0) > 0) {
     alerts.push({
@@ -311,17 +312,8 @@ export function computeAlerts(
     });
   }
 
-  // ── Pendências ─────────────────────────────────────────────────
-  if ((extra?.staleSuperFans ?? 0) > 0) {
-    const n = extra!.staleSuperFans!;
-    alerts.push({
-      key: "superfans-pending-interaction",
-      icon: "heart",
-      to: "/fas",
-      critical: false,
-      label: `${n} fã${plural(n)} Superfã${plural(n)} sem interação há 30+ dias`,
-    });
-  }
+  // "Superfãs com interação pendente 30+d" era DUPLICATA exata de
+  // "superfans-stale" (logo acima) — removida.
 
   // Mensagens de motivação/parabéns NÃO são alertas — foram removidas do
   // sininho (os campos de ExtraStats correspondentes ficam sem uso aqui).

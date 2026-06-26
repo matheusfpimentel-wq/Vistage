@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import type { AlertItem } from "./alerts";
+import type { AlertItem, AlertSeverity } from "./alerts";
 
 /**
  * Regras de alertas/insights CRIADAS pelo usuário (Configurações avançadas).
@@ -216,6 +216,8 @@ export type CustomRule = {
   match: RuleMatch;
   message: string;
   severity: "alerta" | "insight";
+  /** Prioridade do alerta (crítico/atenção/info) — dirige cor e ordenação. */
+  severidade: AlertSeverity;
   /** Alerta "desaparecer ao clicar" (dispensável no sininho). */
   dismissible: number; // 0 | 1
   enabled: number; // 0 | 1
@@ -229,6 +231,7 @@ export type CustomRuleInput = {
   match: RuleMatch;
   message: string;
   severity: "alerta" | "insight";
+  severidade?: AlertSeverity;
   dismissible?: number;
   enabled?: number;
 };
@@ -242,6 +245,7 @@ type CustomRuleRow = {
   value: string | null;
   message: string;
   severity: "alerta" | "insight";
+  severidade: string | null;
   enabled: number;
   conditions: string | null;
   match_mode: string | null;
@@ -279,6 +283,7 @@ function rowToRule(r: CustomRuleRow): CustomRule {
     match: r.match_mode === "any" ? "any" : "all",
     message: r.message,
     severity: r.severity,
+    severidade: (r.severidade as AlertSeverity) || "atencao",
     dismissible: r.dismissible ?? 0,
     enabled: r.enabled,
     created_at: r.created_at,
@@ -342,21 +347,21 @@ const FALLBACK_COND: RuleCondition = { field: "", operator: "filled", value: nul
 export async function createCustomRule(input: CustomRuleInput): Promise<void> {
   const first = input.conditions[0] ?? FALLBACK_COND;
   await getDb().execute(
-    `INSERT INTO custom_rules (entity, field, operator, value, message, severity, enabled, conditions, match_mode, dismissible)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    `INSERT INTO custom_rules (entity, field, operator, value, message, severity, severidade, enabled, conditions, match_mode, dismissible)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
     [input.entity, first.field, first.operator, first.value, input.message, input.severity,
-      input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0]
+      input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0]
   );
 }
 export async function updateCustomRule(id: number, input: CustomRuleInput): Promise<void> {
   const first = input.conditions[0] ?? FALLBACK_COND;
   await getDb().execute(
     `UPDATE custom_rules
-        SET entity=$1, field=$2, operator=$3, value=$4, message=$5, severity=$6, enabled=$7,
-            conditions=$8, match_mode=$9, dismissible=$10, updated_at=datetime('now')
-      WHERE id=$11`,
+        SET entity=$1, field=$2, operator=$3, value=$4, message=$5, severity=$6, severidade=$7, enabled=$8,
+            conditions=$9, match_mode=$10, dismissible=$11, updated_at=datetime('now')
+      WHERE id=$12`,
     [input.entity, first.field, first.operator, first.value, input.message, input.severity,
-      input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0, id]
+      input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0, id]
   );
 }
 export async function setCustomRuleEnabled(id: number, enabled: boolean): Promise<void> {
@@ -507,7 +512,8 @@ export async function evaluateCustomRules(): Promise<AlertItem[]> {
         key: `custom-${rule.id}`,
         icon: "warning",
         to: e.route,
-        critical: true,
+        critical: rule.severidade === "critico",
+        severidade: rule.severidade,
         dismissible: !!rule.dismissible,
         label: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
       });

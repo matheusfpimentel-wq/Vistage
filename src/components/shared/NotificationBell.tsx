@@ -3,7 +3,7 @@ import { Bell, BellRing } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
-import { computeAlerts, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
+import { alertSeverity, computeAlerts, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
@@ -300,8 +300,12 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  const allAlerts = mergeAndReorder([alerts, crmAlerts]);
-  const criticalCount = allAlerts.filter((a) => a.critical).length;
+  // Variedade (não-vistos primeiro) e DEPOIS ordena por severidade — crítico no
+  // topo (sort estável preserva a ordem de variedade dentro de cada camada).
+  const allAlerts = mergeAndReorder([alerts, crmAlerts]).sort(
+    (a, b) => SEVERITY_ORDER[alertSeverity(a)] - SEVERITY_ORDER[alertSeverity(b)]
+  );
+  const criticalCount = allAlerts.filter((a) => alertSeverity(a) === "critico").length;
   const totalCount = allAlerts.length;
 
   return (
@@ -364,12 +368,14 @@ export function NotificationBell() {
               {allAlerts.map((a) => {
                 const staleMatch = a.key.match(/^gig-stale-status-(\d+)$/);
                 const staleGigId = staleMatch ? Number(staleMatch[1]) : null;
+                const sev = alertSeverity(a);
                 return (
                   <div
                     key={a.key}
                     className={cn(
                       "border-b px-3 py-2.5 text-sm last:border-0",
-                      a.critical && "bg-red-500/5"
+                      sev === "critico" && "bg-red-500/5",
+                      sev === "atencao" && "bg-amber-500/5"
                     )}
                   >
                     <Link
@@ -377,11 +383,11 @@ export function NotificationBell() {
                       onClick={() => setOpen(false)}
                       className={cn(
                         "flex items-center gap-2.5 transition hover:text-primary",
-                        a.critical && "font-medium"
+                        sev !== "info" && "font-medium"
                       )}
                     >
                       <span className="shrink-0">
-                        <AlertIcon icon={a.icon} critical={a.critical} />
+                        <AlertIcon icon={a.icon} critical={sev === "critico"} />
                       </span>
                       <span className="flex-1 leading-tight">{a.label}</span>
                     </Link>

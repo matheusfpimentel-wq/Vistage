@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
-import { computeAlerts, type AlertItem } from "./alerts";
+import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
 import { getDisabledRuleIds } from "./ruleConfig";
 import { evaluateCustomRules } from "./customRules";
 import { filterSnoozed, snoozeAlert } from "./snooze";
@@ -55,8 +55,8 @@ export function AlertsPage() {
     void snoozeAlert(key);
   }, []);
 
-  const critical = alerts.filter((a) => a.critical);
-  const recommendations = alerts.filter((a) => !a.critical);
+  const groups: Record<AlertSeverity, AlertItem[]> = { critico: [], atencao: [], info: [] };
+  for (const a of alerts) groups[alertSeverity(a)].push(a);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -66,7 +66,7 @@ export function AlertsPage() {
           <p className="text-sm text-muted-foreground">
             {alerts.length === 0
               ? "Tudo em ordem por aqui."
-              : `${critical.length} crítico${critical.length === 1 ? "" : "s"} · ${recommendations.length} recomendaç${recommendations.length === 1 ? "ão" : "ões"}`}
+              : `${groups.critico.length} crítico${groups.critico.length === 1 ? "" : "s"} · ${groups.atencao.length} de atenção · ${groups.info.length} informativo${groups.info.length === 1 ? "" : "s"}`}
           </p>
         </div>
         <button
@@ -94,11 +94,16 @@ export function AlertsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {critical.length > 0 && (
-            <AlertSection title="Críticos" items={critical} onDismiss={dismiss} />
-          )}
-          {recommendations.length > 0 && (
-            <AlertSection title="Recomendações" items={recommendations} onDismiss={dismiss} />
+          {(["critico", "atencao", "info"] as AlertSeverity[]).map((sev) =>
+            groups[sev].length > 0 ? (
+              <AlertSection
+                key={sev}
+                title={SEVERITY_LABEL[sev] + (sev === "info" ? "" : sev === "critico" ? "s" : "")}
+                severity={sev}
+                items={groups[sev]}
+                onDismiss={dismiss}
+              />
+            ) : null
           )}
         </div>
       )}
@@ -108,35 +113,34 @@ export function AlertsPage() {
 
 function AlertSection({
   title,
+  severity,
   items,
   onDismiss,
 }: {
   title: string;
+  severity: AlertSeverity;
   items: AlertItem[];
   onDismiss: (key: string) => void;
 }) {
+  const rowBg = severity === "critico" ? "bg-red-500/5" : severity === "atencao" ? "bg-amber-500/5" : "";
+  const dot = severity === "critico" ? "bg-red-500" : severity === "atencao" ? "bg-amber-500" : "bg-muted-foreground/40";
   return (
     <section className="space-y-2">
-      <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <span className={cn("h-1.5 w-1.5 rounded-full", dot)} />
         {title}
       </h2>
       <div className="overflow-hidden rounded-lg border">
         {items.map((a) => (
-          <div
-            key={a.key}
-            className={cn(
-              "flex items-center border-b last:border-0",
-              a.critical && "bg-red-500/5"
-            )}
-          >
+          <div key={a.key} className={cn("flex items-center border-b last:border-0", rowBg)}>
             <Link
               to={a.to}
               className="flex flex-1 items-center gap-3 px-4 py-3.5 text-sm transition hover:bg-accent active:bg-accent"
             >
               <span className="shrink-0">
-                <AlertIcon icon={a.icon} critical={a.critical} className="h-5 w-5" />
+                <AlertIcon icon={a.icon} critical={severity === "critico"} className="h-5 w-5" />
               </span>
-              <span className={cn("flex-1 leading-snug", a.critical && "font-medium")}>
+              <span className={cn("flex-1 leading-snug", severity !== "info" && "font-medium")}>
                 {a.label}
               </span>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />

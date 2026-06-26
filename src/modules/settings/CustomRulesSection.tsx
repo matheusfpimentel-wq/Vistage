@@ -27,6 +27,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
+import { SEVERITY_LABEL, type AlertSeverity } from "@/modules/revisao/alerts";
 import {
   createCustomRule,
   decodeStateDays,
@@ -400,6 +401,7 @@ function RuleFormDialog({
   const [match, setMatch] = useState<RuleMatch>("all");
   const [message, setMessage] = useState("");
   const [dismissible, setDismissible] = useState(false);
+  const [severidade, setSeveridade] = useState<AlertSeverity>("atencao");
   const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -411,12 +413,14 @@ function RuleFormDialog({
       setMatch(editing.match);
       setMessage(editing.message);
       setDismissible(!!editing.dismissible);
+      setSeveridade(editing.severidade);
     } else {
       setEntity("gig");
       setConditions([defaultCondition("gig")]);
       setMatch("all");
       setMessage("");
       setDismissible(false);
+      setSeveridade("atencao");
     }
   }, [open, editing]);
 
@@ -454,6 +458,7 @@ function RuleFormDialog({
       match,
       message: message.trim(),
       severity,
+      severidade: isInsight ? undefined : severidade,
       dismissible: !isInsight && dismissible ? 1 : 0,
     };
     setSaving(true);
@@ -574,6 +579,32 @@ function RuleFormDialog({
                   Use <code>{"{n}"}</code> pra inserir a quantidade.
                 </p>
               </div>
+              {!isInsight && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Prioridade</Label>
+                  <div className="flex gap-1.5">
+                    {(["critico", "atencao", "info"] as AlertSeverity[]).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSeveridade(s)}
+                        className={cn(
+                          "flex-1 rounded-md border px-2 py-1.5 text-xs transition",
+                          severidade === s
+                            ? s === "critico"
+                              ? "border-red-500/50 bg-red-500/10 font-medium text-red-600 dark:text-red-400"
+                              : s === "atencao"
+                              ? "border-amber-500/50 bg-amber-500/10 font-medium text-amber-600 dark:text-amber-400"
+                              : "border-primary/40 bg-primary/10 font-medium"
+                            : "text-muted-foreground hover:bg-accent"
+                        )}
+                      >
+                        {SEVERITY_LABEL[s]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {!isInsight && (
                 <label className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
                   <input

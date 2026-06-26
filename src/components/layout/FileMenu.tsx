@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FilePlus2, FileText, Flame, FolderOpen, Loader2, Lock, LockOpen, Plus, Save, SaveAll, ShieldAlert, X } from "lucide-react";
+import { FilePlus2, FileText, Flame, FolderOpen, Loader2, Lock, LockOpen, Save, SaveAll, ShieldAlert } from "lucide-react";
 import { useDocumentStore, displayDocName } from "@/lib/document";
 import { useDocPassword, setDocPassword } from "@/lib/docPassword";
 import { promptPasswordWithHint } from "@/lib/passwordPrompt";
@@ -10,31 +10,18 @@ import { DATA_CHANGED } from "@/lib/events";
 import { cn } from "@/lib/utils";
 
 /**
- * Barra de abas de documentos no estilo navegador: cada aba é um arquivo
- * .vistage aberto. SÓ UM carrega por vez — clicar numa aba salva o atual e
- * carrega o dela. A aba ativa mostra o 🔥 da sequência de foco. "+" abre um
- * documento novo em branco; o menu "Arquivo" cobre Abrir/Salvar/senha.
+ * Menu "Arquivo" + nome do documento aberto. UM ARQUIVO POR VEZ — sem abas:
+ * Abrir substitui o documento atual (o banco é único). A sequência de foco (🔥)
+ * aparece ao lado do nome. O menu cobre Novo / Abrir / Salvar / Salvar como / senha.
  */
 export function FileMenu() {
-  const {
-    tabs,
-    currentPath,
-    currentName,
-    busy,
-    dirty,
-    open,
-    save,
-    saveAs,
-    switchToTab,
-    closeTab,
-    newDocument,
-  } = useDocumentStore();
+  const { currentName, busy, dirty, open, save, saveAs, newDocument } = useDocumentStore();
   const isProtected = useDocPassword((s) => s.password != null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [streak, setStreak] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Streak de foco — mostrado dentro da aba ativa; atualiza ao registrar sessões.
+  // Streak de foco — mostrado ao lado do nome; atualiza ao registrar sessões.
   useEffect(() => {
     const refresh = () => void loadFocusStreak().then(setStreak).catch(() => {});
     refresh();
@@ -79,8 +66,7 @@ export function FileMenu() {
     return () => document.removeEventListener("mousedown", onClick);
   }, [menuOpen]);
 
-  // Documento em branco (sem caminho) também aparece como uma aba ativa "Sem título".
-  const showBlankTab = currentPath == null;
+  const docName = displayDocName(currentName) ?? "Sem título";
 
   return (
     <div className="relative flex items-center gap-1.5" ref={ref}>
@@ -99,42 +85,20 @@ export function FileMenu() {
         <span className="hidden md:inline">Arquivo</span>
       </button>
 
-      {/* Abas */}
-      <div className="flex items-center gap-1 overflow-x-auto">
-        {tabs.map((path) => {
-          const active = path === currentPath;
-          return (
-            <Tab
-              key={path}
-              name={displayDocName(fileNameOf(path)) ?? "Arquivo"}
-              active={active}
-              dirty={active && dirty}
-              protectedDoc={active && isProtected}
-              streak={active ? streak : 0}
-              onSelect={() => void switchToTab(path)}
-              onClose={() => void closeTab(path)}
-            />
-          );
-        })}
-        {showBlankTab && (
-          <Tab
-            name={displayDocName(currentName) ?? "Sem título"}
-            active
-            dirty={dirty}
-            protectedDoc={isProtected}
-            streak={streak}
-            onSelect={() => {}}
-          />
+      {/* Documento atual (nome + streak) */}
+      <div className="flex items-center gap-1 rounded-md border border-primary/30 bg-accent px-2 py-1 text-xs text-foreground">
+        {isProtected && <Lock className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Protegido" />}
+        <span className="max-w-[200px] truncate" title={docName}>{docName}</span>
+        {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-label="Não salvo" />}
+        {streak > 0 && (
+          <span
+            className="ml-0.5 flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
+            title={`${streak} dia${streak === 1 ? "" : "s"} seguidos de foco`}
+          >
+            <Flame className="h-3 w-3" />
+            {streak}
+          </span>
         )}
-        <button
-          type="button"
-          onClick={() => void newDocument()}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground"
-          title="Novo documento em branco"
-          aria-label="Novo documento"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
       </div>
 
       {menuOpen && (
@@ -164,66 +128,6 @@ export function FileMenu() {
             <span>O arquivo .vistage guarda suas senhas e tokens das integrações. Não compartilhe.</span>
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-function fileNameOf(path: string): string {
-  const parts = path.split(/[\\/]/);
-  return parts[parts.length - 1] || path;
-}
-
-function Tab({
-  name,
-  active,
-  dirty,
-  protectedDoc,
-  streak,
-  onSelect,
-  onClose,
-}: {
-  name: string;
-  active: boolean;
-  dirty: boolean;
-  protectedDoc: boolean;
-  streak: number;
-  onSelect: () => void;
-  onClose?: () => void;
-}) {
-  return (
-    <div
-      className={cn(
-        "group flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-xs transition",
-        active
-          ? "border-primary/30 bg-accent text-foreground"
-          : "border-transparent text-muted-foreground hover:bg-accent/60"
-      )}
-    >
-      <button type="button" onClick={onSelect} className="flex items-center gap-1" title={name}>
-        {protectedDoc && <Lock className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Protegido" />}
-        <span className="max-w-[150px] truncate">{name}</span>
-        {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-label="Não salvo" />}
-        {active && streak > 0 && (
-          <span
-            className="ml-0.5 flex items-center gap-0.5 rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600 dark:bg-orange-950/50 dark:text-orange-400"
-            title={`${streak} dia${streak === 1 ? "" : "s"} seguidos de foco`}
-          >
-            <Flame className="h-3 w-3" />
-            {streak}
-          </span>
-        )}
-      </button>
-      {onClose && (
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition hover:bg-background hover:text-foreground group-hover:opacity-100"
-          title="Fechar aba"
-          aria-label="Fechar aba"
-        >
-          <X className="h-3 w-3" />
-        </button>
       )}
     </div>
   );
