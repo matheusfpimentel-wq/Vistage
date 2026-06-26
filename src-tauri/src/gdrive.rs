@@ -164,6 +164,21 @@ pub fn gdrive_file_meta(access_token: String, file_id: String) -> Result<DriveFi
     Ok(parse_file(&f))
 }
 
+/// Exclui um arquivo do Drive pelo id. Requer escopo de escrita (`drive`).
+#[tauri::command]
+pub fn gdrive_delete(access_token: String, file_id: String) -> Result<(), String> {
+    let url = format!(
+        "https://www.googleapis.com/drive/v3/files/{}",
+        url_encode(&file_id)
+    );
+    // a Drive API responde 204 No Content; ureq::delete não existe — usar request("DELETE", ...).
+    ureq::request("DELETE", &url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .call()
+        .map_err(|e| format!("Falha ao excluir arquivo do Drive: {e}"))?;
+    Ok(())
+}
+
 /// Baixa um arquivo do Drive pelo id. Devolve o conteúdo em base64.
 #[tauri::command]
 pub fn gdrive_download(access_token: String, file_id: String) -> Result<String, String> {

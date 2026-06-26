@@ -151,6 +151,10 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
   const confirmClose = useUnsavedConfirm(dirty);
   const isEdit = !!party;
+  // Aba ativa controlada: mantemos TODAS as abas montadas (forceMount + hidden)
+  // pra não perder o que foi preenchido ao trocar de aba — Radix por padrão
+  // desmonta a aba inativa e o estado em digitação some.
+  const [tab, setTab] = useState("info");
 
   const loadCandidates = useCallback(async () => {
     if (!party) return;
@@ -493,7 +497,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           <DialogTitle>{party ? "Editar festa" : "Nova festa"}</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="info">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="info">Info</TabsTrigger>
             {isEdit && <TabsTrigger value="workflow">Workflow</TabsTrigger>}
@@ -505,7 +509,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           </TabsList>
 
           {/* ===== INFO ===== */}
-          <TabsContent value="info" className="space-y-4 pt-2">
+          <TabsContent value="info" forceMount hidden={tab !== "info"} className="space-y-4 pt-2">
             <Field label="Título *">
               <Input
                 value={state.title}
@@ -699,7 +703,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== WORKFLOW (edit only) ===== */}
           {isEdit && party && (
-            <TabsContent value="workflow" className="pt-2">
+            <TabsContent value="workflow" forceMount hidden={tab !== "workflow"} className="pt-2">
               <WorkflowTab
                 partyId={party.id}
                 stages={stages}
@@ -710,7 +714,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           )}
 
           {/* ===== LINEUP / EQUIPE ===== */}
-          <TabsContent value="lineup" className="space-y-6 pt-2">
+          <TabsContent value="lineup" forceMount hidden={tab !== "lineup"} className="space-y-6 pt-2">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>DJs / Músicos escalados</Label>
@@ -906,7 +910,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== ORÇAMENTO (edit only) ===== */}
           {isEdit && party && (
-            <TabsContent value="orcamento" className="pt-2">
+            <TabsContent value="orcamento" forceMount hidden={tab !== "orcamento"} className="pt-2">
               <OrcamentoTab
                 party={party}
                 items={budgetItems}
@@ -918,7 +922,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== INGRESSOS (edit only) ===== */}
           {isEdit && party && (
-            <TabsContent value="ingressos" className="pt-2">
+            <TabsContent value="ingressos" forceMount hidden={tab !== "ingressos"} className="pt-2">
               <IngressosTab
                 partyId={party.id}
                 tickets={tickets}
@@ -929,7 +933,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== CONTEÚDO VINCULADO ===== */}
           {isEdit && (
-            <TabsContent value="conteudo" className="space-y-3 pt-2">
+            <TabsContent value="conteudo" forceMount hidden={tab !== "conteudo"} className="space-y-3 pt-2">
               {promotingContent.length > 0 && (
                 <div className="rounded-md border bg-muted/20 p-3 space-y-1.5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1038,7 +1042,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           )}
 
           {/* ===== NOTAS ===== */}
-          <TabsContent value="notas" className="pt-2">
+          <TabsContent value="notas" forceMount hidden={tab !== "notas"} className="pt-2">
             <Field label="Notas">
               <Textarea
                 rows={6}

@@ -2058,6 +2058,23 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_okr_kr_tasks_okr ON okr_kr_tasks(okr_id, kr_index);
     `,
   },
+  {
+    version: 142,
+    description:
+      "Índice em library_tracks(archived_at, artist, title) — acelera a listagem ordenada da Biblioteca de Músicas (evita full scan + sort que travava em bibliotecas grandes).",
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_library_tracks_sort
+        ON library_tracks(archived_at, artist, title);
+    `,
+  },
+  {
+    version: 143,
+    description:
+      "notes.notion_page_id — id da página da nota no Notion (sync das notas numa database própria, separada das ideias).",
+    sql: `
+      ALTER TABLE notes ADD COLUMN notion_page_id TEXT;
+    `,
+  },
 ];
 
 

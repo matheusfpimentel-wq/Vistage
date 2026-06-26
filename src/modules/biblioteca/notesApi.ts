@@ -58,6 +58,15 @@ export async function deleteFolder(id: number): Promise<void> {
   emitDataChanged();
 }
 
+/** Reordena as pastas gravando `sort` pela posição na lista (drag-and-drop). */
+export async function reorderFolders(orderedIds: number[]): Promise<void> {
+  const db = getDb();
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.execute("UPDATE note_folders SET sort = $1 WHERE id = $2", [i, orderedIds[i]]);
+  }
+  emitDataChanged();
+}
+
 // ── Notas ────────────────────────────────────────────────────────────────────
 export async function listNotes(folderId?: number | "all" | "loose"): Promise<NoteSummary[]> {
   const db = getDb();
@@ -135,8 +144,23 @@ export async function saveNote(id: number, title: string, body: string): Promise
   emitDataChanged();
 }
 
+/**
+ * Texto puro do corpo da nota. O corpo agora é HTML (editor rich-text); os
+ * parsers de [[wikilink]] e #tag e a conversão pra ideia trabalham no texto.
+ * Insere quebras nos blocos pra não colar palavras de parágrafos vizinhos.
+ */
+export function noteBodyText(body: string): string {
+  if (!/<[a-z][\s\S]*>/i.test(body)) return body; // notas antigas (texto puro)
+  const withBreaks = body
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  if (typeof DOMParser === "undefined") return withBreaks.replace(/<[^>]+>/g, "");
+  const doc = new DOMParser().parseFromString(withBreaks, "text/html");
+  return doc.body.textContent ?? "";
+}
+
 async function recomputeLinks(db: ReturnType<typeof getDb>, sourceId: number, body: string): Promise<void> {
-  const titles = parseWikilinks(body);
+  const titles = parseWikilinks(noteBodyText(body));
   await db.execute("DELETE FROM note_links WHERE source_note_id = $1", [sourceId]);
   if (titles.length === 0) return;
   const seen = new Set<number>();
@@ -156,7 +180,7 @@ async function recomputeLinks(db: ReturnType<typeof getDb>, sourceId: number, bo
 }
 
 async function recomputeInlineTags(db: ReturnType<typeof getDb>, noteId: number, body: string): Promise<void> {
-  const names = parseInlineTags(body);
+  const names = parseInlineTags(noteBodyText(body));
   await db.execute("DELETE FROM note_note_tags WHERE note_id = $1", [noteId]);
   for (const name of names) {
     await db.execute("INSERT OR IGNORE INTO note_tags (name) VALUES ($1)", [name]);
@@ -213,7 +237,7 @@ export async function notesByTag(tag: string): Promise<NoteSummary[]> {
 export async function noteToIdea(note: Note): Promise<number> {
   return createIdea({
     title: note.title || "Ideia da Biblioteca",
-    body: note.body || null,
+    body: noteBodyText(note.body) || null,
     category: null,
     tags: note.tags,
     heat: 1,

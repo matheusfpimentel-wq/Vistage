@@ -53,6 +53,7 @@ pub fn run() {
             gdrive::gdrive_ensure_folder,
             gdrive::gdrive_upload,
             gdrive::gdrive_download,
+            gdrive::gdrive_delete,
             gdrive::gdrive_list_folder,
             gdrive::gdrive_file_meta,
             audio::audio_scan_folder,

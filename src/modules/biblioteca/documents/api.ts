@@ -1,13 +1,42 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { listDriveFolder, type DriveFile } from "@/lib/gdrive";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { readFile } from "@tauri-apps/plugin-fs";
+import {
+  deleteDriveFile,
+  listDriveFolder,
+  uploadToDriveFolder,
+  type DriveFile,
+} from "@/lib/gdrive";
+import { bytesToBase64 } from "@/lib/uploads";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 
 // Biblioteca de Documentos — pasta designada do Google Drive (contratos, modelos,
 // rider técnico). Não embute nada no .vistage: referência + associação a um GIG.
 
 const FOLDER_KEY = "drive_documents_folder_id";
+
+const DOC_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  txt: "text/plain",
+  rtf: "application/rtf",
+  md: "text/markdown",
+  csv: "text/csv",
+  odt: "application/vnd.oasis.opendocument.text",
+  zip: "application/zip",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
 
 export async function getDocFolderId(): Promise<string | null> {
   const rows = await getDb().select<{ value: string }[]>(
@@ -39,6 +68,39 @@ export async function listFolderDocs(folderId: string): Promise<DriveFile[]> {
 
 export async function openDoc(link: string | null): Promise<void> {
   if (link) await openExternal(link);
+}
+
+/** Escolhe arquivos locais e os sobe pra pasta do Drive. Devolve quantos subiram. */
+export async function uploadDocsToFolder(folderId: string): Promise<number> {
+  const picked = await openDialog({ multiple: true, title: "Enviar documentos pro Drive" });
+  if (!picked) return 0;
+  const paths = Array.isArray(picked) ? picked : [picked];
+  let n = 0;
+  for (const p of paths) {
+    const name = p.split(/[\\/]/).pop() ?? "arquivo";
+    const ext = name.split(".").pop()?.toLowerCase() ?? "";
+    const bytes = await readFile(p);
+    const mime = DOC_MIME[ext] ?? "application/octet-stream";
+    await uploadToDriveFolder(folderId, name, bytesToBase64(bytes), mime);
+    n++;
+  }
+  if (n > 0) emitDataChanged();
+  return n;
+}
+
+/** Exclui o arquivo no Drive e limpa o cache/vínculos locais dele. */
+export async function deleteDoc(driveFileId: string): Promise<void> {
+  await deleteDriveFile(driveFileId);
+  const db = getDb();
+  const rows = await db.select<{ id: number }[]>(
+    "SELECT id FROM drive_documents WHERE drive_file_id = $1",
+    [driveFileId]
+  );
+  if (rows[0]) {
+    await db.execute("DELETE FROM document_links WHERE drive_document_id = $1", [rows[0].id]);
+    await db.execute("DELETE FROM drive_documents WHERE id = $1", [rows[0].id]);
+  }
+  emitDataChanged();
 }
 
 /** Garante uma linha no cache drive_documents (sem apagar associações) e devolve o id local. */
