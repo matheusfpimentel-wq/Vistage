@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
 import {
   ChevronRight,
-  Eye,
   FolderPlus,
   Lightbulb,
   Pencil,
@@ -13,13 +11,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { RichNoteEditor } from "../components/RichNoteEditor";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { promptDialog } from "@/components/ui/prompt";
 import {
-  allNoteTitles,
   backlinks,
   createFolder,
   createNote,
@@ -231,9 +229,7 @@ function NoteEditor({
   const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [preview, setPreview] = useState(false);
   const [links, setLinks] = useState<NoteRef[]>([]);
-  const [titlesByName, setTitlesByName] = useState<NoteRef[]>([]);
   const saveTimer = useRef<number | undefined>(undefined);
   const dirtyRef = useRef(false);
 
@@ -247,7 +243,6 @@ function NoteEditor({
       dirtyRef.current = false;
     });
     void backlinks(noteId).then((b) => alive && setLinks(b));
-    void allNoteTitles().then((t) => alive && setTitlesByName(t));
     return () => {
       alive = false;
     };
@@ -295,9 +290,6 @@ function NoteEditor({
           placeholder="Título da nota"
           className="flex-1 border-0 bg-transparent text-xl font-semibold outline-none placeholder:text-muted-foreground/60"
         />
-        <Button size="icon" variant="ghost" onClick={() => setPreview((p) => !p)} title={preview ? "Editar" : "Pré-visualizar"}>
-          {preview ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
         <Button
           size="icon"
           variant="ghost"
@@ -354,47 +346,14 @@ function NoteEditor({
         </select>
       </div>
 
-      {preview ? (
-        <div className="prose-vistage min-h-[300px] rounded-md border p-4 text-sm">
-          <ReactMarkdown
-            components={{
-              // Renderiza [[wikilinks]] já resolvidos como texto (o corpo cru tem [[..]]).
-              p: ({ children }) => <p className="mb-2 leading-relaxed">{children}</p>,
-            }}
-          >
-            {renderWikilinks(body)}
-          </ReactMarkdown>
-        </div>
-      ) : (
-        <textarea
-          value={body}
-          onChange={(e) => { setBody(e.target.value); scheduleSave(title, e.target.value); }}
-          onBlur={flushSave}
-          placeholder={"Escreva em Markdown.\n\nUse [[Título de outra nota]] pra linkar e #tag pra marcar."}
-          className="min-h-[300px] w-full resize-y rounded-md border bg-background p-4 font-mono text-sm leading-relaxed outline-none focus:ring-1 focus:ring-ring"
-          spellCheck={false}
-        />
-      )}
-
-      {/* dica de autocomplete simples: lista de títulos quando digita "[[" no fim */}
-      {!preview && /\[\[[^\]]*$/.test(body) && titlesByName.length > 0 && (
-        <div className="flex flex-wrap gap-1 rounded-md border bg-muted/30 p-2 text-xs">
-          <span className="text-muted-foreground">Inserir link:</span>
-          {titlesByName.slice(0, 12).map((t) => (
-            <button
-              key={t.id}
-              className="rounded bg-background px-1.5 py-0.5 hover:bg-accent"
-              onClick={() => {
-                const next = body.replace(/\[\[[^\]]*$/, `[[${t.title}]]`);
-                setBody(next);
-                scheduleSave(title, next);
-              }}
-            >
-              {t.title}
-            </button>
-          ))}
-        </div>
-      )}
+      <RichNoteEditor
+        value={body}
+        onChange={(html) => { setBody(html); scheduleSave(title, html); }}
+        onBlur={flushSave}
+      />
+      <p className="text-[11px] text-muted-foreground">
+        Use <code>[[Título de outra nota]]</code> pra linkar e <code>#tag</code> pra marcar — continuam valendo no texto.
+      </p>
 
       {/* Backlinks */}
       <div className="rounded-md border p-3">
@@ -417,9 +376,4 @@ function NoteEditor({
       </div>
     </div>
   );
-}
-
-/** Troca [[Título]] por só "Título" no preview (link de leitura simples). */
-function renderWikilinks(body: string): string {
-  return body.replace(/\[\[([^\]]+)\]\]/g, (_m, t) => t);
 }
