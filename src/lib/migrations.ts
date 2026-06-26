@@ -2136,6 +2136,12 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_parties_series ON parties(series_id);
     `,
   },
+  {
+    version: 147,
+    description:
+      "Alertas — severidade em 3 níveis (critico/atencao/info) nas regras do usuário. O campo 'severity' (alerta/insight) continua sendo o TIPO; 'severidade' é a prioridade.",
+    sql: `ALTER TABLE custom_rules ADD COLUMN severidade TEXT NOT NULL DEFAULT 'atencao';`,
+  },
 ];
 
 

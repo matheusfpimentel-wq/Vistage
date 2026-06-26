@@ -44,6 +44,9 @@ const TABLES = [
   "ideas",
   "content",
   "suppliers",
+  "custom_rules",       // regras de alerta/insight do usuário — viajam no .vistage
+  "manual_insights",    // provocações criadas pelo usuário
+  "dismissed_insights", // insights dispensados (não reaparecem)
   // ── dependem do nível anterior ────────────────────────────────────────────
   "contacts",        // venue_id → venues
   "fan_interactions",        // fan_id → fans
