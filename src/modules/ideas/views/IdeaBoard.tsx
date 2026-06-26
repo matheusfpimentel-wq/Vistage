@@ -1,5 +1,6 @@
-import { Flame, Trash2 } from "lucide-react";
+import { Flame, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { heatCardBg, heatColor, heatLabel, IDEA_HEAT_MAX, type Idea } from "../types";
 
@@ -9,17 +10,23 @@ type Props = {
   onConvertToTrack?: (i: Idea) => void;
   onToggleHot?: (i: Idea) => void;
   onDelete?: (id: number) => void;
+  /** Cria uma nova ideia — CTA no estado vazio. */
+  onCreate?: () => void;
 };
 
 /**
  * Mural visual de ideias — grid de post-its em tons pastel.
  * Os tons rotacionam por ordem da ideia pra dar variedade visual.
  */
-export function IdeaBoard({ items, onEdit, onToggleHot, onDelete }: Props) {
+export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Props) {
   if (items.length === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Solta uma ideia com Ctrl/Cmd + I — vai aparecer no mural.
+      <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+        {onCreate && (
+          <Button size="sm" onClick={onCreate}>
+            <Plus className="h-4 w-4" /> Nova ideia
+          </Button>
+        )}
       </div>
     );
   }

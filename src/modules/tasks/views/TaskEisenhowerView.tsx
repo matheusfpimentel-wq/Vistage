@@ -10,7 +10,8 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { CheckSquare } from "lucide-react";
+import { CheckSquare, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "../components/PriorityBadge";
 import type { EisenhowerQuadrant, Task } from "../types";
@@ -23,6 +24,8 @@ type Props = {
   onToggleDone: (task: Task) => void;
   /** Move a tarefa para um quadrante (drag-and-drop). */
   onSetQuadrant: (task: Task, quadrant: EisenhowerQuadrant) => void;
+  /** Cria uma nova tarefa — CTA no estado vazio. */
+  onCreate?: () => void;
 };
 
 const QUADRANTS: {
@@ -124,7 +127,7 @@ function DropZone({
   );
 }
 
-export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant }: Props) {
+export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant, onCreate }: Props) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -139,7 +142,13 @@ export function TaskEisenhowerView({ tasks, onEdit, onToggleDone, onSetQuadrant 
       <EmptyState
         icon={CheckSquare}
         title="Nenhuma tarefa por aqui"
-        description="Crie uma nova tarefa ou ajuste os filtros."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          )
+        }
       />
     );
   }

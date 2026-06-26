@@ -341,6 +341,7 @@ export function GigsPage() {
               onDebrief={openDebriefTab}
               onDelete={handleDelete}
               onShowSheet={setShowSheetGig}
+              onCreate={openCreate}
               density={density}
             />
           )}

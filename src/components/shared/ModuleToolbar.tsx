@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { Filter, Search, type LucideIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -101,7 +100,9 @@ export function ModuleToolbar({
             )}
             {viewToggle}
             {hasActions && (
-              <div className={cn("flex items-center gap-2", search && "ml-auto")}>
+              // Ação principal sempre à direita — mesmo sem busca (ex.: aba Alunos),
+              // pra ficar consistente com os demais módulos.
+              <div className="ml-auto flex items-center gap-2">
                 {secondaryActions.map((a) => (
                   <Button key={a.label} variant={a.variant ?? "outline"} onClick={a.onClick}>
                     {a.icon && <a.icon className="h-4 w-4" />}

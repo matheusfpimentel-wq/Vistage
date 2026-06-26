@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Film, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
   Select,
@@ -217,9 +218,11 @@ export function ContentPage() {
       />
 
       {items.length === 0 && (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          <Film className="mx-auto mb-2 h-8 w-8 opacity-50" />
-          Nenhum conteúdo ainda. Clica em "Novo conteúdo".
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <Film className="h-9 w-9 text-muted-foreground/60" />
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Novo conteúdo
+          </Button>
         </div>
       )}
 

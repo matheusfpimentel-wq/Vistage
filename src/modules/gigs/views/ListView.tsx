@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, ScrollText, Trash2 } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -18,6 +18,8 @@ type Props = {
   onDebrief: (gig: Gig) => void;
   onDelete: (gig: Gig) => void;
   onShowSheet: (gig: Gig) => void;
+  /** Cria uma nova GIG — CTA no estado vazio. */
+  onCreate?: () => void;
   density?: ListDensity;
 };
 
@@ -43,7 +45,7 @@ function cacheOverdue(g: Gig): boolean {
   return true;
 }
 
-export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowSheet, density = "full" }: Props) {
+export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowSheet, onCreate, density = "full" }: Props) {
   const compact = density === "compact";
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
   const cols = useResizableColumns("gigs", [
@@ -62,7 +64,13 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
       <EmptyState
         icon={CalendarRange}
         title="Nenhuma GIG encontrada"
-        description="Ajuste os filtros ou crie uma nova GIG para começar."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova GIG
+            </Button>
+          )
+        }
       />
     );
   }

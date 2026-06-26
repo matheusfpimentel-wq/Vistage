@@ -1,4 +1,5 @@
-import { CheckSquare } from "lucide-react";
+import { CheckSquare, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "../components/PriorityBadge";
 import type { Task } from "../types";
@@ -9,6 +10,8 @@ type Props = {
   tasks: Task[];
   onEdit: (task: Task) => void;
   onToggleDone: (task: Task) => void;
+  /** Cria uma nova tarefa — CTA no estado vazio. */
+  onCreate?: () => void;
 };
 
 function isOverdue(t: Task): boolean {
@@ -24,13 +27,19 @@ function isOverdue(t: Task): boolean {
  * Lista COMPACTA — uma linha por tarefa (densa), pra varrer muita coisa rápido.
  * Sem descrição/tags/ações em lote; clique no título edita, checkbox conclui.
  */
-export function TaskCompactListView({ tasks, onEdit, onToggleDone }: Props) {
+export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: Props) {
   if (tasks.length === 0) {
     return (
       <EmptyState
         icon={CheckSquare}
         title="Nenhuma tarefa por aqui"
-        description="Crie uma nova tarefa ou ajuste os filtros."
+        action={
+          onCreate && (
+            <Button size="sm" onClick={onCreate}>
+              <Plus className="h-4 w-4" /> Nova tarefa
+            </Button>
+          )
+        }
       />
     );
   }

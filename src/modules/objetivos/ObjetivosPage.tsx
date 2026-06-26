@@ -66,8 +66,10 @@ export function ObjetivosPage() {
       </ModuleToolbar>
 
       {quarters.length === 0 ? (
-        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Nenhum OKR ainda. Crie seu primeiro objetivo trimestral.
+        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
+          <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true); }}>
+            <Plus className="h-4 w-4" /> Novo OKR
+          </Button>
         </div>
       ) : (
         <div className="space-y-8">

@@ -369,7 +369,11 @@ export function PessoasPage() {
         <EmptyState
           icon={Users}
           title="Nenhuma pessoa encontrada"
-          description="Crie um contato ou fornecedor, ou ajuste a busca/filtros."
+          action={
+            <Button size="sm" onClick={newContact}>
+              <Plus className="h-4 w-4" /> Nova pessoa
+            </Button>
+          }
         />
       ) : view === "cards" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
