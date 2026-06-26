@@ -14,6 +14,9 @@ import type {
   PartyVenueCandidate,
   PartyRunsheetItem,
   PartyGuest,
+  PartySeries,
+  PartySeriesCreateInput,
+  PartySeriesUpdateInput,
 } from "./types";
 import { DEFAULT_STAGE_NAMES } from "./types";
 
@@ -62,6 +65,7 @@ const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
   "ticket_price_vip", "lineup", "sponsors", "team", "notes", "gig_id",
+  "series_id", "edition_label", "edition_number",
 ];
 
 export async function listParties(): Promise<PartyDeserialized[]> {
@@ -544,6 +548,233 @@ export async function initDefaultStages(partyId: number): Promise<void> {
       [partyId, DEFAULT_STAGE_NAMES[i], i]
     );
   }
+}
+
+// ===== SÉRIES / EDIÇÕES =====
+
+const SERIES_COLS = [
+  "name", "slug", "conceito", "posicionamento", "publico_alvo",
+  "identidade_visual", "tom_mensagem", "archived_at",
+];
+
+export async function listPartySeries(includeArchived = false): Promise<PartySeries[]> {
+  const db = getDb();
+  const sql = includeArchived
+    ? "SELECT * FROM party_series ORDER BY name COLLATE NOCASE"
+    : "SELECT * FROM party_series WHERE archived_at IS NULL ORDER BY name COLLATE NOCASE";
+  return db.select<PartySeries[]>(sql);
+}
+
+export async function getPartySeries(id: number): Promise<PartySeries | null> {
+  const db = getDb();
+  const rows = await db.select<PartySeries[]>("SELECT * FROM party_series WHERE id = $1", [id]);
+  return rows[0] ?? null;
+}
+
+export async function createPartySeries(input: PartySeriesCreateInput): Promise<number> {
+  const db = getDb();
+  const payload: Record<string, unknown> = { ...input };
+  const cols = SERIES_COLS.filter((c) => payload[c] !== undefined);
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+  const values = cols.map((c) => payload[c] ?? null);
+  const res = await db.execute(
+    `INSERT INTO party_series (${cols.join(", ")}) VALUES (${placeholders})`,
+    values
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartySeries(input: PartySeriesUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const payload: Record<string, unknown> = { ...rest };
+  const cols = Object.keys(payload).filter((c) => SERIES_COLS.includes(c));
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => payload[c] ?? null);
+  values.push(id);
+  await db.execute(`UPDATE party_series SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
+}
+
+export async function archivePartySeries(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE party_series SET archived_at = $1 WHERE id = $2", [nowISO(), id]);
+  emitDataChanged();
+}
+
+/** Edições de uma série, ordenadas por número e depois data. */
+export async function listEditions(seriesId: number): Promise<PartyDeserialized[]> {
+  const db = getDb();
+  const rows = await db.select<Party[]>(
+    "SELECT * FROM parties WHERE series_id = $1 ORDER BY edition_number IS NULL, edition_number, date IS NULL, date",
+    [seriesId]
+  );
+  return rows.map(rowToParty);
+}
+
+/**
+ * Transforma uma festa avulsa em série (retroativo): cria a série puxando o DNA
+ * dos campos da Ideação e marca a festa como edição 1. Sem começar do zero.
+ */
+export async function transformPartyIntoSeries(partyId: number, name?: string): Promise<number> {
+  const db = getDb();
+  const party = await getParty(partyId);
+  if (!party) throw new Error("Festa não encontrada.");
+  const stageRows = await db.select<PartyStageRow[]>(
+    "SELECT * FROM party_stages WHERE party_id = $1",
+    [partyId]
+  );
+  const ideacao = stageRows.map(rowToStage).find((s) => s.name === "Ideação");
+  const f = ideacao?.fields ?? {};
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  const seriesId = await createPartySeries({
+    name: name?.trim() || party.title,
+    slug: null,
+    conceito: str(f.conceito) ?? party.description ?? null,
+    posicionamento: null,
+    publico_alvo: str(f.publico_alvo),
+    identidade_visual: str(f.referencias),
+    tom_mensagem: null,
+  });
+  await db.execute(
+    "UPDATE parties SET series_id = $1, edition_number = COALESCE(edition_number, 1) WHERE id = $2",
+    [seriesId, partyId]
+  );
+  emitDataChanged();
+  return seriesId;
+}
+
+export type CloneScaffoldOptions = {
+  lineup: boolean; team: boolean; sponsors: boolean;
+  tickets: boolean; budget: boolean; runsheet: boolean;
+};
+
+/**
+ * Cria uma nova edição: puxa o DNA da série e CLONA o andaime da edição mais
+ * recente (line-up, equipe, patrocinadores, lotes, orçamento projetado,
+ * run-of-show) — NÃO clona os actuals (vendas, público real, valores pagos,
+ * datas, cortesias). Clona o "como fazer", não o "o que aconteceu".
+ */
+export async function createEdition(
+  seriesId: number,
+  opts: { editionLabel?: string | null; clone?: CloneScaffoldOptions } = {}
+): Promise<number> {
+  const db = getDb();
+  const series = await getPartySeries(seriesId);
+  if (!series) throw new Error("Série não encontrada.");
+  const editions = await listEditions(seriesId);
+  const source = editions[editions.length - 1] ?? null;
+  const nextNumber = editions.reduce((m, e) => Math.max(m, e.edition_number ?? 0), 0) + 1;
+  const clone: CloneScaffoldOptions =
+    opts.clone ?? { lineup: true, team: true, sponsors: true, tickets: true, budget: true, runsheet: true };
+  const label = opts.editionLabel?.trim() || `Edição ${nextNumber}`;
+
+  const newId = await createParty({
+    title: `${series.name} — ${label}`,
+    date: null,
+    venue_id: null,
+    venue_name: null,
+    status: "Planejando",
+    description: series.conceito ?? null,
+    expected_capacity: source?.expected_capacity ?? null,
+    actual_attendance: null,
+    gig_id: null,
+    series_id: seriesId,
+    edition_label: label,
+    edition_number: nextNumber,
+    lineup: clone.lineup && source ? source.lineup : [],
+    team: clone.team && source ? source.team.map((t) => ({ ...t, amount_cents: 0 })) : [],
+    sponsors: clone.sponsors && source ? source.sponsors.map((s) => ({ ...s, amount_cents: 0 })) : [],
+    notes: null,
+  });
+  await initDefaultStages(newId);
+
+  if (source) {
+    if (clone.tickets) {
+      const tk = await db.select<PartyTicket[]>(
+        "SELECT * FROM party_tickets WHERE party_id = $1 ORDER BY position",
+        [source.id]
+      );
+      for (const t of tk) {
+        await db.execute(
+          "INSERT INTO party_tickets (party_id, name, ticket_type, price, quantity_total, quantity_sold, sale_start_date, sale_end_date, position) VALUES ($1,$2,$3,$4,$5,0,NULL,NULL,$6)",
+          [newId, t.name, t.ticket_type, t.price, t.quantity_total, t.position]
+        );
+      }
+    }
+    if (clone.budget) {
+      const bi = await db.select<PartyBudgetItem[]>(
+        "SELECT * FROM party_budget_items WHERE party_id = $1",
+        [source.id]
+      );
+      for (const b of bi) {
+        await db.execute(
+          "INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,'projetado',NULL)",
+          [newId, b.category, b.subcategory, b.description, b.projected_amount, b.supplier_note, b.supplier_id]
+        );
+      }
+    }
+    if (clone.runsheet) {
+      const rs = await db.select<PartyRunsheetItem[]>(
+        "SELECT * FROM party_runsheet WHERE party_id = $1 ORDER BY position",
+        [source.id]
+      );
+      for (const r of rs) {
+        await db.execute(
+          "INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+          [newId, r.position, r.time, r.end_time, r.title, r.performer_contact_id, r.notes]
+        );
+      }
+    }
+  }
+  emitDataChanged();
+  return newId;
+}
+
+/** Roll-up da franquia: métricas por edição + agregados. */
+export type SeriesRollup = {
+  editions: {
+    id: number; title: string; date: string | null; number: number | null;
+    attendance: number | null; capacity: number | null; net: number; sold: number;
+  }[];
+  totalAttendance: number; avgAttendance: number; totalNet: number; editionsCount: number;
+};
+
+export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
+  const db = getDb();
+  const editions = await listEditions(seriesId);
+  const rows: SeriesRollup["editions"] = [];
+  for (const e of editions) {
+    const tickets = await db.select<PartyTicket[]>(
+      "SELECT * FROM party_tickets WHERE party_id = $1",
+      [e.id]
+    );
+    const items = await db.select<PartyBudgetItem[]>(
+      "SELECT * FROM party_budget_items WHERE party_id = $1",
+      [e.id]
+    );
+    const sold = tickets.reduce((s, t) => s + t.quantity_sold, 0);
+    const ticketRev = tickets.reduce((s, t) => s + t.price * t.quantity_sold, 0);
+    const sponsorRev = e.sponsors.reduce((s, sp) => s + (sp.amount_cents ?? 0) / 100, 0);
+    const cost = items.reduce((s, i) => s + (i.actual_amount ?? 0), 0);
+    rows.push({
+      id: e.id, title: e.title, date: e.date, number: e.edition_number,
+      attendance: e.actual_attendance, capacity: e.expected_capacity,
+      net: ticketRev + sponsorRev - cost, sold,
+    });
+  }
+  const withAtt = rows.filter((e) => e.attendance != null);
+  const totalAttendance = withAtt.reduce((s, e) => s + (e.attendance ?? 0), 0);
+  const totalNet = rows.reduce((s, e) => s + e.net, 0);
+  return {
+    editions: rows,
+    totalAttendance,
+    avgAttendance: withAtt.length ? Math.round(totalAttendance / withAtt.length) : 0,
+    totalNet,
+    editionsCount: rows.length,
+  };
 }
 
 // ===== BUDGET =====

@@ -33,6 +33,7 @@ const TABLES = [
   "class_packages",
   "artist_identity",
   "artist_templates",
+  "party_series",            // marca durável; parties.series_id → party_series
   "parties",
   "music_projects",
   "finance_categories",

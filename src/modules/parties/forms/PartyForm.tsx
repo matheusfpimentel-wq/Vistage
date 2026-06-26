@@ -70,6 +70,7 @@ import { OrcamentoTab } from "../components/OrcamentoTab";
 import { IngressosTab } from "../components/IngressosTab";
 import { OperacaoTab } from "../components/OperacaoTab";
 import { PartyCockpit } from "../components/PartyCockpit";
+import { SeriesEditionCard } from "../components/SeriesEditionCard";
 
 /**
  * Status sugerido por marcos (sugere, NÃO avança sozinho): venue escolhido →
@@ -453,6 +454,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             stage_current: null,
             financial_synced: 0,
             tasks_generated: 0,
+            series_id: null,
+            edition_label: null,
+            edition_number: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };
@@ -536,6 +540,15 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             )}
             {isEdit && party && state.status === "Realizada" && (
               <PostEventCard partyId={party.id} title={state.title} />
+            )}
+            {isEdit && party && (
+              <SeriesEditionCard
+                partyId={party.id}
+                seriesId={party.series_id}
+                editionLabel={party.edition_label}
+                editionNumber={party.edition_number}
+                partyTitle={state.title}
+              />
             )}
             <Field label="Título *">
               <Input
