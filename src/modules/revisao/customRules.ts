@@ -475,6 +475,29 @@ export function describeRule(
   return `Se ${eLabel} · ${parts.join(joiner)}`;
 }
 
+/**
+ * true se TODAS as folhas da regra ainda casam com o catálogo atual (campos,
+ * conjuntos e colunas de agregação existem). Falso = "regra zumbi": ela aparece
+ * na lista mas nunca dispara, porque uma referência (campo/relação) sumiu do
+ * catálogo. A UI usa isto pra avisar em vez de deixar o usuário no escuro.
+ */
+export function ruleResolvable(r: Pick<CustomRule, "entity" | "conditions">): boolean {
+  const e = entityDef(r.entity);
+  if (!e) return false;
+  return r.conditions.every((c) => {
+    if (isAggregateLeaf(c)) {
+      const src = aggSourceDef(e, c.set);
+      if (!src) return false;
+      const fn = AGG_FUNCTIONS.find((f) => f.fn === c.agg);
+      if (!fn) return false;
+      if (fn.needsField && !src.fields.some((f) => f.key === c.field)) return false;
+      if (fn.needsField2 && !src.fields.some((f) => f.key === c.field2)) return false;
+      return true;
+    }
+    return !!fieldDef(e, c.field);
+  });
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 export async function listCustomRules(): Promise<CustomRule[]> {
   const rows = await getDb().select<CustomRuleRow[]>(`SELECT * FROM custom_rules ORDER BY id DESC`);
@@ -677,6 +700,9 @@ async function evaluateAggLeaf(
     return null;
   }
 
+  // Limiar ausente/vazio NÃO vira 0 (Number(null)/Number("") são 0): regra sem
+  // limiar é inválida e não dispara.
+  if (leaf.value == null || String(leaf.value).trim() === "") return null;
   const threshold = Number(leaf.value);
   if (!Number.isFinite(threshold)) return null;
 

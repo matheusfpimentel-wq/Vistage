@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -44,6 +44,7 @@ import {
   listCustomRules,
   OPERATORS_BY_TYPE,
   RULE_ENTITIES,
+  ruleResolvable,
   setCustomRuleEnabled,
   updateCustomRule,
   type AggFn,
@@ -177,6 +178,12 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
                 <p className="text-xs text-muted-foreground">
                   {describeRule(r)} → {isInsight ? "vira insight" : "mostra o alerta"}
                 </p>
+                {!ruleResolvable(r) && (
+                  <p className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Um campo desta regra não existe mais — ela não dispara. Edite para corrigir.
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Toggle on={!!r.enabled} onClick={() => void toggleEnabled(r)} />
@@ -588,7 +595,23 @@ function RuleFormDialog({
     }
   }, [open, editing]);
 
-  function onEntityChange(next: RuleEntityKey) {
+  async function onEntityChange(next: RuleEntityKey) {
+    if (next === entity) return;
+    // Trocar de entidade zera as condições (os campos são de outra entidade).
+    // Se o usuário já montou algo de verdade, confirma antes de descartar.
+    const built =
+      conditions.length > 1 ||
+      conditions.some((c) => (isAggregateLeaf(c) ? true : !!c.value || c.field !== defaultFieldLeaf(entity).field));
+    if (
+      built &&
+      !(await confirmDialog({
+        title: "Trocar entidade",
+        description:
+          "As condições montadas serão zeradas — os campos pertencem a outra entidade. Continuar?",
+        confirmLabel: "Trocar",
+      }))
+    )
+      return;
     setEntity(next);
     setConditions([defaultFieldLeaf(next)]);
   }
@@ -676,7 +699,7 @@ function RuleFormDialog({
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Entidade</Label>
-                <Select value={entity} onValueChange={(v) => onEntityChange(v as RuleEntityKey)}>
+                <Select value={entity} onValueChange={(v) => void onEntityChange(v as RuleEntityKey)}>
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
