@@ -210,11 +210,108 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
       }
     } catch { /* não interrompe */ }
   }
+  // Pós-evento: ao marcar Realizada, garante UM card de "Aftermovie" no Conteúdo
+  // (idempotente — não duplica). O Financeiro já foi sincronizado acima; o
+  // guest list → Clube de Fãs fica como ação manual (nem toda cortesia é fã).
+  if ("status" in rest && rest.status === "Realizada") {
+    try {
+      const r = await db.select<{ title: string }[]>(
+        "SELECT title FROM parties WHERE id = $1",
+        [id]
+      );
+      if (r[0]) await ensurePartyAftermovieContent(id, r[0].title);
+    } catch { /* não interrompe */ }
+  }
   try {
     const { syncPartyTransactions } = await import("@/modules/finance/api");
     await syncPartyTransactions(id);
   } catch { /* não interrompe */ }
   emitDataChanged();
+}
+
+/**
+ * Pós-evento (a): cria UM card "Aftermovie — {festa}" no Conteúdo, vinculado à
+ * festa (promotes "Festa"). Idempotente — não recria se já houver um. O título
+ * leva o nome da festa para também aparecer na lista de conteúdos vinculados.
+ */
+async function ensurePartyAftermovieContent(partyId: number, partyTitle: string): Promise<boolean> {
+  const db = getDb();
+  const existing = await db.select<{ id: number }[]>(
+    "SELECT id FROM content WHERE promotes_type = 'Festa' AND promotes_id = $1 AND title LIKE 'Aftermovie%' LIMIT 1",
+    [partyId]
+  );
+  if (existing.length > 0) return false;
+  const { createContent } = await import("@/modules/content/api");
+  await createContent({
+    title: `Aftermovie — ${partyTitle}`,
+    script: null,
+    networks: ["Instagram"],
+    format: "Reels",
+    purpose: "Recap da festa",
+    status: "Ideia",
+    due_date: null,
+    publish_date: null,
+    published_at: null,
+    post_url: null,
+    metric_views: null,
+    metric_likes: null,
+    metric_comments: null,
+    metric_shares: null,
+    metric_saves: null,
+    notes: null,
+    task_id: null,
+    promotes_type: "Festa",
+    promotes_id: partyId,
+  });
+  return true;
+}
+
+/**
+ * Pós-evento (c): manda a guest list (cortesias) pro Clube de Fãs. AÇÃO MANUAL —
+ * nem toda cortesia é fã (imprensa, equipe, permuta…), então quem decide é o
+ * usuário. Dedup por nome (não recria fã já existente). Os ingressos vendidos são
+ * agregados (não guardam o comprador individual), então a fonte é o guest list.
+ */
+export async function addPartyGuestsToFans(
+  partyId: number,
+  partyTitle: string
+): Promise<{ added: number; existed: number }> {
+  const db = getDb();
+  const guests = await db.select<{ name: string }[]>(
+    "SELECT name FROM party_guests WHERE party_id = $1 AND TRIM(name) <> ''",
+    [partyId]
+  );
+  if (guests.length === 0) return { added: 0, existed: 0 };
+  const { createFan } = await import("@/modules/fans/api");
+  const tag = `Festa: ${partyTitle}`;
+  let added = 0;
+  let existed = 0;
+  for (const g of guests) {
+    const name = g.name.trim();
+    const dup = await db.select<{ id: number }[]>(
+      "SELECT id FROM fans WHERE LOWER(name) = LOWER($1) LIMIT 1",
+      [name]
+    );
+    if (dup.length > 0) {
+      existed++;
+      continue;
+    }
+    await createFan({
+      name,
+      level: "Possível fã",
+      is_ambassador: 0,
+      instagram: null,
+      email: null,
+      phone: null,
+      city: null,
+      tags: [tag],
+      notes: `Veio da guest list da festa "${partyTitle}".`,
+      photo_path: null,
+      contact_id: null,
+    });
+    added++;
+  }
+  return { added, existed };
 }
 
 export async function deleteParty(id: number): Promise<void> {
