@@ -23,9 +23,12 @@ import { open as openShell } from "@tauri-apps/plugin-shell";
 import {
   clearNotionConfig,
   createIdeasDatabase,
+  createNotesDatabase,
+  getNotesNotionConfig,
   getNotionConfig,
   listNotionPages,
   saveNotionToken,
+  syncNotesNotion,
   syncNotion,
   validateNotionToken,
 } from "@/lib/notion";
@@ -38,15 +41,25 @@ export function NotionSettings() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [pages, setPages] = useState<{ id: string; title: string }[]>([]);
   const [parentPage, setParentPage] = useState("");
+  const [savedParent, setSavedParent] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // Notas (database própria, separada das ideias)
+  const [notesDbId, setNotesDbId] = useState<string | null>(null);
+  const [notesLastSync, setNotesLastSync] = useState<string | null>(null);
+  const [creatingNotes, setCreatingNotes] = useState(false);
+  const [syncingNotes, setSyncingNotes] = useState(false);
 
   async function refresh() {
     const c = await getNotionConfig();
     setSavedToken(c.token);
     setDatabaseId(c.databaseId);
     setLastSync(c.lastSync);
+    setSavedParent(c.parentPageId);
+    const nc = await getNotesNotionConfig();
+    setNotesDbId(nc.databaseId);
+    setNotesLastSync(nc.lastSync);
     if (c.token && !c.databaseId) {
       try {
         setPages(await listNotionPages(c.token));
@@ -112,6 +125,40 @@ export function NotionSettings() {
     setParentPage("");
     toast.success("Notion desconectado");
     await refresh();
+  }
+
+  async function handleCreateNotesDb() {
+    if (!savedToken || !savedParent) {
+      toast.error("Faltou a página-pai do Notion (a mesma das ideias).");
+      return;
+    }
+    setCreatingNotes(true);
+    try {
+      await createNotesDatabase(savedToken, savedParent);
+      toast.success("Database de Notas criado no Notion");
+      await refresh();
+      void handleSyncNotes();
+    } catch (e) {
+      toast.error(`Erro ao criar database de Notas: ${String(e)}`);
+    } finally {
+      setCreatingNotes(false);
+    }
+  }
+
+  async function handleSyncNotes() {
+    setSyncingNotes(true);
+    try {
+      const r = await syncNotesNotion();
+      toast.success(
+        `Notas: ${r.created} criada(s), ${r.updated} atualizada(s)` +
+          (r.failed ? `, ${r.failed} falha(s)` : "")
+      );
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro ao sincronizar notas: ${String(e)}`);
+    } finally {
+      setSyncingNotes(false);
+    }
   }
 
   const connected = !!savedToken;
@@ -210,12 +257,40 @@ export function NotionSettings() {
         ) : (
           <IntegrationActions
             timestampLabel={
-              lastSync ? `Último envio: ${new Date(lastSync).toLocaleString("pt-BR")}` : null
+              lastSync ? `Ideias · último envio: ${new Date(lastSync).toLocaleString("pt-BR")}` : null
             }
             onSync={() => void handleSync()}
             syncing={syncing}
             onDisconnect={() => void handleDisconnect()}
-          />
+          >
+            {/* Notas — database própria, separada das ideias */}
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-xs font-medium">Notas (Conhecimento) — database separada</p>
+              {notesDbId ? (
+                <>
+                  {notesLastSync && (
+                    <p className="text-xs text-muted-foreground">
+                      Último envio: {new Date(notesLastSync).toLocaleString("pt-BR")}
+                    </p>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => void handleSyncNotes()} disabled={syncingNotes}>
+                    {syncingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Sincronizar notas
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    Cria um database "📝 Notas" na mesma página, separado das ideias.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => void handleCreateNotesDb()} disabled={creatingNotes || !savedParent}>
+                    {creatingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Criar database de Notas
+                  </Button>
+                </>
+              )}
+            </div>
+          </IntegrationActions>
         )}
       </CardContent>
     </Card>

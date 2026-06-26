@@ -2067,6 +2067,14 @@ const MIGRATIONS: Migration[] = [
         ON library_tracks(archived_at, artist, title);
     `,
   },
+  {
+    version: 143,
+    description:
+      "notes.notion_page_id — id da página da nota no Notion (sync das notas numa database própria, separada das ideias).",
+    sql: `
+      ALTER TABLE notes ADD COLUMN notion_page_id TEXT;
+    `,
+  },
 ];
 
 

@@ -58,6 +58,15 @@ export async function deleteFolder(id: number): Promise<void> {
   emitDataChanged();
 }
 
+/** Reordena as pastas gravando `sort` pela posição na lista (drag-and-drop). */
+export async function reorderFolders(orderedIds: number[]): Promise<void> {
+  const db = getDb();
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.execute("UPDATE note_folders SET sort = $1 WHERE id = $2", [i, orderedIds[i]]);
+  }
+  emitDataChanged();
+}
+
 // ── Notas ────────────────────────────────────────────────────────────────────
 export async function listNotes(folderId?: number | "all" | "loose"): Promise<NoteSummary[]> {
   const db = getDb();

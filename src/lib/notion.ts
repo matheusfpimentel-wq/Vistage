@@ -19,6 +19,9 @@ const KEY_TOKEN = "notion_token";
 const KEY_PARENT = "notion_parent_page_id";
 const KEY_DB = "notion_database_id";
 const KEY_LAST_SYNC = "notion_last_sync";
+// Notas: database PRÓPRIA (separada das ideias), mesmo token/página-pai.
+const KEY_NOTES_DB = "notion_notes_database_id";
+const KEY_NOTES_LAST_SYNC = "notion_notes_last_sync";
 
 const HEAT_LABEL: Record<number, string> = { 1: "Fria", 2: "Morna", 3: "Quente" };
 
@@ -68,7 +71,20 @@ export async function clearNotionConfig(): Promise<void> {
     delSetting(KEY_PARENT),
     delSetting(KEY_DB),
     delSetting(KEY_LAST_SYNC),
+    delSetting(KEY_NOTES_DB),
+    delSetting(KEY_NOTES_LAST_SYNC),
   ]);
+}
+
+export async function getNotesNotionConfig(): Promise<{
+  databaseId: string | null;
+  lastSync: string | null;
+}> {
+  const [databaseId, lastSync] = await Promise.all([
+    getSetting(KEY_NOTES_DB),
+    getSetting(KEY_NOTES_LAST_SYNC),
+  ]);
+  return { databaseId, lastSync };
 }
 
 async function notionApi<T>(
@@ -234,5 +250,103 @@ export async function syncNotion(): Promise<NotionSyncResult> {
   }
 
   await setSetting(KEY_LAST_SYNC, new Date().toISOString());
+  return { created, updated, failed };
+}
+
+// ── Notas → database própria (separada das ideias) ────────────────────────────
+
+/** Cria o database "Notas" sob a página escolhida (ou a mesma das ideias). */
+export async function createNotesDatabase(token: string, parentPageId: string): Promise<string> {
+  const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
+    parent: { type: "page_id", page_id: parentPageId },
+    title: [{ type: "text", text: { content: "📝 Notas — Vistage" } }],
+    properties: {
+      Name: { title: {} },
+      Conteúdo: { rich_text: {} },
+      Pasta: { select: {} },
+      Tags: { multi_select: {} },
+    },
+  });
+  await Promise.all([setSetting(KEY_PARENT, parentPageId), setSetting(KEY_NOTES_DB, res.id)]);
+  return res.id;
+}
+
+/** HTML do corpo da nota → texto puro (o Notion recebe rich_text simples). */
+function htmlToPlain(html: string): string {
+  if (!/<[a-z][\s\S]*>/i.test(html)) return html;
+  const withBreaks = html
+    .replace(/<\/(p|div|h[1-6]|li|blockquote|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n");
+  if (typeof DOMParser === "undefined") return withBreaks.replace(/<[^>]+>/g, "");
+  return new DOMParser().parseFromString(withBreaks, "text/html").body.textContent ?? "";
+}
+
+type NoteRow = {
+  id: number;
+  title: string;
+  body: string | null;
+  folder: string | null;
+  tags: string | null;
+};
+
+/** Empurra todas as notas pro database de Notas no Notion (1 via, best-effort). */
+export async function syncNotesNotion(): Promise<NotionSyncResult> {
+  const { token } = await getNotionConfig();
+  const { databaseId } = await getNotesNotionConfig();
+  if (!token || !databaseId) throw new Error("Database de Notas do Notion não configurado");
+  const db = getDb();
+  const notes = await db.select<NoteRow[]>(
+    `SELECT n.id, n.title, n.body, f.name AS folder,
+            (SELECT group_concat(t.name, ',') FROM note_note_tags nt
+               JOIN note_tags t ON t.id = nt.tag_id WHERE nt.note_id = n.id) AS tags
+       FROM notes n LEFT JOIN note_folders f ON f.id = n.folder_id`
+  );
+
+  let created = 0;
+  let updated = 0;
+  let failed = 0;
+
+  for (const n of notes) {
+    const tags = (n.tags ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    const properties: Record<string, unknown> = {
+      Name: { title: [{ text: { content: (n.title || "(sem título)").slice(0, 1900) } }] },
+      Conteúdo: {
+        rich_text: n.body ? [{ text: { content: htmlToPlain(n.body).slice(0, 1900) } }] : [],
+      },
+      Pasta: n.folder ? { select: { name: optName(n.folder) } } : { select: null },
+      Tags: { multi_select: tags.map((t) => ({ name: optName(t) })) },
+    };
+    const pageRow = await db.select<{ notion_page_id: string | null }[]>(
+      "SELECT notion_page_id FROM notes WHERE id = $1",
+      [n.id]
+    );
+    const pageId = pageRow[0]?.notion_page_id ?? null;
+    try {
+      if (pageId) {
+        try {
+          await notionApi(token, "PATCH", `/pages/${pageId}`, { properties });
+          updated++;
+        } catch {
+          const page = await notionApi<{ id: string }>(token, "POST", "/pages", {
+            parent: { database_id: databaseId },
+            properties,
+          });
+          await db.execute("UPDATE notes SET notion_page_id = $1 WHERE id = $2", [page.id, n.id]);
+          created++;
+        }
+      } else {
+        const page = await notionApi<{ id: string }>(token, "POST", "/pages", {
+          parent: { database_id: databaseId },
+          properties,
+        });
+        await db.execute("UPDATE notes SET notion_page_id = $1 WHERE id = $2", [page.id, n.id]);
+        created++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  await setSetting(KEY_NOTES_LAST_SYNC, new Date().toISOString());
   return { created, updated, failed };
 }

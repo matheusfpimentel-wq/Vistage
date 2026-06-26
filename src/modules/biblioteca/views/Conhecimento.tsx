@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   FolderPlus,
+  GripVertical,
   Lightbulb,
   Pencil,
   Pin,
@@ -10,6 +11,18 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
 import { RichNoteEditor } from "../components/RichNoteEditor";
 import { Button } from "@/components/ui/button";
@@ -31,6 +44,7 @@ import {
   noteToIdea,
   notesByTag,
   renameFolder,
+  reorderFolders,
   saveNote,
   setPinned,
   type Note,
@@ -76,6 +90,38 @@ export function Conhecimento() {
     setSelectedId(id);
   }
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  // Drag-and-drop: arrastar nota → pasta (move) ou "Sem pasta" (tira da pasta);
+  // arrastar pasta sobre outra → reordena.
+  async function onDragEnd(e: DragEndEvent) {
+    const activeId = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+    if (!overId) return;
+
+    if (activeId.startsWith("note:")) {
+      const noteId = Number(activeId.slice(5));
+      if (overId.startsWith("folder:")) {
+        await moveNote(noteId, Number(overId.slice(7)));
+        void refreshLists();
+      } else if (overId === "drop:loose") {
+        await moveNote(noteId, null);
+        void refreshLists();
+      }
+      return;
+    }
+
+    if (activeId.startsWith("folder:") && overId.startsWith("folder:") && activeId !== overId) {
+      const ids = folders.map((f) => f.id);
+      const from = ids.indexOf(Number(activeId.slice(7)));
+      const to = ids.indexOf(Number(overId.slice(7)));
+      if (from < 0 || to < 0) return;
+      const next = arrayMove(ids, from, to);
+      setFolders((prev) => next.map((id) => prev.find((f) => f.id === id)!).filter(Boolean));
+      await reorderFolders(next);
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
       {/* Coluna 1: pastas + lista de notas */}
@@ -89,71 +135,78 @@ export function Conhecimento() {
           </Button>
         </div>
 
-        {/* Pastas */}
-        <div className="space-y-0.5 text-sm">
-          <FolderRow label="Todas as notas" active={filter === "all" && !tagFilter} onClick={() => { setFilter("all"); setTagFilter(null); }} />
-          <FolderRow label="Sem pasta" active={filter === "loose" && !tagFilter} onClick={() => { setFilter("loose"); setTagFilter(null); }} />
-          {folders.map((f) => (
-            <FolderRow
-              key={f.id}
-              label={f.name}
-              active={filter === f.id && !tagFilter}
-              onClick={() => { setFilter(f.id); setTagFilter(null); }}
-              onRename={async () => {
-                const name = await promptDialog({ title: "Renomear pasta", defaultValue: f.name });
-                if (name == null) return;
-                await renameFolder(f.id, name);
-                void refreshLists();
-              }}
-              onDelete={async () => {
-                if (!(await confirmDialog({ title: "Excluir pasta", description: `Excluir "${f.name}"? As notas dentro dela ficam sem pasta.`, confirmLabel: "Excluir", destructive: true }))) return;
-                await deleteFolder(f.id);
-                if (filter === f.id) setFilter("all");
-                void refreshLists();
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Tags */}
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 border-t pt-2">
-            {tags.map((t) => (
-              <button
-                key={t}
-                onClick={() => { setTagFilter(tagFilter === t ? null : t); }}
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
-                  tagFilter === t ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent"
-                )}
-              >
-                <Tag className="h-3 w-3" />{t}
-              </button>
-            ))}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
+          {/* Pastas (arraste pra reordenar; solte uma nota numa pasta pra movê-la) */}
+          <div className="space-y-0.5 text-sm">
+            <FolderRow label="Todas as notas" active={filter === "all" && !tagFilter} onClick={() => { setFilter("all"); setTagFilter(null); }} />
+            <DroppableRow id="drop:loose">
+              <FolderRow label="Sem pasta" active={filter === "loose" && !tagFilter} onClick={() => { setFilter("loose"); setTagFilter(null); }} />
+            </DroppableRow>
+            <SortableContext items={folders.map((f) => `folder:${f.id}`)} strategy={verticalListSortingStrategy}>
+              {folders.map((f) => (
+                <SortableFolder key={f.id} id={`folder:${f.id}`}>
+                  <FolderRow
+                    label={f.name}
+                    active={filter === f.id && !tagFilter}
+                    onClick={() => { setFilter(f.id); setTagFilter(null); }}
+                    onRename={async () => {
+                      const name = await promptDialog({ title: "Renomear pasta", defaultValue: f.name });
+                      if (name == null) return;
+                      await renameFolder(f.id, name);
+                      void refreshLists();
+                    }}
+                    onDelete={async () => {
+                      if (!(await confirmDialog({ title: "Excluir pasta", description: `Excluir "${f.name}"? As notas dentro dela ficam sem pasta.`, confirmLabel: "Excluir", destructive: true }))) return;
+                      await deleteFolder(f.id);
+                      if (filter === f.id) setFilter("all");
+                      void refreshLists();
+                    }}
+                  />
+                </SortableFolder>
+              ))}
+            </SortableContext>
           </div>
-        )}
 
-        {/* Lista de notas */}
-        <ul className="space-y-1 border-t pt-2">
-          {notes.length === 0 ? (
-            <li className="px-1 py-4 text-center text-xs text-muted-foreground">Nenhuma nota aqui.</li>
-          ) : (
-            notes.map((n) => (
-              <li key={n.id}>
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1 border-t pt-2">
+              {tags.map((t) => (
                 <button
-                  onClick={() => setSelectedId(n.id)}
+                  key={t}
+                  onClick={() => { setTagFilter(tagFilter === t ? null : t); }}
                   className={cn(
-                    "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                    selectedId === n.id ? "bg-accent" : "hover:bg-muted/50"
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs",
+                    tagFilter === t ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent"
                   )}
                 >
-                  {n.pinned ? <Pin className="h-3 w-3 shrink-0 text-primary" /> : null}
-                  <span className="flex-1 truncate">{n.title || "(sem título)"}</span>
+                  <Tag className="h-3 w-3" />{t}
                 </button>
-              </li>
-            ))
+              ))}
+            </div>
           )}
-        </ul>
+
+          {/* Lista de notas (arraste pra dentro de uma pasta) */}
+          <ul className="mt-3 space-y-1 border-t pt-2">
+            {notes.length === 0 ? (
+              <li className="px-1 py-4 text-center text-xs text-muted-foreground">Nenhuma nota aqui.</li>
+            ) : (
+              notes.map((n) => (
+                <DraggableNote key={n.id} id={`note:${n.id}`}>
+                  <button
+                    onClick={() => setSelectedId(n.id)}
+                    className={cn(
+                      "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                      selectedId === n.id ? "bg-accent" : "hover:bg-muted/50"
+                    )}
+                  >
+                    {n.pinned ? <Pin className="h-3 w-3 shrink-0 text-primary" /> : null}
+                    <span className="flex-1 truncate">{n.title || "(sem título)"}</span>
+                  </button>
+                </DraggableNote>
+              ))
+            )}
+          </ul>
+        </DndContext>
       </div>
 
       {/* Coluna 2: editor */}
@@ -207,6 +260,55 @@ function FolderRow({
           <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
         </button>
       )}
+    </div>
+  );
+}
+
+/** Pasta arrastável (reordenar) e que recebe notas soltas (mover pra ela). */
+function SortableFolder({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className={cn("flex items-center gap-0.5 rounded-md", isOver && "ring-1 ring-primary/60")}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="shrink-0 cursor-grab touch-none px-0.5 text-muted-foreground/40 hover:text-muted-foreground"
+        title="Arrastar pasta"
+        aria-label="Arrastar pasta"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/** Nota arrastável (soltar numa pasta pra movê-la). Clicar continua selecionando. */
+function DraggableNote({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id });
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.5 : 1 }}
+      {...attributes}
+      {...listeners}
+      className="touch-none"
+    >
+      {children}
+    </li>
+  );
+}
+
+/** Alvo de drop (ex.: "Sem pasta") destacado quando uma nota paira sobre ele. */
+function DroppableRow({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={cn("rounded-md", isOver && "ring-1 ring-primary/60")}>
+      {children}
     </div>
   );
 }
