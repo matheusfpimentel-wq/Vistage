@@ -92,6 +92,17 @@ export type PartyRunsheetItem = {
   created_at: string;
 };
 
+/** Motivos comuns de cortesia (guest list). */
+export const GUEST_REASONS = ["Influencer", "Imprensa", "VIP", "Permuta", "Equipe", "Outro"] as const;
+export const GUEST_STATUSES = ["Confirmado", "Pendente", "Compareceu", "Faltou"] as const;
+export type GuestStatus = (typeof GUEST_STATUSES)[number];
+
+/** Cortesia / guest list — o custo é RECEITA RENUNCIADA (qtd × preço de ref.), não despesa. */
+export type PartyGuest = {
+  id: number; party_id: number; name: string; reason: string | null;
+  quantity: number; ref_price: number; status: GuestStatus; created_at: string;
+};
+
 type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
 
 export type PartyTask = {

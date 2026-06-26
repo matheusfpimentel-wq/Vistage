@@ -13,6 +13,7 @@ import type {
   PartyTask,
   PartyVenueCandidate,
   PartyRunsheetItem,
+  PartyGuest,
 } from "./types";
 import { DEFAULT_STAGE_NAMES } from "./types";
 
@@ -701,6 +702,42 @@ export async function setPartyHousePending(partyId: number, value: string | null
     "UPDATE parties SET house_pending = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
     [value || null, partyId]
   );
+}
+
+// ===== GUEST LIST / CORTESIAS =====
+
+export async function listPartyGuests(partyId: number): Promise<PartyGuest[]> {
+  return getDb().select<PartyGuest[]>(
+    "SELECT * FROM party_guests WHERE party_id = $1 ORDER BY created_at",
+    [partyId]
+  );
+}
+
+export async function createPartyGuest(
+  guest: Omit<PartyGuest, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_guests (party_id, name, reason, quantity, ref_price, status)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [guest.party_id, guest.name, guest.reason ?? null, guest.quantity, guest.ref_price, guest.status]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyGuest(
+  id: number,
+  updates: Partial<Omit<PartyGuest, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_guests SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyGuest(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_guests WHERE id = $1", [id]);
 }
 
 // ===== PARTY TASKS =====

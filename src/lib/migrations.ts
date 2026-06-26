@@ -2095,6 +2095,24 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE parties ADD COLUMN house_pending TEXT;
     `,
   },
+  {
+    version: 145,
+    description:
+      "Festas — guest list / cortesias: party_guests (nome, motivo, quantidade, preço de referência, status). O custo é receita renunciada (qtd × preço), não despesa.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_guests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+        name TEXT NOT NULL DEFAULT '',
+        reason TEXT,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        ref_price REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'Confirmado',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_guests_party ON party_guests(party_id);
+    `,
+  },
 ];
 
 
