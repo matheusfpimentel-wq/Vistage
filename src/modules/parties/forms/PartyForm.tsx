@@ -68,6 +68,18 @@ import { WorkflowTab } from "../components/WorkflowTab";
 import { OrcamentoTab } from "../components/OrcamentoTab";
 import { IngressosTab } from "../components/IngressosTab";
 import { OperacaoTab } from "../components/OperacaoTab";
+import { PartyCockpit } from "../components/PartyCockpit";
+
+/**
+ * Status sugerido por marcos (sugere, NÃO avança sozinho): venue escolhido →
+ * Confirmada; a data já passou → Realizada. Só entre os status existentes.
+ */
+function suggestStatus(status: PartyStatus, date: string | null, venueId: number | null): PartyStatus | null {
+  const today = new Date().toISOString().slice(0, 10);
+  if (date && date < today && status !== "Realizada" && status !== "Cancelada") return "Realizada";
+  if (venueId != null && status === "Planejando") return "Confirmada";
+  return null;
+}
 
 type Props = {
   open: boolean;
@@ -512,6 +524,15 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== INFO ===== */}
           <TabsContent value="info" forceMount hidden={tab !== "info"} className="space-y-4 pt-2">
+            {isEdit && party && (
+              <PartyCockpit
+                tickets={tickets}
+                items={budgetItems}
+                sponsors={state.sponsors}
+                expectedCapacity={state.expected_capacity}
+                actualAttendance={state.actual_attendance}
+              />
+            )}
             <Field label="Título *">
               <Input
                 value={state.title}
@@ -546,6 +567,28 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Select>
               </Field>
             </div>
+
+            {(() => {
+              const suggested = suggestStatus(state.status, state.date, state.venue_id);
+              if (!suggested) return null;
+              const reason = suggested === "Realizada" ? "a data já passou" : "o venue já está escolhido";
+              return (
+                <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
+                  <span className="flex-1">
+                    Sugestão: marcar como <strong>{suggested}</strong> — {reason}.
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-xs"
+                    onClick={() => set("status", suggested)}
+                  >
+                    Aplicar
+                  </Button>
+                </div>
+              );
+            })()}
 
             <Field label="GIG vinculada (se você toca na própria festa)">
               <Select
