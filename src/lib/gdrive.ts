@@ -85,6 +85,20 @@ export async function disconnectDrive(): Promise<void> {
   folderCache.clear();
 }
 
+/**
+ * Pasta-raiz do Drive onde os arquivos do Vistage são guardados. Por padrão o
+ * app cria/usa uma pasta "Vistage"; o usuário pode apontar outra colando o ID
+ * (a parte final da URL drive.google.com/drive/folders/ID). As subpastas por
+ * módulo (GIGs, Música…) passam a ser criadas dentro dela.
+ */
+export async function getDriveRootFolderId(): Promise<string | null> {
+  return getSetting(K.root);
+}
+export async function setDriveRootFolderId(id: string | null): Promise<void> {
+  await setSetting(K.root, id && id.trim() ? id.trim() : null);
+  folderCache.clear(); // subpastas por módulo re-resolvem sob a nova raiz
+}
+
 async function saveTokens(t: GTokens): Promise<void> {
   await setSetting(K.access, t.access_token);
   if (t.refresh_token) await setSetting(K.refresh, t.refresh_token);

@@ -47,6 +47,7 @@ import {
 } from "../api";
 import { ContentSnapshots } from "../components/ContentSnapshots";
 import { SceneEditor } from "../components/SceneEditor";
+import { LinkedTasksManager } from "@/modules/tasks/components/LinkedTasksManager";
 import { loadIdentity } from "@/modules/identity/api";
 import { listTracks } from "@/modules/music/api";
 import { trackDisplayName } from "@/modules/music/types";
@@ -370,6 +371,7 @@ export function ContentForm({
               <TabsTrigger value="roteiro">Roteiro</TabsTrigger>
               <TabsTrigger value="cenas">Cenas</TabsTrigger>
               <TabsTrigger value="prazos">Prazos</TabsTrigger>
+              <TabsTrigger value="tarefas">Tarefas</TabsTrigger>
               <TabsTrigger value="metricas">Métricas</TabsTrigger>
             </TabsList>
 
@@ -636,6 +638,28 @@ export function ContentForm({
                   />
                 </Field>
               </div>
+            </TabsContent>
+
+            {/* ── Tarefas ── */}
+            <TabsContent value="tarefas" className="space-y-3">
+              {content ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Vincule tarefas a este conteúdo — crie uma nova ou conecte uma
+                    existente. Elas aparecem como vinculadas em Tarefas.
+                  </p>
+                  <LinkedTasksManager
+                    entityType="content"
+                    entityId={content.id}
+                    entityLabel={content.title}
+                    defaultCategory="Conteúdo"
+                  />
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Salve o conteúdo primeiro para vincular tarefas.
+                </p>
+              )}
             </TabsContent>
 
             {/* ── Métricas ── */}

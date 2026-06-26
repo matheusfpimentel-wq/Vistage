@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { open as openShell } from "@tauri-apps/plugin-shell";
 import {
   clearNotionConfig,
@@ -121,6 +122,7 @@ export function NotionSettings() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           Notion
+          {ready && <ConnectedBadge />}
           <InfoHint>
             Envia suas ideias (1 via) para um database criado no Notion. Elas
             continuam vivendo no Vistage; o Notion vira um depósito/vitrine.
@@ -206,29 +208,14 @@ export function NotionSettings() {
             </div>
           </>
         ) : (
-          <>
-            <div className="flex items-center gap-2 text-sm text-emerald-500">
-              <Check className="h-4 w-4" /> Conectado
-            </div>
-            {lastSync && (
-              <p className="text-xs text-muted-foreground">
-                Último envio: {new Date(lastSync).toLocaleString("pt-BR")}
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button onClick={() => void handleSync()} disabled={syncing}>
-                {syncing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Sincronizar
-              </Button>
-              <Button variant="outline" onClick={() => void handleDisconnect()}>
-                <Unplug className="h-4 w-4" /> Desconectar
-              </Button>
-            </div>
-          </>
+          <IntegrationActions
+            timestampLabel={
+              lastSync ? `Último envio: ${new Date(lastSync).toLocaleString("pt-BR")}` : null
+            }
+            onSync={() => void handleSync()}
+            syncing={syncing}
+            onDisconnect={() => void handleDisconnect()}
+          />
         )}
       </CardContent>
     </Card>

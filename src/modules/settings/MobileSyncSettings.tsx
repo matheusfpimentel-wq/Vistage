@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Cloud, KeyRound, Loader2, RefreshCw, Unplug } from "lucide-react";
+import { Cloud, KeyRound, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
+import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { currentUser, signIn, signOut, updatePassword } from "@/lib/supabase";
 import { getLastSyncAt, syncNow } from "@/lib/mobileSync";
 
@@ -107,6 +108,7 @@ export function MobileSyncSettings() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Cloud className="h-4 w-4" /> Sincronização mobile
+          {userEmail && <ConnectedBadge />}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -114,35 +116,30 @@ export function MobileSyncSettings() {
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         ) : userEmail ? (
           <>
-            <div className="rounded-md border p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Conta da sincronização</div>
-              <div className="font-medium break-all">{userEmail}</div>
-              {lastSync && (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Última sincronização: {new Date(lastSync).toLocaleString("pt-BR")}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void handleSync()} disabled={busy}>
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Sincronizar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setShowPwForm((v) => !v)}
-                disabled={busy}
-              >
-                <KeyRound className="h-4 w-4" /> Trocar senha
-              </Button>
-              <Button variant="outline" onClick={() => void handleLogout()} disabled={busy}>
-                <Unplug className="h-4 w-4" /> Desconectar
-              </Button>
-            </div>
+            <IntegrationActions
+              timestampLabel={
+                lastSync
+                  ? `Última sincronização: ${new Date(lastSync).toLocaleString("pt-BR")}`
+                  : null
+              }
+              onSync={() => void handleSync()}
+              syncing={busy}
+              onDisconnect={() => void handleLogout()}
+              extraActions={
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPwForm((v) => !v)}
+                  disabled={busy}
+                >
+                  <KeyRound className="h-4 w-4" /> Trocar senha
+                </Button>
+              }
+            >
+              <div className="rounded-md border p-3 text-sm">
+                <div className="text-xs text-muted-foreground">Conta da sincronização</div>
+                <div className="font-medium break-all">{userEmail}</div>
+              </div>
+            </IntegrationActions>
 
             {showPwForm && (
               <div className="space-y-2 rounded-md border p-3 sm:max-w-sm">

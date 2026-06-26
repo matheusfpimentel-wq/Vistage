@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, Palette, ShieldAlert, Sparkles, Sun } from "lucide-react";
+import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -16,7 +16,6 @@ import {
 } from "@/modules/dashboard/mindmap";
 import { reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
-import { GoogleCalendarSettings } from "./GoogleCalendarSettings";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
@@ -24,7 +23,7 @@ import { BackupSettings, StartupSettings } from "./BackupSettings";
 import { DiagnosticsSettings } from "./DiagnosticsSettings";
 import { TodoistSettings } from "./TodoistSettings";
 import { NotionSettings } from "./NotionSettings";
-import { GoogleDriveSettings } from "./GoogleDriveSettings";
+import { GoogleSettings } from "./GoogleSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 import { InsightsBankSettings } from "./InsightsBankSettings";
@@ -114,8 +113,7 @@ export function SettingsPage() {
         <MobileSyncSettings />
         <TodoistSettings />
         <NotionSettings />
-        <GoogleCalendarSettings />
-        <GoogleDriveSettings />
+        <GoogleSettings />
       </TabsContent>
 
       {/* ─── Personalização ──────────────────────────────────── */}
@@ -142,17 +140,7 @@ export function SettingsPage() {
                 >
                   <Moon className="h-4 w-4" /> Escuro
                 </Button>
-                <Button
-                  variant={theme === "color" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTheme("color")}
-                >
-                  <Palette className="h-4 w-4" /> Cor
-                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                No modo Cor, o fundo usa uma versão clara da cor de destaque escolhida.
-              </p>
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Cor de destaque</p>
