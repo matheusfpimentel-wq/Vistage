@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, PanelLeftOpen, Plus, Search, Settings, Zap } from "lucide-react";
+import { ChevronDown, Loader2, PanelLeftOpen, Plus, Search, Settings, Zap } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { SidebarRail } from "./SidebarRail";
 import { MobileTabBar } from "./MobileTabBar";
@@ -204,7 +204,19 @@ export function AppLayout() {
         {/* pb-20 no mobile reserva espaço para a barra inferior fixa */}
         <main className="flex-1 overflow-auto p-3 pb-20 sm:p-6 md:pb-6">
           <ErrorBoundary resetKey={location.pathname}>
-            <Outlet />
+            {/* Suspense AQUI dentro (e não em volta de todo o app): ao abrir um
+                módulo pela 1ª vez na sessão, só a área de conteúdo mostra o
+                spinner — a sidebar e o cabeçalho continuam montados, sem o
+                "pisca a janela em branco" de quando o boundary englobava tudo. */}
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </ErrorBoundary>
         </main>
         <MobileTabBar />

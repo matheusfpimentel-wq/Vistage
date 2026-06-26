@@ -37,7 +37,7 @@ O app **inicia vazio a cada boot**. Os dados não vivem permanentemente no banco
 
 1. **Hidrata config + tema.** `useConfigStore.hydrate()` + `useThemeStore.hydrate()`. Sem config válido, cria um padrão silenciosamente em `appDataDir()/vistage` (pasta de anexos + `vistage.config.json`); a tela `<Setup/>` só aparece como fallback.
 2. **Abre o banco.** Resolve a réplica em `appDataDir()/vistage-replica.db` — **nunca** numa pasta de nuvem (WAL/mmap não convivem com cloud-sync). `initDatabase()` → comando Rust `db_init` + roda as migrations.
-3. **Zeramento (blank wipe).** Pula o wipe se `sessionStorage[SKIP_BLANK_WIPE_KEY]` = "1" (setado por reload pós-abrir/mesclar). **Backup de transição único**: na 1ª vez, se já havia dados, exporta um `.vistage` de segurança antes de zerar (não zera se o export falhar — nada se perde). Senão, `clearDocumentData()`.
+3. **Zeramento (blank wipe).** Pula o wipe se `sessionStorage[SKIP_BLANK_WIPE_KEY]` = "1" (setado pelo reload pós-abrir documento / Novo). **Backup de transição único**: na 1ª vez, se já havia dados, exporta um `.vistage` de segurança antes de zerar (não zera se o export falhar — nada se perde). Senão, `clearDocumentData()`.
 4. **Hidrata preferências de view** do documento antes de liberar as páginas (abas, larguras de coluna, filtros), evitando flash de layout.
 5. **Libera o banco** e hidrata aparência (tema/accent) do documento.
 6. **Escritas automáticas de boot** (em `Promise.allSettled`, não bloqueiam a UI): geração de recorrências, reconciliação financeira, follow-ups de superfãs, tarefas de aniversário, pausa de parcerias, marcadores de tarefas derivadas. Só depois marca `settleBoot()` — senão o app abriria sempre "sujo".
@@ -78,7 +78,7 @@ O banco roda **no Rust**, não no webview. `db.ts` é um proxy com a interface d
 | `useDocPassword` | `docPassword.ts` | senha em memória. |
 | `useMobileChanges` | `mobileSync.ts` | capturas do celular a revisar. |
 
-**Roteamento** (`BrowserRouter`): **todas as páginas são lazy** (`React.lazy` + `Suspense`) → chunks separados (ex.: Recharts só carrega no Financeiro). Globais montados no layout: `CommandPalette`, `QuickCapture`, `OpenDocumentDialog`, `PasswordPromptDialog`, `UnsavedCloseGuard`, `MobileChangesDialog`, atalhos e auto-sync do celular.
+**Roteamento** (`BrowserRouter`): **todas as páginas são lazy** (`React.lazy` + `Suspense`) → chunks separados (ex.: Recharts só carrega no Financeiro). Globais montados no layout: `CommandPalette`, `QuickCapture`, `UnsavedChangesDialog`, `PasswordPromptDialog`, `UnsavedCloseGuard`, `MobileChangesDialog`, atalhos e auto-sync do celular. O `<Suspense>` das páginas fica **dentro** do `AppLayout` (em volta do `<Outlet/>`), então abrir um módulo pela 1ª vez só mostra o spinner na área de conteúdo — a sidebar e o cabeçalho não somem.
 
 ---
 

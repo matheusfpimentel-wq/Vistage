@@ -11,6 +11,7 @@ import { UnsavedCloseGuard } from "@/components/shared/UnsavedCloseGuard";
 import { MobileChangesDialog } from "@/modules/settings/MobileChangesDialog";
 import { QuickCapture } from "@/modules/ideas/forms/QuickCapture";
 import { PasswordPromptDialog } from "@/components/shared/PasswordPromptDialog";
+import { UnsavedChangesDialog } from "@/components/shared/UnsavedChangesDialog";
 import { SessionOverlay } from "@/modules/foco/SessionOverlay";
 import { isOverlayWindow } from "@/modules/foco/overlay";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -481,6 +482,7 @@ function RoutedApp() {
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <QuickCapture open={quickCaptureOpen} onOpenChange={setQuickCaptureOpen} />
       <PasswordPromptDialog />
+      <UnsavedChangesDialog />
       <UnsavedCloseGuard />
       <MobileChangesDialog />
     </>

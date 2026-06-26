@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { appDataDir } from "@tauri-apps/api/path";
 import {
   clearDocumentData,
   hasAnyDocumentData,
@@ -67,6 +66,27 @@ export function setReopenLast(on: boolean): void {
   localStorage.setItem(LS_REOPEN, on ? "1" : "0");
 }
 
+// Diálogo imperativo "alterações não salvas" (Salvar / Descartar / Cancelar).
+// O componente UnsavedChangesDialog registra o resolver ao montar; Abrir/Novo
+// chamam askUnsaved() para OFERECER o salvamento antes de trocar o documento.
+export type UnsavedChoice = "save" | "discard" | "cancel";
+let _unsavedOpener: (() => Promise<UnsavedChoice>) | null = null;
+
+export function registerUnsavedOpener(fn: () => Promise<UnsavedChoice>) {
+  _unsavedOpener = fn;
+}
+export function unregisterUnsavedOpener() {
+  _unsavedOpener = null;
+}
+
+/**
+ * Pergunta ao usuário o que fazer com as mudanças não salvas. Sem o componente
+ * montado, CANCELA por segurança (nunca descarta dados sem perguntar).
+ */
+function askUnsaved(): Promise<UnsavedChoice> {
+  return _unsavedOpener ? _unsavedOpener() : Promise.resolve("cancel");
+}
+
 type DocumentState = {
   currentPath: string | null;
   currentName: string | null;
@@ -98,41 +118,31 @@ type SetState = (partial: Partial<DocumentState>) => void;
 type GetState = () => DocumentState;
 
 /**
- * Guarda um BACKUP DE SEGURANÇA do documento SEM TÍTULO atual (que tem dados)
- * antes de Abrir/Novo substituírem o banco — assim nada se perde mesmo sem ter
- * salvado num arquivo. É só um .vistage na pasta do app (não uma "aba"); nome
- * fixo, sobrescrito a cada vez. Devolve false se a escrita falhar (aí a troca é
- * abortada para não perder dados).
+ * Antes de Abrir/criar Novo (que substituem o banco), OFERECE salvar as mudanças
+ * não salvas do documento atual. Há o que perder quando:
+ *  - o doc tem caminho e está sujo, ou
+ *  - é um doc sem título com qualquer dado preenchido.
+ * Nesses casos, abre o diálogo de 3 opções:
+ *  - Salvar   → grava o atual (cai em "Salvar como" se não houver caminho);
+ *               se o "Salvar como" for cancelado, a troca é abortada.
+ *  - Descartar → segue a troca, perdendo as mudanças.
+ *  - Cancelar  → aborta a troca, sem perder nada.
+ * Sem nada a perder, segue direto (return true). Devolve false só quando a troca
+ * deve ser abortada.
  */
-async function safetySnapshot(): Promise<boolean> {
-  try {
-    const dir = (await appDataDir()).replace(/[\\/]+$/, "");
-    const sep = dir.includes("\\") && !dir.includes("/") ? "\\" : "/";
-    const path = `${dir}${sep}Vistage — backup antes de trocar.vistage`;
-    await saveBackupToPath(path);
-    clearUnsavedWork();
-    toast.info("Documento sem título guardado num backup de segurança antes de trocar.");
-    return true;
-  } catch (e) {
-    toast.error(`Não consegui guardar o documento atual, então não troquei (nada se perdeu): ${String(e)}`);
-    return false;
-  }
-}
-
-/**
- * Garante que o documento ATUAL não se perca antes de trocar/criar:
- *  - tem caminho e está sujo → salva por cima (silencioso).
- *  - sem caminho mas com dados → guarda um backup de segurança (safetySnapshot).
- *  - em branco/limpo → nada a fazer.
- * Devolve false só se o guard-rail falhar (a troca deve ser abortada). NUNCA
- * abre "Salvar como" aqui — Abrir é Abrir, Novo é Novo.
- */
-async function ensureCurrentSaved(get: GetState): Promise<boolean> {
+async function guardUnsaved(get: GetState): Promise<boolean> {
   const { currentPath, dirty } = get();
-  if (currentPath) return dirty ? get().save() : true;
-  const hasData = await hasAnyDocumentData().catch(() => false);
-  if (!hasData) return true;
-  return safetySnapshot();
+  const hasUnsaved = currentPath
+    ? dirty
+    : await hasAnyDocumentData().catch(() => false);
+  if (!hasUnsaved) return true;
+
+  const choice = await askUnsaved();
+  if (choice === "cancel") return false;
+  if (choice === "discard") return true;
+  // "save": grava o atual. save() recai em saveAs() quando não há caminho; se o
+  // usuário cancelar o "Salvar como", abortamos a troca para não perder dados.
+  return get().save();
 }
 
 /** Carrega um backup já lido como documento ativo e recarrega. */
@@ -158,15 +168,15 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   open: async () => {
     if (get().busy) return;
-    // Abrir é ABRIR: primeiro escolhe o arquivo; só DEPOIS guarda o atual e troca.
-    // Cancelar o diálogo não muda nada. O escolhido SUBSTITUI o documento atual
-    // (um arquivo por vez).
+    // Abrir é ABRIR: primeiro escolhe o arquivo; só DEPOIS oferece salvar o atual
+    // e troca. Cancelar o seletor de arquivo não muda nada. O escolhido SUBSTITUI
+    // o documento atual (um arquivo por vez).
     const picked = await pickBackupFile().catch((e) => {
       toast.error(`Erro ao abrir documento: ${String(e)}`);
       return null;
     });
     if (!picked) return;
-    if (!(await ensureCurrentSaved(get))) return;
+    if (!(await guardUnsaved(get))) return;
     set({ busy: true });
     try {
       await applyOpened(set, picked.backup, picked.path);
@@ -178,7 +188,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
 
   newDocument: async () => {
     if (get().busy) return;
-    if (!(await ensureCurrentSaved(get))) return;
+    if (!(await guardUnsaved(get))) return;
     set({ busy: true });
     try {
       await clearDocumentData();
