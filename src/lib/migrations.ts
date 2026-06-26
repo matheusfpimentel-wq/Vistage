@@ -2039,6 +2039,25 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_glt_track ON gig_library_tracks(library_track_id);
     `,
   },
+  {
+    version: 141,
+    description:
+      "okr_kr_tasks: UNIQUE(okr_id, kr_index) → UNIQUE(okr_id, kr_index, task_id). A restrição antiga só deixava UMA tarefa por KR; pior, ao vincular a 2ª tarefa o INSERT OR IGNORE era silenciosamente descartado, e uma linha órfã (tarefa já excluída) travava o KR pra sempre. Rebuild da tabela preserva os vínculos existentes.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS okr_kr_tasks_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        okr_id INTEGER NOT NULL,
+        kr_index INTEGER NOT NULL,
+        task_id INTEGER NOT NULL,
+        UNIQUE(okr_id, kr_index, task_id)
+      );
+      INSERT INTO okr_kr_tasks_new (okr_id, kr_index, task_id)
+        SELECT okr_id, kr_index, task_id FROM okr_kr_tasks;
+      DROP TABLE okr_kr_tasks;
+      ALTER TABLE okr_kr_tasks_new RENAME TO okr_kr_tasks;
+      CREATE INDEX IF NOT EXISTS idx_okr_kr_tasks_okr ON okr_kr_tasks(okr_id, kr_index);
+    `,
+  },
 ];
 
 

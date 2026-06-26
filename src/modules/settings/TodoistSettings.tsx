@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Link2, Loader2, RefreshCw, Unlink, Unplug } from "lucide-react";
+import { Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
+import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import {
   clearTodoistConfig,
   getTodoistConfig,
   listTodoistProjects,
   saveTodoistConfig,
   syncTodoist,
-  unlinkAllTodoist,
 } from "@/lib/todoist";
 
 type Project = { id: string; name: string };
@@ -94,8 +94,7 @@ export function TodoistSettings() {
   async function handleDisconnect() {
     const ok = await confirmDialog({
       title: "Desconectar Todoist",
-      description:
-        "Remove o token e o projeto configurados. As tarefas locais mantêm o vínculo (todoist_id) — você pode desvincular tudo abaixo se quiser uma limpeza completa.",
+      description: "Remove o token e o projeto configurados. As tarefas locais não são apagadas.",
       confirmLabel: "Desconectar",
       destructive: true,
     });
@@ -107,24 +106,6 @@ export function TodoistSettings() {
     setLastSync(null);
     setProjects([]);
     toast.success("Todoist desconectado");
-  }
-
-  async function handleUnlinkAll() {
-    const ok = await confirmDialog({
-      title: "Desvincular todas as tarefas",
-      description:
-        "Remove o todoist_id de todas as tarefas locais e desconecta a integração. Na próxima sincronização, tudo será tratado como novo. Esta ação não apaga nada no Todoist.",
-      confirmLabel: "Desvincular tudo",
-      destructive: true,
-    });
-    if (!ok) return;
-    await unlinkAllTodoist();
-    setConnected(false);
-    setToken("");
-    setProjectId("");
-    setLastSync(null);
-    setProjects([]);
-    toast.success("Vínculos removidos. Todoist desconectado.");
   }
 
   function formatSync(iso: string) {
@@ -147,11 +128,7 @@ export function TodoistSettings() {
             onError={(e) => (e.currentTarget.style.display = "none")}
           />
           Todoist
-          {connected && (
-            <span className="flex items-center gap-1 text-xs font-normal text-emerald-500">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Conectado
-            </span>
-          )}
+          {connected && <ConnectedBadge />}
         </CardTitle>
       </CardHeader>
 
@@ -218,44 +195,12 @@ export function TodoistSettings() {
             </Button>
           </>
         ) : (
-          <div className="space-y-3">
-            {lastSync && (
-              <p className="text-xs text-muted-foreground">
-                Última sincronização: {formatSync(lastSync)}
-              </p>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSync} disabled={syncing}>
-                {syncing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Sincronizar
-              </Button>
-              <Button variant="outline" onClick={handleDisconnect}>
-                <Unplug className="h-4 w-4" /> Desconectar
-              </Button>
-            </div>
-
-            <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Limpeza completa</p>
-              <p>
-                Remove os vínculos de todas as tarefas locais com o Todoist.
-                Útil se quiser trocar de projeto ou começar do zero.
-              </p>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-1 text-destructive hover:text-destructive"
-                onClick={handleUnlinkAll}
-              >
-                <Unlink className="h-3.5 w-3.5" />
-                Desvincular tudo e desconectar
-              </Button>
-            </div>
-          </div>
+          <IntegrationActions
+            timestampLabel={lastSync ? `Última sincronização: ${formatSync(lastSync)}` : null}
+            onSync={() => void handleSync()}
+            syncing={syncing}
+            onDisconnect={() => void handleDisconnect()}
+          />
         )}
       </CardContent>
     </Card>

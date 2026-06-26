@@ -48,6 +48,60 @@ export async function syncDerivedTaskMarkers(): Promise<void> {
       /* coluna/tabela ausente em bancos antigos — ignora */
     }
   }
+  await clearOrphanDerivedMarkers();
+}
+
+/**
+ * Limpa marcadores `derived_type`/`derived_id` ÓRFÃOS: tarefas marcadas como
+ * legadas de uma origem que NÃO existe mais (a GIG/conteúdo/etc. que as gerou
+ * foi excluída, mas o marcador ficou). Sem isto a tarefa exibe pra sempre o
+ * aviso "vinculada a Preparação de GIG" sem haver vínculo real — e fica travada
+ * (título/tags bloqueados) à toa. Só limpa um TIPO quando consegue conferir
+ * TODAS as suas colunas de backlink (se alguma falta, não arrisca apagar).
+ */
+async function clearOrphanDerivedMarkers(): Promise<void> {
+  const db = getDb();
+  // Agrupa os backlinks por derived_type.
+  const byType = new Map<string, { table: string; col: string }[]>();
+  for (const b of BACKLINKS) {
+    const arr = byType.get(b.type) ?? [];
+    arr.push({ table: b.table, col: b.col });
+    byType.set(b.type, arr);
+  }
+
+  for (const [type, cols] of byType) {
+    const supported = new Set<number>();
+    let allOk = true;
+    for (const c of cols) {
+      try {
+        const rows = await db.select<{ id: number }[]>(
+          `SELECT ${c.col} AS id FROM ${c.table} WHERE ${c.col} IS NOT NULL`
+        );
+        for (const r of rows) supported.add(r.id);
+      } catch {
+        allOk = false; // coluna/tabela ausente — não dá pra conferir este tipo
+        break;
+      }
+    }
+    if (!allOk) continue;
+
+    const orphans = await db
+      .select<{ id: number }[]>(
+        `SELECT id FROM tasks WHERE derived_type = $1 AND derived_id IS NOT NULL`,
+        [type]
+      )
+      .catch(() => [] as { id: number }[]);
+    for (const t of orphans) {
+      if (!supported.has(t.id)) {
+        await db
+          .execute(
+            "UPDATE tasks SET derived_type = NULL, derived_id = NULL WHERE id = $1",
+            [t.id]
+          )
+          .catch(() => {});
+      }
+    }
+  }
 }
 
 /** Marca uma tarefa como legada de uma origem (idempotente). */

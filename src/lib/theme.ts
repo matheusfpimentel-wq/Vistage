@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { getDb } from "./db";
 
-export type Theme = "light" | "dark" | "color";
+export type Theme = "light" | "dark";
 export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan" | "bordo";
 /** Layout do menu lateral no desktop: clássico (rótulos) ou rail compacto (ícones). */
 export type SidebarLayout = "classic" | "rail";
@@ -77,7 +77,8 @@ type ThemeState = {
  * porque a mini-janela de foco (overlay) precisa pintar a cor escolhida sem
  * carregar todo o ciclo de boot do tema — recebe accent + theme via URL.
  */
-/** Tokens neutros que SÓ o "modo cor" tinge; nos demais são limpos (vale o CSS). */
+/** Tokens neutros que um modo de cor antigo podia ter pintado inline; limpamos
+ *  sempre pra valer o :root/.dark do index.css. */
 const COLOR_MODE_TOKENS = [
   "--background", "--foreground", "--card", "--card-foreground",
   "--popover", "--popover-foreground", "--secondary", "--secondary-foreground",
@@ -87,9 +88,7 @@ const COLOR_MODE_TOKENS = [
 export function applyAccent(accent: Accent, theme: Theme) {
   const def = ACCENTS.find((a) => a.id === accent) ?? ACCENTS[0];
   const dark = theme === "dark";
-  const color = theme === "color";
   const s = document.documentElement.style;
-  // Modo cor é um tema de fundo CLARO tingido — usa a variante clara do primary.
   const primary = dark ? def.primaryDark : def.primaryLight;
   // Inline no <html> sobrepõe os defaults do :root / .dark do index.css.
   s.setProperty("--primary", primary);
@@ -101,33 +100,11 @@ export function applyAccent(accent: Accent, theme: Theme) {
   const hue = primary.split(" ")[0];
   s.setProperty("--accent", dark ? `${hue} 35% 22%` : `${hue} 60% 95%`);
   s.setProperty("--accent-foreground", dark ? `${hue} 20% 96%` : `${hue} 50% 25%`);
-
-  // "Modo cor": em vez de fundo branco, tinge os tokens neutros com o matiz do
-  // destaque — uma versão mais clara da cor dominante. Nos modos claro/escuro
-  // esses tokens são LIMPOS pra valer o :root/.dark do index.css.
-  if (color) {
-    s.setProperty("--background", `${hue} 48% 94%`);
-    s.setProperty("--foreground", `${hue} 35% 16%`);
-    s.setProperty("--card", `${hue} 52% 97%`);
-    s.setProperty("--card-foreground", `${hue} 35% 16%`);
-    s.setProperty("--popover", `${hue} 52% 97%`);
-    s.setProperty("--popover-foreground", `${hue} 35% 16%`);
-    s.setProperty("--secondary", `${hue} 40% 88%`);
-    s.setProperty("--secondary-foreground", `${hue} 40% 25%`);
-    s.setProperty("--muted", `${hue} 36% 89%`);
-    s.setProperty("--muted-foreground", `${hue} 20% 38%`);
-    s.setProperty("--border", `${hue} 30% 82%`);
-    s.setProperty("--input", `${hue} 30% 82%`);
-    // hover um pouco mais marcado que o fundo, pra ser visível no modo cor.
-    s.setProperty("--accent", `${hue} 50% 86%`);
-    s.setProperty("--accent-foreground", `${hue} 45% 22%`);
-  } else {
-    for (const t of COLOR_MODE_TOKENS) s.removeProperty(t);
-  }
+  // Limpa quaisquer tokens neutros que um "modo cor" antigo tenha deixado inline.
+  for (const t of COLOR_MODE_TOKENS) s.removeProperty(t);
 }
 
 function applyToDom(theme: Theme, accent: Accent) {
-  // Modo cor não usa a classe .dark (é base clara tingida via applyAccent).
   document.documentElement.classList.toggle("dark", theme === "dark");
   applyAccent(accent, theme);
 }
@@ -157,10 +134,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     get().setTheme(get().theme === "dark" ? "light" : "dark");
   },
   hydrate() {
-    // Dark é o padrão. Só respeitamos uma escolha explícita salva.
-    const storedTheme = localStorage.getItem(LS_THEME) as Theme | null;
+    // Dark é o padrão. Só respeitamos uma escolha explícita salva. ("color" era
+    // um 3º tema removido — migra pra claro, que era a base dele.)
+    const storedTheme = localStorage.getItem(LS_THEME);
     const theme: Theme =
-      storedTheme === "light" || storedTheme === "color" ? storedTheme : "dark";
+      storedTheme === "light" || storedTheme === "color" ? "light" : "dark";
     const storedAccent = localStorage.getItem(LS_ACCENT) as Accent | null;
     const accent: Accent = ACCENTS.some((a) => a.id === storedAccent)
       ? (storedAccent as Accent)
@@ -185,7 +163,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const da = map.get("accent");
       const ds = map.get("sidebarLayout");
       const theme: Theme =
-        dt === "light" || dt === "dark" || dt === "color" ? dt : get().theme;
+        dt === "dark" ? "dark" : dt === "light" || dt === "color" ? "light" : get().theme;
       const accent: Accent = ACCENTS.some((a) => a.id === da) ? (da as Accent) : get().accent;
       const sidebarLayout: SidebarLayout = ds === "rail" || ds === "classic" ? ds : get().sidebarLayout;
       localStorage.setItem(LS_THEME, theme);

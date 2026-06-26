@@ -73,8 +73,7 @@ export function SessionOverlay() {
   // Tema + acento (vêm na URL; sem isso a janela ficava sempre violeta).
   useEffect(() => {
     if (!params) return;
-    const theme =
-      params.theme === "dark" ? "dark" : params.theme === "color" ? "color" : "light";
+    const theme = params.theme === "dark" ? "dark" : "light";
     document.documentElement.classList.toggle("dark", theme === "dark");
     applyAccent(params.accent as Accent, theme);
   }, [params?.theme, params?.accent]);

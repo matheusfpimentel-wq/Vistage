@@ -56,10 +56,11 @@ async function syncKrCompletions(okrs: Okr[]): Promise<void> {
         "SELECT task_id FROM okr_kr_tasks WHERE okr_id=$1 AND kr_index=$2",
         [okr.id, i]
       );
-      if (rows[0]) {
+      // Um KR pode ter VÁRIAS tarefas vinculadas — conclui todas quando a meta bate.
+      for (const r of rows) {
         await db.execute(
           `UPDATE tasks SET status='Concluída', updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND status<>'Concluída'`,
-          [rows[0].task_id]
+          [r.task_id]
         ).catch(() => {});
       }
     }

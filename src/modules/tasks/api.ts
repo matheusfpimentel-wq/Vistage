@@ -409,6 +409,37 @@ export async function setTaskLinks(
 }
 
 /**
+ * Adiciona UM vínculo polimórfico a uma tarefa sem mexer nos demais (diferente
+ * de setTaskLinks, que substitui tudo). Usado pelo painel inverso — vincular uma
+ * tarefa existente a partir do Conteúdo/GIG/etc. Idempotente.
+ */
+export async function addTaskLink(
+  taskId: number,
+  entityType: TaskLinkType,
+  entityId: number,
+  label: string | null
+): Promise<void> {
+  await getDb().execute(
+    "INSERT OR IGNORE INTO task_links (task_id, entity_type, entity_id, label) VALUES ($1, $2, $3, $4)",
+    [taskId, entityType, entityId, label]
+  );
+  emitDataChanged();
+}
+
+/** Remove UM vínculo polimórfico específico (task ↔ entidade). */
+export async function removeTaskLink(
+  taskId: number,
+  entityType: TaskLinkType,
+  entityId: number
+): Promise<void> {
+  await getDb().execute(
+    "DELETE FROM task_links WHERE task_id = $1 AND entity_type = $2 AND entity_id = $3",
+    [taskId, entityType, entityId]
+  );
+  emitDataChanged();
+}
+
+/**
  * Remove os vínculos polimórficos que apontam para uma entidade excluída.
  * A FK de task_links cobre só o lado task_id (ON DELETE CASCADE); o lado
  * polimórfico (entity_type/entity_id) não pode ter FK, então sem isto sobram
