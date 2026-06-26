@@ -7,6 +7,7 @@ import {
 import { alertSeverity, computeAlerts } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
 import { filterSnoozed } from "@/modules/revisao/snooze";
+import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { DATA_CHANGED } from "@/lib/events";
 import { getDb } from "@/lib/db";
@@ -161,10 +162,11 @@ async function syncAlertNotifications(): Promise<void> {
 
   let toPush;
   try {
-    const stats = await loadWeekStats();
-    const all = await filterSnoozed(
-      computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode())
-    );
+    const [stats, partyFin] = await Promise.all([loadWeekStats(), loadPartyFinanceAlerts()]);
+    const all = await filterSnoozed([
+      ...computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode()),
+      ...partyFin,
+    ]);
     // Push segue a severidade: crítico e atenção avisam; informativo não. (Push
     // por regra, sobreponível, vem numa fatia futura.)
     toPush = all.filter((a) => alertSeverity(a) !== "info");

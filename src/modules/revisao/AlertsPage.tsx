@@ -6,6 +6,7 @@ import { loadWeekStats } from "./api";
 import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
 import { getDisabledRuleIds, isPauseMode, setPauseMode } from "./ruleConfig";
 import { evaluateCustomRules } from "./customRules";
+import { loadPartyFinanceAlerts } from "./partyFinanceAlerts";
 import { filterSnoozed, snoozeAlert } from "./snooze";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
@@ -25,11 +26,16 @@ export function AlertsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const [stats, custom] = await Promise.all([loadWeekStats(), evaluateCustomRules()]);
+        const [stats, custom, partyFin] = await Promise.all([
+          loadWeekStats(),
+          evaluateCustomRules(),
+          loadPartyFinanceAlerts(),
+        ]);
         setAlerts(
           await filterSnoozed([
             ...computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode()),
             ...custom,
+            ...partyFin,
           ])
         );
       } catch {
