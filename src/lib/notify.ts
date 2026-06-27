@@ -5,7 +5,7 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { alertSeverity, computeAlerts } from "@/modules/revisao/alerts";
-import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { filterSnoozed } from "@/modules/revisao/snooze";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { loadWeekStats } from "@/modules/revisao/api";
@@ -164,7 +164,7 @@ async function syncAlertNotifications(): Promise<void> {
   try {
     const [stats, partyFin] = await Promise.all([loadWeekStats(), loadPartyFinanceAlerts()]);
     const all = await filterSnoozed([
-      ...computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode()),
+      ...computeAlerts(stats, undefined, getDisabledRuleIds()),
       ...partyFin,
     ]);
     // Push segue a severidade: crítico e atenção avisam; informativo não. (Push

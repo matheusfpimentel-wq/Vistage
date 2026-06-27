@@ -575,6 +575,8 @@ function RuleFormDialog({
   const [severidade, setSeveridade] = useState<AlertSeverity>("atencao");
   const [helpOpen, setHelpOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Só para insights: "aparecer sempre" = sem condição (provocação fixa).
+  const [alwaysShow, setAlwaysShow] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -585,6 +587,7 @@ function RuleFormDialog({
       setMessage(editing.message);
       setDismissible(!!editing.dismissible);
       setSeveridade(editing.severidade);
+      setAlwaysShow(isInsight && editing.conditions.length === 0);
     } else {
       setEntity("gig");
       setConditions([defaultFieldLeaf("gig")]);
@@ -592,8 +595,9 @@ function RuleFormDialog({
       setMessage("");
       setDismissible(false);
       setSeveridade("atencao");
+      setAlwaysShow(false);
     }
-  }, [open, editing]);
+  }, [open, editing, isInsight]);
 
   async function onEntityChange(next: RuleEntityKey) {
     if (next === entity) return;
@@ -644,13 +648,14 @@ function RuleFormDialog({
       toast.error(`Escreva a mensagem do ${isInsight ? "insight" : "alerta"}.`);
       return;
     }
-    if (conditions.length === 0 || !conditions.every(validCondition)) {
+    const noCondition = isInsight && alwaysShow;
+    if (!noCondition && (conditions.length === 0 || !conditions.every(validCondition))) {
       toast.error("Complete as condições (campo, condição e valor).");
       return;
     }
     const input: CustomRuleInput = {
       entity,
-      conditions,
+      conditions: noCondition ? [] : conditions,
       match,
       message: message.trim(),
       severity,
@@ -697,6 +702,19 @@ function RuleFormDialog({
                   ?
                 </button>
               </div>
+              {isInsight && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={alwaysShow}
+                    onChange={(e) => setAlwaysShow(e.target.checked)}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Mostrar sempre (sem condição)
+                </label>
+              )}
+              {!(isInsight && alwaysShow) && (
+                <>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Entidade</Label>
                 <Select value={entity} onValueChange={(v) => void onEntityChange(v as RuleEntityKey)}>
@@ -757,6 +775,8 @@ function RuleFormDialog({
                   <Plus className="h-3.5 w-3.5" /> Condição
                 </Button>
               </div>
+                </>
+              )}
             </div>
 
             {/* ── ENTÃO ── */}

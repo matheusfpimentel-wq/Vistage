@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock } from "lucide-react";
+import { Lock, RotateCcw } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -15,8 +15,7 @@ import {
 } from "@/modules/revisao/alerts";
 import {
   getDisabledRuleIds,
-  isPauseMode,
-  setPauseMode,
+  restoreDefaultRules,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
@@ -32,16 +31,24 @@ const CATEGORY_ORDER: RuleCategory[] = [
   "Objetivos",
 ];
 
-/** Editor dos ALERTAS: liga/desliga as regras padrão + cria regras próprias. */
+/**
+ * Editor dos ALERTAS padrão: liga/desliga cada regra (com "Restaurar padrão") +
+ * cria regras próprias. As regras inegociáveis (cadeado verde — dinheiro/fisco)
+ * ficam SEMPRE ligadas: não dá pra desativar nem editar.
+ */
 export function AdvancedRulesSettings() {
   const [disabled, setDisabled] = useState<Set<string>>(
     () => new Set(getDisabledRuleIds())
   );
-  const [paused, setPaused] = useState(isPauseMode());
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
     setDisabled(new Set(toggleRuleDisabled(id, willDisable)));
+  }
+
+  function restore() {
+    restoreDefaultRules();
+    setDisabled(new Set());
   }
 
   const byCategory = new Map<RuleCategory, BuiltinRule[]>();
@@ -50,37 +57,44 @@ export function AdvancedRulesSettings() {
     arr.push(r);
     byCategory.set(r.category, arr);
   }
-  const activeCount = BUILTIN_RULES.length - disabled.size;
+  // Inegociáveis estão sempre ativas; só as demais podem ficar desligadas.
+  const activeCount = BUILTIN_RULES.filter(
+    (r) => r.inegociavel || !disabled.has(r.id)
+  ).length;
+  const anyDisabled = disabled.size > 0;
 
   return (
     <div className="space-y-6">
       <Card>
-        <CardContent className="flex items-center justify-between gap-3 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">Modo pausa</p>
-            <p className="text-xs leading-snug text-muted-foreground">
-              Suspende os alertas de pipeline/continuidade (gigs à frente, funil de
-              produção, conteúdo/ideias parados, relacionamento) durante uma pausa
-              deliberada. <strong>Dinheiro e prazo continuam avisando.</strong>
-            </p>
-          </div>
-          <Toggle
-            on={paused}
-            onClick={() => {
-              const next = !paused;
-              setPaused(next);
-              setPauseMode(next);
-            }}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
         <CardHeader>
-          <CardTitle className="text-base">Regras padrão</CardTitle>
-          <CardDescription>
-            {activeCount} de {BUILTIN_RULES.length} regras ativas.
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <CardTitle className="text-base">Regras padrão</CardTitle>
+              <CardDescription>
+                {activeCount} de {BUILTIN_RULES.length} regras ativas. As de{" "}
+                <span className="inline-flex items-center gap-0.5 align-middle">
+                  <Lock className="inline h-3 w-3 text-emerald-500" />
+                  cadeado
+                </span>{" "}
+                (dinheiro/fisco) ficam sempre ligadas.
+              </CardDescription>
+            </div>
+            <button
+              type="button"
+              onClick={restore}
+              disabled={!anyDisabled}
+              className={cn(
+                "flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition",
+                anyDisabled
+                  ? "text-muted-foreground hover:bg-accent"
+                  : "cursor-not-allowed opacity-40"
+              )}
+              title="Reativa todas as regras padrão"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restaurar padrão
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-5">
           {CATEGORY_ORDER.filter((c) => byCategory.has(c)).map((cat) => (
@@ -90,7 +104,8 @@ export function AdvancedRulesSettings() {
               </h4>
               <div className="space-y-1.5">
                 {byCategory.get(cat)!.map((r) => {
-                  const on = !disabled.has(r.id);
+                  const locked = !!r.inegociavel;
+                  const on = locked || !disabled.has(r.id);
                   return (
                     <div
                       key={r.id}
@@ -115,10 +130,10 @@ export function AdvancedRulesSettings() {
                                 : "Informativo"
                             }
                           />
-                          {r.inegociavel && (
+                          {locked && (
                             <Lock
                               className="h-3 w-3 shrink-0 text-emerald-500"
-                              aria-label="Inegociável — regra de dinheiro/fisco; só pode desativar, não excluir"
+                              aria-label="Inegociável — regra de dinheiro/fisco; não pode desativar nem editar"
                             />
                           )}
                           <span className={cn(!on && "line-through")}>{r.message}</span>
@@ -127,7 +142,16 @@ export function AdvancedRulesSettings() {
                           Dispara quando: {r.trigger}
                         </p>
                       </div>
-                      <Toggle on={on} onClick={() => toggle(r.id)} />
+                      {locked ? (
+                        <span
+                          className="shrink-0 select-none self-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+                          title="Regra fixa — sempre ligada"
+                        >
+                          Fixa
+                        </span>
+                      ) : (
+                        <Toggle on={on} onClick={() => toggle(r.id)} />
+                      )}
                     </div>
                   );
                 })}

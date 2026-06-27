@@ -153,22 +153,17 @@ export function ruleIdForKey(key: string): string {
 }
 
 /**
- * Regras de PIPELINE/CONTINUIDADE — suspensas no Modo pausa. Dinheiro e prazo
- * (cachê, tarefa vencida, GIG sem prep, debrief, aulas, aluno) NUNCA entram aqui.
+ * Ids das regras INEGOCIÁVEIS (cadeado verde — dinheiro/fisco). NÃO podem ser
+ * desativadas nem editadas no editor, e o motor nunca as filtra mesmo que um id
+ * antigo tenha ficado na lista de desligadas.
  */
-const PAUSABLE_RULE_IDS = new Set<string>([
-  "no-upcoming-gigs",
-  "funil-producao-vazio",
-  "tracks-stalled",
-  "content-stalled",
-  "ideas-stuck",
-  "superfans-stale",
-  "crm-no-interaction-week",
-]);
+export const INEGOCIAVEL_RULE_IDS: ReadonlySet<string> = new Set(
+  BUILTIN_RULES.filter((r) => r.inegociavel).map((r) => r.id)
+);
 
-/** O alerta é de pipeline/continuidade (suspenso no Modo pausa)? */
-export function isPausableKey(key: string): boolean {
-  return PAUSABLE_RULE_IDS.has(ruleIdForKey(key));
+/** A regra (por id) é inegociável (cadeado verde)? */
+export function isInegociavelRule(id: string): boolean {
+  return INEGOCIAVEL_RULE_IDS.has(id);
 }
 
 /**
@@ -180,8 +175,7 @@ export function isPausableKey(key: string): boolean {
 export function computeAlerts(
   stats: WeekStats,
   extra?: ExtraStats,
-  disabledRuleIds: string[] = [],
-  paused = false
+  disabledRuleIds: string[] = []
 ): AlertItem[] {
   const alerts: AlertItem[] = [];
 
@@ -350,9 +344,12 @@ export function computeAlerts(
   let result = alerts;
   if (disabledRuleIds.length > 0) {
     const disabled = new Set(disabledRuleIds);
-    result = result.filter((a) => !disabled.has(ruleIdForKey(a.key)));
+    // Inegociáveis (cadeado verde) NUNCA são filtradas — nem que um id antigo
+    // tenha ficado na lista de desligadas.
+    result = result.filter((a) => {
+      const id = ruleIdForKey(a.key);
+      return isInegociavelRule(id) || !disabled.has(id);
+    });
   }
-  // Modo pausa: tira os alertas de pipeline/continuidade (dinheiro/prazo ficam).
-  if (paused) result = result.filter((a) => !isPausableKey(a.key));
   return result;
 }
