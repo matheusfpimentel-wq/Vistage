@@ -131,9 +131,15 @@ type GetState = () => DocumentState;
  * deve ser abortada.
  */
 async function guardUnsaved(get: GetState): Promise<boolean> {
-  const { currentPath, dirty } = get();
+  const { currentPath, dirty, bootSettled } = get();
+  // Rede de segurança contra perda SILENCIOSA — nunca descartar sem perguntar.
+  // - COM caminho: confia em `dirty`. PORÉM, se o boot ainda não "assentou"
+  //   (bootSettled=false), o rastreio de "sujo" nem estava ligado — então um
+  //   dirty=false NÃO é confiável (foi esse o bug de perda de dados): perguntar
+  //   por garantia. Vale 1 clique a mais contra o risco de apagar o documento.
+  // - SEM caminho: pergunta se há qualquer dado preenchido na réplica.
   const hasUnsaved = currentPath
-    ? dirty
+    ? dirty || !bootSettled
     : await hasAnyDocumentData().catch(() => false);
   if (!hasUnsaved) return true;
 

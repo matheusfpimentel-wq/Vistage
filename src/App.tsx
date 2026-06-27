@@ -270,7 +270,7 @@ function MainApp() {
           // Elas emitem "data-changed", então só liberamos o controle de
           // "alterações não salvas" DEPOIS que todas terminam — senão o app
           // abriria sempre "sujo" e o botão de fechar pediria pra salvar à toa.
-          void Promise.allSettled([
+          const bootWrites = Promise.allSettled([
             autoGenerateRecurringUpToNow(),
             retroactiveSyncAllLinked(),
             import("@/modules/fans/api").then(({ syncSuperfanFollowupTasks }) =>
@@ -285,10 +285,24 @@ function MainApp() {
             import("@/modules/tasks/derived").then(({ syncDerivedTaskMarkers }) =>
               syncDerivedTaskMarkers()
             ),
+          ]);
+          // 🔴 CRÍTICO (perda de dados): "assentar" o boot LIGA o rastreio de
+          // alterações não salvas (markDirty). Se uma dessas escritas travasse,
+          // o .then nunca rodava → bootSettled ficava false pra sempre → NENHUMA
+          // edição marcava o documento como sujo → Abrir/Novo descartavam tudo
+          // sem perguntar. Por isso o assentamento tem TETO DE TEMPO: mesmo que
+          // uma escrita trave, o rastreio liga e a guarda volta a proteger.
+          void Promise.race([
+            bootWrites,
+            new Promise<void>((resolve) => setTimeout(resolve, 8000)),
           ]).then(() => {
-            useDocumentStore.getState().settleBoot();
-            // Acabou de abrir um .vistage? Sincroniza todas as integrações
-            // configuradas (os tokens viajam no arquivo). Best-effort, em 2º plano.
+            if (!useDocumentStore.getState().bootSettled) {
+              useDocumentStore.getState().settleBoot();
+            }
+          });
+          // Abriu um .vistage? Sincroniza as integrações quando as escritas de
+          // boot terminarem (best-effort, em 2º plano — não bloqueia o assentar).
+          void bootWrites.then(() => {
             if (sessionStorage.getItem(SYNC_INTEGRATIONS_KEY) === "1") {
               sessionStorage.removeItem(SYNC_INTEGRATIONS_KEY);
               void import("@/lib/integrationsSync").then(({ syncAllIntegrations }) =>
