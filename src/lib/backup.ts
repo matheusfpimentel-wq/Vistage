@@ -662,7 +662,7 @@ export async function readBackupFromPath(path: string): Promise<Backup> {
  * cifrado, pede a senha e decifra (lembrando-a p/ os próximos "Salvar"); senão,
  * limpa a senha. Retorna o Backup, ou null se cancelar / senha errada.
  */
-export async function readMaybeEncrypted(path: string): Promise<Backup | null> {
+async function readMaybeEncrypted(path: string): Promise<Backup | null> {
   const bytes = await readFile(path);
 
   // Contêiner CIFRADO (novo formato com senha): pede a senha, decifra os bytes

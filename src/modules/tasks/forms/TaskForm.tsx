@@ -34,11 +34,14 @@ import {
   type TaskRecurrence,
 } from "../types";
 import { addSubtask, createTask, listTaskLinks, setTaskLinks, updateTask } from "../api";
+import { detachTaskFromOrigin } from "../derived";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { formatDate } from "@/lib/format";
+import { confirmDialog } from "@/components/ui/confirm";
+import { emitDataChanged } from "@/lib/events";
 import { useUnsavedConfirm } from "@/lib/dirty";
 
 type Props = {
@@ -100,10 +103,15 @@ export function TaskForm({
   const [subtaskInput, setSubtaskInput] = useState("");
   const [titleError, setTitleError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  // Vira true depois de "Desvincular da origem" — destrava título/tags na hora,
+  // sem esperar reabrir o formulário (o banco já foi atualizado).
+  const [detached, setDetached] = useState(false);
+  const [detaching, setDetaching] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
 
-  // Tarefa LEGADA de outra origem: título e tags são geridos pela origem.
-  const isDerived = !!task?.derived_type;
+  // Tarefa LEGADA de outra origem: título e tags são geridos pela origem —
+  // exceto se o usuário acabou de desvinculá-la (aí volta a ser editável).
+  const isDerived = !!task?.derived_type && !detached;
   const derivedLabel = task?.derived_type
     ? TASK_DERIVED_LABELS[task.derived_type] ?? "origem vinculada"
     : null;
@@ -114,6 +122,7 @@ export function TaskForm({
     setTagInput("");
     setTitleError(null);
     setDirty(false);
+    setDetached(false);
     setLinks([]);
     setPendingSubtasks([]);
     setSubtaskInput("");
@@ -173,6 +182,32 @@ export function TaskForm({
     setDirty(true);
   }
 
+  // "Desvincular da origem": destrava a tarefa de uma GIG/conteúdo/etc. (zera o
+  // backlink na origem E os marcadores na tarefa). Persiste na hora; depois o
+  // título/tags ficam editáveis e a tarefa pode ser vinculada a outra coisa.
+  async function handleDetach() {
+    if (!task) return;
+    const ok = await confirmDialog({
+      title: "Desvincular da origem",
+      description: `A tarefa deixa de ser gerida por ${derivedLabel ?? "sua origem"} — o título e as tags voltam a ser editáveis, e a origem deixa de apontar para ela. A tarefa em si não é excluída. Continuar?`,
+      confirmLabel: "Desvincular",
+    });
+    if (!ok) return;
+    setDetaching(true);
+    try {
+      await detachTaskFromOrigin(task.id);
+      // A origem não a reivindica mais → o vínculo único de GIG também sai.
+      setState((s) => ({ ...s, gig_id: null }));
+      setDetached(true);
+      emitDataChanged();
+      toast.success("Tarefa desvinculada — título e tags liberados.");
+    } catch (e) {
+      toast.error(`Erro ao desvincular: ${String(e)}`);
+    } finally {
+      setDetaching(false);
+    }
+  }
+
   async function handleSubmit() {
     if (!state.title.trim()) {
       setTitleError("Obrigatório");
@@ -218,10 +253,23 @@ export function TaskForm({
 
         <div className="space-y-3">
           {isDerived && (
-            <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-              Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span> —
-              o título e as tags são geridos pela origem. Você pode mudar status, prioridade e prazo,
-              ou excluir se não quiser esta tarefa.
+            <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+              <p>
+                Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span> —
+                o título e as tags são geridos pela origem. Você pode mudar status, prioridade e prazo.
+                Para editar o título ou vinculá-la a outra coisa (ex.: um Conteúdo específico),
+                <span className="font-medium text-foreground"> desvincule da origem</span> primeiro.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleDetach}
+                disabled={detaching}
+              >
+                {detaching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Desvincular da origem
+              </Button>
             </div>
           )}
           <div className="space-y-1.5">

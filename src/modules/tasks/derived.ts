@@ -153,6 +153,32 @@ export async function clearTaskBacklinks(taskId: number): Promise<void> {
 }
 
 /**
+ * "Desvincular da origem": o usuário quer que a tarefa deixe de ser gerida por
+ * uma GIG/conteúdo/aula/etc. — mantendo a tarefa, mas tornando-a autônoma.
+ *
+ * Zera DOS DOIS LADOS:
+ *  - na origem, o backlink que aponta pra ela (clearTaskBacklinks) — assim a GIG
+ *    deixa de reivindicá-la e o boot (syncDerivedTaskMarkers/backfillGigTaskLinks)
+ *    NÃO volta a re-vinculá-la;
+ *  - na própria tarefa, os marcadores derived_type/derived_id e o gig_id — assim
+ *    o título e as tags destravam na UI e o vínculo-fantasma some.
+ *
+ * Depois disto a tarefa fica livre pra ser vinculada a outra coisa (ex.: um
+ * Conteúdo específico) pelo seletor de vínculo normal.
+ */
+export async function detachTaskFromOrigin(taskId: number): Promise<void> {
+  await clearTaskBacklinks(taskId);
+  try {
+    await getDb().execute(
+      "UPDATE tasks SET derived_type = NULL, derived_id = NULL, gig_id = NULL WHERE id = $1",
+      [taskId]
+    );
+  } catch {
+    /* ignora */
+  }
+}
+
+/**
  * Status da tarefa → origem (espelho de duas vias). Ex.: concluir a tarefa de
  * preparação marca o preparo da GIG como pronto. (A track tem caminho próprio em
  * advanceTrackForCompletedStageTask.)
