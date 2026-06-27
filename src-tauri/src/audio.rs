@@ -52,9 +52,23 @@ fn read_one(path: &Path) -> Option<ScannedTrack> {
 
 /// Varre uma pasta (recursiva se include_subdirs) e lê tags + duração de cada
 /// arquivo de áudio. Arquivos ilegíveis são pulados em silêncio.
+///
+/// Roda numa thread de bloqueio (`spawn_blocking`): numa biblioteca grande, a
+/// varredura + leitura de tags pode levar segundos/minutos — fora da thread
+/// principal/event-loop, a janela NÃO trava (era o motivo do app "travar" ao
+/// carregar grandes quantidades).
 #[tauri::command]
-pub fn audio_scan_folder(path: String, include_subdirs: bool) -> Result<Vec<ScannedTrack>, String> {
-    let root = Path::new(&path);
+pub async fn audio_scan_folder(
+    path: String,
+    include_subdirs: bool,
+) -> Result<Vec<ScannedTrack>, String> {
+    tauri::async_runtime::spawn_blocking(move || scan_folder_blocking(&path, include_subdirs))
+        .await
+        .map_err(|e| format!("Falha na varredura: {e}"))?
+}
+
+fn scan_folder_blocking(path: &str, include_subdirs: bool) -> Result<Vec<ScannedTrack>, String> {
+    let root = Path::new(path);
     if !root.is_dir() {
         return Err("Pasta inválida".into());
     }
@@ -134,8 +148,16 @@ pub fn audio_write_tags(path: String, fields: TagFields) -> Result<ScannedTrack,
     read_one(p).ok_or_else(|| "Gravou, mas não consegui reler para verificar".into())
 }
 
-/// Existência em lote → alimenta file_missing na grade.
+/// Existência em lote → alimenta file_missing na grade. Em thread de bloqueio:
+/// statar milhares de caminhos (rede/HD lento) não trava a janela.
 #[tauri::command]
-pub fn audio_paths_exist(paths: Vec<String>) -> Vec<bool> {
-    paths.iter().map(|p| Path::new(p).is_file()).collect()
+pub async fn audio_paths_exist(paths: Vec<String>) -> Vec<bool> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|p| Path::new(p).is_file())
+            .collect::<Vec<bool>>()
+    })
+    .await
+    .unwrap_or_default()
 }
