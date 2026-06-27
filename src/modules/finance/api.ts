@@ -1240,6 +1240,11 @@ export async function retroactiveSyncAllLinked(): Promise<void> {
     .select<{ value: string }[]>("SELECT value FROM app_settings WHERE key = 'last_retro_sync'")
     .catch(() => [] as { value: string }[]);
   if (lastRows[0]?.value === today) return;
+  // Só carimba o dia como reconciliado se TUDO sincronizar. Se algo falhar
+  // (ex.: erro transitório), não carimba → tenta de novo no próximo boot, pra
+  // uma transação que faltou não ficar invisível até amanhã. As sincronizações
+  // são upserts idempotentes, então repetir é seguro.
+  let allOk = true;
   try {
     // GIGs
     const gigs = await db.select<{
@@ -1271,9 +1276,9 @@ export async function retroactiveSyncAllLinked(): Promise<void> {
           g.id, paid, amount, txDate, label, null,
           g.promoter_contact_id, g.payment_method, !!g.payment_due_date
         );
-      } catch { /* continue */ }
+      } catch { allOk = false; }
     }
-  } catch { /* continue */ }
+  } catch { allOk = false; }
 
   try {
     // Aulas
@@ -1281,17 +1286,17 @@ export async function retroactiveSyncAllLinked(): Promise<void> {
       `SELECT id FROM classes WHERE status = 'Realizada' AND amount > 0`
     );
     for (const c of classes) {
-      try { await syncClassTransaction(c.id); } catch { /* continue */ }
+      try { await syncClassTransaction(c.id); } catch { allOk = false; }
     }
-  } catch { /* continue */ }
+  } catch { allOk = false; }
 
   try {
     // Festas
     const parties = await db.select<{ id: number }[]>("SELECT id FROM parties");
     for (const p of parties) {
-      try { await syncPartyTransactions(p.id); } catch { /* continue */ }
+      try { await syncPartyTransactions(p.id); } catch { allOk = false; }
     }
-  } catch { /* continue */ }
+  } catch { allOk = false; }
 
   try {
     // Custos de produção musical
@@ -1299,15 +1304,17 @@ export async function retroactiveSyncAllLinked(): Promise<void> {
       "SELECT id FROM music_project_costs WHERE amount > 0"
     );
     for (const c of costs) {
-      try { await syncMusicCostTransaction(c.id); } catch { /* continue */ }
+      try { await syncMusicCostTransaction(c.id); } catch { allOk = false; }
     }
-  } catch { /* continue */ }
-  // Marca o dia como reconciliado (mesmo que algum trecho tenha falhado e
-  // seguido) — tenta de novo amanhã, não a cada boot.
-  await db
-    .execute(
-      "INSERT INTO app_settings (key, value) VALUES ('last_retro_sync', $1) ON CONFLICT(key) DO UPDATE SET value = $1",
-      [today]
-    )
-    .catch(() => {});
+  } catch { allOk = false; }
+  // Carimba o dia como reconciliado SÓ se tudo sincronizou. Se algo falhou,
+  // deixa sem carimbo → tenta de novo no próximo boot (em vez de só amanhã).
+  if (allOk) {
+    await db
+      .execute(
+        "INSERT INTO app_settings (key, value) VALUES ('last_retro_sync', $1) ON CONFLICT(key) DO UPDATE SET value = $1",
+        [today]
+      )
+      .catch(() => {});
+  }
 }
