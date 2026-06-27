@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 import {
   addGigLibraryTrack,
   listGigLibraryTracks,
@@ -39,9 +40,13 @@ export function GigLibraryPicker({ gigId }: { gigId: number }) {
   }, [q, all, addedIds]);
 
   async function add(track: LibraryTrack) {
-    await addGigLibraryTrack(gigId, track);
-    setQ("");
-    reload();
+    try {
+      await addGigLibraryTrack(gigId, track);
+      setQ("");
+      reload();
+    } catch (e) {
+      toast.error(`Não consegui adicionar a faixa: ${String(e)}`);
+    }
   }
 
   return (
@@ -59,7 +64,14 @@ export function GigLibraryPicker({ gigId }: { gigId: number }) {
               </span>
               <button
                 type="button"
-                onClick={async () => { await removeGigLibraryTrack(a.id); reload(); }}
+                onClick={async () => {
+                  try {
+                    await removeGigLibraryTrack(a.id);
+                    reload();
+                  } catch (e) {
+                    toast.error(`Não consegui remover a faixa: ${String(e)}`);
+                  }
+                }}
                 className="text-muted-foreground hover:text-destructive"
                 aria-label="Remover"
               >

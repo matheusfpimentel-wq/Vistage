@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toaster";
 import {
   addSubtask,
   deleteSubtask,
@@ -31,25 +32,41 @@ export function SubtaskList({ taskId }: Props) {
   async function handleAdd() {
     const t = newTitle.trim();
     if (!t) return;
-    await addSubtask(taskId, t, items.length);
-    setNewTitle("");
-    await refresh();
+    try {
+      await addSubtask(taskId, t, items.length);
+      setNewTitle("");
+      await refresh();
+    } catch (e) {
+      toast.error(`Não consegui adicionar a subtarefa: ${String(e)}`);
+    }
   }
 
   async function handleToggle(s: Subtask) {
-    await toggleSubtask(s.id, s.done === 0);
-    await refresh();
+    try {
+      await toggleSubtask(s.id, s.done === 0);
+      await refresh();
+    } catch (e) {
+      toast.error(`Não consegui atualizar a subtarefa: ${String(e)}`);
+    }
   }
 
   async function handleRename(s: Subtask, title: string) {
     if (title.trim() === s.title) return;
-    await renameSubtask(s.id, title.trim());
-    await refresh();
+    try {
+      await renameSubtask(s.id, title.trim());
+      await refresh();
+    } catch (e) {
+      toast.error(`Não consegui renomear a subtarefa: ${String(e)}`);
+    }
   }
 
   async function handleDelete(s: Subtask) {
-    await deleteSubtask(s.id);
-    await refresh();
+    try {
+      await deleteSubtask(s.id);
+      await refresh();
+    } catch (e) {
+      toast.error(`Não consegui excluir a subtarefa: ${String(e)}`);
+    }
   }
 
   const done = items.filter((s) => s.done === 1).length;

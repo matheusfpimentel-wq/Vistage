@@ -258,9 +258,13 @@ export function FocoPage() {
                       className="h-7 w-7 shrink-0"
                       onClick={async () => {
                         if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta sessão de foco?", confirmLabel: "Excluir", destructive: true }))) return;
-                        await deleteSession(s.id);
-                        toast.success("Sessão removida");
-                        void refresh();
+                        try {
+                          await deleteSession(s.id);
+                          toast.success("Sessão removida");
+                          void refresh();
+                        } catch (e) {
+                          toast.error(`Não consegui excluir a sessão: ${String(e)}`);
+                        }
                       }}
                     >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -315,9 +319,13 @@ export function FocoPage() {
                     variant="ghost"
                     onClick={async () => {
                       if (!(await confirmDialog({ title: "Excluir", description: "Excluir este highlight?", confirmLabel: "Excluir", destructive: true }))) return;
-                      await deleteHighlight(h.id);
-                      toast.success("Highlight removido");
-                      void refresh();
+                      try {
+                        await deleteHighlight(h.id);
+                        toast.success("Highlight removido");
+                        void refresh();
+                      } catch (e) {
+                        toast.error(`Não consegui excluir o highlight: ${String(e)}`);
+                      }
                     }}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -462,6 +470,8 @@ function AddHighlightDialog({
       toast.success("Highlight registrado!");
       setTitle(""); setBody(""); setDate(todayISO());
       onSaved();
+    } catch (e) {
+      toast.error(`Não consegui salvar o highlight: ${String(e)}`);
     } finally {
       setSaving(false);
     }

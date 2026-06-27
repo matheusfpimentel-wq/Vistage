@@ -79,15 +79,23 @@ export function Conhecimento() {
   async function addFolder() {
     const name = await promptDialog({ title: "Nova pasta", placeholder: "Nome da pasta" });
     if (name == null) return;
-    await createFolder(name);
-    void refreshLists();
+    try {
+      await createFolder(name);
+      void refreshLists();
+    } catch (e) {
+      toast.error(`Não consegui criar a pasta: ${String(e)}`);
+    }
   }
 
   async function addNote() {
     const folderId = typeof filter === "number" ? filter : null;
-    const id = await createNote(folderId);
-    await refreshLists();
-    setSelectedId(id);
+    try {
+      const id = await createNote(folderId);
+      await refreshLists();
+      setSelectedId(id);
+    } catch (e) {
+      toast.error(`Não consegui criar a nota: ${String(e)}`);
+    }
   }
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -101,12 +109,16 @@ export function Conhecimento() {
 
     if (activeId.startsWith("note:")) {
       const noteId = Number(activeId.slice(5));
-      if (overId.startsWith("folder:")) {
-        await moveNote(noteId, Number(overId.slice(7)));
-        void refreshLists();
-      } else if (overId === "drop:loose") {
-        await moveNote(noteId, null);
-        void refreshLists();
+      try {
+        if (overId.startsWith("folder:")) {
+          await moveNote(noteId, Number(overId.slice(7)));
+          void refreshLists();
+        } else if (overId === "drop:loose") {
+          await moveNote(noteId, null);
+          void refreshLists();
+        }
+      } catch (e) {
+        toast.error(`Não consegui mover a nota: ${String(e)}`);
       }
       return;
     }
@@ -118,7 +130,12 @@ export function Conhecimento() {
       if (from < 0 || to < 0) return;
       const next = arrayMove(ids, from, to);
       setFolders((prev) => next.map((id) => prev.find((f) => f.id === id)!).filter(Boolean));
-      await reorderFolders(next);
+      try {
+        await reorderFolders(next);
+      } catch (e) {
+        toast.error(`Não consegui reordenar as pastas: ${String(e)}`);
+        void refreshLists();
+      }
     }
   }
 
@@ -152,14 +169,22 @@ export function Conhecimento() {
                     onRename={async () => {
                       const name = await promptDialog({ title: "Renomear pasta", defaultValue: f.name });
                       if (name == null) return;
-                      await renameFolder(f.id, name);
-                      void refreshLists();
+                      try {
+                        await renameFolder(f.id, name);
+                        void refreshLists();
+                      } catch (e) {
+                        toast.error(`Não consegui renomear a pasta: ${String(e)}`);
+                      }
                     }}
                     onDelete={async () => {
                       if (!(await confirmDialog({ title: "Excluir pasta", description: `Excluir "${f.name}"? As notas dentro dela ficam sem pasta.`, confirmLabel: "Excluir", destructive: true }))) return;
-                      await deleteFolder(f.id);
-                      if (filter === f.id) setFilter("all");
-                      void refreshLists();
+                      try {
+                        await deleteFolder(f.id);
+                        if (filter === f.id) setFilter("all");
+                        void refreshLists();
+                      } catch (e) {
+                        toast.error(`Não consegui excluir a pasta: ${String(e)}`);
+                      }
                     }}
                   />
                 </SortableFolder>
@@ -352,11 +377,15 @@ function NoteEditor({
 
   const persist = useCallback(
     async (t: string, b: string) => {
-      await saveNote(noteId, t, b);
-      dirtyRef.current = false;
-      const [bl] = await Promise.all([backlinks(noteId)]);
-      setLinks(bl);
-      onChanged();
+      try {
+        await saveNote(noteId, t, b);
+        dirtyRef.current = false;
+        const [bl] = await Promise.all([backlinks(noteId)]);
+        setLinks(bl);
+        onChanged();
+      } catch (e) {
+        toast.error(`Não consegui salvar a nota: ${String(e)}`);
+      }
     },
     [noteId, onChanged]
   );
@@ -395,7 +424,15 @@ function NoteEditor({
         <Button
           size="icon"
           variant="ghost"
-          onClick={async () => { await setPinned(noteId, !note.pinned); setNote({ ...note, pinned: note.pinned ? 0 : 1 }); onChanged(); }}
+          onClick={async () => {
+            try {
+              await setPinned(noteId, !note.pinned);
+              setNote({ ...note, pinned: note.pinned ? 0 : 1 });
+              onChanged();
+            } catch (e) {
+              toast.error(`Não consegui fixar a nota: ${String(e)}`);
+            }
+          }}
           title={note.pinned ? "Desafixar" : "Fixar"}
         >
           {note.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
@@ -405,10 +442,14 @@ function NoteEditor({
           size="sm"
           onClick={async () => {
             flushSave();
-            const fresh = (await getNote(noteId)) ?? note;
-            await noteToIdea(fresh);
-            toast.success("Nota virou ideia — confira no Banco de Ideias");
-            onIdea();
+            try {
+              const fresh = (await getNote(noteId)) ?? note;
+              await noteToIdea(fresh);
+              toast.success("Nota virou ideia — confira no Banco de Ideias");
+              onIdea();
+            } catch (e) {
+              toast.error(`Não consegui transformar a nota em ideia: ${String(e)}`);
+            }
           }}
           title="Transformar em ideia"
         >
@@ -419,8 +460,12 @@ function NoteEditor({
           variant="ghost"
           onClick={async () => {
             if (!(await confirmDialog({ title: "Excluir nota", description: `Excluir "${title || "(sem título)"}"?`, confirmLabel: "Excluir", destructive: true }))) return;
-            await deleteNote(noteId);
-            onDeleted();
+            try {
+              await deleteNote(noteId);
+              onDeleted();
+            } catch (e) {
+              toast.error(`Não consegui excluir a nota: ${String(e)}`);
+            }
           }}
           title="Excluir nota"
         >
@@ -435,9 +480,13 @@ function NoteEditor({
           value={note.folder_id ?? ""}
           onChange={async (e) => {
             const fid = e.target.value ? Number(e.target.value) : null;
-            await moveNote(noteId, fid);
-            setNote({ ...note, folder_id: fid });
-            onChanged();
+            try {
+              await moveNote(noteId, fid);
+              setNote({ ...note, folder_id: fid });
+              onChanged();
+            } catch (err) {
+              toast.error(`Não consegui mover a nota: ${String(err)}`);
+            }
           }}
           className="rounded border bg-background px-1.5 py-0.5 text-xs"
         >

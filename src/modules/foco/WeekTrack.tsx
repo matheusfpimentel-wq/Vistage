@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Flame, Mic, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/components/ui/toaster";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -134,12 +135,17 @@ export function WeekTrack() {
       const changed =
         p && (p.weekday !== d.origWeekday || p.start_min !== d.origStart || p.duration_min !== d.origDur);
       if (changed) {
-        await updateFocusBlock(d.id, {
-          weekday: p!.weekday,
-          start_min: p!.start_min,
-          duration_min: p!.duration_min,
-        });
-        reload();
+        try {
+          await updateFocusBlock(d.id, {
+            weekday: p!.weekday,
+            start_min: p!.start_min,
+            duration_min: p!.duration_min,
+          });
+          reload();
+        } catch (e) {
+          toast.error(`Não consegui mover o bloco: ${String(e)}`);
+          reload();
+        }
       } else if (d.mode === "move" && !d.moved) {
         // clique sem arraste → abre o editor do bloco
         setEditingId(d.id);
@@ -163,7 +169,9 @@ export function WeekTrack() {
       duration_min: 60,
       kind: brush,
       label: null,
-    }).then(reload);
+    })
+      .then(reload)
+      .catch((e) => toast.error(`Não consegui criar o bloco: ${String(e)}`));
   }
 
   function startDrag(e: React.PointerEvent, b: FocusBlock, mode: Drag["mode"]) {
@@ -349,7 +357,11 @@ export function WeekTrack() {
                           <button
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
-                            onClick={() => void deleteFocusBlock(b.id).then(reload)}
+                            onClick={() =>
+                              void deleteFocusBlock(b.id)
+                                .then(reload)
+                                .catch((e) => toast.error(`Não consegui excluir o bloco: ${String(e)}`))
+                            }
                             className="shrink-0 opacity-50 transition hover:opacity-100"
                             aria-label="Remover bloco"
                           >
@@ -416,6 +428,8 @@ function BlockEditor({
         plan: plan.trim() || null,
       });
       onSaved();
+    } catch (e) {
+      toast.error(`Não consegui salvar o bloco: ${String(e)}`);
     } finally {
       setSaving(false);
     }
@@ -517,8 +531,12 @@ function BlockEditor({
             size="sm"
             className="text-destructive"
             onClick={async () => {
-              await deleteFocusBlock(block.id);
-              onSaved();
+              try {
+                await deleteFocusBlock(block.id);
+                onSaved();
+              } catch (e) {
+                toast.error(`Não consegui excluir o bloco: ${String(e)}`);
+              }
             }}
           >
             <Trash2 className="h-4 w-4" /> Excluir
