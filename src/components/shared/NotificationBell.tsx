@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { toLocalISODate } from "@/lib/format";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { alertSeverity, computeAlerts, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
-import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
+import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
@@ -251,7 +251,7 @@ export function NotificationBell() {
         ]);
         setAlerts(
           await filterSnoozed([
-            ...computeAlerts(stats, extra, getDisabledRuleIds(), isPauseMode()),
+            ...computeAlerts(stats, extra, getDisabledRuleIds()),
             ...custom,
           ])
         );

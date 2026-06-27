@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BellOff, CheckCircle2, ChevronRight, Loader2, Pause, Play, RefreshCw } from "lucide-react";
+import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
-import { getDisabledRuleIds, isPauseMode, setPauseMode } from "./ruleConfig";
+import { getDisabledRuleIds } from "./ruleConfig";
 import { evaluateCustomRules } from "./customRules";
 import { loadPartyFinanceAlerts } from "./partyFinanceAlerts";
 import { filterSnoozed, snoozeAlert } from "./snooze";
@@ -19,7 +19,6 @@ import { DATA_CHANGED } from "@/lib/events";
 export function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paused, setPaused] = useState(isPauseMode());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(() => {
@@ -33,7 +32,7 @@ export function AlertsPage() {
         ]);
         setAlerts(
           await filterSnoozed([
-            ...computeAlerts(stats, undefined, getDisabledRuleIds(), isPauseMode()),
+            ...computeAlerts(stats, undefined, getDisabledRuleIds()),
             ...custom,
             ...partyFin,
           ])
@@ -77,25 +76,6 @@ export function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              const next = !paused;
-              setPaused(next);
-              setPauseMode(next);
-              refresh();
-            }}
-            className={cn(
-              "flex h-9 items-center gap-1.5 rounded-md border px-2.5 text-xs transition",
-              paused
-                ? "border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                : "text-muted-foreground hover:bg-accent"
-            )}
-            title="Modo pausa — suspende alertas de pipeline/continuidade (mantém dinheiro e prazo)"
-          >
-            {paused ? <Play className="h-3.5 w-3.5" /> : <Pause className="h-3.5 w-3.5" />}
-            {paused ? "Pausado" : "Pausar"}
-          </button>
           <button
             type="button"
             onClick={refresh}

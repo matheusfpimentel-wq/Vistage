@@ -468,6 +468,7 @@ function describeCondition(e: RuleEntityDef | undefined, c: RuleCondition): stri
 export function describeRule(
   r: Pick<CustomRule, "entity" | "conditions" | "match">
 ): string {
+  if (r.conditions.length === 0) return "Sempre (sem condição)";
   const e = entityDef(r.entity);
   const eLabel = e?.label ?? r.entity;
   const joiner = r.match === "any" ? " OU " : " E ";
@@ -833,6 +834,13 @@ export async function evaluateInsightRules(): Promise<InsightRuleHit[]> {
   const out: InsightRuleHit[] = [];
   for (const rule of rules) {
     if (!rule.enabled || rule.severity !== "insight") continue;
+    // Insight SEM condição = aparece sempre (provocação fixa, sem gatilho).
+    if (rule.conditions.length === 0) {
+      if (rule.message.trim()) {
+        out.push({ ruleId: rule.id, content: fillMessage(rule.message, 1, null) });
+      }
+      continue;
+    }
     const r = await evaluateRuleHit(rule);
     if (r && r.hit) {
       out.push({
