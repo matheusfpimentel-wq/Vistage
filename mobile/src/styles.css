@@ -510,3 +510,44 @@ button { font-family: inherit; cursor: pointer; }
 .marker-summary { width: 100%; display: flex; flex-direction: column; gap: 0.3rem; }
 .ms-line { font-size: 0.9rem; margin: 0; }
 .ms-hint { font-size: 0.72rem; }
+
+/* ── §4 Home de dia de GIG ─────────────────────────────────────────────────── */
+.gig-day {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+.gig-day-title { font-size: 1.25rem; font-weight: 800; display: block; margin-top: 0.1rem; }
+.gig-day-sub { font-size: 0.85rem; margin-bottom: 0.2rem; }
+.gig-day-rows { margin: 0.5rem 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.gig-day-rows > div { display: flex; gap: 0.6rem; font-size: 0.92rem; }
+.gig-day-rows dt { color: var(--muted); min-width: 84px; }
+.gig-day-rows dd { margin: 0; font-weight: 600; }
+.gig-day-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.6rem 0; }
+.gig-act {
+  flex: 1; min-width: 96px; text-align: center; text-decoration: none;
+  padding: 0.55rem 0.6rem; border-radius: 12px; font-size: 0.9rem; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.gig-act:active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.gig-day-focus {
+  width: 100%; margin-top: 0.2rem; padding: 0.75rem; border-radius: 14px; border: none;
+  font-size: 1rem; font-weight: 700; color: #fff; cursor: pointer; background: var(--accent);
+}
+.gig-day-focus:active { filter: brightness(0.92); }
+
+/* ── §8 Tarefas: grupos por vencimento + deslizar-pra-concluir ─────────────── */
+.task-group { margin-bottom: 0.9rem; }
+.task-group-h {
+  font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--muted); margin: 0.6rem 0 0.35rem;
+}
+.task-group-h.overdue { color: var(--neg); }
+.swipe-wrap { position: relative; list-style: none; overflow: hidden; border-radius: 12px; }
+.swipe-behind {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;
+  padding-right: 1rem; font-weight: 700; color: #fff; border-radius: 12px; background: var(--pos);
+}
+.swipe-fore { position: relative; will-change: transform; touch-action: pan-y; }
+
+/* tap-to-action: linha com vários links (telefone · WhatsApp) */
+.link-row { display: inline-flex; flex-wrap: wrap; gap: 0.1rem 0.7rem; align-items: baseline; }
