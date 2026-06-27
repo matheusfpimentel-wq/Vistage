@@ -100,6 +100,8 @@ export function TasksPage() {
     try {
       const data = await listTasks(queryFilters);
       setTasks(data);
+    } catch (e) {
+      toast.error(`Erro ao carregar tarefas: ${String(e)}`);
     } finally {
       setLoading(false);
     }

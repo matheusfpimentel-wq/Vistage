@@ -148,6 +148,8 @@ export function FinancePage() {
       ]);
       setTransactions(tx);
       setCategories(cats);
+    } catch (e) {
+      toast.error(`Erro ao carregar financeiro: ${String(e)}`);
     } finally {
       setLoading(false);
     }

@@ -50,9 +50,13 @@ export function MusicPage() {
   const [editingProject, setEditingProject] = useState<MusicProject | null>(null);
 
   const refresh = useCallback(async () => {
-    const [t, p] = await Promise.all([listTracks(), listProjects()]);
-    setTracks(t);
-    setProjects(p);
+    try {
+      const [t, p] = await Promise.all([listTracks(), listProjects()]);
+      setTracks(t);
+      setProjects(p);
+    } catch (e) {
+      toast.error(`Erro ao carregar músicas: ${String(e)}`);
+    }
   }, []);
 
   useEffect(() => {
