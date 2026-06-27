@@ -208,18 +208,26 @@ export async function deleteTask(id: number): Promise<void> {
   const db = getDb();
   // Se a tarefa estava espelhada no Todoist, propaga a EXCLUSÃO pra lá — senão a
   // próxima sync a veria "órfã" e a reimportaria como se fosse nova.
+  let todoistId: string | null = null;
   try {
     const rows = await db.select<{ todoist_id: string | null }[]>(
       "SELECT todoist_id FROM tasks WHERE id = $1",
       [id]
     );
-    const todoistId = rows[0]?.todoist_id;
+    todoistId = rows[0]?.todoist_id ?? null;
     if (todoistId) {
       const { tombstoneTodoistTask } = await import("@/lib/todoist");
       await tombstoneTodoistTask(todoistId);
     }
   } catch {
-    /* não impede a exclusão local */
+    // A lápide falhou antes de ser gravada (o que prevenia a reimportação).
+    // Grava direto aqui como garantia: a próxima sync apaga no Todoist e NÃO
+    // reimporta a tarefa recém-excluída. Não impede a exclusão local.
+    if (todoistId) {
+      await db
+        .execute("INSERT OR IGNORE INTO todoist_tombstones (todoist_id) VALUES ($1)", [todoistId])
+        .catch(() => {});
+    }
   }
   // "Não quero a tarefa": limpa o backlink na origem (não recria, não mexe nela).
   try {
