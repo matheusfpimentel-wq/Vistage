@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -29,6 +29,10 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
 import { SEVERITY_LABEL, type AlertSeverity } from "@/modules/revisao/alerts";
 import {
+  AGG_FUNCTIONS,
+  AGG_OPERATORS,
+  aggSourceDef,
+  aggSources,
   createCustomRule,
   decodeStateDays,
   deleteCustomRule,
@@ -36,13 +40,19 @@ import {
   encodeStateDays,
   entityDef,
   fieldDef,
+  isAggregateLeaf,
   listCustomRules,
   OPERATORS_BY_TYPE,
   RULE_ENTITIES,
+  ruleResolvable,
   setCustomRuleEnabled,
   updateCustomRule,
+  type AggFn,
+  type AggLeaf,
+  type AggOperator,
   type CustomRule,
   type CustomRuleInput,
+  type FieldLeaf,
   type RuleCondition,
   type RuleEntityDef,
   type RuleEntityKey,
@@ -168,6 +178,12 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
                 <p className="text-xs text-muted-foreground">
                   {describeRule(r)} → {isInsight ? "vira insight" : "mostra o alerta"}
                 </p>
+                {!ruleResolvable(r) && (
+                  <p className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Um campo desta regra não existe mais — ela não dispara. Edite para corrigir.
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Toggle on={!!r.enabled} onClick={() => void toggleEnabled(r)} />
@@ -212,7 +228,8 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
   );
 }
 
-/** Uma linha de condição: campo · operador · valor (adaptável). */
+/** Uma linha de condição: alterna entre "Campo" (folha de campo) e "Cálculo"
+ * (agregação COUNT/SUM/AVG/RATIO sobre um conjunto). */
 function ConditionRow({
   entityKey,
   cond,
@@ -226,37 +243,29 @@ function ConditionRow({
   onRemove: () => void;
   canRemove: boolean;
 }) {
-  const eDef = entityDef(entityKey);
-  const fDef = eDef ? fieldDef(eDef, cond.field) : undefined;
-  const operators = fDef ? OPERATORS_BY_TYPE[fDef.type] : [];
-  const opMeta = operators.find((o) => o.op === cond.operator);
-  const needsValue = opMeta?.needsValue ?? false;
-  const valueKind = opMeta?.valueKind ?? "none";
-  const options = fDef?.options ?? [];
-  const { state: stateVal, days: daysVal } = decodeStateDays(cond.value);
-
-  function changeField(field: string) {
-    const nf = eDef ? fieldDef(eDef, field) : undefined;
-    const op = nf ? OPERATORS_BY_TYPE[nf.type][0].op : cond.operator;
-    onChange({ field, operator: op, value: null });
-  }
-  const setValue = (value: string | null) => onChange({ ...cond, value });
-
+  const isAgg = isAggregateLeaf(cond);
   return (
     <div className="space-y-2 rounded-md border p-2">
       <div className="flex items-center gap-1.5">
-        <Select value={cond.field} onValueChange={changeField}>
-          <SelectTrigger className="h-8 flex-1">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {eDef?.fields.map((fd) => (
-              <SelectItem key={fd.key} value={fd.key}>
-                {fd.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-1 text-xs">
+          {([
+            ["Campo", false],
+            ["Cálculo", true],
+          ] as const).map(([label, toAgg]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() =>
+                toAgg !== isAgg &&
+                onChange(toAgg ? defaultAggLeaf(entityKey) : defaultFieldLeaf(entityKey))
+              }
+              className={cn("seg-pill", isAgg === toAgg ? "seg-pill-on" : "seg-pill-off")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1" />
         {canRemove && (
           <Button
             variant="ghost"
@@ -269,6 +278,55 @@ function ConditionRow({
           </Button>
         )}
       </div>
+      {isAgg ? (
+        <AggregateFields entityKey={entityKey} cond={cond} onChange={onChange} />
+      ) : (
+        <FieldFields entityKey={entityKey} cond={cond} onChange={onChange} />
+      )}
+    </div>
+  );
+}
+
+/** Sub-form de uma folha de CAMPO (campo · operador · valor). */
+function FieldFields({
+  entityKey,
+  cond,
+  onChange,
+}: {
+  entityKey: RuleEntityKey;
+  cond: FieldLeaf;
+  onChange: (c: RuleCondition) => void;
+}) {
+  const eDef = entityDef(entityKey);
+  const fDef = eDef ? fieldDef(eDef, cond.field) : undefined;
+  const operators = fDef ? OPERATORS_BY_TYPE[fDef.type] : [];
+  const opMeta = operators.find((o) => o.op === cond.operator);
+  const needsValue = opMeta?.needsValue ?? false;
+  const valueKind = opMeta?.valueKind ?? "none";
+  const options = fDef?.options ?? [];
+  const { state: stateVal, days: daysVal } = decodeStateDays(cond.value);
+
+  function changeField(field: string) {
+    const nf = eDef ? fieldDef(eDef, field) : undefined;
+    const op = nf ? OPERATORS_BY_TYPE[nf.type][0].op : cond.operator;
+    onChange({ kind: "field", field, operator: op, value: null });
+  }
+  const setValue = (value: string | null) => onChange({ ...cond, value });
+
+  return (
+    <>
+      <Select value={cond.field} onValueChange={changeField}>
+        <SelectTrigger className="h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {eDef?.fields.map((fd) => (
+            <SelectItem key={fd.key} value={fd.key}>
+              {fd.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       <Select
         value={cond.operator}
         onValueChange={(v) => onChange({ ...cond, operator: v as RuleOperator, value: null })}
@@ -338,7 +396,115 @@ function ConditionRow({
           />
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+/** Sub-form de uma folha de AGREGAÇÃO (conjunto · função · coluna(s) · limiar). */
+function AggregateFields({
+  entityKey,
+  cond,
+  onChange,
+}: {
+  entityKey: RuleEntityKey;
+  cond: AggLeaf;
+  onChange: (c: RuleCondition) => void;
+}) {
+  const eDef = entityDef(entityKey);
+  const sources = eDef ? aggSources(eDef) : [];
+  const src = sources.find((s) => s.key === cond.set) ?? sources[0];
+  const fnMeta = AGG_FUNCTIONS.find((f) => f.fn === cond.agg);
+  const numFields = src?.fields ?? [];
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={cond.set}
+          onValueChange={(v) => onChange({ ...cond, set: v, field: undefined, field2: undefined })}
+        >
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder="Conjunto" />
+          </SelectTrigger>
+          <SelectContent>
+            {sources.map((s) => (
+              <SelectItem key={s.key} value={s.key}>
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={cond.agg}
+          onValueChange={(v) =>
+            onChange({ ...cond, agg: v as AggFn, field: undefined, field2: undefined })
+          }
+        >
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder="Função" />
+          </SelectTrigger>
+          <SelectContent>
+            {AGG_FUNCTIONS.map((f) => (
+              <SelectItem key={f.fn} value={f.fn}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {fnMeta?.needsField && (
+        <Select value={cond.field ?? ""} onValueChange={(v) => onChange({ ...cond, field: v })}>
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder={fnMeta.needsField2 ? "Numerador (a)" : "Coluna"} />
+          </SelectTrigger>
+          <SelectContent>
+            {numFields.map((f) => (
+              <SelectItem key={f.key} value={f.key}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {fnMeta?.needsField2 && (
+        <Select value={cond.field2 ?? ""} onValueChange={(v) => onChange({ ...cond, field2: v })}>
+          <SelectTrigger className="h-8">
+            <SelectValue placeholder="Denominador (b)" />
+          </SelectTrigger>
+          <SelectContent>
+            {numFields.map((f) => (
+              <SelectItem key={f.key} value={f.key}>
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <div className="grid grid-cols-2 gap-2">
+        <Select
+          value={cond.operator}
+          onValueChange={(v) => onChange({ ...cond, operator: v as AggOperator })}
+        >
+          <SelectTrigger className="h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AGG_OPERATORS.map((o) => (
+              <SelectItem key={o.op} value={o.op}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="number"
+          className="h-8"
+          value={cond.value ?? ""}
+          onChange={(ev) => onChange({ ...cond, value: ev.target.value })}
+          placeholder="limiar"
+        />
+      </div>
+    </>
   );
 }
 
@@ -374,11 +540,16 @@ function FieldHelpDialog({
   );
 }
 
-function defaultCondition(entKey: RuleEntityKey): RuleCondition {
+function defaultFieldLeaf(entKey: RuleEntityKey): FieldLeaf {
   const e = entityDef(entKey);
   const f0 = e?.fields[0];
-  if (!f0) return { field: "", operator: "filled", value: null };
-  return { field: f0.key, operator: OPERATORS_BY_TYPE[f0.type][0].op, value: null };
+  if (!f0) return { kind: "field", field: "", operator: "filled", value: null };
+  return { kind: "field", field: f0.key, operator: OPERATORS_BY_TYPE[f0.type][0].op, value: null };
+}
+
+function defaultAggLeaf(_entKey: RuleEntityKey): AggLeaf {
+  // COUNT da própria entidade > limiar — ponto de partida sempre válido.
+  return { kind: "aggregate", agg: "COUNT", set: "self", operator: "gt", value: null };
 }
 
 /** Formulário (dialog) de criação/edição: editor SE / ENTÃO em 2 colunas. */
@@ -397,7 +568,7 @@ function RuleFormDialog({
 }) {
   const isInsight = severity === "insight";
   const [entity, setEntity] = useState<RuleEntityKey>("gig");
-  const [conditions, setConditions] = useState<RuleCondition[]>([defaultCondition("gig")]);
+  const [conditions, setConditions] = useState<RuleCondition[]>([defaultFieldLeaf("gig")]);
   const [match, setMatch] = useState<RuleMatch>("all");
   const [message, setMessage] = useState("");
   const [dismissible, setDismissible] = useState(false);
@@ -409,14 +580,14 @@ function RuleFormDialog({
     if (!open) return;
     if (editing) {
       setEntity(editing.entity);
-      setConditions(editing.conditions.length ? editing.conditions : [defaultCondition(editing.entity)]);
+      setConditions(editing.conditions.length ? editing.conditions : [defaultFieldLeaf(editing.entity)]);
       setMatch(editing.match);
       setMessage(editing.message);
       setDismissible(!!editing.dismissible);
       setSeveridade(editing.severidade);
     } else {
       setEntity("gig");
-      setConditions([defaultCondition("gig")]);
+      setConditions([defaultFieldLeaf("gig")]);
       setMatch("all");
       setMessage("");
       setDismissible(false);
@@ -424,13 +595,38 @@ function RuleFormDialog({
     }
   }, [open, editing]);
 
-  function onEntityChange(next: RuleEntityKey) {
+  async function onEntityChange(next: RuleEntityKey) {
+    if (next === entity) return;
+    // Trocar de entidade zera as condições (os campos são de outra entidade).
+    // Se o usuário já montou algo de verdade, confirma antes de descartar.
+    const built =
+      conditions.length > 1 ||
+      conditions.some((c) => (isAggregateLeaf(c) ? true : !!c.value || c.field !== defaultFieldLeaf(entity).field));
+    if (
+      built &&
+      !(await confirmDialog({
+        title: "Trocar entidade",
+        description:
+          "As condições montadas serão zeradas — os campos pertencem a outra entidade. Continuar?",
+        confirmLabel: "Trocar",
+      }))
+    )
+      return;
     setEntity(next);
-    setConditions([defaultCondition(next)]);
+    setConditions([defaultFieldLeaf(next)]);
   }
 
   function validCondition(c: RuleCondition): boolean {
     const e = entityDef(entity);
+    if (isAggregateLeaf(c)) {
+      const src = e ? aggSourceDef(e, c.set) : undefined;
+      if (!src) return false;
+      const fnMeta = AGG_FUNCTIONS.find((f) => f.fn === c.agg);
+      if (!fnMeta) return false;
+      if (fnMeta.needsField && !(c.field && src.fields.some((f) => f.key === c.field))) return false;
+      if (fnMeta.needsField2 && !(c.field2 && src.fields.some((f) => f.key === c.field2))) return false;
+      return !!(c.value && c.value.trim() && Number.isFinite(Number(c.value)));
+    }
     const f = e ? fieldDef(e, c.field) : undefined;
     if (!f) return false;
     const opMeta = OPERATORS_BY_TYPE[f.type].find((o) => o.op === c.operator);
@@ -503,7 +699,7 @@ function RuleFormDialog({
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">Entidade</Label>
-                <Select value={entity} onValueChange={(v) => onEntityChange(v as RuleEntityKey)}>
+                <Select value={entity} onValueChange={(v) => void onEntityChange(v as RuleEntityKey)}>
                   <SelectTrigger className="h-8">
                     <SelectValue />
                   </SelectTrigger>
@@ -556,7 +752,7 @@ function RuleFormDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setConditions((cs) => [...cs, defaultCondition(entity)])}
+                  onClick={() => setConditions((cs) => [...cs, defaultFieldLeaf(entity)])}
                 >
                   <Plus className="h-3.5 w-3.5" /> Condição
                 </Button>
@@ -576,7 +772,8 @@ function RuleFormDialog({
                   placeholder={isInsight ? "ex: {n} GIGs de cachê alto" : "ex: Entregar kit de embaixador"}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Use <code>{"{n}"}</code> pra inserir a quantidade.
+                  Use <code>{"{n}"}</code> pra a quantidade e <code>{"{v}"}</code> pra o
+                  valor do cálculo (soma/média/razão).
                 </p>
               </div>
               {!isInsight && (

@@ -343,8 +343,10 @@ function EmExecucaoCard({ data }: { data: DashData }) {
     (t) => !t.standby && ["Ideação", "Composição", "Produção"].includes(t.current_stage)
   ).length;
 
+  // Festas "em andamento" = tudo que ainda não fechou (inclui os novos status
+  // Ideia e Em vendas da de-dup 3b), exceto realizadas/canceladas.
   const partiesPipeline = data.parties.filter(
-    (p) => p.status === "Planejando" || p.status === "Confirmada"
+    (p) => p.status !== "Realizada" && p.status !== "Cancelada"
   ).length;
 
   const upcomingClasses = data.classes.filter(
@@ -927,7 +929,7 @@ function FestasCard({ data }: { data: DashData }) {
   );
   const noConfirmed = !data.parties.some(
     (p) =>
-      p.status === "Confirmada" &&
+      (p.status === "Confirmada" || p.status === "Em vendas") &&
       p.date &&
       p.date >= today &&
       p.date <= in30
@@ -972,7 +974,7 @@ function FestasCard({ data }: { data: DashData }) {
                 variant="outline"
                 className={cn(
                   "text-xs",
-                  next.status === "Confirmada"
+                  next.status === "Confirmada" || next.status === "Em vendas"
                     ? "border-emerald-500/30 text-emerald-400"
                     : "border-amber-500/30 text-amber-400"
                 )}

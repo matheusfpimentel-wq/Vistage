@@ -1,4 +1,8 @@
-export const PARTY_STATUSES = ["Planejando","Confirmada","Realizada","Cancelada"] as const;
+// Status único de alto nível da festa, auto-sugerido por marcos do workflow
+// (venue → Confirmada; 1ª venda → Em vendas; passou a data → Realizada), com
+// override manual. "Ideia" e "Em vendas" entraram na de-duplicação (slice 3b):
+// a coluna `status` é TEXT livre, então os valores novos não exigem migração.
+export const PARTY_STATUSES = ["Ideia","Planejando","Confirmada","Em vendas","Realizada","Cancelada"] as const;
 export type PartyStatus = (typeof PARTY_STATUSES)[number];
 
 export type StageStatus = "pendente" | "em_andamento" | "concluida";
@@ -20,9 +24,11 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
     { key:"referencias", label:"Referências e inspirações", type:"text" },
     { key:"motivacao", label:"Motivação / por que fazer", type:"text" },
   ],
+  // De-dup (slice 3b): "Data pretendida" e "Público estimado" saíram daqui — a
+  // data canônica é a da Info (parties.date) e o público estimado é
+  // expected_capacity. O break-even lê a capacidade da Info, não mais um campo
+  // paralelo. Valores antigos em party_stages.fields ficam (não-destrutivo).
   "Viabilidade": [
-    { key:"data_pretendida", label:"Data pretendida", type:"date" },
-    { key:"capacidade", label:"Público estimado", type:"number" },
     { key:"custos_necessarios", label:"Custos necessários", type:"costs" },
     { key:"viabilidade_notas", label:"Observações de viabilidade", type:"text" },
   ],
@@ -39,9 +45,10 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
     { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
     { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
   ],
+  // De-dup (slice 3b): "Público real" e "Receita total" saíram daqui — são
+  // COMPUTADOS (público real = ingressos vendidos; receita = ingressos +
+  // patrocínio do Orçamento), exibidos no cockpit/briefing, não redigitados.
   "Concretização": [
-    { key:"publico_real", label:"Público real", type:"number" },
-    { key:"receita_total", label:"Receita total (R$)", type:"number" },
     { key:"aprendizados", label:"Aprendizados", type:"text" },
     { key:"proximos_passos", label:"Próximos passos", type:"text" },
   ],
@@ -139,7 +146,7 @@ export type PartySeriesUpdateInput = Partial<PartySeriesCreateInput> & { id: num
 
 export type Party = {
   id: number; title: string; date: string|null; venue_id: number|null;
-  venue_name: string|null; status: PartyStatus; description: string|null;
+  venue_name: string|null; status: PartyStatus; status_override: number; description: string|null;
   expected_capacity: number|null; actual_attendance: number|null;
   ticket_price_regular: number|null; ticket_price_vip: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
@@ -155,8 +162,9 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
+  status_override?: number;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
   lineup?: number[]|string|null;
@@ -179,9 +187,11 @@ export type PartyVenueCandidate = {
 
 export function partyStatusColor(s: PartyStatus): string {
   return s==="Confirmada" ? "bg-emerald-500/20 text-emerald-400"
+    : s==="Em vendas" ? "bg-sky-500/20 text-sky-400"
     : s==="Realizada" ? "bg-primary/20 text-primary"
     : s==="Cancelada" ? "bg-red-500/20 text-red-400"
-    : "bg-amber-500/20 text-amber-400";
+    : s==="Ideia" ? "bg-muted text-muted-foreground"
+    : "bg-amber-500/20 text-amber-400"; // Planejando
 }
 
 export function ticketTypeLabel(t: TicketType): string {

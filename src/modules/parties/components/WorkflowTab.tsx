@@ -54,11 +54,15 @@ export function WorkflowTab({
   partyId,
   stages,
   tasks,
+  expectedCapacity,
   onReload,
 }: {
   partyId: number;
   stages: PartyStage[];
   tasks: PartyTask[];
+  /** Público estimado canônico (Info) — usado no break-even, no lugar do antigo
+   * campo "capacidade" da etapa de Viabilidade, removido na de-dup (slice 3b). */
+  expectedCapacity: number | null;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -309,7 +313,7 @@ export function WorkflowTab({
                         <CostsField
                           label={fd.label}
                           value={String(editFields[fd.key] ?? "")}
-                          publicoEstimado={Number(editFields["capacidade"]) || 0}
+                          publicoEstimado={expectedCapacity ?? (Number(editFields["capacidade"]) || 0)}
                           onChange={(v) =>
                             setEditFields((f) => ({ ...f, [fd.key]: v }))
                           }

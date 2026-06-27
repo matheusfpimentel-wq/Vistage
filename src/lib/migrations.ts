@@ -2142,6 +2142,12 @@ const MIGRATIONS: Migration[] = [
       "Alertas — severidade em 3 níveis (critico/atencao/info) nas regras do usuário. O campo 'severity' (alerta/insight) continua sendo o TIPO; 'severidade' é a prioridade.",
     sql: `ALTER TABLE custom_rules ADD COLUMN severidade TEXT NOT NULL DEFAULT 'atencao';`,
   },
+  {
+    version: 148,
+    description:
+      "Festas (de-dup 3b): parties.status_override — 1 quando o usuário fixa o status manualmente (a auto-sugestão para de cobrar). O enum de status ganhou Ideia/Em vendas, mas a coluna status é TEXT livre, então só a UI muda; nenhum valor existente vira inválido.",
+    sql: `ALTER TABLE parties ADD COLUMN status_override INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 

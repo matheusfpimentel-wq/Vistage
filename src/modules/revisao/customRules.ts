@@ -41,6 +41,11 @@ export type RuleOperator =
 /** Como o editor deve coletar o `value` da condição. */
 export type RuleValueKind = "none" | "number" | "text" | "enum" | "state_days";
 
+/** Funções de agregação sobre um conjunto (fatia D). */
+export type AggFn = "COUNT" | "SUM" | "AVG" | "RATIO";
+/** Comparador de uma agregação contra o limiar (subconjunto numérico). */
+export type AggOperator = "lt" | "gt" | "eq" | "gte" | "lte";
+
 export type RuleFieldDef = {
   key: string;
   label: string;
@@ -48,6 +53,20 @@ export type RuleFieldDef = {
   column: string;
   /** Opções para campos do tipo `enum` (valores exatos gravados no banco). */
   options?: readonly string[];
+};
+
+/**
+ * Conjunto agregável ligado a uma entidade (fatia D — multi-entidade). É uma
+ * tabela FILHA referenciável por FK (ex.: Festa → Ingressos via party_id). Tudo
+ * vem do catálogo (tabela, FK e colunas), então segue na whitelist.
+ */
+export type RuleRelationDef = {
+  key: string;
+  label: string;
+  table: string;
+  /** Coluna FK na tabela filha que aponta pro id da entidade primária. */
+  fk: string;
+  fields: RuleFieldDef[];
 };
 
 export type RuleEntityDef = {
@@ -58,6 +77,8 @@ export type RuleEntityDef = {
   /** Filtro-base seguro (constante do catálogo) p/ evitar falsos positivos. */
   baseWhere?: string;
   fields: RuleFieldDef[];
+  /** Conjuntos filhos agregáveis (fatia D). */
+  relations?: RuleRelationDef[];
 };
 
 // Opções de enums (valores exatos como gravados no banco).
@@ -69,7 +90,7 @@ const TRACK_STAGE = [
 const TASK_STATUS = ["A fazer", "Em andamento", "Concluída", "Cancelada"] as const;
 const TASK_PRIORITY = ["Baixa", "Média", "Alta", "Urgente"] as const;
 const TASK_CATEGORY = ["GIG", "Produção Musical", "Conteúdo", "Festas", "Administrativo", "Pessoal"] as const;
-const PARTY_STATUS = ["Planejando", "Confirmada", "Realizada", "Cancelada"] as const;
+const PARTY_STATUS = ["Ideia", "Planejando", "Confirmada", "Em vendas", "Realizada", "Cancelada"] as const;
 const FAN_LEVEL = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
 
 export const RULE_ENTITIES: RuleEntityDef[] = [
@@ -157,6 +178,29 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
       { key: "venue_name", label: "Local", type: "text", column: "venue_name" },
       { key: "expected_capacity", label: "Público estimado", type: "number", column: "expected_capacity" },
     ],
+    relations: [
+      {
+        key: "tickets",
+        label: "Ingressos",
+        table: "party_tickets",
+        fk: "party_id",
+        fields: [
+          { key: "quantity_sold", label: "Qtd. vendida", type: "number", column: "quantity_sold" },
+          { key: "quantity_total", label: "Qtd. total (meta)", type: "number", column: "quantity_total" },
+          { key: "price", label: "Preço (R$)", type: "number", column: "price" },
+        ],
+      },
+      {
+        key: "budget",
+        label: "Orçamento",
+        table: "party_budget_items",
+        fk: "party_id",
+        fields: [
+          { key: "projected_amount", label: "Valor projetado (R$)", type: "number", column: "projected_amount" },
+          { key: "actual_amount", label: "Valor real (R$)", type: "number", column: "actual_amount" },
+        ],
+      },
+    ],
   },
   {
     key: "class",
@@ -203,8 +247,70 @@ export const OPERATORS_BY_TYPE: Record<
   ],
 };
 
-/** Uma condição "campo · operador · valor" do lado SE da regra. */
-export type RuleCondition = { field: string; operator: RuleOperator; value: string | null };
+// ── Agregações (fatia D) ──────────────────────────────────────────────────────
+export const AGG_FUNCTIONS: { fn: AggFn; label: string; needsField: boolean; needsField2: boolean }[] = [
+  { fn: "COUNT", label: "Quantidade (contar)", needsField: false, needsField2: false },
+  { fn: "SUM", label: "Soma", needsField: true, needsField2: false },
+  { fn: "AVG", label: "Média", needsField: true, needsField2: false },
+  { fn: "RATIO", label: "Razão (a ÷ b)", needsField: true, needsField2: true },
+];
+
+export const AGG_OPERATORS: { op: AggOperator; label: string }[] = [
+  { op: "lt", label: "menor que (<)" },
+  { op: "lte", label: "menor ou igual (≤)" },
+  { op: "gt", label: "maior que (>)" },
+  { op: "gte", label: "maior ou igual (≥)" },
+  { op: "eq", label: "igual a (=)" },
+];
+
+/** Conjunto agregável resolvido: "self" (a própria entidade) + as relações. */
+export type AggSource = { key: string; label: string; table: string; fk: string | null; fields: RuleFieldDef[] };
+
+/** Fontes de agregação de uma entidade: ela mesma (campos numéricos) + filhos. */
+export function aggSources(e: RuleEntityDef): AggSource[] {
+  const self: AggSource = {
+    key: "self",
+    label: `Esta ${e.label.toLowerCase()}`,
+    table: e.table,
+    fk: null,
+    fields: e.fields.filter((f) => f.type === "number"),
+  };
+  const rels: AggSource[] = (e.relations ?? []).map((r) => ({
+    key: r.key, label: r.label, table: r.table, fk: r.fk, fields: r.fields,
+  }));
+  return [self, ...rels];
+}
+export function aggSourceDef(e: RuleEntityDef, setKey: string): AggSource | undefined {
+  return aggSources(e).find((s) => s.key === setKey);
+}
+
+/** Folha "campo · operador · valor" — a condição de sempre (lado SE). */
+export type FieldLeaf = {
+  kind?: "field";
+  field: string;
+  operator: RuleOperator;
+  value: string | null;
+};
+/** Folha "agregação" — COUNT/SUM/AVG/RATIO sobre um conjunto, vs. um limiar. */
+export type AggLeaf = {
+  kind: "aggregate";
+  agg: AggFn;
+  /** "self" = a própria entidade; senão a key de uma relação (ex.: "tickets"). */
+  set: string;
+  /** Coluna agregada (SUM/AVG; numerador no RATIO). Ignorada em COUNT. */
+  field?: string;
+  /** Denominador (apenas RATIO). */
+  field2?: string;
+  operator: AggOperator;
+  value: string | null;
+};
+/** Uma condição do lado SE: folha de campo OU folha de agregação. */
+export type RuleCondition = FieldLeaf | AggLeaf;
+
+export function isAggregateLeaf(c: RuleCondition): c is AggLeaf {
+  return (c as AggLeaf).kind === "aggregate";
+}
+
 /** Como combinar as condições: all = E (todas), any = OU (qualquer uma). */
 export type RuleMatch = "all" | "any";
 
@@ -261,12 +367,32 @@ function rowToRule(r: CustomRuleRow): CustomRule {
       const parsed = JSON.parse(r.conditions) as unknown;
       if (Array.isArray(parsed)) {
         conditions = parsed
-          .filter((c): c is RuleCondition => !!c && typeof c === "object" && "field" in c && "operator" in c)
-          .map((c) => ({
-            field: String((c as RuleCondition).field),
-            operator: (c as RuleCondition).operator,
-            value: (c as RuleCondition).value ?? null,
-          }));
+          .filter((c): c is Record<string, unknown> => {
+            if (!c || typeof c !== "object") return false;
+            const o = c as Record<string, unknown>;
+            // Folha de agregação OU folha de campo (a ausência de `kind` = campo).
+            return o.kind === "aggregate"
+              ? "agg" in o && "set" in o && "operator" in o
+              : "field" in o && "operator" in o;
+          })
+          .map((o): RuleCondition =>
+            o.kind === "aggregate"
+              ? {
+                  kind: "aggregate",
+                  agg: o.agg as AggFn,
+                  set: String(o.set ?? "self"),
+                  field: o.field != null ? String(o.field) : undefined,
+                  field2: o.field2 != null ? String(o.field2) : undefined,
+                  operator: o.operator as AggOperator,
+                  value: (o.value as string | null) ?? null,
+                }
+              : {
+                  kind: "field",
+                  field: String(o.field),
+                  operator: o.operator as RuleOperator,
+                  value: (o.value as string | null) ?? null,
+                }
+          );
       }
     } catch {
       /* cai no legado abaixo */
@@ -274,7 +400,7 @@ function rowToRule(r: CustomRuleRow): CustomRule {
   }
   // Regra antiga (sem `conditions`): usa a condição única legada.
   if (conditions.length === 0) {
-    conditions = [{ field: r.field, operator: r.operator, value: r.value }];
+    conditions = [{ kind: "field", field: r.field, operator: r.operator, value: r.value }];
   }
   return {
     id: r.id,
@@ -314,6 +440,19 @@ export function decodeStateDays(value: string | null): { state: string; days: st
 }
 
 function describeCondition(e: RuleEntityDef | undefined, c: RuleCondition): string {
+  if (isAggregateLeaf(c)) {
+    const src = e ? aggSourceDef(e, c.set) : undefined;
+    const srcLabel = src?.label ?? c.set;
+    const colLabel = (k?: string) => (k ? src?.fields.find((f) => f.key === k)?.label ?? k : "");
+    const opLabel = AGG_OPERATORS.find((o) => o.op === c.operator)?.label ?? c.operator;
+    const body =
+      c.agg === "COUNT"
+        ? `qtd. de ${srcLabel}`
+        : c.agg === "RATIO"
+        ? `razão ${colLabel(c.field)} ÷ ${colLabel(c.field2)} (${srcLabel})`
+        : `${c.agg === "SUM" ? "soma" : "média"} de ${colLabel(c.field)} (${srcLabel})`;
+    return `${body} ${opLabel} ${c.value ?? ""}`.trim();
+  }
   const f = e ? fieldDef(e, c.field) : undefined;
   const fLabel = f?.label ?? c.field;
   if (c.operator === "state_stale") {
@@ -336,31 +475,65 @@ export function describeRule(
   return `Se ${eLabel} · ${parts.join(joiner)}`;
 }
 
+/**
+ * true se TODAS as folhas da regra ainda casam com o catálogo atual (campos,
+ * conjuntos e colunas de agregação existem). Falso = "regra zumbi": ela aparece
+ * na lista mas nunca dispara, porque uma referência (campo/relação) sumiu do
+ * catálogo. A UI usa isto pra avisar em vez de deixar o usuário no escuro.
+ */
+export function ruleResolvable(r: Pick<CustomRule, "entity" | "conditions">): boolean {
+  const e = entityDef(r.entity);
+  if (!e) return false;
+  return r.conditions.every((c) => {
+    if (isAggregateLeaf(c)) {
+      const src = aggSourceDef(e, c.set);
+      if (!src) return false;
+      const fn = AGG_FUNCTIONS.find((f) => f.fn === c.agg);
+      if (!fn) return false;
+      if (fn.needsField && !src.fields.some((f) => f.key === c.field)) return false;
+      if (fn.needsField2 && !src.fields.some((f) => f.key === c.field2)) return false;
+      return true;
+    }
+    return !!fieldDef(e, c.field);
+  });
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────────────────
 export async function listCustomRules(): Promise<CustomRule[]> {
   const rows = await getDb().select<CustomRuleRow[]>(`SELECT * FROM custom_rules ORDER BY id DESC`);
   return rows.map(rowToRule);
 }
 
-const FALLBACK_COND: RuleCondition = { field: "", operator: "filled", value: null };
+/**
+ * Colunas legadas (field/operator/value) — só um vestígio para regras antigas
+ * sem `conditions`. A fonte da verdade é o JSON `conditions`. Quando a 1ª folha
+ * é uma agregação, gravamos valores neutros (a coluna não é lida nesse caso).
+ */
+function legacyCols(input: CustomRuleInput): { field: string; operator: RuleOperator; value: string | null } {
+  const first = input.conditions[0];
+  if (first && !isAggregateLeaf(first)) {
+    return { field: first.field, operator: first.operator, value: first.value };
+  }
+  return { field: "", operator: "filled", value: null };
+}
 
 export async function createCustomRule(input: CustomRuleInput): Promise<void> {
-  const first = input.conditions[0] ?? FALLBACK_COND;
+  const lg = legacyCols(input);
   await getDb().execute(
     `INSERT INTO custom_rules (entity, field, operator, value, message, severity, severidade, enabled, conditions, match_mode, dismissible)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [input.entity, first.field, first.operator, first.value, input.message, input.severity,
+    [input.entity, lg.field, lg.operator, lg.value, input.message, input.severity,
       input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0]
   );
 }
 export async function updateCustomRule(id: number, input: CustomRuleInput): Promise<void> {
-  const first = input.conditions[0] ?? FALLBACK_COND;
+  const lg = legacyCols(input);
   await getDb().execute(
     `UPDATE custom_rules
         SET entity=$1, field=$2, operator=$3, value=$4, message=$5, severity=$6, severidade=$7, enabled=$8,
             conditions=$9, match_mode=$10, dismissible=$11, updated_at=datetime('now')
       WHERE id=$12`,
-    [input.entity, first.field, first.operator, first.value, input.message, input.severity,
+    [input.entity, lg.field, lg.operator, lg.value, input.message, input.severity,
       input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0, id]
   );
 }
@@ -446,10 +619,10 @@ function buildParams(operator: RuleOperator, value: string | null): unknown[] {
   }
 }
 
-/** Cláusula SQL de UMA condição, com placeholders renumerados a partir de startIdx. */
+/** Cláusula SQL de UMA folha de campo, com placeholders renumerados a partir de startIdx. */
 function buildConditionClause(
   e: RuleEntityDef,
-  c: RuleCondition,
+  c: FieldLeaf,
   startIdx: number
 ): { sql: string; params: unknown[] } | null {
   const f = fieldDef(e, c.field);
@@ -465,7 +638,12 @@ function buildConditionClause(
   return { sql: `(${sql})`, params };
 }
 
-/** Conta quantas linhas casam com a regra (condições compostas); null se inválida. */
+/**
+ * Conta quantas linhas casam com as FOLHAS DE CAMPO da regra (combinadas por
+ * match); null se inválida. Recebe só folhas de campo — as de agregação têm
+ * caminho próprio (evaluateAggLeaf). Defensivamente, uma folha de agregação aqui
+ * invalida a contagem.
+ */
 async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
   const e = entityDef(rule.entity);
   if (!e) return null;
@@ -473,6 +651,7 @@ async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
   const clauses: string[] = [];
   const params: unknown[] = [];
   for (const c of rule.conditions) {
+    if (isAggregateLeaf(c)) return null;
     const built = buildConditionClause(e, c, params.length + 1);
     if (!built) return null; // condição inválida invalida a regra inteira
     clauses.push(built.sql);
@@ -487,6 +666,122 @@ async function evaluateRuleCount(rule: CustomRule): Promise<number | null> {
   } catch {
     return null; // regra problemática — ignora isoladamente
   }
+}
+
+/**
+ * Avalia UMA folha de agregação: monta o escalar (COUNT/SUM/AVG/RATIO) sobre o
+ * conjunto (self ou relação filha), compara ao limiar (em JS) e devolve hit +
+ * escalar. Tabela/coluna/FK vêm do catálogo (whitelist); o limiar nunca entra no
+ * SQL (é comparado em JS), então não há injeção. null = folha inválida.
+ */
+async function evaluateAggLeaf(
+  e: RuleEntityDef,
+  leaf: AggLeaf
+): Promise<{ hit: boolean; scalar: number | null } | null> {
+  const src = aggSourceDef(e, leaf.set);
+  if (!src) return null;
+  const col = leaf.field ? src.fields.find((f) => f.key === leaf.field)?.column : undefined;
+  const col2 = leaf.field2 ? src.fields.find((f) => f.key === leaf.field2)?.column : undefined;
+
+  let expr: string;
+  if (leaf.agg === "COUNT") {
+    expr = "COUNT(*)";
+  } else if (leaf.agg === "SUM") {
+    if (!col) return null;
+    expr = `COALESCE(SUM(${col}), 0)`;
+  } else if (leaf.agg === "AVG") {
+    if (!col) return null;
+    expr = `COALESCE(AVG(${col}), 0)`;
+  } else if (leaf.agg === "RATIO") {
+    if (!col || !col2) return null;
+    // Divisão protegida (denominador zero → NULL → sem disparo).
+    expr = `CASE WHEN COALESCE(SUM(${col2}), 0) = 0 THEN NULL ELSE SUM(${col}) * 1.0 / SUM(${col2}) END`;
+  } else {
+    return null;
+  }
+
+  // Limiar ausente/vazio NÃO vira 0 (Number(null)/Number("") são 0): regra sem
+  // limiar é inválida e não dispara.
+  if (leaf.value == null || String(leaf.value).trim() === "") return null;
+  const threshold = Number(leaf.value);
+  if (!Number.isFinite(threshold)) return null;
+
+  let sql: string;
+  if (src.fk == null) {
+    // "self": a própria tabela da entidade, respeitando o filtro-base.
+    sql = `SELECT ${expr} AS v FROM ${src.table}${e.baseWhere ? ` WHERE ${e.baseWhere}` : ""}`;
+  } else {
+    // Conjunto filho: linhas cujo FK aponta pra um pai que passa no baseWhere.
+    const parentWhere = e.baseWhere ? ` WHERE ${e.baseWhere}` : "";
+    sql = `SELECT ${expr} AS v FROM ${src.table} WHERE ${src.fk} IN (SELECT id FROM ${e.table}${parentWhere})`;
+  }
+
+  let scalar: number | null;
+  try {
+    const rows = await getDb().select<{ v: number | null }[]>(sql, []);
+    scalar = rows[0]?.v ?? null;
+  } catch {
+    return null;
+  }
+  if (scalar == null) return { hit: false, scalar: null };
+  return { hit: compareAgg(scalar, leaf.operator, threshold), scalar };
+}
+
+function compareAgg(a: number, op: AggOperator, b: number): boolean {
+  switch (op) {
+    case "lt": return a < b;
+    case "lte": return a <= b;
+    case "gt": return a > b;
+    case "gte": return a >= b;
+    case "eq": return a === b;
+    default: return false;
+  }
+}
+
+/**
+ * Avalia a regra inteira (folhas de campo + de agregação) combinadas por match.
+ * As de campo viram UM booleano de grupo (count > 0, com o joiner E/OU dentro do
+ * SQL); cada agregação vira um booleano. Combina tudo por match. Devolve hit +
+ * n (linhas que casaram, p/ {n}) + v (escalar da 1ª agregação, p/ {v}). null se
+ * qualquer folha for inválida (a regra inteira é ignorada).
+ */
+async function evaluateRuleHit(
+  rule: CustomRule
+): Promise<{ hit: boolean; n: number; v: number | null } | null> {
+  const e = entityDef(rule.entity);
+  if (!e) return null;
+  if (rule.conditions.length === 0) return null;
+
+  const fieldLeaves = rule.conditions.filter((c): c is FieldLeaf => !isAggregateLeaf(c));
+  const aggLeaves = rule.conditions.filter(isAggregateLeaf);
+
+  const bools: boolean[] = [];
+  let n = 0;
+  let v: number | null = null;
+
+  if (fieldLeaves.length > 0) {
+    const cnt = await evaluateRuleCount({ ...rule, conditions: fieldLeaves });
+    if (cnt == null) return null;
+    n = cnt;
+    bools.push(cnt > 0);
+  }
+  for (const leaf of aggLeaves) {
+    const r = await evaluateAggLeaf(e, leaf);
+    if (r == null) return null;
+    if (v == null) v = r.scalar;
+    bools.push(r.hit);
+  }
+  if (bools.length === 0) return null;
+
+  const hit = rule.match === "any" ? bools.some(Boolean) : bools.every(Boolean);
+  if (fieldLeaves.length === 0) n = hit ? 1 : 0;
+  return { hit, n, v };
+}
+
+/** Substitui {n} (quantidade) e {v} (valor do cálculo) no texto da mensagem. */
+function fillMessage(msg: string, n: number, v: number | null): string {
+  const vStr = v == null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(2);
+  return msg.replace(/\{n\}/g, String(n)).replace(/\{v\}/g, vStr);
 }
 
 /**
@@ -506,8 +801,8 @@ export async function evaluateCustomRules(): Promise<AlertItem[]> {
     if (!rule.enabled || rule.severity !== "alerta") continue;
     const e = entityDef(rule.entity);
     if (!e) continue;
-    const n = await evaluateRuleCount(rule);
-    if (n && n > 0) {
+    const r = await evaluateRuleHit(rule);
+    if (r && r.hit) {
       out.push({
         key: `custom-${rule.id}`,
         icon: "warning",
@@ -515,7 +810,7 @@ export async function evaluateCustomRules(): Promise<AlertItem[]> {
         critical: rule.severidade === "critico",
         severidade: rule.severidade,
         dismissible: !!rule.dismissible,
-        label: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
+        label: fillMessage(rule.message || describeRule(rule), r.n, r.v),
       });
     }
   }
@@ -538,11 +833,11 @@ export async function evaluateInsightRules(): Promise<InsightRuleHit[]> {
   const out: InsightRuleHit[] = [];
   for (const rule of rules) {
     if (!rule.enabled || rule.severity !== "insight") continue;
-    const n = await evaluateRuleCount(rule);
-    if (n && n > 0) {
+    const r = await evaluateRuleHit(rule);
+    if (r && r.hit) {
       out.push({
         ruleId: rule.id,
-        content: (rule.message || describeRule(rule)).replace(/\{n\}/g, String(n)),
+        content: fillMessage(rule.message || describeRule(rule), r.n, r.v),
       });
     }
   }
