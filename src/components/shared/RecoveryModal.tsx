@@ -34,7 +34,12 @@ export function RecoveryModal({
         hideClose
         // !flex + footer fixo: numa janela pequena no boot, a descrição rola e os
         // botões de ação continuam SEMPRE visíveis (antes a janela cortava).
-        className="!flex max-h-[85vh] flex-col gap-3 overflow-hidden sm:max-w-sm"
+        // !overflow-hidden é IMPORTANTE: o DialogContent base traz overflow-y-auto
+        // (grupo "overflow-y"), que o twMerge NÃO dedupe contra um "overflow-hidden"
+        // comum (grupo "overflow") — sem o `!`, o container externo ainda rolava e
+        // empurrava o rodapé pra fora. O `!` força overflow:hidden e só a descrição
+        // interna (overflow-y-auto) rola.
+        className="!flex max-h-[85vh] flex-col gap-3 !overflow-hidden sm:max-w-sm"
         onEscapeKeyDown={(e) => e.preventDefault()}
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
