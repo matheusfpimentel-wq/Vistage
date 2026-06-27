@@ -42,6 +42,7 @@ const GIG_COLUMNS = [
   "payment_due_date",
   "invoice_file_path",
   "general_notes",
+  "gig_research",
   "debrief_strengths",
   "debrief_weaknesses",
   "debrief_learnings",
