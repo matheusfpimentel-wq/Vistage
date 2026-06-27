@@ -19,6 +19,7 @@ import { VenuePriorityBadge, prioritySortWeight } from "./components/VenueStar";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
+import { useModuleView } from "@/lib/moduleView";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,7 @@ export function VenuesPage() {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ city: "", search: "" });
-  const [view, setView] = useState<ViewMode>("cards");
+  const [view, setView] = useModuleView<ViewMode>("venues", "cards");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Venue | null>(null);
