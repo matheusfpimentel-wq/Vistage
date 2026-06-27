@@ -40,6 +40,8 @@ const TABLES = [
   "equipment",
   "work_sessions",
   "highlights",
+  "recurring_fests",   // nomes de festas recorrentes salvos (autocomplete) — sem deps
+  "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
   "okrs",
   "ideas",
   "content",
@@ -50,6 +52,7 @@ const TABLES = [
   // ── dependem do nível anterior ────────────────────────────────────────────
   "contacts",        // venue_id → venues
   "fan_interactions",        // fan_id → fans
+  "fan_perks",               // fan_id → fans (CASCADE) — brindes/perks do fã
   "fan_group_members",       // fan_id → fans, group_id → fan_groups
   "student_packages",        // student_id → students, package_id → class_packages
   "party_costs",             // party_id → parties
@@ -80,11 +83,14 @@ const TABLES = [
   "gig_setlists",            // gig_id → gigs
   "gig_tracks",              // gig_id → gigs, track_id → tracks
   "gig_fans",                // gig_id → gigs, fan_id → fans
+  "fan_lists",               // gig_id → gigs (anulável → DEFERRED_FK)
+  "fan_list_members",        // list_id → fan_lists (CASCADE), fan_id → fans (anulável)
   "tasks",                   // gig_id → gigs, contact_id → contacts
   "meetings",                // task_id → tasks
   // ── dependem do nível anterior ────────────────────────────────────────────
   "subtasks",                // task_id → tasks
   "okr_kr_tasks",            // okr_id → okrs, task_id → tasks
+  "task_links",              // task_id → tasks (CASCADE); entity_id é polimórfico (sem FK)
   // ── Biblioteca (sem deps externas; ordem interna pais→filhos) ──────────────
   "library_tracks",          // Músicas — só caminho+metadados (áudio NUNCA embutido)
   "gig_library_tracks",      // setlist: gig_id → gigs, library_track_id → library_tracks
@@ -484,6 +490,35 @@ export async function restoreBackupSession(backup: Backup): Promise<void> {
 // não contam como "dados de documento" em hasAnyDocumentData.
 const MACHINE_TABLES: TableName[] = ["app_settings", "gcal_auth"];
 
+// Tabelas que ENTRARAM no backup depois que já existiam bancos em uso (antes
+// elas só viviam na réplica local, fora do .vistage). Há uma janela de transição
+// perigosa: os dados delas estão na réplica do usuário mas NÃO em nenhum arquivo
+// salvo. Se o "abre em branco" (clearDocumentData) zerasse essas tabelas antes do
+// 1º save com este código, apagaria dados que ainda não viajaram pro arquivo.
+// Por isso elas NÃO são zeradas no boot/"Novo" até o 1º save (que as grava no
+// .vistage) marcar a flag abaixo. Depois disso, comportam-se como qualquer outra
+// tabela de documento. O restore (clear+restore por arquivo) já cuida da higiene
+// entre documentos pros arquivos salvos com este código.
+const PENDING_MIGRATION_TABLES: TableName[] = [
+  "task_links", "fan_perks", "fan_lists", "fan_list_members", "focus_blocks", "recurring_fests",
+];
+const MIGRATED_KEY = "vistage.backupTablesMigrated.v1";
+function documentTablesMigrated(): boolean {
+  try {
+    return localStorage.getItem(MIGRATED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+/** Marca que os dados das tabelas novas já entraram num .vistage salvo (1º save). */
+function markDocumentTablesMigrated(): void {
+  try {
+    localStorage.setItem(MIGRATED_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Zera os dados de DOCUMENTO (gigs, aulas, contatos, finanças…), preservando
  * as configurações da máquina (app_settings, gcal_auth). É o núcleo do modelo
@@ -493,9 +528,13 @@ const MACHINE_TABLES: TableName[] = ["app_settings", "gcal_auth"];
  */
 export async function clearDocumentData(): Promise<void> {
   const db = getDb();
+  const migrated = documentTablesMigrated();
   const stmts: BatchStatement[] = [];
   for (const t of [...TABLES].reverse()) {
     if (MACHINE_TABLES.includes(t)) continue;
+    // Transição: não zera as tabelas recém-incluídas até o 1º save com este
+    // código gravá-las no arquivo (senão apagaria dado que ainda não viajou).
+    if (!migrated && PENDING_MIGRATION_TABLES.includes(t)) continue;
     stmts.push({ sql: `DELETE FROM ${t}` });
   }
   await db.executeBatch(stmts);
@@ -640,6 +679,9 @@ export async function saveBackupToPath(path: string): Promise<{ skipped: string[
   const skipped = pw
     ? await writeEncryptedContainer(path, data, pw, getDocPasswordHint())
     : await writeContainer(path, data);
+  // A partir daqui as tabelas recém-incluídas já entraram num .vistage salvo —
+  // pode liberar o wipe normal delas no boot/"Novo" (ver clearDocumentData).
+  markDocumentTablesMigrated();
   return { skipped };
 }
 
@@ -794,6 +836,10 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   student_packages: { package_id: "class_packages" },
   classes: { student_package_id: "student_packages" },
   party_tasks: { stage_id: "party_stages" },
+  // Listas de fã: gig_id e fan_id são anuláveis (ON DELETE SET NULL) — adiadas
+  // p/ a 2ª passagem, descartando referência órfã em vez de quebrar.
+  fan_lists: { gig_id: "gigs" },
+  fan_list_members: { fan_id: "fans" },
   music_project_costs: { project_id: "music_projects", track_id: "tracks" },
   // Biblioteca: ideas é inserida ANTES de notes (está no topo de TABLES), então
   // source_note_id é adiado p/ a 2ª passagem. note_folders.parent_id é self-ref.
