@@ -1,6 +1,7 @@
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PartyBudgetItem, PartyTicket } from "../types";
+import { computePartyPnL } from "../pnl";
 
 /**
  * Cockpit da festa — painel computado que LÊ as outras abas (não redigita nada):
@@ -20,19 +21,11 @@ export function PartyCockpit({
   expectedCapacity: number | null;
   actualAttendance: number | null;
 }) {
-  const sold = tickets.reduce((s, t) => s + (t.quantity_sold || 0), 0);
-  const meta = tickets.reduce((s, t) => s + (t.quantity_total || 0), 0);
-  const ticketRevReal = tickets.reduce((s, t) => s + t.price * (t.quantity_sold || 0), 0);
-  const ticketRevMeta = tickets.reduce((s, t) => s + t.price * (t.quantity_total || 0), 0);
-  const sponsorRev = sponsors.reduce((s, sp) => s + (sp.amount_cents || 0) / 100, 0);
-  const costProj = items.reduce((s, i) => s + i.projected_amount, 0);
-  const costReal = items.reduce((s, i) => s + (i.actual_amount ?? 0), 0);
-  const mktReal = items
-    .filter((i) => i.category === "Marketing")
-    .reduce((s, i) => s + (i.actual_amount ?? 0), 0);
-  const lucroReal = ticketRevReal + sponsorRev - costReal;
-  const lucroProj = ticketRevMeta + sponsorRev - costProj;
-  const cac = sold > 0 ? mktReal / sold : null;
+  const pnl = computePartyPnL(tickets, items, sponsors);
+  const { sold, cac } = pnl;
+  const meta = pnl.capacity;
+  const lucroReal = pnl.netReal;
+  const lucroProj = pnl.netProjected;
 
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

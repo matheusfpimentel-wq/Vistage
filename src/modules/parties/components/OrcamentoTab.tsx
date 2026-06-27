@@ -27,6 +27,7 @@ import {
   syncPartyToFinanceiro,
   updatePartyBudgetItem,
 } from "../api";
+import { computePartyPnL } from "../pnl";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 
@@ -44,11 +45,13 @@ export function OrcamentoTab({
   const navigate = useNavigate();
   const summary = budgetSummary(items);
   // P&L da festa: o Orçamento é a verdade financeira — receita (ingressos
-  // vendidos + patrocínio) menos custo real = resultado líquido.
-  const ticketRevenue = tickets.reduce((s, t) => s + t.price * (t.quantity_sold || 0), 0);
-  const sponsorRevenue = party.sponsors.reduce((s, sp) => s + (sp.amount_cents || 0) / 100, 0);
-  const revenue = ticketRevenue + sponsorRevenue;
-  const net = revenue - summary.actual;
+  // vendidos + patrocínio) menos custo real = resultado líquido. Cálculo único
+  // em computePartyPnL (antes duplicado em 4 lugares com bases divergentes).
+  const pnl = computePartyPnL(tickets, items, party.sponsors);
+  const ticketRevenue = pnl.ticketRevenueReal;
+  const sponsorRevenue = pnl.sponsorRevenue;
+  const revenue = pnl.revenueReal;
+  const net = pnl.netReal;
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
   const [newSubcategory, setNewSubcategory] = useState("");
   const [newDesc, setNewDesc] = useState("");
