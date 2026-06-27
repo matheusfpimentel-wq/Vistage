@@ -2209,9 +2209,12 @@ export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
     try {
       if (batch.length > 0) await db.executeBatch(batch);
     } catch (err) {
-      // Migration revertida por inteiro. NÃO marca como aplicada (uma versão
-      // futura corrigida tenta de novo) e registra o erro pra diagnóstico. Não
-      // interrompe as próximas, pra manter o app inicializável.
+      // Migration revertida por inteiro (batch atômico → schema consistente em
+      // N-1). NÃO marca como aplicada (uma versão futura corrigida tenta de
+      // novo) e registra o erro pra diagnóstico. PARA o loop aqui (em vez de
+      // seguir): aplicar N+1..max sobre um N que falhou arrisca drift de schema
+      // por dependência. As migrations viram um prefixo estrito (1..K aplicadas,
+      // K+1..max nenhuma); o próximo boot retoma de N quando a causa for sanada.
       const msg = err instanceof Error ? err.message : String(err);
       try {
         await db.execute(
@@ -2221,7 +2224,7 @@ export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
       } catch {
         // best-effort: se app_settings ainda não existe, ignora
       }
-      continue;
+      break;
     }
 
     await db.execute(
