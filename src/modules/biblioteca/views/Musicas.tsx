@@ -134,6 +134,9 @@ export function Musicas() {
   const [writeProgress, setWriteProgress] = useState<{ done: number; total: number } | null>(null);
   const [prefs, setPrefs] = useState<ColPrefs>(loadPrefs);
   const [colMenu, setColMenu] = useState(false);
+  // Bump quando uma gravação de célula falha: força a célula (input não-controlado)
+  // a re-hidratar com o valor real do banco, em vez de manter o texto que não salvou.
+  const [cellRev, setCellRev] = useState(0);
   // Linhas editadas nesta sessão (e se o COMENTÁRIO foi tocado) → guiam "Gravar tags".
   const edited = useRef<Set<number>>(new Set());
   const commentEdited = useRef<Set<number>>(new Set());
@@ -234,7 +237,13 @@ export function Musicas() {
   }
 
   async function saveCell(id: number, col: EditableCol, value: string) {
-    await updateCell(id, col, value);
+    try {
+      await updateCell(id, col, value);
+    } catch (e) {
+      toast.error(`Não consegui salvar a alteração: ${String(e)}`);
+      setCellRev((n) => n + 1); // re-hidrata a célula com o valor do banco
+      return;
+    }
     edited.current.add(id);
     if (col === "comments") commentEdited.current.add(id);
     patchLocal(id, { [col]: col === "bpm" ? (value ? parseFloat(value.replace(",", ".")) : null) : value || null } as Partial<LibraryTrack>);
@@ -441,7 +450,7 @@ export function Musicas() {
 
                     {visibleCols.map((c) =>
                       c.editable ? (
-                        <Cell key={c.id} t={t} col={c.editable} onSave={saveCell} numeric={c.numeric} />
+                        <Cell key={c.id} t={t} col={c.editable} onSave={saveCell} numeric={c.numeric} rev={cellRev} />
                       ) : c.id === "status" ? (
                         <span key={c.id} className={cn("status", t.file_missing && "text-destructive")}>
                           {t.file_path ? (t.file_missing ? "ausente" : "ok") : "—"}
@@ -511,18 +520,21 @@ function Cell({
   col,
   onSave,
   numeric,
+  rev,
 }: {
   t: LibraryTrack;
   col: EditableCol;
   onSave: (id: number, col: EditableCol, v: string) => void;
   numeric?: boolean;
+  rev: number;
 }) {
   const raw = t[col];
   const initial = raw == null ? "" : String(raw);
   return (
     <input
-      // key inclui o valor pra re-hidratar ao voltar do virtualizador
-      key={`${t.id}:${col}:${initial}`}
+      // key inclui o valor (re-hidrata ao voltar do virtualizador) e rev
+      // (re-hidrata quando uma gravação falha e o texto digitado não salvou)
+      key={`${t.id}:${col}:${initial}:${rev}`}
       defaultValue={initial}
       inputMode={numeric ? "decimal" : undefined}
       className="cell-input"

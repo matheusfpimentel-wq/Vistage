@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+import { toLocalISODate } from "@/lib/format";
 import type {
   FanClubConfig,
   Fan,
@@ -739,7 +740,7 @@ export async function updateFanPerk(input: FanPerkUpdateInput): Promise<void> {
 /** Marca um perk/brinde como entregue, datando hoje se ainda não tiver data. */
 export async function markFanPerkDelivered(id: number): Promise<void> {
   const db = getDb();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate(); // data LOCAL (à noite no Brasil o UTC pularia 1 dia)
   await db.execute(
     `UPDATE fan_perks
         SET status = 'Entregue',

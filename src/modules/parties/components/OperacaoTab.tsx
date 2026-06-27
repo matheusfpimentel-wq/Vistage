@@ -39,16 +39,20 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
   }, [reload]);
 
   async function addRow() {
-    await createPartyRunsheetItem({
-      party_id: partyId,
-      position: rows.length,
-      time: null,
-      end_time: null,
-      title: "",
-      performer_contact_id: null,
-      notes: null,
-    });
-    void reload();
+    try {
+      await createPartyRunsheetItem({
+        party_id: partyId,
+        position: rows.length,
+        time: null,
+        end_time: null,
+        title: "",
+        performer_contact_id: null,
+        notes: null,
+      });
+      void reload();
+    } catch (e) {
+      toast.error(`Não consegui adicionar a linha: ${String(e)}`);
+    }
   }
 
   async function seedFromLineup() {
@@ -59,29 +63,48 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
       return;
     }
     let pos = rows.length;
-    for (const p of missing) {
-      await createPartyRunsheetItem({
-        party_id: partyId,
-        position: pos++,
-        time: null,
-        end_time: null,
-        title: `Set — ${p.name}`,
-        performer_contact_id: p.id,
-        notes: null,
-      });
+    let added = 0;
+    try {
+      for (const p of missing) {
+        await createPartyRunsheetItem({
+          party_id: partyId,
+          position: pos++,
+          time: null,
+          end_time: null,
+          title: `Set — ${p.name}`,
+          performer_contact_id: p.id,
+          notes: null,
+        });
+        added++;
+      }
+      toast.success(`${missing.length} set(s) adicionado(s) do line-up.`);
+    } catch (e) {
+      toast.error(`Adicionei ${added} de ${missing.length} set(s); o resto falhou: ${String(e)}`);
+    } finally {
+      void reload();
     }
-    toast.success(`${missing.length} set(s) adicionado(s) do line-up.`);
-    void reload();
   }
 
   async function patch(id: number, updates: RowPatch) {
-    await updatePartyRunsheetItem(id, updates);
+    // Otimista primeiro (digitar fica responsivo); se a gravação falhar,
+    // ressincroniza do banco para a tela não ficar mostrando o que não salvou.
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    try {
+      await updatePartyRunsheetItem(id, updates);
+    } catch (e) {
+      toast.error(`Não consegui salvar a alteração no cronograma: ${String(e)}`);
+      void reload();
+    }
   }
 
   async function remove(id: number) {
-    await deletePartyRunsheetItem(id);
-    void reload();
+    try {
+      await deletePartyRunsheetItem(id);
+    } catch (e) {
+      toast.error(`Não consegui remover a linha: ${String(e)}`);
+    } finally {
+      void reload();
+    }
   }
 
   async function move(idx: number, dir: -1 | 1) {
@@ -90,7 +113,20 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
     const next = [...rows];
     [next[idx], next[j]] = [next[j], next[idx]];
     setRows(next);
-    await reorderPartyRunsheet(next.map((r) => r.id));
+    try {
+      await reorderPartyRunsheet(next.map((r) => r.id));
+    } catch (e) {
+      toast.error(`Não consegui reordenar o cronograma: ${String(e)}`);
+      void reload();
+    }
+  }
+
+  async function saveHousePending() {
+    try {
+      await setPartyHousePending(partyId, housePending.trim() || null);
+    } catch (e) {
+      toast.error(`Não consegui salvar as pendências com a casa: ${String(e)}`);
+    }
   }
 
   return (
@@ -204,7 +240,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
         <textarea
           value={housePending}
           onChange={(e) => setHousePending(e.target.value)}
-          onBlur={() => void setPartyHousePending(partyId, housePending.trim() || null)}
+          onBlur={() => void saveHousePending()}
           rows={3}
           placeholder="Ex.: confirmar segurança extra, bar abre 22h, alvará até 4h…"
           className="w-full resize-y rounded-md border bg-background p-2 text-sm"

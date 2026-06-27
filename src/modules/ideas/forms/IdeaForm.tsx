@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toLocalISODate } from "@/lib/format";
 import {
   Select,
   SelectContent,
@@ -171,7 +172,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
         contact_id: null,
         priority: "Média",
         status: "A fazer",
-        due_date: due.toISOString().slice(0, 10),
+        due_date: toLocalISODate(due),
         tags: ["ideia"],
       });
       toast.success("Tarefa criada!");
@@ -222,7 +223,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
           contact_id: null,
           priority: "Média",
           status: "A fazer",
-          due_date: due.toISOString().slice(0, 10),
+          due_date: toLocalISODate(due),
           tags: ["ideia"],
         });
         await markIdeaAsConverted(idea.id, "task", taskId);

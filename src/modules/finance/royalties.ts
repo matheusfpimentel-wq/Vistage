@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import { listTracks } from "@/modules/music/api";
 import { createCategory, createTransaction, listCategories } from "./api";
 
@@ -521,8 +522,9 @@ export async function addTrackRoyalty(input: {
   return createTransaction({
     kind: "income",
     amount: input.amount,
-    // Receita exige data; sem data informada, usa hoje.
-    date: input.date ?? new Date().toISOString().slice(0, 10),
+    // Receita exige data; sem data informada, usa hoje (data LOCAL — senão, à
+    // noite no Brasil (UTC-3), o toISOString jogaria a receita pro dia seguinte).
+    date: input.date ?? toLocalISODate(),
     description: input.description,
     category_id: catId,
     gig_id: null,
