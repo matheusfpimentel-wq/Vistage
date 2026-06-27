@@ -61,6 +61,11 @@ const DATE_FILTERS: { id: TasksDateFilter; label: string }[] = [
   { id: "none", label: "Sem data" },
 ];
 
+/** Conta quantas promessas de um lote falharam (para avisar de falha parcial em vez de engolir). */
+function countFailures(results: PromiseSettledResult<unknown>[]): number {
+  return results.filter((r) => r.status === "rejected").length;
+}
+
 export function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [filters, setFilters] = useState<{
@@ -155,23 +160,28 @@ export function TasksPage() {
   async function handleBulkComplete(list: Task[]) {
     const pending = list.filter((t) => t.status !== "Concluída");
     if (pending.length === 0) return;
-    await Promise.all(pending.map((t) => updateTask({ id: t.id, status: "Concluída" })));
-    toast.success(`${pending.length} tarefa(s) concluída(s)`);
+    const failed = countFailures(
+      await Promise.allSettled(pending.map((t) => updateTask({ id: t.id, status: "Concluída" }))),
+    );
+    if (failed > 0) toast.error(`${pending.length - failed} de ${pending.length} concluída(s); ${failed} falhou(ram).`);
+    else toast.success(`${pending.length} tarefa(s) concluída(s)`);
     await refresh();
   }
 
   async function handleBulkSetStatus(list: Task[], status: TaskStatus) {
     if (list.length === 0) return;
-    await Promise.all(list.map((t) => updateTask({ id: t.id, status })));
-    toast.success(`${list.length} tarefa(s) → ${status}`);
+    const failed = countFailures(await Promise.allSettled(list.map((t) => updateTask({ id: t.id, status }))));
+    if (failed > 0) toast.error(`${list.length - failed} de ${list.length} → ${status}; ${failed} falhou(ram).`);
+    else toast.success(`${list.length} tarefa(s) → ${status}`);
     await refresh();
   }
 
   async function handleBulkDelete(list: Task[]) {
     if (list.length === 0) return;
     if (!(await confirmDialog({ title: "Excluir", description: `Excluir ${list.length} tarefa(s)? Esta ação não pode ser desfeita.`, confirmLabel: "Excluir", destructive: true }))) return;
-    await Promise.all(list.map((t) => deleteTask(t.id)));
-    toast.success(`${list.length} tarefa(s) excluída(s)`);
+    const failed = countFailures(await Promise.allSettled(list.map((t) => deleteTask(t.id))));
+    if (failed > 0) toast.error(`${list.length - failed} de ${list.length} excluída(s); ${failed} falhou(ram).`);
+    else toast.success(`${list.length} tarefa(s) excluída(s)`);
     await refresh();
   }
 
