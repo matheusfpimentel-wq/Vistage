@@ -257,18 +257,22 @@ function GuestList({ partyId }: { partyId: number }) {
       toast.error("Informe o nome da cortesia");
       return;
     }
-    await createPartyGuest({
-      party_id: partyId,
-      name: n,
-      reason,
-      quantity: Math.max(1, parseInt(qty, 10) || 1),
-      ref_price: parseFloat(price) || 0,
-      status: "Confirmado",
-    });
-    setName("");
-    setQty("1");
-    setPrice("");
-    reload();
+    try {
+      await createPartyGuest({
+        party_id: partyId,
+        name: n,
+        reason,
+        quantity: Math.max(1, parseInt(qty, 10) || 1),
+        ref_price: parseFloat(price) || 0,
+        status: "Confirmado",
+      });
+      setName("");
+      setQty("1");
+      setPrice("");
+      reload();
+    } catch (e) {
+      toast.error(`Não consegui adicionar a cortesia: ${String(e)}`);
+    }
   }
 
   return (
@@ -295,7 +299,10 @@ function GuestList({ partyId }: { partyId: number }) {
                 value={g.status}
                 onChange={(e) => {
                   const status = e.target.value as GuestStatus;
-                  void updatePartyGuest(g.id, { status });
+                  void updatePartyGuest(g.id, { status }).catch((err) => {
+                    toast.error(`Não consegui atualizar o status: ${String(err)}`);
+                    reload();
+                  });
                   setGuests((gs) => gs.map((x) => (x.id === g.id ? { ...x, status } : x)));
                 }}
                 className="h-6 shrink-0 rounded border bg-background px-1 text-[11px]"
@@ -306,7 +313,14 @@ function GuestList({ partyId }: { partyId: number }) {
               </select>
               <button
                 type="button"
-                onClick={async () => { await deletePartyGuest(g.id); reload(); }}
+                onClick={async () => {
+                  try {
+                    await deletePartyGuest(g.id);
+                    reload();
+                  } catch (e) {
+                    toast.error(`Não consegui remover a cortesia: ${String(e)}`);
+                  }
+                }}
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label="Remover cortesia"
               >

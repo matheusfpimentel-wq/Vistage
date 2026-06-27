@@ -74,9 +74,13 @@ export function Documentos() {
 
   async function saveFolder() {
     const id = folderInput.trim();
-    await setDocFolderId(id || null);
-    setFolderId(id || null);
-    if (!id) setFiles([]);
+    try {
+      await setDocFolderId(id || null);
+      setFolderId(id || null);
+      if (!id) setFiles([]);
+    } catch (e) {
+      toast.error(`Não consegui salvar a pasta: ${String(e)}`);
+    }
   }
 
   async function handleUpload() {
@@ -222,10 +226,14 @@ function DocRow({
     if (!gigId) return;
     const g = gigs.find((x) => String(x.id) === gigId);
     if (!g) return;
-    await associateDoc(file, "gig", g.id);
-    setGigId("");
-    reloadLinks();
-    toast.success("Documento associado à GIG.");
+    try {
+      await associateDoc(file, "gig", g.id);
+      setGigId("");
+      reloadLinks();
+      toast.success("Documento associado à GIG.");
+    } catch (e) {
+      toast.error(`Não consegui associar o documento: ${String(e)}`);
+    }
   }
 
   return (
@@ -258,7 +266,14 @@ function DocRow({
               {links.map((l) => (
                 <li key={l.id} className="flex items-center gap-2 text-xs">
                   <span className="flex-1 truncate">Vinculado a: <strong>{l.label}</strong></span>
-                  <button className="text-muted-foreground hover:text-destructive" onClick={async () => { await removeLink(l.id); reloadLinks(); }}>
+                  <button className="text-muted-foreground hover:text-destructive" onClick={async () => {
+                    try {
+                      await removeLink(l.id);
+                      reloadLinks();
+                    } catch (e) {
+                      toast.error(`Não consegui remover o vínculo: ${String(e)}`);
+                    }
+                  }}>
                     <Link2Off className="h-3.5 w-3.5" />
                   </button>
                 </li>
