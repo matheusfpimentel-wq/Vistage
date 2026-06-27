@@ -261,6 +261,7 @@ export function NotionSettings() {
             }
             onSync={() => void handleSync()}
             syncing={syncing}
+            syncLabel="Enviar ideias"
             onDisconnect={() => void handleDisconnect()}
           >
             {/* Notas — database própria, separada das ideias */}
@@ -275,7 +276,7 @@ export function NotionSettings() {
                   )}
                   <Button size="sm" variant="outline" onClick={() => void handleSyncNotes()} disabled={syncingNotes}>
                     {syncingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Sincronizar notas
+                    Enviar notas
                   </Button>
                 </>
               ) : (
