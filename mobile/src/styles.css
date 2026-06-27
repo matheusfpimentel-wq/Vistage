@@ -476,3 +476,37 @@ button { font-family: inherit; cursor: pointer; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 0.5rem 0 0.75rem; position: sticky; top: 0; background: var(--bg);
 }
+
+/* ── Captura ao vivo (Modo Foco) ──────────────────────────────────────────── */
+.live-capture { width: 100%; display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.4rem; }
+.lc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+/* Alvos grandes, eyes-free: posição = categoria (canto acertável no tato). */
+.lc-cell {
+  position: relative; min-height: 84px; border-radius: 16px;
+  border: 1px solid var(--border); background: var(--surface-2, rgba(255,255,255,0.04));
+  color: var(--text); font-size: 1.05rem; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+  cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.06s ease, background 0.12s ease;
+}
+.lc-cell:active { transform: scale(0.97); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.lc-label { pointer-events: none; }
+.lc-count {
+  position: absolute; top: 8px; right: 10px; font-size: 0.95rem; font-weight: 700;
+  color: var(--accent);
+}
+.lc-row { display: flex; gap: 0.6rem; }
+.lc-pill {
+  flex: 1; min-height: 56px; border-radius: 14px; border: 1px solid var(--border);
+  background: var(--surface-2, rgba(255,255,255,0.04)); color: var(--text);
+  font-size: 1rem; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: transform 0.06s ease;
+}
+.lc-pill:active { transform: scale(0.97); }
+.lc-idea:active { background: rgba(245, 200, 60, 0.18); }
+.lc-moment:active { background: rgba(244, 90, 60, 0.18); }
+.lc-hint { font-size: 0.72rem; text-align: center; }
+
+.marker-summary { width: 100%; display: flex; flex-direction: column; gap: 0.3rem; }
+.ms-line { font-size: 0.9rem; margin: 0; }
+.ms-hint { font-size: 0.72rem; }
