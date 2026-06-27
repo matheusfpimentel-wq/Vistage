@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { getDb } from "@/lib/db";
+import { getDb, type BatchStatement } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
 
 // Biblioteca de Músicas — espelho consultável da biblioteca real. O áudio NUNCA
@@ -97,21 +97,26 @@ export async function scanReconcile(path: string, includeSubdirs: boolean): Prom
 
 export async function applyScan(diff: ScanDiff): Promise<void> {
   const db = getDb();
+  // Lote transacional ÚNICO em vez de N round-trips sequenciais: aplicar um scan
+  // de milhares de faixas vira UMA transação (um fsync), não milhares — o que
+  // travava/arrastava ao importar grandes bibliotecas.
+  const stmts: BatchStatement[] = [];
   for (const s of diff.newTracks) {
     const dur = s.duration_sec ?? null;
-    await db.execute(
-      `INSERT INTO library_tracks
+    stmts.push({
+      sql: `INSERT INTO library_tracks
         (title, artist, genre, bpm, music_key, comments, file_path, file_missing, duration_sec, match_key, source)
        VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,'scan')`,
-      [s.title, s.artist, s.genre, parseBpm(s.bpm), s.key, s.comments, s.path, dur, matchKey(s.artist, s.title, dur)]
-    );
+      params: [s.title, s.artist, s.genre, parseBpm(s.bpm), s.key, s.comments, s.path, dur, matchKey(s.artist, s.title, dur)],
+    });
   }
   for (const m of diff.moved) {
-    await db.execute(
-      "UPDATE library_tracks SET file_path = $1, file_missing = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-      [m.newPath, m.id]
-    );
+    stmts.push({
+      sql: "UPDATE library_tracks SET file_path = $1, file_missing = 0, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+      params: [m.newPath, m.id],
+    });
   }
+  if (stmts.length > 0) await db.executeBatch(stmts);
   emitDataChanged();
 }
 
@@ -167,11 +172,15 @@ export async function verifyFiles(): Promise<{ missing: number }> {
   if (rows.length === 0) return { missing: 0 };
   const exists = await invoke<boolean[]>("audio_paths_exist", { paths: rows.map((r) => r.file_path) });
   let missing = 0;
+  // Um único lote transacional em vez de N UPDATEs sequenciais (verificar uma
+  // biblioteca grande não arrasta mais).
+  const stmts: BatchStatement[] = [];
   for (let i = 0; i < rows.length; i++) {
     const flag = exists[i] ? 0 : 1;
     if (!exists[i]) missing += 1;
-    await db.execute("UPDATE library_tracks SET file_missing = $1 WHERE id = $2", [flag, rows[i].id]);
+    stmts.push({ sql: "UPDATE library_tracks SET file_missing = $1 WHERE id = $2", params: [flag, rows[i].id] });
   }
+  if (stmts.length > 0) await db.executeBatch(stmts);
   emitDataChanged();
   return { missing };
 }
