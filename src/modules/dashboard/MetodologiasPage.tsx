@@ -290,7 +290,7 @@ function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
     const DAY = 86_400_000;
 
     // Ameaça: concentração de contratações no mesmo CRM nos últimos 90 dias.
-    const cutoff90 = new Date(now - 90 * DAY).toISOString().slice(0, 10);
+    const cutoff90 = toLocalISODate(new Date(now - 90 * DAY)); // data LOCAL (não UTC)
     const recentGigs = gigs.filter((g) => g.promoter_contact_id != null && g.date >= cutoff90);
     if (recentGigs.length >= 3) {
       const counts = new Map<number, number>();
@@ -321,7 +321,7 @@ function autoIndicators(data: Data, extra: SwotExtra | null): SwotData {
     }
 
     // Oportunidade: contato recente com CRM de alta prioridade (última semana).
-    const cutoff7 = new Date(now - 7 * DAY).toISOString().slice(0, 10);
+    const cutoff7 = toLocalISODate(new Date(now - 7 * DAY)); // data LOCAL (não UTC)
     const hotContacts = extra.contacts.filter(
       (c) => (c.rating ?? 0) >= 4 && c.last_interaction_at && c.last_interaction_at.slice(0, 10) >= cutoff7
     );

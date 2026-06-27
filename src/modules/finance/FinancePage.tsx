@@ -35,7 +35,7 @@ import {
   type TransactionKind,
   type TransactionStatus,
 } from "./types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toLocalISODate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useConfirm } from "@/components/ui/confirm";
 import { exportTransactionsCsv } from "@/lib/csv";
@@ -47,7 +47,7 @@ type StatusFilter = TransactionStatus | "all";
 function isoDaysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d); // data LOCAL (não UTC) — senão à noite no Brasil pula 1 dia
 }
 
 /**

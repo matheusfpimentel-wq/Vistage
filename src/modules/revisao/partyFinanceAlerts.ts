@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import { getDisabledRuleIds } from "./ruleConfig";
 import { ruleIdForKey, type AlertItem } from "./alerts";
 
@@ -17,7 +18,10 @@ const RECEIVABLES_THRESHOLD = 1000; // R$ — acima disso, recebíveis acumulado
 const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 function addDaysISO(days: number): string {
-  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  // Data LOCAL +N dias (não UTC) — senão à noite no Brasil (UTC-3) pularia 1 dia.
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return toLocalISODate(d);
 }
 function daysUntil(dateISO: string): number {
   return Math.max(0, Math.ceil((new Date(dateISO + "T00:00:00").getTime() - Date.now()) / 86400000));
@@ -26,7 +30,7 @@ function daysUntil(dateISO: string): number {
 export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
   const db = getDb();
   const out: AlertItem[] = [];
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
   const in7 = addDaysISO(7);
   const in14 = addDaysISO(14);
 
