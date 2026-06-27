@@ -52,7 +52,14 @@ export type PortableSession = {
   refresh_token: string;
   access_token: string;
   email?: string | null;
+  /** Epoch ms de quando a sessão foi capturada (p/ o TTL). Opcional: arquivos
+   *  .vistage antigos não têm — seguem válidos até a próxima gravação. */
+  captured_at?: number;
 };
+
+/** Sessão portátil só vale 90 dias desde a captura — defense-in-depth: um
+ *  .vistage vazado não dá login de sync pra sempre. */
+export const PORTABLE_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** Captura a sessão atual do Supabase pra embutir no documento (ou null). */
 export async function getPortableSession(): Promise<PortableSession | null> {
@@ -64,6 +71,7 @@ export async function getPortableSession(): Promise<PortableSession | null> {
       refresh_token: s.refresh_token,
       access_token: s.access_token,
       email: s.user?.email ?? null,
+      captured_at: Date.now(),
     };
   } catch {
     return null;
@@ -78,6 +86,12 @@ export async function restorePortableSession(
   sess: PortableSession | null | undefined
 ): Promise<boolean> {
   if (!sess?.refresh_token || !sess.access_token) return false;
+  // TTL: ignora uma sessão portátil capturada há mais de 90 dias — exige
+  // re-login. Arquivos antigos sem captured_at seguem válidos até a próxima
+  // gravação (back-compat), quando passam a carregar o carimbo.
+  if (sess.captured_at && Date.now() - sess.captured_at > PORTABLE_SESSION_TTL_MS) {
+    return false;
+  }
   try {
     // Já há login ativo aqui? Respeita a sessão local — não troca de conta.
     const { data } = await supabase.auth.getSession();
