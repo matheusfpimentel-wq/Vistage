@@ -62,6 +62,7 @@ import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useImageUrl } from "@/lib/uploads";
+import { useModuleView } from "@/lib/moduleView";
 import { PendingTasksBadge } from "@/modules/tasks/components/PendingTasksBadge";
 import { PendingTasksProvider } from "@/modules/tasks/components/PendingTasksContext";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
@@ -87,7 +88,7 @@ export function FansPage() {
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
-  const [view, setView] = useState<ViewMode>("list");
+  const [view, setView] = useModuleView<ViewMode>("fans", "list");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);

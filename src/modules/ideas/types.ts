@@ -70,10 +70,10 @@ export function heatLabel(h: IdeaHeat): string {
   return HEAT_LABELS[h] ?? "Morna";
 }
 
-/** Badge de calor — rampa fria→quente (azul → vermelho). */
+/** Badge de calor — rampa fria→quente (branca → amarela → laranja → vermelha). */
 const HEAT_BADGE: Record<IdeaHeat, string> = {
-  1: "bg-sky-500/20 text-sky-500 border-sky-500/30",
-  2: "bg-cyan-500/20 text-cyan-500 border-cyan-500/30",
+  1: "bg-zinc-400/15 text-zinc-400 border-zinc-400/30",
+  2: "bg-yellow-300/20 text-yellow-500 border-yellow-300/30",
   3: "bg-amber-500/20 text-amber-500 border-amber-500/30",
   4: "bg-orange-500/20 text-orange-500 border-orange-500/30",
   5: "bg-red-500/20 text-red-500 border-red-500/30",
@@ -88,8 +88,8 @@ export function heatColor(h: IdeaHeat): string {
  * post-it): quanto mais quente, mais vermelho e mais forte.
  */
 const HEAT_CARD_BG: Record<IdeaHeat, string> = {
-  1: "bg-sky-500/[0.07] border-sky-500/25",
-  2: "bg-cyan-500/[0.07] border-cyan-500/25",
+  1: "bg-zinc-400/[0.06] border-zinc-400/25",
+  2: "bg-yellow-300/[0.09] border-yellow-300/25",
   3: "bg-amber-500/[0.08] border-amber-500/25",
   4: "bg-orange-500/[0.10] border-orange-500/30",
   5: "bg-red-500/[0.13] border-red-500/35",
