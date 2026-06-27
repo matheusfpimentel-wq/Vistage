@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { clearFocusNotification, showFocusNotification } from "../push";
+import { haptic } from "../native";
+import { enqueueCapture } from "../queue";
 
 // Tipos alinhados ao desktop (ActivityType) pra estatística e painel baterem.
 const ACTIVITIES = [
@@ -118,12 +120,28 @@ function FocusRing({
 // Mantém a sessão viva mesmo se sair da tela ou fechar o app: guarda os marcos
 // (timestamps absolutos) no localStorage e recompõe o tempo ao voltar.
 const LS_SESSION = "vistage.foco.session";
+
+// Captura ao vivo: marcadores de UM TOQUE durante a sessão. Sem descrição na
+// hora (set barulhento) — só categoria + timestamp na sessão; descreve depois.
+type WeakType = "tecnico" | "repertorio" | "postura" | "outra";
+type MarkerKind = "weak" | "moment" | "idea";
+type Marker = { id: string; kind: MarkerKind; tipo?: WeakType; atMs: number };
+
+const WEAK_TYPES: { key: WeakType; label: string }[] = [
+  { key: "tecnico", label: "Técnico" },
+  { key: "repertorio", label: "Repertório" },
+  { key: "postura", label: "Postura" },
+  { key: "outra", label: "Outra" },
+];
+
 type Persisted = {
   startedAtMs: number;
   pauseOffsetMs: number;
   pausedAtMs: number | null;
   activity: string;
   plannedStr: string;
+  sessionId: string | null;
+  markers: Marker[];
 };
 function loadSession(): Persisted | null {
   try {
@@ -335,14 +353,9 @@ function GestaoPanel() {
 
   async function tick(t: MirrorTask) {
     setDone((d) => new Set(d).add(t.source_id)); // some na hora (otimista)
-    const { data: u } = await supabase.auth.getUser();
-    // Caminho de volta: vira captura 'task_done'; o desktop conclui na revisão.
-    await supabase.from("capture_inbox").insert({
-      user_id: u.user?.id,
-      kind: "task_done",
-      client_ref: crypto.randomUUID(),
-      payload: { task_id: Number(t.source_id), title: t.title },
-    });
+    // Caminho de volta: vira captura 'task_done' (fila offline); o desktop
+    // conclui na revisão.
+    await enqueueCapture("task_done", { task_id: Number(t.source_id), title: t.title });
   }
 
   if (!loaded) return null;
@@ -377,6 +390,82 @@ function ContextPanel({ activity }: { activity: string }) {
   return null;
 }
 
+// ── Captura ao vivo (grid eyes-free + ideia/momento) ─────────────────────────
+/** mm:ss do instante DENTRO da sessão (pra mostrar quando no set marcou). */
+function fmtAt(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Grid 2×2 de alvos grandes (posição = categoria, acertável no tato) + 💡Ideia
+ * e 🔥Momento. Um toque marca com timestamp e haptic, contagem ao vivo na tela.
+ * Sem precisar olhar nem digitar — a descrição vem no debrief/PC.
+ */
+function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: MarkerKind, t?: WeakType) => void }) {
+  const count = (pred: (m: Marker) => boolean) => markers.filter(pred).length;
+  const ideas = count((m) => m.kind === "idea");
+  const moments = count((m) => m.kind === "moment");
+  return (
+    <section className="live-capture">
+      <span className="label">Registro ao vivo — um toque</span>
+      <div className="lc-grid">
+        {WEAK_TYPES.map((w) => {
+          const n = count((m) => m.kind === "weak" && m.tipo === w.key);
+          return (
+            <button
+              key={w.key}
+              type="button"
+              className="lc-cell"
+              onClick={() => onMark("weak", w.key)}
+              aria-label={`Registrar erro: ${w.label}${n ? ` (${n} nesta sessão)` : ""}`}
+            >
+              <span className="lc-label">{w.label}</span>
+              {n > 0 && <span className="lc-count">×{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="lc-row">
+        <button type="button" className="lc-pill lc-idea" onClick={() => onMark("idea")}>
+          💡 Ideia{ideas > 0 ? ` ×${ideas}` : ""}
+        </button>
+        <button type="button" className="lc-pill lc-moment" onClick={() => onMark("moment")}>
+          🔥 Momento{moments > 0 ? ` ×${moments}` : ""}
+        </button>
+      </div>
+      <p className="muted lc-hint">Marca agora (sem descrever) — você detalha no debrief ou no PC.</p>
+    </section>
+  );
+}
+
+/** Pré-preenche o debrief: o que foi marcado ao vivo, com o minuto no set. */
+function MarkerSummary({ markers }: { markers: Marker[] }) {
+  const weak = WEAK_TYPES.map((w) => ({
+    label: w.label,
+    n: markers.filter((m) => m.kind === "weak" && m.tipo === w.key).length,
+  })).filter((x) => x.n > 0);
+  const moments = markers.filter((m) => m.kind === "moment");
+  const ideas = markers.filter((m) => m.kind === "idea");
+  return (
+    <div className="card marker-summary">
+      <span className="label">Você marcou nesta sessão</span>
+      {weak.length > 0 && (
+        <p className="ms-line">⚑ Pontos fracos: {weak.map((w) => `${w.label} ×${w.n}`).join(" · ")}</p>
+      )}
+      {moments.length > 0 && (
+        <p className="ms-line">🔥 Momentos: {moments.length} · {moments.map((m) => fmtAt(m.atMs)).join(", ")}</p>
+      )}
+      {ideas.length > 0 && (
+        <p className="ms-line">💡 Ideias: {ideas.length} · {ideas.map((m) => fmtAt(m.atMs)).join(", ")}</p>
+      )}
+      <p className="muted ms-hint">Já capturados — descreva cada um no PC, na revisão do GIG.</p>
+    </div>
+  );
+}
+
 // ── Tela ─────────────────────────────────────────────────────────────────────
 type Phase = "idle" | "running" | "done";
 
@@ -405,6 +494,13 @@ export function Foco() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  // Captura ao vivo: marcadores da sessão (estado p/ render + ref p/ persistir
+  // de dentro dos callbacks sem closure velha) e o id que liga tudo (markers +
+  // debrief) pro desktop juntar depois.
+  const [markers, setMarkers] = useState<Marker[]>([]);
+  const markersRef = useRef<Marker[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
+
   const plannedMin = (() => {
     const n = Number(plannedStr);
     return plannedStr.trim() && !isNaN(n) && n > 0 ? Math.round(n) : null;
@@ -432,6 +528,29 @@ export function Foco() {
       pausedAtMs: pauseStartRef.current,
       activity: activityRef.current,
       plannedStr,
+      sessionId: sessionIdRef.current,
+      markers: markersRef.current,
+    });
+  }
+
+  /** Registra um marcador de UM TOQUE (ponto fraco/momento/ideia). */
+  function addMarker(kind: MarkerKind, tipo?: WeakType) {
+    if (phase !== "running" || !sessionIdRef.current) return;
+    const atMs = computeElapsed();
+    const next = [...markersRef.current, { id: crypto.randomUUID(), kind, tipo, atMs }];
+    markersRef.current = next;
+    setMarkers(next);
+    persist();
+    void haptic(kind === "moment" ? "heavy" : "light");
+    // Vira captura durável (fila offline) já com o id da sessão + timestamp; a
+    // descrição é preenchida depois no PC. NÃO descreve no set.
+    const captureKind = kind === "weak" ? "weak_point" : kind === "moment" ? "moment" : "focus_idea";
+    void enqueueCapture(captureKind, {
+      focus_session_id: sessionIdRef.current,
+      at: new Date().toISOString(),
+      at_ms: atMs,
+      gig_id: null,
+      ...(tipo ? { tipo } : {}),
     });
   }
 
@@ -466,6 +585,9 @@ export function Foco() {
     expiredNotifiedRef.current = false;
     activityRef.current = activity;
     plannedMsRef.current = plannedMs;
+    sessionIdRef.current = crypto.randomUUID();
+    markersRef.current = [];
+    setMarkers([]);
     setElapsedMs(0);
     setExpired(false);
     setPaused(false);
@@ -521,6 +643,9 @@ export function Foco() {
       setActivity(s.activity || ACTIVITIES[0]);
       setPlannedStr(s.plannedStr ?? "");
       setPaused(s.pausedAtMs != null);
+      sessionIdRef.current = s.sessionId ?? crypto.randomUUID();
+      markersRef.current = Array.isArray(s.markers) ? s.markers : [];
+      setMarkers(markersRef.current);
       const ms = computeElapsed();
       setElapsedMs(ms);
       if (plannedMsRef.current && ms >= plannedMsRef.current) {
@@ -547,12 +672,9 @@ export function Foco() {
     if (!doneAt) return;
     setBusy(true);
     setMsg(null);
-    const { data: u } = await supabase.auth.getUser();
-    const { error } = await supabase.from("capture_inbox").insert({
-      user_id: u.user?.id,
-      kind: "session",
-      client_ref: crypto.randomUUID(),
-      payload: {
+    try {
+      // focus_session_id liga o debrief aos marcadores ao vivo (o desktop junta).
+      await enqueueCapture("session", {
         started_at: doneAt.startedAt,
         ended_at: doneAt.endedAt,
         activity_type: activity,
@@ -560,18 +682,21 @@ export function Foco() {
         energy_level: energy,
         focus_level: focusLvl,
         notes: notes || null,
-      },
-    });
-    setBusy(false);
-    if (error) {
-      setMsg("Erro: " + error.message);
-    } else {
-      setMsg("Sessão enviada! Aparece no PC na próxima sincronização.");
+        focus_session_id: sessionIdRef.current,
+      });
+      setMsg("Sessão salva! Sobe pro PC sozinha.");
       setPhase("idle");
       setElapsedMs(0);
       setPlannedStr("");
       setNotes("");
       setDoneAt(null);
+      setMarkers([]);
+      markersRef.current = [];
+      sessionIdRef.current = null;
+    } catch (e) {
+      setMsg("Erro ao salvar: " + String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -635,12 +760,16 @@ export function Foco() {
             </button>
           )}
 
+          {phase === "running" && <LiveCapture markers={markers} onMark={addMarker} />}
+
           <ContextPanel activity={activity} />
         </>
       )}
 
       {phase === "done" && (
-        <section className="card form" style={{ width: "100%" }}>
+        <>
+          {markers.length > 0 && <MarkerSummary markers={markers} />}
+          <section className="card form" style={{ width: "100%" }}>
           <p className="muted">Sessão de {fmtClock(elapsedMs)} · {activity}</p>
           <label>
             Energia: {energy}
@@ -657,7 +786,8 @@ export function Foco() {
           <button className="primary" disabled={busy} onClick={() => void save()}>
             {busy ? "Enviando…" : "Salvar sessão"}
           </button>
-        </section>
+          </section>
+        </>
       )}
 
       {msg && <p className="muted center-text">{msg}</p>}

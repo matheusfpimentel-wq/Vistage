@@ -1,13 +1,12 @@
-import { supabase } from "./supabase";
+import { enqueueCapture } from "./queue";
 
-/** Envia uma captura aditiva pro desktop revisar (fundir/descartar). */
+/**
+ * Envia uma captura aditiva pro desktop revisar (fundir/descartar).
+ *
+ * Agora é OFFLINE-FIRST: grava na fila durável e tenta subir já. Não lança em
+ * falha de rede — a captura fica na fila e sobe sozinha depois (online / volta
+ * ao app). Quem chama pode tratar como "capturado ✓".
+ */
 export async function sendCapture(kind: string, payload: Record<string, unknown>): Promise<void> {
-  const { data: u } = await supabase.auth.getUser();
-  const { error } = await supabase.from("capture_inbox").insert({
-    user_id: u.user?.id,
-    kind,
-    client_ref: crypto.randomUUID(),
-    payload,
-  });
-  if (error) throw error;
+  await enqueueCapture(kind, payload);
 }

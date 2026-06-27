@@ -650,6 +650,16 @@ export const useMobileChanges = create<{
   },
 }));
 
+/**
+ * Capturas ao vivo do Modo Foco (celular): por enquanto ficam BUFFERIZADAS no
+ * capture_inbox (consumed_at = null) até o PR das tabelas dedicadas
+ * (performance_weak_points / performance_moments + ideia→ideias). O desktop
+ * ainda não as ingere; não as mostramos como "pendentes" pra não poluir a
+ * revisão nem tentar ingerir (o que falharia no switch do ingest). Os dados não
+ * se perdem — seguem no relay até o PR seguinte processá-los.
+ */
+const DEFERRED_CAPTURE_KINDS = new Set(["weak_point", "moment", "focus_idea"]);
+
 export async function fetchPendingCaptures(): Promise<PendingCapture[]> {
   const { data, error } = await supabase
     .from("capture_inbox")
@@ -658,7 +668,9 @@ export async function fetchPendingCaptures(): Promise<PendingCapture[]> {
     .is("discarded_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as PendingCapture[];
+  return (data ?? []).filter(
+    (c) => !DEFERRED_CAPTURE_KINDS.has((c as PendingCapture).kind)
+  ) as PendingCapture[];
 }
 
 export async function listDiscardedCaptures(): Promise<PendingCapture[]> {
