@@ -1056,6 +1056,8 @@ export function GigForm({
               />
             </Field>
 
+            {/* Flyer (imagem, alto) à esquerda; Roteiro e Briefing empilhados
+                à direita — o Briefing fica ABAIXO do roteiro, ao lado do flyer. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AttachmentField
                 label="Flyer"
@@ -1064,20 +1066,22 @@ export function GigForm({
                 subdir="gigs/flyers"
                 variant="image"
               />
-              <AttachmentField
-                label="Roteiro"
-                value={state.script_file_path}
-                onChange={(v) => set("script_file_path", v)}
-                subdir="gigs/scripts"
-                variant="document"
-              />
-              <AttachmentField
-                label="Briefing"
-                value={state.briefing_file_path}
-                onChange={(v) => set("briefing_file_path", v)}
-                subdir="gigs/briefing"
-                variant="document"
-              />
+              <div className="space-y-4">
+                <AttachmentField
+                  label="Roteiro"
+                  value={state.script_file_path}
+                  onChange={(v) => set("script_file_path", v)}
+                  subdir="gigs/scripts"
+                  variant="document"
+                />
+                <AttachmentField
+                  label="Briefing"
+                  value={state.briefing_file_path}
+                  onChange={(v) => set("briefing_file_path", v)}
+                  subdir="gigs/briefing"
+                  variant="document"
+                />
+              </div>
             </div>
 
             {/* Flyers adicionais — só o principal acima vai pra Identidade */}
@@ -1161,7 +1165,9 @@ export function GigForm({
           )}
           </TabsContent>
 
-          <TabsContent value="setlist" className="space-y-4">
+          {/* forceMount + data-[state=inactive]:hidden (igual ao Debrief): mantém
+              o que foi digitado na pesquisa musical ao trocar de aba. */}
+          <TabsContent value="setlist" className="space-y-4 data-[state=inactive]:hidden" forceMount>
             {state.status === "Proposta" ? (
               <ProposalHint />
             ) : (
