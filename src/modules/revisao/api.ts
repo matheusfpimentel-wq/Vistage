@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { todayISO } from "@/lib/format";
+import { todayISO, toLocalISODate } from "@/lib/format";
 import { currentQuarter, listOkrs, okrProgress, quarterRange, stageEnteredFromHistory } from "@/modules/objetivos/api";
 import { parsePrepState, PREP_GROUPS } from "@/modules/gigs/prep";
 
@@ -42,15 +42,17 @@ export type WeekStats = {
 };
 
 function weekRange(): { start: string; end: string } {
-  const today = new Date(todayISO());
+  // Parse LOCAL (T00:00:00) — new Date("YYYY-MM-DD") seria UTC e, no Brasil
+  // (UTC-3), getDay()/getDate() cairiam no dia anterior → semana deslocada.
+  const today = new Date(todayISO() + "T00:00:00");
   const day = today.getDay();
   const monday = new Date(today);
   monday.setDate(today.getDate() - ((day + 6) % 7));
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   return {
-    start: monday.toISOString().slice(0, 10),
-    end: sunday.toISOString().slice(0, 10),
+    start: toLocalISODate(monday),
+    end: toLocalISODate(sunday),
   };
 }
 

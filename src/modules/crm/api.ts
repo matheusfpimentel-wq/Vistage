@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig } from "@/modules/gigs/types";
 import {
@@ -262,7 +263,7 @@ export async function autoPausePartnerships(): Promise<number> {
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 60);
-    const cutoffISO = cutoff.toISOString().slice(0, 10);
+    const cutoffISO = toLocalISODate(cutoff); // data LOCAL (não UTC)
 
     let paused = 0;
     for (const row of rows) {

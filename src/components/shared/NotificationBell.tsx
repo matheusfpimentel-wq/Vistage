@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRing } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { toLocalISODate } from "@/lib/format";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { alertSeverity, computeAlerts, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds, isPauseMode } from "@/modules/revisao/ruleConfig";
@@ -65,9 +66,11 @@ export async function loadExtraStats(): Promise<ExtraStats> {
     const db = getDb();
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const weekStartStr = weekStart.toISOString().slice(0, 10);
-    const today = new Date().toISOString().slice(0, 10);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const weekStartStr = toLocalISODate(weekStart); // datas LOCAIS (não UTC)
+    const today = toLocalISODate();
+    const thirtyAgo = new Date();
+    thirtyAgo.setDate(thirtyAgo.getDate() - 30);
+    const thirtyDaysAgo = toLocalISODate(thirtyAgo);
 
     const [
       gigsNoRatingRows,
@@ -135,7 +138,9 @@ export async function loadExtraStats(): Promise<ExtraStats> {
 export async function loadRelationshipAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
-    const cutoff = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 45);
+    const cutoff = toLocalISODate(cutoffDate); // data LOCAL (não UTC)
     // Considera como "último contato" o mais recente entre last_interaction_at
     // e a data da GIG mais recente com esse produtor (promoter_contact_id).
     // Se houve GIG dentro de 45 dias, não alerta.
@@ -167,7 +172,7 @@ export async function loadRelationshipAlerts(): Promise<AlertItem[]> {
 export async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate();
     const rows = await db.select<
       { id: number; date: string; status: string; event_name: string | null; venue_name: string }[]
     >(
@@ -195,7 +200,7 @@ export async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
 export async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
   try {
     const db = getDb();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = toLocalISODate();
     const rows = await db.select<
       { id: number; date: string; amount: number; description: string | null }[]
     >(

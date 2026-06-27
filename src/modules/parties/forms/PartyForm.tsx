@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, toLocalISODate } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -84,7 +84,7 @@ function suggestStatus(
   venueId: number | null,
   sold: number
 ): PartyStatus | null {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toLocalISODate();
   if (status === "Cancelada") return null;
   if (date && date < today && status !== "Realizada") return "Realizada";
   if (sold > 0 && status !== "Em vendas" && status !== "Realizada") return "Em vendas";

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { toLocalISODate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ export type PendingDebriefTask = {
 function daysAhead(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d); // data LOCAL (não UTC) p/ não pular 1 dia à noite no Brasil
 }
 
 const DEFAULT_OFFSET_DAYS = 60;

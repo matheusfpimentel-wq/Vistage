@@ -918,7 +918,9 @@ function FestasCard({ data }: { data: DashData }) {
 
   const next = upcoming[0] ?? null;
 
-  const in30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+  const in30Date = new Date();
+  in30Date.setDate(in30Date.getDate() + 30);
+  const in30 = toLocalISODate(in30Date); // data LOCAL (não UTC)
   const hasUpcoming30 = data.parties.some(
     (p) =>
       p.date &&
