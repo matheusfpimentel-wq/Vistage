@@ -1,4 +1,5 @@
 import { formatCurrency, formatDate } from "@/lib/format";
+import { computePartyPnL } from "./pnl";
 import type {
   PartyBudgetItem,
   PartyDeserialized,
@@ -78,14 +79,14 @@ export function buildBriefing(
     if (clean.length) sections.push({ heading, lines: clean });
   };
 
-  const soldTotal = tickets.reduce((s, t) => s + t.quantity_sold, 0);
-  const ticketRevenue = tickets.reduce((s, t) => s + t.price * t.quantity_sold, 0);
-  const sponsorRevenue = party.sponsors.reduce((s, sp) => s + (sp.amount_cents ?? 0) / 100, 0);
-  const revenue = ticketRevenue + sponsorRevenue;
-  const cost = budget.reduce((s, i) => s + (i.actual_amount ?? 0), 0);
-  const projectedCost = budget.reduce((s, i) => s + i.projected_amount, 0);
-  const mktReal = budget.filter((i) => i.category === "Marketing").reduce((s, i) => s + (i.actual_amount ?? 0), 0);
-  const net = revenue - cost;
+  // P&L via fonte única (computePartyPnL) — antes era um 4º cálculo divergente
+  // que somava quantity_sold cru (sem || 0) e podia virar NaN.
+  const pnl = computePartyPnL(tickets, budget, party.sponsors);
+  const soldTotal = pnl.sold;
+  const revenue = pnl.revenueReal;
+  const projectedCost = pnl.costProjected;
+  const mktReal = pnl.marketingActual;
+  const net = pnl.netReal;
 
   if (stageName === "Ideação") {
     add("Conceito", [str(f.conceito), str(f.tema) && `Tema: ${str(f.tema)}`, str(f.motivacao) && `Motivação: ${str(f.motivacao)}`]);

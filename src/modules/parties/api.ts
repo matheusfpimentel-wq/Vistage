@@ -19,6 +19,7 @@ import type {
   PartySeriesUpdateInput,
 } from "./types";
 import { DEFAULT_STAGE_NAMES } from "./types";
+import { computePartyPnL } from "./pnl";
 
 function nowISO(): string {
   return new Date().toISOString();
@@ -755,14 +756,11 @@ export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
       "SELECT * FROM party_budget_items WHERE party_id = $1",
       [e.id]
     );
-    const sold = tickets.reduce((s, t) => s + t.quantity_sold, 0);
-    const ticketRev = tickets.reduce((s, t) => s + t.price * t.quantity_sold, 0);
-    const sponsorRev = e.sponsors.reduce((s, sp) => s + (sp.amount_cents ?? 0) / 100, 0);
-    const cost = items.reduce((s, i) => s + (i.actual_amount ?? 0), 0);
+    const pnl = computePartyPnL(tickets, items, e.sponsors);
     rows.push({
       id: e.id, title: e.title, date: e.date, number: e.edition_number,
       attendance: e.actual_attendance, capacity: e.expected_capacity,
-      net: ticketRev + sponsorRev - cost, sold,
+      net: pnl.netReal, sold: pnl.sold,
     });
   }
   const withAtt = rows.filter((e) => e.attendance != null);
