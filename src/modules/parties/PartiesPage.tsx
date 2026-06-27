@@ -38,9 +38,14 @@ export function PartiesPage() {
   const [editing, setEditing] = useState<PartyDeserialized | null>(null);
 
   const refresh = useCallback(async () => {
-    const rows = await listParties();
-    setParties(rows);
-    setLoading(false);
+    try {
+      const rows = await listParties();
+      setParties(rows);
+    } catch (e) {
+      toast.error(`Erro ao carregar festas: ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

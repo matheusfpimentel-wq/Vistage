@@ -122,6 +122,8 @@ export function FansPage() {
       setFans(data);
       setInteractionCounts(counts);
       setPerkCounts(perks);
+    } catch (e) {
+      toast.error(`Erro ao carregar fãs: ${String(e)}`);
     } finally {
       setLoading(false);
     }

@@ -70,8 +70,12 @@ export function ContentPage() {
   );
 
   const refresh = useCallback(async () => {
-    const data = await listContent(queryFilters);
-    setItems(data);
+    try {
+      const data = await listContent(queryFilters);
+      setItems(data);
+    } catch (e) {
+      toast.error(`Erro ao carregar conteúdos: ${String(e)}`);
+    }
   }, [queryFilters]);
 
   useEffect(() => {
