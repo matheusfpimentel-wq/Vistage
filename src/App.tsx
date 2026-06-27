@@ -179,6 +179,9 @@ function MainApp() {
     }
     let cancelled = false;
     (async () => {
+      // Hoisted: se o boot falhar DEPOIS de consumir esta flag, ela é re-armada
+      // no catch pra que "Tentar novamente" não zere o documento recém-aberto.
+      let skipWipe = false;
       try {
         // O banco local DEVE ficar no diretório de dados do app
         // (AppData/Application Support), nunca numa pasta de nuvem (Google
@@ -197,7 +200,7 @@ function MainApp() {
         // Zera os dados a cada boot (a persistência é o arquivo .vistage). O
         // reload de abrir/mesclar documento ou popular exemplos marca para
         // pular o zeramento — senão apagaria o que acabou de ser carregado.
-        const skipWipe = sessionStorage.getItem(SKIP_BLANK_WIPE_KEY) === "1";
+        skipWipe = sessionStorage.getItem(SKIP_BLANK_WIPE_KEY) === "1";
         sessionStorage.removeItem(SKIP_BLANK_WIPE_KEY);
         // Recuperação de crash: se a sessão anterior tinha trabalho não salvo
         // (flag síncrona) e a réplica ainda tem dados, NÃO zera — mantém os dados
@@ -296,6 +299,10 @@ function MainApp() {
         }
       } catch (e) {
         if (!cancelled) {
+          // O boot já consumiu (removeu) o skip-wipe. Como falhou depois disso,
+          // re-arma a flag: "Tentar novamente" re-roda este efeito e, sem a
+          // flag, clearDocumentData() apagaria o documento recém-aberto.
+          if (skipWipe) sessionStorage.setItem(SKIP_BLANK_WIPE_KEY, "1");
           setDbReady(false);
           setDbError(String(e));
         }
