@@ -22,10 +22,10 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost https://asset.localhost data: blob:; media-src 'self' asset: http://asset.localhost https://asset.localhost data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://*.supabase.co https://api.todoist.com https://api.notion.com https://oauth2.googleapis.com https://www.googleapis.com https://api.frankfurter.app",
       "assetProtocol": {
         "enable": true,
-        "scope": ["**", "**/*"]
+        "scope": ["$APPDATA/**", "$APPLOCALDATA/**", "$RESOURCE/**"]
       }
     },
     "macOSPrivateApi": true
