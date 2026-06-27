@@ -7,7 +7,8 @@
 //       consumida. RLS garante que tudo é da própria conta (user_id = auth.uid()).
 
 import { create } from "zustand";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { useConfigStore } from "./config";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
 import { toLocalISODate, toLocalYearMonth } from "./format";
@@ -735,9 +736,39 @@ export async function deleteCaptures(ids: string[]): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Baixa a mídia (voz/foto) de uma captura do bucket `captures` e grava em
+ * uploadsDir/capturas. Devolve o caminho LOCAL absoluto, ou null (best-effort —
+ * se o uploads não estiver configurado ou o download falhar, segue sem mídia).
+ */
+async function downloadCaptureMedia(mediaPath: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from("captures").download(mediaPath);
+    if (error || !data) return null;
+    const uploadsDir = useConfigStore.getState().config?.uploadsDir;
+    if (!uploadsDir) return null;
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    const ext = (mediaPath.match(/\.([a-zA-Z0-9]+)$/)?.[1] ?? "bin").toLowerCase();
+    const sep = uploadsDir.includes("\\") && !uploadsDir.includes("/") ? "\\" : "/";
+    const dir = `${uploadsDir.replace(/[\\/]+$/, "")}${sep}capturas`;
+    if (!(await exists(dir))) await mkdir(dir, { recursive: true });
+    const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const dest = `${dir}${sep}${stamp}.${ext}`;
+    await writeFile(dest, bytes);
+    return dest;
+  } catch {
+    return null;
+  }
+}
+
 async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise<void> {
   const s = (k: string): string | null => (typeof p[k] === "string" ? (p[k] as string) : null);
   const n = (k: string): number | null => (typeof p[k] === "number" ? (p[k] as number) : null);
+
+  // §5: anexo de voz/foto — baixa do bucket e grava local antes de criar o registro.
+  const mediaKind = s("media_kind"); // "audio" | "photo" | null
+  const mediaPathRemote = s("media_path");
+  const mediaLocal = mediaPathRemote ? await downloadCaptureMedia(mediaPathRemote) : null;
 
   if (kind === "session") {
     const now = new Date().toISOString();
@@ -772,7 +803,7 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
       tags: [],
       notes: s("notes"),
       rating: null,
-      photo_path: null,
+      photo_path: mediaKind === "photo" ? mediaLocal : null,
       follower_count: null,
       venue_id: null,
       company: s("company"),
@@ -847,6 +878,25 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
+  }
+
+  // Mídia que NÃO virou foto de contato (áudio, ou foto numa captura não-pessoa)
+  // vira um Destaque "Captura do celular" referenciando o arquivo salvo — achável
+  // (o anexo rico por entidade fica pra um passo futuro, que pede migration).
+  const usedAsContactPhoto = kind === "contact" && mediaKind === "photo" && !!mediaLocal;
+  if (mediaLocal && !usedAsContactPhoto) {
+    const rel = mediaLocal.replace(/\\/g, "/").split("/capturas/").pop() ?? mediaLocal;
+    const label = mediaKind === "audio" ? "🎙️ Áudio do celular" : "📷 Foto do celular";
+    const noteTxt = s("body") ?? s("notes") ?? s("title") ?? "";
+    const gig = s("gig_title");
+    const body = [noteTxt || null, gig ? `GIG: ${gig}` : null, `arquivo: capturas/${rel}`]
+      .filter(Boolean)
+      .join(" · ");
+    await db.execute(`INSERT INTO highlights (title, date, body) VALUES ($1, $2, $3)`, [
+      label,
+      todayISO(),
+      body,
+    ]);
   }
 }
 
