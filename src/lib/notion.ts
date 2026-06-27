@@ -141,11 +141,34 @@ export async function listNotionPages(
   return (res.results ?? []).map((p) => ({ id: p.id, title: pageTitle(p) }));
 }
 
+/**
+ * Garante que a página-pai não esteja arquivada (na lixeira) antes de criar um
+ * database sob ela. Se estiver, o Notion recusa o POST /databases com
+ * "Can't edit block that is archived. You must unarchive the block before
+ * editing." — então a desarquivamos primeiro. Best-effort: se o GET/PATCH
+ * falhar, seguimos e deixamos o create lançar o erro real.
+ */
+async function ensurePageUnarchived(token: string, pageId: string): Promise<void> {
+  try {
+    const page = await notionApi<{ archived?: boolean; in_trash?: boolean }>(
+      token,
+      "GET",
+      `/pages/${pageId}`
+    );
+    if (page.archived || page.in_trash) {
+      await notionApi(token, "PATCH", `/pages/${pageId}`, { archived: false, in_trash: false });
+    }
+  } catch {
+    /* segue e deixa o create dar o erro real (token/permissão/etc.) */
+  }
+}
+
 /** Cria o database "Ideias" sob a página escolhida e guarda o id. */
 export async function createIdeasDatabase(
   token: string,
   parentPageId: string
 ): Promise<string> {
+  await ensurePageUnarchived(token, parentPageId);
   const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
     title: [{ type: "text", text: { content: "💡 Ideias — Vistage" } }],
@@ -257,6 +280,7 @@ export async function syncNotion(): Promise<NotionSyncResult> {
 
 /** Cria o database "Notas" sob a página escolhida (ou a mesma das ideias). */
 export async function createNotesDatabase(token: string, parentPageId: string): Promise<string> {
+  await ensurePageUnarchived(token, parentPageId);
   const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
     parent: { type: "page_id", page_id: parentPageId },
     title: [{ type: "text", text: { content: "📝 Notas — Vistage" } }],
