@@ -10,6 +10,7 @@ import {
   Megaphone,
   Pencil,
   Plus,
+  Save,
   Settings2,
   Trash2,
   User,
@@ -52,12 +53,17 @@ import {
   listFanInteractionCounts,
   listFanPerkCounts,
   listFans,
+  listFanOrigens,
+  createFanSegment,
   loadFanUpgradeRules,
   recomputeAllFanLevels,
   removeFanGroupMember,
   saveFanUpgradeRules,
   type FanFilters,
 } from "./api";
+import { FanSegmentsPanel } from "./components/FanSegmentsPanel";
+import { listGigs } from "@/modules/gigs/api";
+import { gigDisplayName } from "@/modules/gigs/displayName";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
@@ -73,17 +79,76 @@ import { ViewToggle } from "@/components/shared/ViewToggle";
 type LevelFilter = FanLevel | "Todos";
 type ViewMode = "cards" | "list";
 
+// Filtros do roster (versão "form", em strings) + conversão pro FanFilters da API.
+type RosterFilters = {
+  level: LevelFilter;
+  city: string;
+  search: string;
+  groupId: string;
+  origem: string;
+  minDays: string; // "sem contato há +N dias"
+  hasPerk: string; // "" | "yes" | "no"
+  ambassador: boolean;
+  attendedGigId: string;
+};
+
+const EMPTY_FILTERS: RosterFilters = {
+  level: "Todos", city: "", search: "", groupId: "", origem: "", minDays: "", hasPerk: "", ambassador: false, attendedGigId: "",
+};
+
+function rosterToQuery(f: RosterFilters): FanFilters {
+  const q: FanFilters = { level: f.level, city: f.city, search: f.search };
+  if (f.groupId) q.groupId = Number(f.groupId);
+  if (f.origem) q.origem = f.origem;
+  if (f.minDays) q.minDays = Number(f.minDays);
+  if (f.hasPerk === "yes") q.hasPerk = true;
+  else if (f.hasPerk === "no") q.hasPerk = false;
+  if (f.ambassador) q.ambassador = true;
+  if (f.attendedGigId) q.attendedGigId = Number(f.attendedGigId);
+  return q;
+}
+
+function queryToRoster(q: FanFilters): RosterFilters {
+  return {
+    level: (q.level as LevelFilter) ?? "Todos",
+    city: q.city ?? "",
+    search: q.search ?? "",
+    groupId: q.groupId != null ? String(q.groupId) : "",
+    origem: q.origem ?? "",
+    minDays: q.minDays != null ? String(q.minDays) : "",
+    hasPerk: q.hasPerk === true ? "yes" : q.hasPerk === false ? "no" : "",
+    ambassador: q.ambassador === true,
+    attendedGigId: q.attendedGigId != null ? String(q.attendedGigId) : "",
+  };
+}
+
+/** Conta os filtros do PAINEL ativos (busca fica fora — vive na barra de busca). */
+function countActiveFilters(f: RosterFilters): number {
+  return (
+    (f.level !== "Todos" ? 1 : 0) +
+    (f.city.trim() ? 1 : 0) +
+    (f.groupId ? 1 : 0) +
+    (f.origem ? 1 : 0) +
+    (f.minDays ? 1 : 0) +
+    (f.hasPerk ? 1 : 0) +
+    (f.ambassador ? 1 : 0) +
+    (f.attendedGigId ? 1 : 0)
+  );
+}
+
 export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [fans, setFans] = useState<Fan[]>([]);
   const [loading, setLoading] = useState(true);
   const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
   const [perkCounts, setPerkCounts] = useState<Map<number, number>>(new Map());
-  const [filters, setFilters] = useState<{
-    level: LevelFilter;
-    city: string;
-    search: string;
-  }>({ level: "Todos", city: "", search: "" });
+  const [filters, setFilters] = useState<RosterFilters>({ ...EMPTY_FILTERS });
+  // Dados auxiliares dos dropdowns de filtro (carregados uma vez).
+  const [groups, setGroups] = useState<FanGroup[]>([]);
+  const [gigOptions, setGigOptions] = useState<{ id: number; label: string }[]>([]);
+  const [origens, setOrigens] = useState<string[]>([]);
+  const [segName, setSegName] = useState("");
+  const [savingSeg, setSavingSeg] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Fan | null>(null);
@@ -106,14 +171,16 @@ export function FansPage() {
   ]);
   const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
 
-  const queryFilters: FanFilters = useMemo(
-    () => ({
-      level: filters.level,
-      city: filters.city,
-      search: filters.search,
-    }),
-    [filters]
-  );
+  const queryFilters: FanFilters = useMemo(() => rosterToQuery(filters), [filters]);
+
+  // Dados dos dropdowns de filtro — carregados uma vez (grupos/gigs/origens).
+  useEffect(() => {
+    void listFanGroups().then(setGroups).catch(() => {});
+    void listGigs()
+      .then((gs) => setGigOptions(gs.map((g) => ({ id: g.id, label: gigDisplayName(g) }))))
+      .catch(() => {});
+    void listFanOrigens().then(setOrigens).catch(() => {});
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -179,13 +246,34 @@ export function FansPage() {
     }
   }
 
+  async function handleSaveSegment() {
+    const nome = segName.trim();
+    if (!nome || countActiveFilters(filters) === 0 || savingSeg) return;
+    setSavingSeg(true);
+    try {
+      await createFanSegment(nome, queryFilters);
+      toast.success(`Segmento "${nome}" salvo`);
+      setSegName("");
+    } catch (e) {
+      toast.error(`Erro ao salvar segmento: ${String(e)}`);
+    } finally {
+      setSavingSeg(false);
+    }
+  }
+
+  /** Aplica os critérios de um segmento ao roster e volta pra aba Fãs. */
+  function applySegment(criterios: FanFilters) {
+    setFilters(queryToRoster(criterios));
+    setSection("fas");
+  }
+
   return (
     <div className="space-y-4">
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)}>
         <TabsList>
           <TabsTrigger value="fas">Fãs</TabsTrigger>
           <TabsTrigger value="hoje">Hoje</TabsTrigger>
-          <TabsTrigger value="grupos">Grupos</TabsTrigger>
+          <TabsTrigger value="grupos">Grupos &amp; Segmentos</TabsTrigger>
           <TabsTrigger value="vip">Listas VIP</TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
             <Settings2 className="h-3.5 w-3.5" /> Configurar
@@ -200,39 +288,93 @@ export function FansPage() {
           onChange: (v) => setFilters((f) => ({ ...f, search: v })),
           placeholder: "Buscar nome, @, email, telefone…",
         }}
-        filtersActiveCount={
-          (filters.level !== "Todos" ? 1 : 0) + (filters.city.trim() ? 1 : 0)
-        }
+        filtersActiveCount={countActiveFilters(filters)}
         filters={
-          <>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Nível</label>
-              <Select
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <FilterSelect
+                label="Nível"
                 value={filters.level}
-                onValueChange={(v) => setFilters((f) => ({ ...f, level: v as LevelFilter }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Todos">Todos os níveis</SelectItem>
-                  {FAN_LEVELS.map((l) => (
-                    <SelectItem key={l} value={l}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Cidade</label>
-              <Input
-                placeholder="Cidade"
-                value={filters.city}
-                onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+                onChange={(v) => setFilters((f) => ({ ...f, level: v as LevelFilter }))}
+                options={[{ value: "Todos", label: "Todos os níveis" }, ...FAN_LEVELS.map((l) => ({ value: l, label: l }))]}
               />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Cidade</label>
+                <Input
+                  placeholder="Cidade"
+                  value={filters.city}
+                  onChange={(e) => setFilters((f) => ({ ...f, city: e.target.value }))}
+                />
+              </div>
+              <FilterSelect
+                label="Grupo"
+                value={filters.groupId || "none"}
+                onChange={(v) => setFilters((f) => ({ ...f, groupId: v === "none" ? "" : v }))}
+                options={[{ value: "none", label: "Qualquer grupo" }, ...groups.map((g) => ({ value: String(g.id), label: g.name }))]}
+              />
+              <FilterSelect
+                label="Origem"
+                value={filters.origem || "none"}
+                onChange={(v) => setFilters((f) => ({ ...f, origem: v === "none" ? "" : v }))}
+                options={[{ value: "none", label: "Qualquer origem" }, ...origens.map((o) => ({ value: o, label: o }))]}
+              />
+              <FilterSelect
+                label="Sem contato há"
+                value={filters.minDays || "0"}
+                onChange={(v) => setFilters((f) => ({ ...f, minDays: v === "0" ? "" : v }))}
+                options={[
+                  { value: "0", label: "Qualquer tempo" },
+                  { value: "7", label: "+7 dias" },
+                  { value: "15", label: "+15 dias" },
+                  { value: "30", label: "+30 dias" },
+                  { value: "60", label: "+60 dias" },
+                  { value: "90", label: "+90 dias" },
+                ]}
+              />
+              <FilterSelect
+                label="Perks"
+                value={filters.hasPerk || "any"}
+                onChange={(v) => setFilters((f) => ({ ...f, hasPerk: v === "any" ? "" : v }))}
+                options={[{ value: "any", label: "Tanto faz" }, { value: "yes", label: "Com perk" }, { value: "no", label: "Sem perk" }]}
+              />
+              <FilterSelect
+                label="Esteve na GIG"
+                value={filters.attendedGigId || "none"}
+                onChange={(v) => setFilters((f) => ({ ...f, attendedGigId: v === "none" ? "" : v }))}
+                options={[{ value: "none", label: "Qualquer GIG" }, ...gigOptions.map((g) => ({ value: String(g.id), label: g.label }))]}
+              />
+              <label className="flex items-center gap-2 pt-5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={filters.ambassador}
+                  onChange={(e) => setFilters((f) => ({ ...f, ambassador: e.target.checked }))}
+                  className="h-4 w-4 rounded border"
+                />
+                Só embaixadores
+              </label>
             </div>
-          </>
+
+            <div className="flex items-center gap-2 border-t pt-3">
+              {countActiveFilters(filters) > 0 && (
+                <Button variant="ghost" size="sm" onClick={() => setFilters({ ...EMPTY_FILTERS, search: filters.search })}>
+                  Limpar filtros
+                </Button>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <Input
+                  className="h-8 w-44"
+                  placeholder="Nome do segmento"
+                  value={segName}
+                  onChange={(e) => setSegName(e.target.value)}
+                  disabled={countActiveFilters(filters) === 0}
+                  onKeyDown={(e) => { if (e.key === "Enter") void handleSaveSegment(); }}
+                />
+                <Button size="sm" disabled={!segName.trim() || countActiveFilters(filters) === 0 || savingSeg} onClick={() => void handleSaveSegment()}>
+                  <Save className="h-4 w-4" /> {savingSeg ? "Salvando…" : "Salvar segmento"}
+                </Button>
+              </div>
+            </div>
+          </div>
         }
         viewToggle={
           <ViewToggle
@@ -394,8 +536,12 @@ export function FansPage() {
           />
         </TabsContent>
 
-        <TabsContent value="grupos">
-          <FanGroupsPanel fans={fans} embedded />
+        <TabsContent value="grupos" className="space-y-6">
+          <FanSegmentsPanel onApply={applySegment} />
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos (comunidades externas)</h3>
+            <FanGroupsPanel fans={fans} embedded />
+          </div>
         </TabsContent>
 
         <TabsContent value="vip" className="space-y-3">
@@ -477,6 +623,37 @@ function FanClubConfigSurface({
   );
 }
 
+
+// Select rotulado pro painel de filtros (valores nunca vazios — sentinelas tratadas no onChange).
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-xs font-medium text-muted-foreground">{label}</label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 function FanListAvatar({ fan: f }: { fan: Fan }) {
   const photoUrl = useImageUrl(f.photo_path);

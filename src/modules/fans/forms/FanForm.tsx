@@ -43,6 +43,7 @@ const EMPTY: FanCreateInput = {
   notes: null,
   photo_path: null,
   contact_id: null,
+  origem: null,
 };
 
 function fanToState(f: Fan): FanCreateInput {
@@ -58,6 +59,7 @@ function fanToState(f: Fan): FanCreateInput {
     notes: f.notes,
     photo_path: f.photo_path,
     contact_id: f.contact_id,
+    origem: f.origem,
   };
 }
 

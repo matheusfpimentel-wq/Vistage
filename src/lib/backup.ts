@@ -29,6 +29,7 @@ const TABLES = [
   "venues",          // contacts.venue_id → venues  (deve vir antes de contacts)
   "fans",
   "fan_groups",
+  "fan_segments",            // filtros salvos do Clube de Fãs — sem deps (critérios em JSON)
   "students",
   "class_packages",
   "artist_identity",

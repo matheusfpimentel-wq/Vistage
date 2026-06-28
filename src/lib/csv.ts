@@ -7,6 +7,7 @@ export const CSV_ENTITIES = [
   { key: "contacts", label: "Contatos (CRM)", table: "contacts" },
   { key: "venues", label: "Venues", table: "venues" },
   { key: "fans", label: "Fãs", table: "fans" },
+  { key: "fan_segments", label: "Fãs — segmentos", table: "fan_segments" },
   { key: "tasks", label: "Tarefas", table: "tasks" },
   { key: "meetings", label: "Reuniões", table: "meetings" },
   { key: "content", label: "Conteúdos", table: "content" },
