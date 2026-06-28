@@ -4,6 +4,7 @@ import { daysSince, effectiveHeat } from "./types";
 import type {
   Idea,
   IdeaCategory,
+  IdeaCollisionSeedType,
   IdeaConversion,
   IdeaCreateInput,
   IdeaHeat,
@@ -250,4 +251,120 @@ export async function createTaskFromIdea(idea: Pick<Idea, "title">): Promise<num
     due_date: toLocalISODate(due),
     tags: ["ideia"],
   });
+}
+
+/** Carrega uma única ideia (com Calor efetivo calculado). Null se não existir. */
+export async function getIdea(id: number): Promise<Idea | null> {
+  const db = getDb();
+  const rows = await db.select<IdeaRow[]>("SELECT * FROM ideas WHERE id = $1", [id]);
+  return rows[0] ? rowToIdea(rows[0]) : null;
+}
+
+// ============================================================
+// Colisão de ideias (§3) — movimento gerativo
+// ============================================================
+
+/** Item do material que pode colidir com uma ideia (GIG/fã/faixa/nota). */
+export type MaterialSeed = { tipo: IdeaCollisionSeedType; id: number; label: string };
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Sementes do material para "colidir ideia + item": amostra aleatória de GIGs,
+ * fãs, faixas e notas da Biblioteca — conexão forçada ancorada na sua realidade
+ * (o banco devolve faísca a partir de tudo que já está no app).
+ */
+export async function listMaterialSeeds(perType = 4): Promise<MaterialSeed[]> {
+  const db = getDb();
+  const out: MaterialSeed[] = [];
+  try {
+    const { listGigs } = await import("@/modules/gigs/api");
+    const { gigDisplayName } = await import("@/modules/gigs/displayName");
+    const gigs = await listGigs();
+    for (const g of shuffle(gigs).slice(0, perType)) {
+      out.push({ tipo: "gig", id: g.id, label: gigDisplayName(g) });
+    }
+  } catch {
+    /* sem GIGs */
+  }
+  try {
+    const fans = await db.select<{ id: number; name: string }[]>(
+      "SELECT id, name FROM fans ORDER BY RANDOM() LIMIT $1",
+      [perType]
+    );
+    for (const f of fans) out.push({ tipo: "fan", id: f.id, label: f.name });
+  } catch {
+    /* sem fãs */
+  }
+  try {
+    const tracks = await db.select<{ id: number; label: string | null }[]>(
+      "SELECT id, COALESCE(NULLIF(title_final, ''), title_working) AS label FROM tracks ORDER BY RANDOM() LIMIT $1",
+      [perType]
+    );
+    for (const t of tracks) if (t.label) out.push({ tipo: "track", id: t.id, label: t.label });
+  } catch {
+    /* sem faixas */
+  }
+  try {
+    const notes = await db.select<{ id: number; title: string }[]>(
+      "SELECT id, title FROM notes WHERE title != '' ORDER BY RANDOM() LIMIT $1",
+      [perType]
+    );
+    for (const n of notes) out.push({ tipo: "note", id: n.id, label: n.title });
+  } catch {
+    /* sem notas */
+  }
+  return shuffle(out);
+}
+
+/**
+ * Cria a ideia nascida de uma colisão (source 'colisao'), relacionada à ideia A,
+ * e registra a colisão em idea_collisions (duas ideias OU ideia + semente do
+ * material). Retorna o id da nova ideia para desenvolvê-la em seguida.
+ */
+export async function createIdeaCollision(params: {
+  title: string;
+  body?: string | null;
+  ideaA: number;
+  ideaB?: number | null;
+  seed?: { tipo: IdeaCollisionSeedType; id: number | null; label: string } | null;
+}): Promise<number> {
+  const newId = await createIdea({
+    title: params.title,
+    body: params.body ?? null,
+    category: null,
+    tags: [],
+    heat: 3,
+    maturation: "Embrião",
+    converted_to: null,
+    converted_id: null,
+    related_idea_id: params.ideaA,
+    source: "colisao",
+  });
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO idea_collisions (idea_a, idea_b, seed_tipo, seed_id, seed_label, idea_resultante)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      params.ideaA,
+      params.ideaB ?? null,
+      params.seed?.tipo ?? null,
+      params.seed?.id ?? null,
+      params.seed?.label ?? null,
+      newId,
+    ]
+  );
+  await db.execute("UPDATE ideas SET source_ref_id = $1 WHERE id = $2", [
+    Number(res.lastInsertId),
+    newId,
+  ]);
+  emitDataChanged();
+  return newId;
 }

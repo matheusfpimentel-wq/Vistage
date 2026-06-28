@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Archive, Coffee, Flame, ListChecks } from "lucide-react";
+import { Archive, Coffee, Combine, Flame, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -28,10 +28,12 @@ export function IdeaResurfaceView({
   items,
   onEdit,
   onChanged,
+  onCollide,
 }: {
   items: Idea[];
   onEdit: (i: Idea) => void;
   onChanged: () => void;
+  onCollide: (i: Idea) => void;
 }) {
   const [busy, setBusy] = useState<number | null>(null);
 
@@ -136,6 +138,15 @@ export function IdeaResurfaceView({
                 onClick={() => void toTask(i)}
               >
                 <ListChecks className="h-3.5 w-3.5" /> Virar tarefa
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7"
+                disabled={busy === i.id}
+                onClick={() => onCollide(i)}
+              >
+                <Combine className="h-3.5 w-3.5" /> Colidir
               </Button>
               <Button
                 size="sm"

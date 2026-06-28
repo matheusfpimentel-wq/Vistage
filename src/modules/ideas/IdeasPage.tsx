@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Lightbulb, Plus, Zap } from "lucide-react";
+import { Combine, Lightbulb, Plus, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
@@ -26,12 +26,14 @@ import { IdeaResurfaceView } from "./views/IdeaResurfaceView";
 import { InsightDie } from "./InsightDie";
 import {
   deleteIdea,
+  getIdea,
   listIdeas,
   listResurfaceIdeas,
   markIdeaAsConverted,
   updateIdea,
   type IdeaFilters,
 } from "./api";
+import { IdeaCollisionDialog } from "./forms/IdeaCollisionDialog";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
@@ -67,6 +69,8 @@ export function IdeasPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Idea | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [collisionOpen, setCollisionOpen] = useState(false);
+  const [collisionPresetA, setCollisionPresetA] = useState<{ id: number; title: string } | null>(null);
   const [convertingIdea, setConvertingIdea] = useState<Idea | null>(null);
   const [trackFormOpen, setTrackFormOpen] = useState(false);
   const [gigFormOpen, setGigFormOpen] = useState(false);
@@ -127,6 +131,18 @@ export function IdeasPage() {
     setFormOpen(true);
   }
 
+  function openCollision(presetA?: { id: number; title: string } | null) {
+    setCollisionPresetA(presetA ?? null);
+    setCollisionOpen(true);
+  }
+
+  // Após colidir, abre a ideia recém-nascida pra desenvolver na hora.
+  async function handleCollisionCreated(newId: number) {
+    await refresh();
+    const idea = await getIdea(newId);
+    if (idea) openEdit(idea);
+  }
+
   async function handleDelete(i: Idea) {
     if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${i.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteIdea(i.id);
@@ -161,7 +177,10 @@ export function IdeasPage() {
     <div className="space-y-4">
       <ModuleToolbar
         primaryAction={{ label: "Nova ideia", icon: Plus, onClick: openCreate }}
-        secondaryActions={[{ label: "Captura rápida", icon: Zap, onClick: () => setQuickOpen(true) }]}
+        secondaryActions={[
+          { label: "Captura rápida", icon: Zap, onClick: () => setQuickOpen(true) },
+          { label: "Colidir", icon: Combine, onClick: () => openCollision() },
+        ]}
         search={{
           value: filters.search,
           onChange: (v) => setFilters((f) => ({ ...f, search: v })),
@@ -281,7 +300,12 @@ export function IdeasPage() {
           </TabsContent>
 
           <TabsContent value="ressurgir">
-            <IdeaResurfaceView items={resurface} onEdit={openEdit} onChanged={() => void refresh()} />
+            <IdeaResurfaceView
+              items={resurface}
+              onEdit={openEdit}
+              onChanged={() => void refresh()}
+              onCollide={(i) => openCollision({ id: i.id, title: i.title })}
+            />
           </TabsContent>
         </Tabs>
       )}
@@ -302,6 +326,13 @@ export function IdeasPage() {
           setQuickOpen(v);
           if (!v) void refresh();
         }}
+      />
+
+      <IdeaCollisionDialog
+        open={collisionOpen}
+        onOpenChange={setCollisionOpen}
+        presetIdeaA={collisionPresetA}
+        onCreated={(id) => void handleCollisionCreated(id)}
       />
 
       <TrackForm
