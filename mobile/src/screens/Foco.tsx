@@ -234,6 +234,20 @@ function pickStageGig(rows: { title: string; meta: GigMeta }[]): StageGig | null
   return upcoming[0] ?? null;
 }
 
+/** Mesma escolha do painel, mas carregando o id (source_id) — pra o debrief de
+    palco cair na GIG certa e os marcadores irem pra ela. */
+function pickStageGigId(rows: { source_id: string; title: string; meta: GigMeta }[]): { id: number; title: string } | null {
+  const today = todayISO();
+  const upcoming = rows
+    .map((r) => ({ id: Number(r.source_id), title: r.title, ...(r.meta ?? {}) }))
+    .filter((g) => Number.isFinite(g.id) && typeof g.date === "string" && g.date >= today && g.status !== "Cancelada")
+    .sort((a, b) =>
+      a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : (a.start_time ?? "").localeCompare(b.start_time ?? "")
+    );
+  const g = upcoming[0];
+  return g ? { id: g.id, title: g.title } : null;
+}
+
 function fmtDate(d?: string): string {
   if (!d) return "";
   return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
@@ -739,6 +753,14 @@ export function Foco() {
   const [doneAt, setDoneAt] = useState<{ startedAt: string; endedAt: string } | null>(null);
   const [energy, setEnergy] = useState(3);
   const [focusLvl, setFocusLvl] = useState(3);
+  // Palco: avalia o SET (vai pro debrief da GIG) em vez de energia/foco.
+  const [repertoire, setRepertoire] = useState(3);
+  const [technique, setTechnique] = useState(3);
+  const [charisma, setCharisma] = useState(3);
+  // GIG resolvida quando a atividade é "Tempo de palco" (id + título). Ref pra os
+  // marcadores ao vivo carregarem o gig_id sem closure velha.
+  const [stageGig, setStageGig] = useState<{ id: number; title: string } | null>(null);
+  const stageGigRef = useRef<{ id: number; title: string } | null>(null);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -803,7 +825,8 @@ export function Foco() {
       focus_session_id: sessionIdRef.current,
       at: new Date().toISOString(),
       at_ms: atMs,
-      gig_id: null,
+      // Sessão de palco → liga o marcador à GIG (vira ponto fraco/forte no debrief).
+      gig_id: stageGigRef.current?.id ?? null,
       ...(tipo ? { tipo } : {}),
       ...(note ? { note } : {}),
     });
@@ -929,23 +952,60 @@ export function Foco() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Resolve a GIG do palco (próxima/de hoje) quando a atividade é "Tempo de palco",
+  // pra os marcadores ao vivo e o debrief caírem nela. Limpa pras outras atividades.
+  useEffect(() => {
+    if (activity !== "Tempo de palco") {
+      setStageGig(null);
+      stageGigRef.current = null;
+      return;
+    }
+    let active = true;
+    void supabase
+      .from("catalog_mirror")
+      .select("source_id, title, meta")
+      .eq("kind", "gig")
+      .then(({ data }) => {
+        if (!active) return;
+        const picked = pickStageGigId((data ?? []) as { source_id: string; title: string; meta: GigMeta }[]);
+        setStageGig(picked);
+        stageGigRef.current = picked;
+      });
+    return () => {
+      active = false;
+    };
+  }, [activity]);
+
   async function save() {
     if (!doneAt) return;
     setBusy(true);
     setMsg(null);
     try {
+      const isStage = activity === "Tempo de palco";
+      const sg = stageGigRef.current;
       // focus_session_id liga o debrief aos marcadores ao vivo (o desktop junta).
+      // Palco: manda as avaliações do set + o gig_id → o desktop grava no debrief
+      // da GIG (repertório/técnica/carisma) em vez de energia/foco.
       await enqueueCapture("session", {
         started_at: doneAt.startedAt,
         ended_at: doneAt.endedAt,
         activity_type: activity,
         planned_minutes: plannedMin,
-        energy_level: energy,
-        focus_level: focusLvl,
+        energy_level: isStage ? null : energy,
+        focus_level: isStage ? null : focusLvl,
         notes: notes || null,
         focus_session_id: sessionIdRef.current,
+        ...(isStage && sg
+          ? {
+              context_type: "gig",
+              gig_id: sg.id,
+              rating_repertoire: repertoire,
+              rating_technique: technique,
+              rating_charisma: charisma,
+            }
+          : {}),
       });
-      setMsg("Sessão salva! Sobe pro PC sozinha.");
+      setMsg(isStage ? "Set salvo! O debrief sobe pro PC." : "Sessão salva! Sobe pro PC sozinha.");
       setPhase("idle");
       setElapsedMs(0);
       setPlannedStr("");
@@ -954,6 +1014,9 @@ export function Foco() {
       setMarkers([]);
       markersRef.current = [];
       sessionIdRef.current = null;
+      setRepertoire(3);
+      setTechnique(3);
+      setCharisma(3);
     } catch (e) {
       setMsg("Erro ao salvar: " + String(e));
     } finally {
@@ -1035,20 +1098,42 @@ export function Foco() {
           {markers.length > 0 && <MarkerSummary markers={markers} />}
           <section className="card form" style={{ width: "100%" }}>
           <p className="muted">Sessão de {fmtClock(elapsedMs)} · {activity}</p>
-          <label>
-            Energia: {energy}
-            <input type="range" min={1} max={5} value={energy} onChange={(e) => setEnergy(Number(e.target.value))} />
-          </label>
-          <label>
-            Foco: {focusLvl}
-            <input type="range" min={1} max={5} value={focusLvl} onChange={(e) => setFocusLvl(Number(e.target.value))} />
-          </label>
+          {activity === "Tempo de palco" ? (
+            <>
+              {stageGig && (
+                <p className="muted" style={{ fontSize: "0.8rem" }}>Debrief de palco: {stageGig.title}</p>
+              )}
+              <label>
+                Repertório: {repertoire}
+                <input type="range" min={1} max={5} value={repertoire} onChange={(e) => setRepertoire(Number(e.target.value))} />
+              </label>
+              <label>
+                Técnica: {technique}
+                <input type="range" min={1} max={5} value={technique} onChange={(e) => setTechnique(Number(e.target.value))} />
+              </label>
+              <label>
+                Carisma: {charisma}
+                <input type="range" min={1} max={5} value={charisma} onChange={(e) => setCharisma(Number(e.target.value))} />
+              </label>
+            </>
+          ) : (
+            <>
+              <label>
+                Energia: {energy}
+                <input type="range" min={1} max={5} value={energy} onChange={(e) => setEnergy(Number(e.target.value))} />
+              </label>
+              <label>
+                Foco: {focusLvl}
+                <input type="range" min={1} max={5} value={focusLvl} onChange={(e) => setFocusLvl(Number(e.target.value))} />
+              </label>
+            </>
+          )}
           <label>
             Notas
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Opcional" />
           </label>
           <button className="primary" disabled={busy} onClick={() => void save()}>
-            {busy ? "Enviando…" : "Salvar sessão"}
+            {busy ? "Enviando…" : activity === "Tempo de palco" ? "Salvar set" : "Salvar sessão"}
           </button>
           </section>
         </>

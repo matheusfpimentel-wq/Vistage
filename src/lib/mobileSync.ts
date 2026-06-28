@@ -823,11 +823,29 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     // focus_session_id (UUID do celular) liga esta sessão aos marcadores ao vivo
     // (performance_weak_points/moments). Pode chegar antes OU depois deles — o
     // vínculo é por esse id, não pela ordem de ingestão.
+    // Sessão de PALCO: o celular manda context_type='gig' + gig_id, e as avaliações
+    // do set (repertório/técnica/carisma) em vez de energia/foco → vínculo + debrief.
+    const gigId = n("gig_id");
+    const ctxType = s("context_type");
+    const stageGig = ctxType === "gig" ? gigId : null;
     await db.execute(
-      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes, focus_session_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes"), s("focus_session_id")]
+      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes, focus_session_id, context_type, context_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes"), s("focus_session_id"), stageGig != null ? "gig" : null, stageGig]
     );
+    // Avaliações do set vão pro debrief da GIG (COALESCE não apaga nota já preenchida).
+    if (stageGig != null) {
+      const rep = n("rating_repertoire"), tec = n("rating_technique"), car = n("rating_charisma");
+      if (rep != null || tec != null || car != null) {
+        await db.execute(
+          `UPDATE gigs SET rating_repertoire = COALESCE($1, rating_repertoire),
+                           rating_technique  = COALESCE($2, rating_technique),
+                           rating_charisma   = COALESCE($3, rating_charisma)
+             WHERE id = $4`,
+          [rep, tec, car, stageGig]
+        );
+      }
+    }
   } else if (kind === "highlight" || kind === "note") {
     await db.execute(
       `INSERT INTO highlights (title, date, body) VALUES ($1, $2, $3)`,
