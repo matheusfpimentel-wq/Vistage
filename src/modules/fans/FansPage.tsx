@@ -40,6 +40,7 @@ import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
 import { FanListsPanel } from "./components/FanListsPanel";
+import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
   createFanGroup,
@@ -90,7 +91,7 @@ export function FansPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useModuleView<ViewMode>("fans", "list");
-  const [section, setSection] = useState<"fas" | "grupos" | "vip" | "config">("fas");
+  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "vip" | "config">("fas");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
@@ -183,6 +184,7 @@ export function FansPage() {
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)}>
         <TabsList>
           <TabsTrigger value="fas">Fãs</TabsTrigger>
+          <TabsTrigger value="hoje">Hoje</TabsTrigger>
           <TabsTrigger value="grupos">Grupos</TabsTrigger>
           <TabsTrigger value="vip">Listas VIP</TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
@@ -381,6 +383,15 @@ export function FansPage() {
           </table>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="hoje">
+          <FanTodayView
+            onOpenFan={(id) => {
+              setDetailId(id);
+              setDetailOpen(true);
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="grupos">
