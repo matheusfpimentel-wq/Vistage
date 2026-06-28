@@ -200,18 +200,38 @@ async function resolveVistageParent(token: string, storedParentId: string | null
     const st = await pageState(token, storedParentId);
     if (st === "ok") return storedParentId;
     if (st === "archived") {
-      await notionApi(token, "PATCH", `/pages/${storedParentId}`, {
-        archived: false,
-        in_trash: false,
-      });
-      return storedParentId;
+      // Tenta tirar da lixeira. PORÉM: a API do Notion NÃO desarquiva páginas de
+      // nível RAIZ/workspace ("Unarchiving workspace level pages not supported by
+      // the API"). Se falhar (por isso ou qualquer outro motivo), não trava: cai
+      // pro caminho de reaproveitar/recriar uma página acessível, logo abaixo.
+      try {
+        await notionApi(token, "PATCH", `/pages/${storedParentId}`, {
+          archived: false,
+          in_trash: false,
+        });
+        return storedParentId;
+      } catch {
+        /* não dá pra reviver (ex.: página de nível raiz na lixeira) — recria abaixo */
+      }
     }
-    // "gone": id obsoleto/na lixeira — descarta e parte pra busca (sem loop).
+    // "gone" ou desarquivar falhou: descarta o id velho e parte pra busca (sem loop).
   }
   const pages = await listNotionPages(token);
   if (pages.length === 0) throw new NotionNeedsConnectionsError();
+  // Reaproveita uma página "Vistage" acessível que já exista (de uma tentativa
+  // anterior, ou a própria página compartilhada pelo usuário) em vez de duplicar.
+  // O /search normalmente já exclui páginas na lixeira, mas o índice é eventualmente
+  // consistente — então confirmamos o ESTADO da candidata antes de reaproveitar; se
+  // não estiver utilizável (ex.: reapareceu arquivada na janela de propagação),
+  // ignoramos e criamos uma nova.
+  const candidate = pages.find((p) => p.title.trim().toLowerCase() === "vistage");
+  if (candidate && (await pageState(token, candidate.id)) === "ok") {
+    await setSetting(KEY_PARENT, candidate.id);
+    return candidate.id;
+  }
   // Cria uma página-pai "Vistage" sob a primeira página acessível e guarda o id.
-  const host = pages[0].id;
+  // Evita usar a candidata recusada como host, caso ela tenha reaparecido arquivada.
+  const host = (pages.find((p) => p.id !== candidate?.id) ?? pages[0]).id;
   const created = await notionApi<{ id: string }>(token, "POST", "/pages", {
     parent: { type: "page_id", page_id: host },
     properties: { title: { title: [{ type: "text", text: { content: "Vistage" } }] } },
