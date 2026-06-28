@@ -7,11 +7,12 @@
 use lofty::{read_from_path, Accessor, AudioFile, ItemKey, Tag, TagExt, TaggedFileExt};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tauri::Emitter;
 use walkdir::WalkDir;
 
 const AUDIO_EXTS: &[&str] = &["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "ogg"];
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct ScannedTrack {
     path: String,
     title: Option<String>,
@@ -83,6 +84,105 @@ fn scan_folder_blocking(path: &str, include_subdirs: bool) -> Result<Vec<Scanned
         if p.is_file() && is_audio(p) {
             if let Some(t) = read_one(p) {
                 out.push(t);
+            }
+        }
+    }
+    Ok(out)
+}
+
+// ── varredura em segundo plano (continua mesmo se o usuário sai da tela) ───────
+// Diferente de `audio_scan_folder` (que coleta tudo e SÓ ENTÃO devolve, perdendo
+// o resultado se a tela desmonta), aqui a varredura roda numa task de fundo e
+// reporta progresso/fim por EVENTOS. O comando devolve na hora; o frontend só
+// assina os eventos. `scan_id` permite ignorar eventos de uma varredura antiga.
+
+#[derive(Clone, Serialize)]
+struct ScanProgress {
+    scan_id: String,
+    scanned: usize,
+}
+
+#[derive(Clone, Serialize)]
+struct ScanComplete {
+    scan_id: String,
+    tracks: Vec<ScannedTrack>,
+}
+
+#[derive(Clone, Serialize)]
+struct ScanError {
+    scan_id: String,
+    error: String,
+}
+
+/// Inicia a varredura numa task de fundo e RETORNA IMEDIATAMENTE (Ok(())). A task:
+/// - emite `library-scan-progress` { scan_id, scanned } a cada 50 arquivos lidos;
+/// - ao terminar emite `library-scan-complete` { scan_id, tracks };
+/// - em erro emite `library-scan-error` { scan_id, error }.
+///
+/// O WalkDir + leitura de tags (pesado) roda numa thread de bloqueio
+/// (`spawn_blocking`) pra não travar o event-loop, igual ao `audio_scan_folder`.
+#[tauri::command]
+pub fn audio_scan_folder_bg(
+    app: tauri::AppHandle,
+    scan_id: String,
+    path: String,
+    include_subdirs: bool,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn(async move {
+        // O progresso é emitido de dentro da thread de bloqueio (`app` é Clone).
+        let app_progress = app.clone();
+        let sid = scan_id.clone();
+        let result = tauri::async_runtime::spawn_blocking(move || {
+            scan_folder_emitting(&app_progress, &sid, &path, include_subdirs)
+        })
+        .await;
+
+        match result {
+            Ok(Ok(tracks)) => {
+                let _ = app.emit("library-scan-complete", ScanComplete { scan_id, tracks });
+            }
+            Ok(Err(e)) => {
+                let _ = app.emit("library-scan-error", ScanError { scan_id, error: e });
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    "library-scan-error",
+                    ScanError { scan_id, error: format!("Falha na varredura: {e}") },
+                );
+            }
+        }
+    });
+    Ok(())
+}
+
+/// Igual ao `scan_folder_blocking`, mas emite progresso a cada 50 arquivos lidos.
+fn scan_folder_emitting(
+    app: &tauri::AppHandle,
+    scan_id: &str,
+    path: &str,
+    include_subdirs: bool,
+) -> Result<Vec<ScannedTrack>, String> {
+    let root = Path::new(path);
+    if !root.is_dir() {
+        return Err("Pasta inválida".into());
+    }
+    let max_depth = if include_subdirs { usize::MAX } else { 1 };
+    let mut out = Vec::new();
+    for entry in WalkDir::new(root)
+        .max_depth(max_depth)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        let p = entry.path();
+        if p.is_file() && is_audio(p) {
+            if let Some(t) = read_one(p) {
+                out.push(t);
+                if out.len() % 50 == 0 {
+                    let _ = app.emit(
+                        "library-scan-progress",
+                        ScanProgress { scan_id: scan_id.to_string(), scanned: out.len() },
+                    );
+                }
             }
         }
     }

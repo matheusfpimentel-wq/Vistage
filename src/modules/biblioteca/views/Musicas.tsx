@@ -39,14 +39,13 @@ import {
   correlate,
   deleteTrack,
   listTracks,
-  scanReconcile,
   updateCell,
   verifyFiles,
   writeTagsToFiles,
   type EditableCol,
   type LibraryTrack,
-  type ScanDiff,
 } from "../library/api";
+import { useScanManager } from "../library/scanManager";
 
 const AUDIO_EXTS = ["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "ogg"];
 const ROW_H = 38;
@@ -129,8 +128,14 @@ export function Musicas() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [includeSubdirs, setIncludeSubdirs] = useState(true);
-  const [scanning, setScanning] = useState(false);
-  const [diff, setDiff] = useState<ScanDiff | null>(null);
+  // Varredura: estado vem do gerenciador SINGLETON (nível de módulo), não local —
+  // assim continua rodando e mantém o resultado ao sair/voltar da Biblioteca.
+  const scanStatus = useScanManager((s) => s.status);
+  const scanScanned = useScanManager((s) => s.scanned);
+  const diff = useScanManager((s) => s.diff);
+  const startScan = useScanManager((s) => s.startScan);
+  const resetScan = useScanManager((s) => s.reset);
+  const scanning = scanStatus === "scanning" || scanStatus === "reconciling";
   const [writeProgress, setWriteProgress] = useState<{ done: number; total: number } | null>(null);
   const [prefs, setPrefs] = useState<ColPrefs>(loadPrefs);
   const [colMenu, setColMenu] = useState(false);
@@ -252,22 +257,25 @@ export function Musicas() {
   async function pickFolderAndScan() {
     const folder = await openDialog({ directory: true, multiple: false, title: "Escanear pasta de músicas" });
     if (!folder || typeof folder !== "string") return;
-    setScanning(true);
-    try {
-      const d = await scanReconcile(folder, includeSubdirs);
-      setDiff(d);
-    } catch (e) {
-      toast.error("Falha ao escanear: " + String(e));
-    } finally {
-      setScanning(false);
-    }
+    // Dispara a varredura no gerenciador de fundo e retorna na hora: a varredura
+    // segue no Rust e o resultado (diff) chega via estado do gerenciador — mesmo
+    // que esta tela seja desmontada no meio.
+    void startScan(folder, includeSubdirs);
   }
+
+  // Erro da varredura: mostra um toast (uma vez) e limpa o estado do gerenciador.
+  useEffect(() => {
+    if (scanStatus === "error") {
+      toast.error("Falha ao escanear: " + String(useScanManager.getState().error));
+      resetScan();
+    }
+  }, [scanStatus, resetScan]);
 
   async function confirmApplyScan() {
     if (!diff) return;
     await applyScan(diff);
     const n = diff.newTracks.length, m = diff.moved.length;
-    setDiff(null);
+    resetScan();
     toast.success(`${n} nova(s), ${m} recolocada(s).`);
     void refresh();
   }
@@ -337,7 +345,12 @@ export function Musicas() {
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={() => void pickFolderAndScan()} disabled={scanning}>
-          <FolderSearch className="mr-1.5 h-4 w-4" /> {scanning ? "Escaneando…" : "Escanear pasta"}
+          <FolderSearch className="mr-1.5 h-4 w-4" />{" "}
+          {scanStatus === "scanning"
+            ? `Escaneando… (${scanScanned})`
+            : scanStatus === "reconciling"
+            ? "Reconciliando…"
+            : "Escanear pasta"}
         </Button>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <input type="checkbox" checked={includeSubdirs} onChange={(e) => setIncludeSubdirs(e.target.checked)} />
@@ -392,6 +405,15 @@ export function Musicas() {
 
       {writeProgress && (
         <div className="text-xs text-muted-foreground">Gravando {writeProgress.done}/{writeProgress.total}…</div>
+      )}
+
+      {scanStatus === "scanning" && (
+        <div className="text-xs text-muted-foreground">
+          Escaneando em segundo plano… {scanScanned} arquivo(s) lidos. Pode navegar — continua rodando.
+        </div>
+      )}
+      {scanStatus === "reconciling" && (
+        <div className="text-xs text-muted-foreground">Reconciliando com a biblioteca…</div>
       )}
 
       {/* Cabeçalho da grade (arrastável + ordenável) */}
@@ -477,7 +499,7 @@ export function Musicas() {
 
       {/* Resumo do rescan antes de aplicar */}
       {diff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDiff(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => resetScan()}>
           <div className="w-full max-w-md rounded-lg border bg-background p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h3 className="mb-2 text-base font-semibold">Resultado do scan</h3>
             <ul className="space-y-1 text-sm">
@@ -487,7 +509,7 @@ export function Musicas() {
               <li className="text-amber-500">{diff.missing.length} ausente(s) na pasta (mantidas)</li>
             </ul>
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setDiff(null)}>Cancelar</Button>
+              <Button variant="outline" size="sm" onClick={() => resetScan()}>Cancelar</Button>
               <Button size="sm" onClick={() => void confirmApplyScan()}>Aplicar</Button>
             </div>
           </div>
