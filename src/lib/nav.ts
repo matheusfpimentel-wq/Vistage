@@ -22,14 +22,14 @@ import {
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
-export type NavGroup = "Criação" | "Relacionamento" | "Produtividade" | "Gestão";
+export type NavGroup = "Criação" | "Relacionamento" | "Produtividade" | "Administração";
 
 /** Ordem em que os grupos aparecem na sidebar. */
 export const NAV_GROUP_ORDER: NavGroup[] = [
   "Criação",
   "Relacionamento",
   "Produtividade",
-  "Gestão",
+  "Administração",
 ];
 
 /** Metadados de cada grupo — usados no cabeçalho clicável da sidebar e na dash própria do grupo. */
@@ -41,7 +41,7 @@ export const NAV_GROUP_META: Record<
   "Relacionamento": { to: "/relacionamento", icon: Handshake, tagline: "Pessoas, parcerias e fãs" },
   "Produtividade": { to: "/gestao", icon: Gauge, tagline: "Foco, tarefas e objetivos" },
   // Grupo sem hub próprio: o cabeçalho leva direto ao Financeiro.
-  "Gestão": { to: "/financeiro", icon: Wallet, tagline: "Finanças e identidade" },
+  "Administração": { to: "/financeiro", icon: Wallet, tagline: "Finanças e identidade" },
 };
 
 export type NavItem = {
@@ -62,7 +62,7 @@ export const DEFAULT_NAV: NavItem[] = [
   { to: "/aulas", label: "Aulas", icon: GraduationCap, group: "Criação" },
   { to: "/musica", label: "Produção Musical", icon: Music, group: "Criação" },
   { to: "/conteudo", label: "Conteúdo", icon: Film, group: "Criação" },
-  { to: "/biblioteca", label: "Biblioteca", icon: Library, group: "Gestão" },
+  { to: "/biblioteca", label: "Biblioteca", icon: Library, group: "Administração" },
 
   { to: "/pessoas", label: "Pessoas", icon: Users, group: "Relacionamento" },
   { to: "/venues", label: "Venues", icon: Building2, group: "Relacionamento" },
@@ -70,12 +70,12 @@ export const DEFAULT_NAV: NavItem[] = [
 
   { to: "/tarefas", label: "Tarefas", icon: CheckSquare, group: "Produtividade" },
   { to: "/reunioes", label: "Reuniões", icon: MessagesSquare, group: "Produtividade" },
-  { to: "/objetivos", label: "OKRs", icon: Target, group: "Produtividade" },
+  { to: "/objetivos", label: "Gestão Estratégica", icon: Target, group: "Produtividade" },
   { to: "/ideias", label: "Ideias & Insights", icon: Lightbulb, group: "Produtividade" },
   { to: "/foco", label: "Energia & Foco", icon: Zap, group: "Produtividade" },
 
-  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Gestão" },
-  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Gestão" },
+  { to: "/financeiro", label: "Financeiro", icon: Wallet, group: "Administração" },
+  { to: "/identidade", label: "Identidade", icon: Sparkles, group: "Administração" },
 
 ];
 
@@ -133,7 +133,9 @@ export async function loadGroupLabels(): Promise<GroupLabels> {
       [SETTINGS_GROUP_LABELS]
     );
     if (!rows[0]) return {};
-    return JSON.parse(rows[0].value) as GroupLabels;
+    // Normaliza grupos renomeados (ex.: "Gestão" → "Administração") para que
+    // labels customizados de versões anteriores continuem valendo.
+    return normalizeGroupLabels(JSON.parse(rows[0].value) as GroupLabels);
   } catch {
     return {};
   }
@@ -223,6 +225,39 @@ const LEGACY_ROUTE_MAP: Record<string, string> = {
   "/fornecedores": "/pessoas",
 };
 
+/**
+ * Grupos de menu renomeados → nome atual. O grupo "Gestão" virou
+ * "Administração"; customizações salvas (labels renomeados pelo usuário e
+ * itens movidos de grupo em sidebar_group_labels/sidebar_item_groups) ainda
+ * referenciam a string antiga — normalizamos ao carregar para não perder a
+ * customização nem deixar itens "órfãos" num grupo que não existe mais.
+ */
+const LEGACY_GROUP_MAP: Record<string, NavGroup> = {
+  "Gestão": "Administração",
+};
+
+/** Troca um grupo legado pelo atual (ou devolve o mesmo, se já estiver atual). */
+function normalizeGroupName(group: string): NavGroup {
+  return LEGACY_GROUP_MAP[group] ?? (group as NavGroup);
+}
+
+/**
+ * Migra os labels customizados de grupo: o que estava sob a chave antiga
+ * ("Gestão") passa a valer para a chave nova ("Administração"). Se já houver
+ * um label salvo na chave nova, ele tem precedência (não sobrescreve).
+ */
+function normalizeGroupLabels(labels: GroupLabels): GroupLabels {
+  const out: GroupLabels = { ...labels };
+  for (const [legacy, current] of Object.entries(LEGACY_GROUP_MAP)) {
+    const legacyKey = legacy as NavGroup;
+    if (out[legacyKey] !== undefined && out[current] === undefined) {
+      out[current] = out[legacyKey];
+    }
+    delete out[legacyKey];
+  }
+  return out;
+}
+
 function normalizeOrder(order: string[] | null): string[] | null {
   if (!order) return null;
   const mapped = order.map((to) => LEGACY_ROUTE_MAP[to] ?? to);
@@ -230,10 +265,18 @@ function normalizeOrder(order: string[] | null): string[] | null {
 }
 
 function normalizeItemGroups(groups: ItemGroups): ItemGroups {
-  const out: ItemGroups = { ...groups };
-  for (const [legacy, current] of Object.entries(LEGACY_ROUTE_MAP)) {
-    if (out[legacy] && !out[current]) out[current] = out[legacy];
-    delete out[legacy];
+  const out: ItemGroups = {};
+  // 1ª passada: rotas ATUAIS (não-aposentadas) — têm precedência sobre a legada
+  // (independe da ordem de iteração: a rota atual sempre vence a aposentada).
+  for (const [route, group] of Object.entries(groups)) {
+    if (LEGACY_ROUTE_MAP[route]) continue;
+    out[route] = normalizeGroupName(group);
+  }
+  // 2ª passada: rota aposentada (ex.: /crm→/pessoas) só herda o grupo se a rota
+  // atual ainda não tiver um. Normaliza também o GRUPO ("Gestão"→"Administração").
+  for (const [route, group] of Object.entries(groups)) {
+    const current = LEGACY_ROUTE_MAP[route];
+    if (current && out[current] === undefined) out[current] = normalizeGroupName(group);
   }
   return out;
 }

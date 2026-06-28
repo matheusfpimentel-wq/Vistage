@@ -107,8 +107,8 @@ const AlertsPage = lazy(() =>
 const FocoPage = lazy(() =>
   import("@/modules/foco/FocoPage").then((m) => ({ default: m.FocoPage }))
 );
-const ObjetivosPage = lazy(() =>
-  import("@/modules/objetivos/ObjetivosPage").then((m) => ({ default: m.ObjetivosPage }))
+const GestaoEstrategicaPage = lazy(() =>
+  import("@/modules/objetivos/GestaoEstrategicaPage").then((m) => ({ default: m.GestaoEstrategicaPage }))
 );
 const IdentityPage = lazy(() =>
   import("@/modules/identity/IdentityPage").then((m) => ({ default: m.IdentityPage }))
@@ -484,7 +484,7 @@ function RoutedApp() {
             <Route path="insights" element={<InsightsPage />} />
 
             <Route path="foco" element={<FocoPage />} />
-            <Route path="objetivos" element={<ObjetivosPage />} />
+            <Route path="objetivos" element={<GestaoEstrategicaPage />} />
 
             <Route path="identidade" element={<IdentityPage />} />
             <Route path="tarefas" element={<TasksPage />} />
