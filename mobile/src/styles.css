@@ -464,6 +464,13 @@ button { font-family: inherit; cursor: pointer; }
 .mini-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-title { display: block; margin-top: 0.2rem; font-size: 1rem; }
 
+/* "Esfriando" — linha com ícone do tipo (contato/fã/faixa/conteúdo) + nome + motivo */
+.cold-list .cold-row { display: flex; align-items: center; gap: 0.5rem; white-space: normal; overflow: visible; }
+.cold-ic { flex: 0 0 auto; display: inline-flex; color: var(--muted); }
+.cold-body { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.cold-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cold-sub { font-size: 0.74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .today-motivation { display: flex; gap: 0.6rem; align-items: flex-start; border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
 .today-motivation p { margin: 0; font-size: 0.92rem; line-height: 1.4; }
 .motivation-spark { color: var(--accent); font-size: 1.1rem; line-height: 1.3; flex: 0 0 auto; }

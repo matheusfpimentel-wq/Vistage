@@ -44,7 +44,12 @@ create table if not exists public.finance_summary (
   primary key (user_id, month)
 );
 
--- ── Leitura: contato do dia (follow-up do CRM) ──────────────────────────────
+-- ── Leitura: "Esfriando" — o que o artista alimenta e ficou parado ──────────
+-- Não é só CRM: traz contatos, fãs, faixas e conteúdos sem movimento além do
+-- tempo de resfriamento configurável. O TIPO viaja no prefixo do source_id
+-- ("contact:" / "fan:" / "track:" / "content:") — sem coluna nova. O desktop
+-- reescreve o conjunto inteiro a cada sync (delete + insert), então mudar o
+-- formato do source_id é seguro.
 create table if not exists public.contact_today (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,

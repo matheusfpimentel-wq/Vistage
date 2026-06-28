@@ -49,7 +49,7 @@ async function buildSummary(userId: string): Promise<{ title: string; body: stri
   const parts: string[] = [];
   if (gigs.length) parts.push(`${gigs.length} GIG${gigs.length > 1 ? "s" : ""}`);
   if (tasks.length) parts.push(`${tasks.length} tarefa${tasks.length > 1 ? "s" : ""}`);
-  if (follow.length) parts.push(`${follow.length} follow-up`);
+  if (follow.length) parts.push(`${follow.length} esfriando`);
   const title = parts.length ? `Hoje: ${parts.join(", ")}` : "Resumo do dia";
   const body = items.length
     ? items.slice(0, 4).map((i) => i.title).join(" · ")
