@@ -529,9 +529,14 @@ function fanOffset(i: number, total: number): { x: number; y: number } {
 
 type FanKind = "weak" | "moment";
 
-function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: MarkerKind, t?: WeakType | StrongType) => void }) {
-  // Qual leque está aberto (null = fechado). Erro→WEAK_TYPES, acerto→STRONG_TYPES.
+function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: MarkerKind, t?: WeakType | StrongType, note?: string) => void }) {
+  // Qual leque está aberto (null = fechado) + de ONDE ele abre (centro do botão
+  // tocado), pra o leque sair da mesma posição do botão original.
   const [fan, setFan] = useState<FanKind | null>(null);
+  const [fanOrigin, setFanOrigin] = useState<{ x: number; y: number } | null>(null);
+  // A lâmpada abre um campo curtinho pra uma breve nota da ideia.
+  const [ideaOpen, setIdeaOpen] = useState(false);
+  const [ideaText, setIdeaText] = useState("");
   const count = (pred: (m: Marker) => boolean) => markers.filter(pred).length;
   const errors = count((m) => m.kind === "weak");
   const hits = count((m) => m.kind === "moment");
@@ -544,6 +549,13 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
     setFan(null);
   }
 
+  // Salva a ideia com a breve nota (ou sem, se vazia) e fecha o campo.
+  function saveIdea() {
+    onMark("idea", undefined, ideaText.trim() || undefined);
+    setIdeaText("");
+    setIdeaOpen(false);
+  }
+
   const options = fan === "weak" ? WEAK_TYPES : STRONG_TYPES;
 
   return (
@@ -553,7 +565,11 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
         <button
           type="button"
           className="glass-round lc-round lc-round-err"
-          onClick={() => setFan((f) => (f === "weak" ? null : "weak"))}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            setFan((f) => (f === "weak" ? null : "weak"));
+          }}
           aria-label={`Registrar erro${errors ? ` (${errors} nesta sessão)` : ""}`}
           aria-expanded={fan === "weak"}
         >
@@ -563,7 +579,11 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
         <button
           type="button"
           className="glass-round lc-round lc-round-hit"
-          onClick={() => setFan((f) => (f === "moment" ? null : "moment"))}
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect();
+            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            setFan((f) => (f === "moment" ? null : "moment"));
+          }}
           aria-label={`Registrar acerto${hits ? ` (${hits} nesta sessão)` : ""}`}
           aria-expanded={fan === "moment"}
         >
@@ -573,21 +593,22 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
         <button
           type="button"
           className="glass-round lc-round lc-round-idea"
-          onClick={() => onMark("idea")}
-          aria-label={`Registrar ideia${ideas ? ` (${ideas} nesta sessão)` : ""}`}
+          onClick={() => setIdeaOpen(true)}
+          aria-label={`Anotar ideia${ideas ? ` (${ideas} nesta sessão)` : ""}`}
         >
           <IcBulb />
           {ideas > 0 && <span className="lc-badge">×{ideas}</span>}
         </button>
       </div>
-      <p className="muted lc-hint">Detalhe depois, no PC.</p>
+      <p className="muted lc-hint">Erro/acerto: detalhe no PC. Ideia: anota aqui.</p>
 
-      {/* Overlay de tela cheia: fundo embaçado/escurecido + leque radial.
-          Tocar fora (no overlay) fecha; o botão central também alterna. */}
-      {fan && (
+      {/* Leque radial: abre DA POSIÇÃO do botão tocado (fanOrigin), com o fundo
+          embaçado por trás. Tocar fora fecha; o botão central também alterna. */}
+      {fan && fanOrigin && (
         <div className="lc-fan-overlay" onClick={() => setFan(null)}>
           <div
             className={"lc-fan lc-fan-" + fan}
+            style={{ left: fanOrigin.x, top: fanOrigin.y }}
             onClick={(e) => e.stopPropagation()}
             role="menu"
             aria-label={fan === "weak" ? "Tipo de erro" : "Tipo de acerto"}
@@ -622,6 +643,30 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Ideia: campo curtinho pra não perder a sacada (a lâmpada abre isto). */}
+      {ideaOpen && (
+        <div className="lc-fan-overlay" onClick={() => setIdeaOpen(false)}>
+          <div className="lc-idea-box" onClick={(e) => e.stopPropagation()}>
+            <span className="label">Ideia rápida</span>
+            <textarea
+              autoFocus
+              rows={2}
+              value={ideaText}
+              onChange={(e) => setIdeaText(e.target.value)}
+              placeholder="Anota a sacada (curtinho)…"
+            />
+            <div className="lc-idea-actions">
+              <button type="button" className="ghost" onClick={() => { setIdeaText(""); setIdeaOpen(false); }}>
+                Cancelar
+              </button>
+              <button type="button" className="primary" onClick={saveIdea}>
+                Salvar
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -741,8 +786,9 @@ export function Foco() {
     });
   }
 
-  /** Registra um marcador de UM TOQUE (ponto fraco/momento/ideia). */
-  function addMarker(kind: MarkerKind, tipo?: WeakType | StrongType) {
+  /** Registra um marcador de UM TOQUE (ponto fraco/momento/ideia). A ideia pode
+      vir com uma breve nota digitada na hora (os demais descrevem no PC). */
+  function addMarker(kind: MarkerKind, tipo?: WeakType | StrongType, note?: string) {
     if (phase !== "running" || !sessionIdRef.current) return;
     const atMs = computeElapsed();
     const next = [...markersRef.current, { id: crypto.randomUUID(), kind, tipo, atMs }];
@@ -751,7 +797,7 @@ export function Foco() {
     persist();
     void haptic(kind === "moment" ? "heavy" : "light");
     // Vira captura durável (fila offline) já com o id da sessão + timestamp; a
-    // descrição é preenchida depois no PC. NÃO descreve no set.
+    // descrição é preenchida depois no PC (exceto a nota rápida da ideia).
     const captureKind = kind === "weak" ? "weak_point" : kind === "moment" ? "moment" : "focus_idea";
     void enqueueCapture(captureKind, {
       focus_session_id: sessionIdRef.current,
@@ -759,6 +805,7 @@ export function Foco() {
       at_ms: atMs,
       gig_id: null,
       ...(tipo ? { tipo } : {}),
+      ...(note ? { note } : {}),
     });
   }
 
