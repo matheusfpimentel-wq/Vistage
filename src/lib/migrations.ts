@@ -1660,7 +1660,7 @@ const MIGRATIONS: Migration[] = [
   },
   {
     version: 112,
-    description: "classes.title — título da aula, usado como referência principal (na view e no mapa mental) em vez da matéria.",
+    description: "classes.title — título da aula, usado como referência principal (na view) em vez da matéria.",
     sql: `ALTER TABLE classes ADD COLUMN title TEXT;`,
   },
   {

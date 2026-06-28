@@ -64,9 +64,6 @@ const TodayPage = lazy(() =>
 const MonthlyReportPage = lazy(() =>
   import("@/modules/dashboard/MonthlyReportPage").then((m) => ({ default: m.MonthlyReportPage }))
 );
-const MindMapPage = lazy(() =>
-  import("@/modules/dashboard/MindMapPage").then((m) => ({ default: m.MindMapPage }))
-);
 const GigsPage = lazy(() =>
   import("@/modules/gigs/GigsPage").then((m) => ({ default: m.GigsPage }))
 );
@@ -466,7 +463,6 @@ function RoutedApp() {
             <Route index element={<DashboardPage />} />
             <Route path="hoje" element={<TodayPage />} />
             <Route path="relatorio" element={<MonthlyReportPage />} />
-            <Route path="mapa" element={<MindMapPage />} />
             <Route path="relacionamento" element={<RelacionamentoDashboard />} />
             <Route path="criacao" element={<CriacaoDashboard />} />
             <Route path="gestao" element={<GestaoDashboard />} />
