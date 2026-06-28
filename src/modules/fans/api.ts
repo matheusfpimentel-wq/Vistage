@@ -624,6 +624,7 @@ export async function createFanGroup(input: FanGroupCreateInput): Promise<number
     `INSERT INTO fan_groups (name, whatsapp_group, origin, notes) VALUES ($1, $2, $3, $4)`,
     [input.name, input.whatsapp_group, input.origin, input.notes]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -638,11 +639,13 @@ export async function updateFanGroup(input: FanGroupUpdateInput): Promise<void> 
     `UPDATE fan_groups SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteFanGroup(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fan_groups WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function listFanGroupMembers(groupId: number): Promise<FanGroupMember[]> {
@@ -651,6 +654,31 @@ export async function listFanGroupMembers(groupId: number): Promise<FanGroupMemb
     "SELECT * FROM fan_group_members WHERE group_id = $1 ORDER BY id ASC",
     [groupId]
   );
+}
+
+/**
+ * Mapa fã → grupos a que pertence (multi-grupo: um fã pode estar em vários).
+ * Junta fan_group_members (só membros com fan_id) com fan_groups, agrupando por
+ * fan_id. Usado pela lista de fãs (chips de grupo + visão agrupada em pastas).
+ */
+export async function listFanGroupMap(): Promise<Map<number, { id: number; name: string }[]>> {
+  const db = getDb();
+  const rows = await db
+    .select<{ fan_id: number; group_id: number; group_name: string }[]>(
+      `SELECT m.fan_id AS fan_id, g.id AS group_id, g.name AS group_name
+         FROM fan_group_members m
+         JOIN fan_groups g ON g.id = m.group_id
+        WHERE m.fan_id IS NOT NULL
+        ORDER BY g.name COLLATE NOCASE ASC`
+    )
+    .catch(() => [] as { fan_id: number; group_id: number; group_name: string }[]);
+  const map = new Map<number, { id: number; name: string }[]>();
+  for (const r of rows) {
+    const arr = map.get(r.fan_id) ?? [];
+    arr.push({ id: r.group_id, name: r.group_name });
+    map.set(r.fan_id, arr);
+  }
+  return map;
 }
 
 export async function addFanGroupMember(
@@ -664,11 +692,33 @@ export async function addFanGroupMember(
     "INSERT INTO fan_group_members (group_id, fan_id, name, notes) VALUES ($1, $2, $3, $4)",
     [groupId, fanId, name, notes]
   );
+  emitDataChanged();
+}
+
+/**
+ * Adiciona um fã a um grupo só se ainda não estiver nele (multi-grupo: o fã pode
+ * pertencer a vários, então isto NÃO remove de outros). Idempotente: retorna
+ * false se já era membro (nada inserido). Usado pelo arrastar-fã→pasta da lista.
+ */
+export async function addFanToGroupIfAbsent(groupId: number, fanId: number): Promise<boolean> {
+  const db = getDb();
+  const existing = await db.select<{ id: number }[]>(
+    "SELECT id FROM fan_group_members WHERE group_id = $1 AND fan_id = $2 LIMIT 1",
+    [groupId, fanId]
+  );
+  if (existing[0]) return false;
+  await db.execute(
+    "INSERT INTO fan_group_members (group_id, fan_id, name, notes) VALUES ($1, $2, NULL, NULL)",
+    [groupId, fanId]
+  );
+  emitDataChanged();
+  return true;
 }
 
 export async function removeFanGroupMember(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fan_group_members WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== Listas (lista da casa pra mandar antes da GIG) =====

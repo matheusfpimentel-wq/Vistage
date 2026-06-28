@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import {
   Bookmark,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
+  FolderPlus,
   Gift,
   Heart,
   LayoutGrid,
@@ -16,7 +18,19 @@ import {
   Settings2,
   Trash2,
   User,
+  Users,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonCards } from "@/components/shared/Skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -45,11 +59,13 @@ import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
+  addFanToGroupIfAbsent,
   createFanGroup,
   deleteFan,
   deleteFanGroup,
   deleteFanSegment,
   getFan,
+  listFanGroupMap,
   listFanGroupMembers,
   listFanGroups,
   listFanInteractionCounts,
@@ -69,6 +85,7 @@ import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
@@ -150,6 +167,8 @@ export function FansPage() {
   const [loading, setLoading] = useState(true);
   const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
   const [perkCounts, setPerkCounts] = useState<Map<number, number>>(new Map());
+  // Mapa fã→grupos (multi-grupo): chips na lista + visão agrupada em pastas.
+  const [groupMap, setGroupMap] = useState<Map<number, { id: number; name: string }[]>>(new Map());
   const [filters, setFilters] = useState<RosterFilters>({ ...EMPTY_FILTERS });
   // Dados auxiliares dos dropdowns de filtro (carregados uma vez).
   const [groups, setGroups] = useState<FanGroup[]>([]);
@@ -164,6 +183,23 @@ export function FansPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useModuleView<ViewMode>("fans", "list");
+  // "Agrupar por grupo" → visão de pastas colapsáveis. Preferência da máquina
+  // (localStorage), no mesmo espírito do useModuleView; não viaja no .vistage.
+  const [groupBy, setGroupBy] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("vistage.fans.groupBy") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleGroupBy = useCallback((on: boolean) => {
+    setGroupBy(on);
+    try {
+      localStorage.setItem("vistage.fans.groupBy", on ? "1" : "0");
+    } catch {
+      /* storage indisponível */
+    }
+  }, []);
   // "Próximas ações" (valor "hoje") é a aba PADRÃO do Clube de Fãs.
   const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "config">("hoje");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
@@ -173,6 +209,7 @@ export function FansPage() {
     { id: "name", width: 240, min: 140 },
     { id: "level", width: 120 },
     { id: "city", width: 150 },
+    { id: "group", width: 160 },
     { id: "contact", width: 180 },
     { id: "last", width: 160 },
     { id: "interactions", width: 110 },
@@ -194,14 +231,18 @@ export function FansPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, counts, perks] = await Promise.all([
+      const [data, counts, perks, gmap, gs] = await Promise.all([
         listFans(queryFilters),
         listFanInteractionCounts().catch(() => new Map<number, number>()),
         listFanPerkCounts().catch(() => new Map<number, number>()),
+        listFanGroupMap().catch(() => new Map<number, { id: number; name: string }[]>()),
+        listFanGroups().catch(() => [] as FanGroup[]),
       ]);
       setFans(data);
       setInteractionCounts(counts);
       setPerkCounts(perks);
+      setGroupMap(gmap);
+      setGroups(gs);
     } catch (e) {
       toast.error(`Erro ao carregar fãs: ${String(e)}`);
     } finally {
@@ -247,6 +288,34 @@ export function FansPage() {
       await refresh();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  /** Cria um grupo na hora (sem sair da lista) e atualiza pastas/chips. */
+  async function handleCreateGroupInline(name: string) {
+    const nome = name.trim();
+    if (!nome) return;
+    try {
+      await createFanGroup({ name: nome, whatsapp_group: null, origin: null, notes: null });
+      await refresh();
+      toast.success(`Grupo "${nome}" criado`);
+    } catch (e) {
+      toast.error(`Erro ao criar grupo: ${String(e)}`);
+    }
+  }
+
+  /**
+   * Soltar um fã numa pasta de grupo: ADICIONA ao grupo (multi-grupo — NÃO remove
+   * de outros). Idempotente: se já for membro, não duplica.
+   */
+  async function handleDropFanOnGroup(fanId: number, group: { id: number; name: string }) {
+    try {
+      const added = await addFanToGroupIfAbsent(group.id, fanId);
+      await refresh();
+      if (added) toast.success(`Adicionado ao grupo ${group.name}`);
+      else toast.info(`Já estava no grupo ${group.name}`);
+    } catch (e) {
+      toast.error(`Erro ao adicionar ao grupo: ${String(e)}`);
     }
   }
 
@@ -404,6 +473,26 @@ export function FansPage() {
         />
       </div>
 
+      {/* Agrupar por grupo (visão de pastas) + criar grupo na hora. Multi-grupo:
+          arrastar um fã pra uma pasta ADICIONA ao grupo, sem remover dos outros. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={groupBy ? "secondary" : "outline"}
+          size="sm"
+          className="gap-1.5"
+          onClick={() => toggleGroupBy(!groupBy)}
+          aria-pressed={groupBy}
+        >
+          <Users className="h-4 w-4" /> Agrupar por grupo
+        </Button>
+        <NewGroupInline onCreate={handleCreateGroupInline} />
+        {groupBy && (
+          <p className="text-xs text-muted-foreground">
+            Arraste um fã para uma pasta para adicioná-lo ao grupo.
+          </p>
+        )}
+      </div>
+
       {loading ? (
         <SkeletonCards />
       ) : fans.length === 0 ? (
@@ -421,6 +510,20 @@ export function FansPage() {
             </Button>
           }
         />
+      ) : groupBy ? (
+        <PendingTasksProvider entityType="fan">
+          <GroupedFansView
+            fans={sortedFans}
+            groups={groups}
+            groupMap={groupMap}
+            view={view}
+            interactionCounts={interactionCounts}
+            perkCounts={perkCounts}
+            onOpen={openDetail}
+            onDelete={(f) => void handleDelete(f)}
+            onDropFanOnGroup={(fanId, g) => void handleDropFanOnGroup(fanId, g)}
+          />
+        </PendingTasksProvider>
       ) : view === "cards" ? (
         <PendingTasksProvider entityType="fan">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -430,6 +533,7 @@ export function FansPage() {
               fan={f}
               interactionCount={interactionCounts.get(f.id) ?? 0}
               perkCount={perkCounts.get(f.id) ?? 0}
+              groups={groupMap.get(f.id) ?? []}
               onOpen={() => openDetail(f)}
               onEdit={() => openDetail(f)}
               onDelete={() => void handleDelete(f)}
@@ -456,6 +560,7 @@ export function FansPage() {
                 <SortableHeader<Fan> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("city")} />
                 </SortableHeader>
+                <th className="relative px-3 py-2 text-left">Grupo<ColResizer {...cols.resizer("group")} /></th>
                 <th className="relative px-3 py-2 text-left">Contato<ColResizer {...cols.resizer("contact")} /></th>
                 <SortableHeader<Fan> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("last")} />
@@ -484,6 +589,9 @@ export function FansPage() {
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {f.city ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <FanGroupChips groups={groupMap.get(f.id) ?? []} />
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {f.instagram ?? f.email ?? f.phone ?? "—"}
@@ -845,6 +953,7 @@ function FanCard({
   fan: f,
   interactionCount,
   perkCount,
+  groups,
   onOpen,
   onEdit,
   onDelete,
@@ -852,6 +961,7 @@ function FanCard({
   fan: Fan;
   interactionCount: number;
   perkCount: number;
+  groups: { id: number; name: string }[];
   onOpen: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -924,6 +1034,7 @@ function FanCard({
           )}
         </div>
         <div className="text-xs text-muted-foreground">{f.city ?? "—"}</div>
+        {groups.length > 0 && <FanGroupChips groups={groups} />}
         {last && (
           <div className="text-[11px] text-muted-foreground">
             Último contato:{" "}
@@ -936,6 +1047,429 @@ function FanCard({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Chips dos grupos a que um fã pertence (multi-grupo). Mostra até `max` chips e,
+ * se houver mais, um "+N". Discreto: pensado pra célula da lista e pro card.
+ */
+function FanGroupChips({
+  groups,
+  max = 3,
+}: {
+  groups: { id: number; name: string }[];
+  max?: number;
+}) {
+  if (groups.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  const shown = groups.slice(0, max);
+  const extra = groups.length - shown.length;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {shown.map((g) => (
+        <Badge
+          key={g.id}
+          variant="secondary"
+          className="max-w-[140px] truncate px-1.5 py-0 text-[11px] font-normal"
+          title={g.name}
+        >
+          {g.name}
+        </Badge>
+      ))}
+      {extra > 0 && (
+        <Badge
+          variant="outline"
+          className="px-1.5 py-0 text-[11px] font-normal text-muted-foreground"
+          title={groups.slice(max).map((g) => g.name).join(", ")}
+        >
+          +{extra}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Criar grupo inline (sem sair da lista): botão "Novo grupo" que abre um input
+ * curtinho ali do lado; Enter cria, Esc cancela. Usa `createFanGroup` via callback.
+ */
+function NewGroupInline({ onCreate }: { onCreate: (name: string) => void | Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  async function submit() {
+    const nome = name.trim();
+    if (!nome) return;
+    await onCreate(nome);
+    setName("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+        <FolderPlus className="h-4 w-4" /> Novo grupo
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        ref={inputRef}
+        className="h-8 w-44"
+        placeholder="Nome do grupo"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+          else if (e.key === "Escape") { setName(""); setOpen(false); }
+        }}
+      />
+      <Button size="sm" className="h-8" onClick={() => void submit()} disabled={!name.trim()}>
+        Criar
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-8"
+        onClick={() => { setName(""); setOpen(false); }}
+      >
+        Cancelar
+      </Button>
+    </div>
+  );
+}
+
+// ── Visão agrupada por grupo (pastas) ────────────────────────────────────────
+// Toggle "Agrupar por grupo" LIGADO: uma pasta colapsável por grupo + "Sem grupo".
+// Multi-grupo: um fã em N grupos aparece em N pastas. As linhas/cards de fã são
+// ARRASTÁVEIS e os cabeçalhos de pasta são DROPÁVEIS — soltar ADICIONA ao grupo
+// (não move/remove de outros). "Sem grupo" não é alvo de drop (ignora).
+
+const NO_GROUP_KEY = "__none__";
+
+type FolderBucket = {
+  /** id do grupo ("__none__" para a pasta "Sem grupo"). */
+  key: string;
+  group: { id: number; name: string } | null;
+  fans: Fan[];
+};
+
+function GroupedFansView({
+  fans,
+  groups,
+  groupMap,
+  view,
+  interactionCounts,
+  perkCounts,
+  onOpen,
+  onDelete,
+  onDropFanOnGroup,
+}: {
+  fans: Fan[];
+  groups: FanGroup[];
+  groupMap: Map<number, { id: number; name: string }[]>;
+  view: ViewMode;
+  interactionCounts: Map<number, number>;
+  perkCounts: Map<number, number>;
+  onOpen: (f: Fan) => void;
+  onDelete: (f: Fan) => void;
+  onDropFanOnGroup: (fanId: number, group: { id: number; name: string }) => void;
+}) {
+  const [activeFanId, setActiveFanId] = useState<number | null>(null);
+  // distance:5 → um clique abre o fã; só um arrasto (>5px) inicia o drag.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  // Colapso por grupo, persistido em localStorage (preferência da máquina).
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem("vistage.fans.groupCollapsed");
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? (parsed as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  });
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem("vistage.fans.groupCollapsed", JSON.stringify(next));
+      } catch {
+        /* storage indisponível */
+      }
+      return next;
+    });
+  }, []);
+
+  // Monta as pastas: uma por grupo (na ordem de `groups`), cada fã aparece em
+  // todas as pastas dos grupos a que pertence; quem não tem grupo cai em "Sem grupo".
+  const buckets = useMemo<FolderBucket[]>(() => {
+    const byGroup = new Map<number, Fan[]>();
+    for (const g of groups) byGroup.set(g.id, []);
+    const noGroup: Fan[] = [];
+    for (const f of fans) {
+      const gs = groupMap.get(f.id) ?? [];
+      if (gs.length === 0) {
+        noGroup.push(f);
+        continue;
+      }
+      for (const g of gs) {
+        const arr = byGroup.get(g.id);
+        if (arr) arr.push(f);
+        else byGroup.set(g.id, [f]); // grupo fora da lista (defensivo)
+      }
+    }
+    const out: FolderBucket[] = groups.map((g) => ({
+      key: String(g.id),
+      group: { id: g.id, name: g.name },
+      fans: byGroup.get(g.id) ?? [],
+    }));
+    out.push({ key: NO_GROUP_KEY, group: null, fans: noGroup });
+    return out;
+  }, [fans, groups, groupMap]);
+
+  const activeFan = activeFanId != null ? fans.find((f) => f.id === activeFanId) ?? null : null;
+
+  function onDragStart(e: DragStartEvent) {
+    setActiveFanId(fanIdFromDragId(e.active.id));
+  }
+  function onDragEnd(e: DragEndEvent) {
+    setActiveFanId(null);
+    const { active, over } = e;
+    if (!over) return;
+    const overKey = String(over.id);
+    if (overKey === NO_GROUP_KEY) return; // soltar em "Sem grupo" não faz nada
+    const bucket = buckets.find((b) => b.key === overKey);
+    if (!bucket?.group) return;
+    onDropFanOnGroup(fanIdFromDragId(active.id), bucket.group);
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveFanId(null)}
+    >
+      <div className="space-y-3">
+        {buckets.map((b) => (
+          <GroupFolder
+            key={b.key}
+            bucket={b}
+            collapsed={!!collapsed[b.key]}
+            onToggle={() => toggleCollapsed(b.key)}
+            view={view}
+            interactionCounts={interactionCounts}
+            perkCounts={perkCounts}
+            groupMap={groupMap}
+            onOpen={onOpen}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+      <DragOverlay>
+        {activeFan ? (
+          <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-sm shadow-lg">
+            <span className="truncate font-medium">{activeFan.name}</span>
+            <LevelBadge level={activeFan.level} />
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+/**
+ * O id de draggable do dnd-kit é COMPOSTO (`${bucketKey}:${fanId}`) pra ser único
+ * quando o MESMO fã aparece em várias pastas (multi-grupo) dentro do mesmo
+ * DndContext — ids repetidos dão comportamento indefinido. Extrai o fanId (último
+ * segmento; o fanId é numérico, então `.pop()` é seguro mesmo se a key tiver ":").
+ */
+function fanIdFromDragId(id: string | number): number {
+  return Number(String(id).split(":").pop());
+}
+
+/** Pasta colapsável (droppable) com os fãs de um grupo (ou "Sem grupo"). */
+function GroupFolder({
+  bucket,
+  collapsed,
+  onToggle,
+  view,
+  interactionCounts,
+  perkCounts,
+  groupMap,
+  onOpen,
+  onDelete,
+}: {
+  bucket: FolderBucket;
+  collapsed: boolean;
+  onToggle: () => void;
+  view: ViewMode;
+  interactionCounts: Map<number, number>;
+  perkCounts: Map<number, number>;
+  groupMap: Map<number, { id: number; name: string }[]>;
+  onOpen: (f: Fan) => void;
+  onDelete: (f: Fan) => void;
+}) {
+  const droppable = bucket.group != null; // "Sem grupo" não recebe drop
+  const { setNodeRef, isOver } = useDroppable({ id: bucket.key, disabled: !droppable });
+  const title = bucket.group ? bucket.group.name : "Sem grupo";
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "overflow-hidden rounded-md border transition-colors",
+        droppable && isOver ? "border-primary bg-primary/5" : "bg-card"
+      )}
+    >
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-muted/40"
+        onClick={onToggle}
+      >
+        {collapsed ? (
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        )}
+        <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className="truncate">{title}</span>
+        <span className="ml-1 rounded-full bg-muted px-1.5 text-xs tabular-nums text-muted-foreground">
+          {bucket.fans.length}
+        </span>
+        {droppable && isOver && (
+          <span className="ml-auto text-xs text-primary">Soltar para adicionar</span>
+        )}
+      </button>
+
+      {!collapsed && (
+        <div className="border-t p-3">
+          {bucket.fans.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              {droppable ? "Arraste fãs para cá." : "Nenhum fã sem grupo."}
+            </p>
+          ) : view === "cards" ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {bucket.fans.map((f) => (
+                <DraggableFan key={f.id} dragId={`${bucket.key}:${f.id}`}>
+                  <FanCard
+                    fan={f}
+                    interactionCount={interactionCounts.get(f.id) ?? 0}
+                    perkCount={perkCounts.get(f.id) ?? 0}
+                    groups={groupMap.get(f.id) ?? []}
+                    onOpen={() => onOpen(f)}
+                    onEdit={() => onOpen(f)}
+                    onDelete={() => onDelete(f)}
+                  />
+                </DraggableFan>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {bucket.fans.map((f) => (
+                <FanGroupedRow
+                  key={f.id}
+                  fan={f}
+                  dragId={`${bucket.key}:${f.id}`}
+                  interactionCount={interactionCounts.get(f.id) ?? 0}
+                  groups={groupMap.get(f.id) ?? []}
+                  onOpen={() => onOpen(f)}
+                  onDelete={() => onDelete(f)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Wrapper arrastável (dnd-kit) para o card de fã na visão de pastas. */
+function DraggableFan({ dragId, children }: { dragId: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn("touch-none", isDragging && "opacity-30")}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Linha compacta e ARRASTÁVEL de fã na visão de pastas (modo lista). */
+function FanGroupedRow({
+  fan: f,
+  dragId,
+  interactionCount,
+  groups,
+  onOpen,
+  onDelete,
+}: {
+  fan: Fan;
+  dragId: string;
+  interactionCount: number;
+  groups: { id: number; name: string }[];
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId });
+  const last = f.last_interaction_at;
+  const daysAgo = last ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000) : null;
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onOpen}
+      className={cn(
+        "group flex cursor-grab touch-none items-center gap-2 rounded-md border bg-background/60 px-2 py-1.5 text-sm transition-colors hover:bg-muted/40 active:cursor-grabbing",
+        isDragging && "opacity-30"
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <FanListAvatar fan={f} />
+      </div>
+      <span className="hidden shrink-0 sm:block">
+        <LevelBadge level={f.level} />
+      </span>
+      <span className="hidden min-w-0 max-w-[40%] shrink md:block">
+        <FanGroupChips groups={groups} max={2} />
+      </span>
+      <span className="hidden w-24 shrink-0 text-xs text-muted-foreground lg:block">
+        {f.city ?? "—"}
+      </span>
+      <span className="hidden w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground lg:block">
+        {interactionCount > 0 ? `${interactionCount} int.` : "—"}
+      </span>
+      <span className="hidden w-16 shrink-0 text-right text-xs text-muted-foreground xl:block">
+        {daysAgo == null ? "—" : daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `${daysAgo}d`}
+      </span>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-7 w-7 shrink-0 opacity-0 transition group-hover:opacity-100"
+        aria-label="Excluir"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+      </Button>
     </div>
   );
 }
