@@ -12,7 +12,6 @@ import {
   PartyPopper,
   RefreshCw,
   Star,
-  Target,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -29,7 +28,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
-import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
 import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
 import { listGigs } from "@/modules/gigs/api";
@@ -46,7 +44,6 @@ import { loadFinanceInsights, type FinanceInsights } from "@/modules/finance/api
 import { listTracks, daysInStage } from "@/modules/music/api";
 import { listParties } from "@/modules/parties/api";
 import { estimatedRevenue, type PartyDeserialized } from "@/modules/parties/types";
-import { listOkrs, currentQuarter, okrProgress, type Okr } from "@/modules/objetivos/api";
 import type { TrackWithProject } from "@/modules/music/types";
 import { trackDisplayName } from "@/modules/music/types";
 import { TRACK_KIND_LABEL } from "@/modules/music/stages";
@@ -90,51 +87,6 @@ function useCollapsed(key: string, defaultOpen = true): [boolean, () => void] {
   return [open, toggle];
 }
 
-function CollapsibleCard({
-  storageKey,
-  icon,
-  title,
-  description,
-  children,
-  defaultOpen = true,
-}: {
-  storageKey: string;
-  icon: React.ReactNode;
-  title: string;
-  description?: React.ReactNode;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, toggle] = useCollapsed(storageKey, defaultOpen);
-  return (
-    <Card>
-      <button
-        type="button"
-        onClick={toggle}
-        className="w-full text-left"
-        aria-expanded={open}
-      >
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              {icon}
-              {title}
-            </CardTitle>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                !open && "-rotate-90"
-              )}
-            />
-          </div>
-          {description && <CardDescription>{description}</CardDescription>}
-        </CardHeader>
-      </button>
-      {open && <CardContent className="space-y-3">{children}</CardContent>}
-    </Card>
-  );
-}
-
 // ============================================================
 // Helpers de data
 // ============================================================
@@ -168,7 +120,6 @@ type DashData = {
   weekTasks: Task[];
   tracks: TrackWithProject[];
   parties: PartyDeserialized[];
-  okrs: Okr[];
   classes: ClassSession[];
 };
 
@@ -183,17 +134,16 @@ export function DashboardPage() {
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [gigs, fin, content, weekTasks, tracks, parties, okrs, classes] = await Promise.all([
+      const [gigs, fin, content, weekTasks, tracks, parties, classes] = await Promise.all([
         listGigs(),
         loadFinanceInsights(),
         listContent(),
         listUpcoming(50),
         listTracks(),
         listParties(),
-        listOkrs(),
         listClasses(),
       ]);
-      setData({ gigs, fin, content, weekTasks, tracks, parties, okrs, classes });
+      setData({ gigs, fin, content, weekTasks, tracks, parties, classes });
       setUpdatedAt(new Date());
     } catch (e) {
       console.error("Falha ao carregar o dashboard", e);
@@ -211,7 +161,6 @@ export function DashboardPage() {
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="graficos">Gráficos</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
-          <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
           <TabsTrigger value="career">Carreira em números</TabsTrigger>
         </TabsList>
         <div className="flex items-center gap-2">
@@ -240,7 +189,6 @@ export function DashboardPage() {
 
             <div className="space-y-4">
               <FinancePanel />
-              <OkrPanel okrs={data.okrs} />
             </div>
           </>
         ) : (
@@ -270,10 +218,6 @@ export function DashboardPage() {
 
       <TabsContent value="timeline">
         <CareerTimelinePage />
-      </TabsContent>
-
-      <TabsContent value="metodologias">
-        <MetodologiasPage />
       </TabsContent>
 
       <TabsContent value="career">
@@ -323,7 +267,6 @@ function KpiRow({ data, hidden }: { data: DashData; hidden: Set<string> }) {
         />
       )}
       <EmExecucaoCard data={data} hidden={hidden} />
-      <OkrMiniCard okrs={data.okrs} />
     </div>
   );
 }
@@ -414,36 +357,6 @@ function EmExecucaoCard({ data, hidden }: { data: DashData; hidden: Set<string> 
   );
 }
 
-function OkrMiniCard({ okrs }: { okrs: Okr[] }) {
-  const quarter = currentQuarter();
-  const current = okrs.filter((o) => o.quarter === quarter);
-  const shown = current.length > 0 ? current : okrs;
-
-  const avgPct =
-    shown.length > 0
-      ? Math.round(
-          shown.reduce((s, o) => s + okrProgress(o), 0) / shown.length * 100
-        )
-      : null;
-
-  return (
-    <Link
-      to="/objetivos"
-      className="block h-full glass-panel px-3 py-2 transition hover:border-primary"
-    >
-      <div className="text-xs text-muted-foreground">OKRs</div>
-      <div className="mt-0.5 text-2xl font-semibold tabular-nums text-primary">
-        {avgPct !== null ? `${avgPct}%` : "—"}
-      </div>
-      <div className="mt-1 text-xs text-muted-foreground">
-        {shown.length === 0
-          ? "Sem OKRs"
-          : `${shown.length} objetivo(s) · ${quarter}`}
-      </div>
-    </Link>
-  );
-}
-
 function KpiCard({
   label,
   value,
@@ -531,64 +444,6 @@ function FinancePanel() {
         </CardContent>
       )}
     </Card>
-  );
-}
-
-function OkrPanel({ okrs }: { okrs: Okr[] }) {
-  const quarter = currentQuarter();
-  const current = okrs.filter((o) => o.quarter === quarter);
-  const shown = current.length > 0 ? current : okrs;
-
-  return (
-    <CollapsibleCard
-      storageKey="okrs"
-      icon={<Target className="h-4 w-4 text-primary" />}
-      title="OKRs"
-      description={
-        shown.length === 0
-          ? "Nenhum OKR cadastrado."
-          : `${shown.length} objetivo(s) · ${quarter}`
-      }
-      defaultOpen={false}
-    >
-      {shown.length === 0 ? (
-        <Link
-          to="/objetivos"
-          className="flex items-center justify-center gap-1 rounded-md border border-dashed p-4 text-xs text-muted-foreground transition hover:bg-accent"
-        >
-          <Target className="h-3.5 w-3.5" /> Criar primeiro objetivo
-        </Link>
-      ) : (
-        <div className="space-y-3">
-          {shown.map((o) => {
-            const pct = Math.round(okrProgress(o) * 100);
-            return (
-              <Link
-                key={o.id}
-                to="/objetivos"
-                className="block space-y-1.5 rounded-md border p-3 transition hover:border-primary"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium leading-tight">{o.objective}</span>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    {pct}%
-                  </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-primary/60"
-                    )}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </CollapsibleCard>
   );
 }
 
