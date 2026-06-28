@@ -153,6 +153,37 @@ export function ruleIdForKey(key: string): string {
 }
 
 /**
+ * A que módulo de CRIAÇÃO (rota canônica) cada regra embutida pertence. Ocultar
+ * o módulo no Perfil suprime esses alertas (inclusive os inegociáveis — ocultar
+ * um módulo o some de TODA superfície, não só desativa a regra). Regras fora
+ * deste mapa são do núcleo (tarefas, financeiro, pessoas, objetivos, ideias) e
+ * nunca são afetadas. `id` dinâmico = o mesmo prefixo de `BUILTIN_RULES`.
+ */
+const MODULE_BY_RULE_ID: Record<string, string> = {
+  // GIGs (/gigs)
+  "debriefs-pending": "/gigs",
+  "gigs-unprepared": "/gigs",
+  "gigs-unpaid": "/gigs",
+  "no-upcoming-gigs": "/gigs",
+  // Produção Musical (/musica)
+  "tracks-stalled": "/musica",
+  "funil-producao-vazio": "/musica",
+  "track-standby-overdue-": "/musica",
+  // Conteúdo (/conteudo)
+  "content-stalled": "/conteudo",
+  // Produção de Festas (/festas)
+  "parties-undated": "/festas",
+  "festa-vendas-baixas-": "/festas",
+  "festa-resultado-negativo-": "/festas",
+  "festa-sem-venue-": "/festas",
+  "festa-sem-runsheet-": "/festas",
+  "lote-esgotando-": "/festas",
+  // Aulas (/aulas)
+  "classes-unprepared": "/aulas",
+  "students-low-balance": "/aulas",
+};
+
+/**
  * Ids das regras INEGOCIÁVEIS (cadeado verde — dinheiro/fisco). NÃO podem ser
  * desativadas nem editadas no editor, e o motor nunca as filtra mesmo que um id
  * antigo tenha ficado na lista de desligadas.
@@ -169,13 +200,17 @@ export function isInegociavelRule(id: string): boolean {
 /**
  * Calcula a lista de alertas a partir das estatísticas da semana e de stats
  * extras (opcionais). `disabledRuleIds` remove as regras padrão que o usuário
- * desligou no editor — passado pelos consumidores (lido do cache local). O
- * núcleo segue puro/portátil: mesmas entradas → mesma saída.
+ * desligou no editor — passado pelos consumidores (lido do cache local).
+ * `hiddenModules` (Perfil) suprime os alertas dos módulos de CRIAÇÃO ocultos —
+ * inclusive os inegociáveis, pois ocultar um módulo o some de TODA superfície.
+ * O núcleo segue puro/portátil: mesmas entradas → mesma saída (os consumidores
+ * de cliente passam `getHiddenModules()`; servidor/testes podem omitir).
  */
 export function computeAlerts(
   stats: WeekStats,
   extra?: ExtraStats,
-  disabledRuleIds: string[] = []
+  disabledRuleIds: string[] = [],
+  hiddenModules: Set<string> = new Set()
 ): AlertItem[] {
   const alerts: AlertItem[] = [];
 
@@ -349,6 +384,14 @@ export function computeAlerts(
     result = result.filter((a) => {
       const id = ruleIdForKey(a.key);
       return isInegociavelRule(id) || !disabled.has(id);
+    });
+  }
+  // Perfil: alertas de módulos de CRIAÇÃO ocultos somem por completo — inclusive
+  // os inegociáveis (ocultar um módulo o tira de toda superfície). Núcleo intacto.
+  if (hiddenModules.size > 0) {
+    result = result.filter((a) => {
+      const mod = MODULE_BY_RULE_ID[ruleIdForKey(a.key)];
+      return !mod || !hiddenModules.has(mod);
     });
   }
   return result;

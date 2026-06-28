@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { gigDisplayName } from "@/modules/gigs/displayName";
+import { getHiddenModules } from "./moduleVisibility";
 
 export type SearchHit = {
   kind:
@@ -34,9 +35,11 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   if (!q) return [];
   const db = getDb();
   const like = `%${q}%`;
+  // Módulos ocultos (Perfil) não contribuem resultados — pula a query inteira.
+  const hidden = getHiddenModules();
 
   const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties, libraryTracks, notes] = await Promise.all([
-    db.select<
+    hidden.has("/gigs") ? Promise.resolve([]) : db.select<
       {
         id: number;
         venue_name: string;
@@ -109,7 +112,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
         ORDER BY name LIMIT $2`,
       [like, limit]
     ),
-    db.select<
+    hidden.has("/conteudo") ? Promise.resolve([]) : db.select<
       { id: number; title: string; status: string; format: string | null }[]
     >(
       `SELECT id, title, status, format FROM content
@@ -125,7 +128,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
         ORDER BY heat DESC, updated_at DESC LIMIT $2`,
       [like, limit]
     ),
-    db.select<
+    hidden.has("/aulas") ? Promise.resolve([]) : db.select<
       { id: number; name: string; city: string | null }[]
     >(
       `SELECT id, name, city FROM students
@@ -133,7 +136,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
         ORDER BY name LIMIT $2`,
       [like, limit]
     ),
-    db.select<
+    hidden.has("/musica") ? Promise.resolve([]) : db.select<
       { id: number; title: string; current_stage: string; kind: string }[]
     >(
       `SELECT id, COALESCE(NULLIF(title_final, ''), title_working) AS title,
@@ -143,7 +146,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
         ORDER BY updated_at DESC LIMIT $2`,
       [like, limit]
     ),
-    db.select<
+    hidden.has("/festas") ? Promise.resolve([]) : db.select<
       { id: number; title: string; status: string; date: string | null }[]
     >(
       `SELECT id, title, status, date FROM parties

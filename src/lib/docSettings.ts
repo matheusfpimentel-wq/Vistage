@@ -22,6 +22,7 @@ const PORTABLE_PREFIXES = [
   "vistage.cols.",
   "vistage.filter.",
   "vistage.rules.",
+  "vistage.profile.", // visibilidade de módulos (Perfil) — viaja no .vistage
 ];
 
 function isPortableKey(key: string): boolean {
@@ -64,7 +65,8 @@ export async function hydrateViewPrefsFromDocument(): Promise<void> {
       `SELECT key, value FROM document_settings
         WHERE key LIKE 'vistage.cols.%'
            OR key LIKE 'vistage.filter.%'
-           OR key LIKE 'vistage.rules.%'`
+           OR key LIKE 'vistage.rules.%'
+           OR key LIKE 'vistage.profile.%'`
     );
     for (const r of rows) {
       if (r.value == null) continue;

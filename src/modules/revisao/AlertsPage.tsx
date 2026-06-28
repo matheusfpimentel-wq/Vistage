@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
 import { getDisabledRuleIds } from "./ruleConfig";
+import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "./customRules";
 import { loadPartyFinanceAlerts } from "./partyFinanceAlerts";
 import { filterSnoozed, snoozeAlert } from "./snooze";
@@ -32,7 +33,7 @@ export function AlertsPage() {
         ]);
         setAlerts(
           await filterSnoozed([
-            ...computeAlerts(stats, undefined, getDisabledRuleIds()),
+            ...computeAlerts(stats, undefined, getDisabledRuleIds(), getHiddenModules()),
             ...custom,
             ...partyFin,
           ])

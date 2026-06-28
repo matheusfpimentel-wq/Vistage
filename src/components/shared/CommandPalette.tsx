@@ -27,7 +27,21 @@ import {
 import { globalSearch, KIND_LABEL, type SearchHit } from "@/lib/search";
 import { DEFAULT_NAV, NAV_GROUP_META, NAV_GROUP_ORDER } from "@/lib/nav";
 import { requestNewItemAt, triggerNewItem, triggerQuickCapture } from "@/lib/shortcuts";
+import { useHiddenModules } from "@/lib/moduleVisibility";
 import { cn } from "@/lib/utils";
+
+/**
+ * Mapeia o tipo de um resultado de busca ao módulo de CRIAÇÃO (rota) que pode ser
+ * ocultado no Perfil. Tipos fora deste mapa (contato, tarefa, financeiro, venue,
+ * fornecedor, ideia, fã, música/nota da biblioteca) não são ocultáveis.
+ */
+const HIT_MODULE: Partial<Record<SearchHit["kind"], string>> = {
+  gig: "/gigs",
+  party: "/festas",
+  track: "/musica",
+  content: "/conteudo",
+  student: "/aulas",
+};
 
 /** Ações de criação — "Nova GIG", "Nova tarefa"… abrem o form do módulo. */
 const CREATE_ACTIONS: { label: string; to: string; icon: React.ElementType }[] = [
@@ -84,6 +98,8 @@ export function CommandPalette({ open, onOpenChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  // Perfil: módulos de CRIAÇÃO ocultos somem do "+" (ações de criar) e da busca.
+  const hidden = useHiddenModules();
 
   useEffect(() => {
     if (open) {
@@ -113,7 +129,9 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       },
     ];
     // Criar — abre o form do módulo (navega e abre, ou abre na hora se já lá).
+    // Módulo de CRIAÇÃO oculto não aparece como ação de criar.
     for (const c of CREATE_ACTIONS) {
+      if (hidden.has(c.to)) continue;
       actions.push({
         id: `create-${c.to}`,
         label: c.label,
@@ -140,8 +158,10 @@ export function CommandPalette({ open, onOpenChange }: Props) {
         run: go(meta.to),
       });
     }
-    // Todos os módulos
+    // Todos os módulos — exceto os de CRIAÇÃO ocultos no Perfil (não devem ser
+    // navegáveis pelo "Ir para" da paleta).
     for (const item of DEFAULT_NAV) {
+      if (hidden.has(item.to)) continue;
       actions.push({
         id: `nav-${item.to}`,
         label: `Ir para ${item.label}`,
@@ -150,7 +170,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
       });
     }
     return actions;
-  }, [navigate, onOpenChange, location.pathname]);
+  }, [navigate, onOpenChange, location.pathname, hidden]);
 
   const filteredActions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -170,14 +190,19 @@ export function CommandPalette({ open, onOpenChange }: Props) {
     const t = window.setTimeout(async () => {
       try {
         const result = await globalSearch(query);
-        setHits(result);
+        // Resultados de módulos ocultos não aparecem (a busca já pula a query;
+        // este filtro é a salvaguarda na superfície).
+        setHits(result.filter((h) => {
+          const mod = HIT_MODULE[h.kind];
+          return !mod || !hidden.has(mod);
+        }));
         setActiveIndex(0);
       } finally {
         setLoading(false);
       }
     }, 180);
     return () => window.clearTimeout(t);
-  }, [query, open]);
+  }, [query, open, hidden]);
 
   const grouped = useMemo(() => {
     const groups = new Map<SearchHit["kind"], SearchHit[]>();

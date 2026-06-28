@@ -32,6 +32,7 @@ import {
   type ItemGroups,
   type NavItem,
 } from "@/lib/nav";
+import { useHiddenModules } from "@/lib/moduleVisibility";
 import { useHoverScroll } from "./useHoverScroll";
 
 // Item arrastável — usado só no modo de reordenação. A linha inteira é a alça.
@@ -111,12 +112,20 @@ export function Sidebar({
     updateArrows();
   }, [nav, collapsed, editing, updateArrows]);
 
+  // Perfil: módulos de CRIAÇÃO ocultos somem do menu (filtro de superfície — a
+  // ordem salva NÃO muda; religar restaura o item no lugar). Reativo ao toggle.
+  const hidden = useHiddenModules();
+  const isVisible = useCallback((item: NavItem) => !hidden.has(item.to), [hidden]);
+
   const reorderable = nav.filter((i) => !i.fixed);
   // Lista achatada com os grupos contíguos (na ordem dos grupos) — é a base do
   // sortable único: assim dá pra arrastar suave dentro do grupo E entre grupos.
   const orderedReorderable = NAV_GROUP_ORDER.flatMap((g) =>
     reorderable.filter((i) => i.group === g)
   );
+  // Só os visíveis vão pra tela (em ambos os modos); arrastar/persistir segue na
+  // lista completa, então ocultar não apaga a posição salva do módulo.
+  const visibleOrdered = orderedReorderable.filter(isVisible);
   const activeItem = activeId ? reorderable.find((i) => i.to === activeId) ?? null : null;
 
   async function persist(nextReorderable: NavItem[], nextItemGroups: ItemGroups) {
@@ -201,11 +210,11 @@ export function Sidebar({
             onDragEnd={handleDragEnd}
           >
             <SortableContext
-              items={orderedReorderable.map((i) => i.to)}
+              items={visibleOrdered.map((i) => i.to)}
               strategy={verticalListSortingStrategy}
             >
-              {orderedReorderable.map((item, idx) => {
-                const prev = orderedReorderable[idx - 1];
+              {visibleOrdered.map((item, idx) => {
+                const prev = visibleOrdered[idx - 1];
                 const showHeader = !prev || prev.group !== item.group;
                 return (
                   <Fragment key={item.to}>
@@ -239,7 +248,7 @@ export function Sidebar({
             {/* Grupos temáticos — o cabeçalho leva à dash própria do grupo;
                 o chevron recolhe/expande a seção (estado lembrado). */}
             {NAV_GROUP_ORDER.map((group) => {
-              const items = nav.filter((i) => i.group === group);
+              const items = nav.filter((i) => i.group === group && isVisible(i));
               if (items.length === 0) return null;
               const meta = NAV_GROUP_META[group];
               const isCollapsed = collapsed[group];

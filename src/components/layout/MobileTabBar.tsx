@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { getHiddenModules } from "@/lib/moduleVisibility";
 import { triggerSearch } from "@/lib/shortcuts";
 import { DATA_CHANGED } from "@/lib/events";
 
@@ -31,7 +32,7 @@ export function MobileTabBar() {
       debounceRef.current = setTimeout(async () => {
         try {
           const stats = await loadWeekStats();
-          setCriticalCount(computeAlerts(stats, undefined, getDisabledRuleIds()).filter((a) => a.critical).length);
+          setCriticalCount(computeAlerts(stats, undefined, getDisabledRuleIds(), getHiddenModules()).filter((a) => a.critical).length);
         } catch {
           /* ignore */
         }
