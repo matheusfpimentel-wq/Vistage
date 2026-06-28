@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Loader2, Mic2 } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Loader2, Mic2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,8 +20,8 @@ import { FanInteractionList } from "../components/FanInteractionList";
 import { FanPerksList } from "../components/FanPerksList";
 import { FanQuickActions } from "../components/FanQuickActions";
 import { FanFields } from "./FanFields";
-import { getFan, listGigsForFan, updateFan } from "../api";
-import { listContacts } from "@/modules/crm/api";
+import { getFan, listGigsForFan, setFanContactId, updateFan } from "../api";
+import { createContact, listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import type { Fan, FanCreateInput } from "../types";
 import { formatDate } from "@/lib/format";
@@ -58,6 +58,8 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
   >([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const navigate = useNavigate();
 
   const setState = (updater: (prev: FanCreateInput) => FanCreateInput) =>
     setStateRaw((s) => (s ? updater(s) : s));
@@ -104,6 +106,46 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
     }
   }
 
+  // Conversão manual Fã → Pessoa: cria um contato semeado a partir do fã e guarda
+  // a procedência no fans.contact_id. Sem sync — é um clone pontual.
+  async function handleMakeContact() {
+    if (!fan) return;
+    if (fan.contact_id != null) {
+      const linkedId = fan.contact_id;
+      toast.info("Este fã já está vinculado a um contato.", {
+        action: { label: "Abrir", onClick: () => navigate(`/pessoas?open=${linkedId}`) },
+      });
+      return;
+    }
+    setLinking(true);
+    try {
+      const contactId = await createContact({
+        name: fan.name,
+        types: [],
+        phone: fan.phone,
+        email: fan.email,
+        instagram: fan.instagram,
+        city: fan.city,
+        tags: [],
+        notes: fan.notes,
+        rating: null,
+        follower_count: null,
+        venue_id: null,
+        company: null,
+        photo_path: fan.photo_path,
+      });
+      await setFanContactId(fan.id, contactId);
+      toast.success("Contato criado em Pessoas a partir deste fã.", {
+        action: { label: "Abrir", onClick: () => navigate(`/pessoas?open=${contactId}`) },
+      });
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setLinking(false);
+    }
+  }
+
   if (!fanId) return null;
 
   return (
@@ -118,9 +160,19 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
             <DialogHeader>
               <div className="flex items-start gap-3">
                 <FanPhotoCircle fan={fan} />
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                   <DialogTitle>{fan.name}</DialogTitle>
-                  <LevelBadge level={fan.level} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <LevelBadge level={fan.level} />
+                    {fan.nivel_changed_at && (
+                      <span className="text-xs text-muted-foreground">
+                        no nível {fan.level} desde {formatDate(fan.nivel_changed_at)}
+                      </span>
+                    )}
+                  </div>
+                  {fan.origem && (
+                    <p className="text-xs text-muted-foreground">Origem: {fan.origem}</p>
+                  )}
                 </div>
               </div>
             </DialogHeader>
@@ -136,7 +188,21 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
               <TabsContent value="info" className="space-y-3 pt-2">
                 <FanFields state={state} setState={setState} contacts={contacts} />
 
-                <div className="flex justify-end">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void handleMakeContact()}
+                    disabled={linking}
+                    title="Cria um contato em Pessoas semeado a partir deste fã (sem sincronização)."
+                  >
+                    {linking ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="h-4 w-4" />
+                    )}
+                    Tornar também um contato (em Pessoas)
+                  </Button>
                   <Button size="sm" onClick={handleSave} disabled={saving}>
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     Salvar
