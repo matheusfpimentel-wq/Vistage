@@ -35,6 +35,8 @@ export const CSV_ENTITIES = [
   },
   { key: "work_sessions", label: "Sessões de trabalho", table: "work_sessions" },
   { key: "highlights", label: "Highlights", table: "highlights" },
+  { key: "performance_weak_points", label: "Apresentação — pontos fracos", table: "performance_weak_points" },
+  { key: "performance_moments", label: "Apresentação — momentos", table: "performance_moments" },
   { key: "okrs", label: "OKRs", table: "okrs" },
   { key: "library_tracks", label: "Biblioteca — Músicas", table: "library_tracks" },
   { key: "notes", label: "Biblioteca — Notas", table: "notes" },

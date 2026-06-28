@@ -40,6 +40,10 @@ const TABLES = [
   "equipment",
   "work_sessions",
   "highlights",
+  // Modo Foco ao vivo — marcadores capturados no celular. gig_id → gigs é anulável
+  // (ON DELETE SET NULL) e fica adiado p/ a 2ª passagem (gigs é restaurada depois).
+  "performance_weak_points",
+  "performance_moments",
   "recurring_fests",   // nomes de festas recorrentes salvos (autocomplete) — sem deps
   "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
   "okrs",
@@ -847,6 +851,10 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   note_folders: { parent_id: "note_folders" },
   // setlist: a faixa da biblioteca é anulável (ON DELETE SET NULL preserva o snapshot)
   gig_library_tracks: { library_track_id: "library_tracks" },
+  // Modo Foco ao vivo: gig_id é anulável (ON DELETE SET NULL) e gigs vem depois —
+  // adiado p/ a 2ª passagem, descartando referência órfã em vez de quebrar.
+  performance_weak_points: { gig_id: "gigs" },
+  performance_moments: { gig_id: "gigs" },
 };
 
 export async function restoreBackup(backup: Backup): Promise<{

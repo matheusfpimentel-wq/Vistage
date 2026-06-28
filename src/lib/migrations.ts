@@ -2148,6 +2148,38 @@ const MIGRATIONS: Migration[] = [
       "Festas (de-dup 3b): parties.status_override — 1 quando o usuário fixa o status manualmente (a auto-sugestão para de cobrar). O enum de status ganhou Ideia/Em vendas, mas a coluna status é TEXT livre, então só a UI muda; nenhum valor existente vira inválido.",
     sql: `ALTER TABLE parties ADD COLUMN status_override INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 149,
+    description:
+      "Modo Foco ao vivo (celular→PC): performance_weak_points e performance_moments guardam os marcadores capturados durante a apresentação/sessão (pontos fracos por tipo, momentos marcantes), ligados pela coluna focus_session_id — um UUID gerado no celular. work_sessions.focus_session_id correlaciona a sessão de trabalho ingerida com esses marcadores (a descrição é preenchida depois no PC). gig_id é anulável: hoje o celular manda null, mas o campo já fica pronto pra quando o marcador nascer dentro de uma GIG.",
+    sql: `
+      ALTER TABLE work_sessions ADD COLUMN focus_session_id TEXT;
+      CREATE TABLE IF NOT EXISTS performance_weak_points (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        focus_session_id TEXT,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        tipo TEXT,
+        at_ms INTEGER,
+        at TEXT,
+        descricao TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS performance_moments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        focus_session_id TEXT,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        at_ms INTEGER,
+        at TEXT,
+        descricao TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_perf_weak_session ON performance_weak_points(focus_session_id);
+      CREATE INDEX IF NOT EXISTS idx_perf_weak_gig ON performance_weak_points(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_perf_moment_session ON performance_moments(focus_session_id);
+      CREATE INDEX IF NOT EXISTS idx_perf_moment_gig ON performance_moments(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_work_sessions_focus_sid ON work_sessions(focus_session_id);
+    `,
+  },
 ];
 
 
