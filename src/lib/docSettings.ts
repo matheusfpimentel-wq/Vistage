@@ -1,4 +1,5 @@
 import { getDb } from "./db";
+import { emitDataChanged } from "./events";
 
 /**
  * Preferências de VIEW (qual aba lista/cards, larguras de coluna, filtros) que
@@ -110,4 +111,64 @@ export async function persistViewPrefsToDocument(): Promise<void> {
       /* ignora linha problemática */
     }
   }
+}
+
+// ── Conteúdo do documento (não preferências de view) ──────────────────────────
+// Diferente de persistDocSetting (preferências "soft" de layout, que viajam mas
+// NÃO marcam o documento como sujo), estes helpers são para CONTEÚDO que o
+// usuário edita e espera salvar/levar no arquivo (ex.: SWOT, config do clube de
+// fãs). Gravam em document_settings (viaja no .vistage) E marcam o documento como
+// sujo (ponto alaranjado + aviso ao fechar). Antes esses dados moravam em
+// app_settings (escopo de MÁQUINA): não viajavam e não acionavam o "não salvo".
+
+/**
+ * Lê um valor de CONTEÚDO do documento (document_settings). Se ausente e houver
+ * um valor legado em app_settings (modelo antigo, escopo de máquina), copia-o pro
+ * documento na 1ª leitura (migração preguiçosa, idempotente) e o usa. Retorna
+ * null quando não existe em lugar nenhum.
+ */
+export async function readDocValue(key: string, legacyAppKey?: string): Promise<string | null> {
+  const db = getDb();
+  try {
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM document_settings WHERE key = $1",
+      [key]
+    );
+    if (rows[0]?.value != null) return rows[0].value;
+  } catch {
+    return null; // banco ainda não pronto
+  }
+  if (legacyAppKey) {
+    try {
+      const legacy = await db.select<{ value: string }[]>(
+        "SELECT value FROM app_settings WHERE key = $1",
+        [legacyAppKey]
+      );
+      if (legacy[0]?.value != null) {
+        await db.execute(
+          `INSERT INTO document_settings (key, value, updated_at) VALUES ($1, $2, datetime('now'))
+           ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = datetime('now')`,
+          [key, legacy[0].value]
+        );
+        return legacy[0].value;
+      }
+    } catch {
+      /* sem legado — segue */
+    }
+  }
+  return null;
+}
+
+/**
+ * Grava CONTEÚDO do documento (document_settings, viaja no .vistage) e marca o
+ * documento como sujo. Use para dados que o usuário edita e espera salvar/levar
+ * no arquivo (ex.: SWOT, regras/config do clube de fãs).
+ */
+export async function writeDocValue(key: string, value: string): Promise<void> {
+  await getDb().execute(
+    `INSERT INTO document_settings (key, value, updated_at) VALUES ($1, $2, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = $2, updated_at = datetime('now')`,
+    [key, value]
+  );
+  emitDataChanged();
 }
