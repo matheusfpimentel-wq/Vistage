@@ -123,9 +123,11 @@ const LS_SESSION = "vistage.foco.session";
 
 // Captura ao vivo: marcadores de UM TOQUE durante a sessão. Sem descrição na
 // hora (set barulhento) — só categoria + timestamp na sessão; descreve depois.
+// O acerto (momento) também ganha subtipo, espelhando o erro (ponto fraco).
 type WeakType = "tecnico" | "repertorio" | "postura" | "outra";
+type StrongType = "tecnico" | "repertorio" | "postura" | "conexao";
 type MarkerKind = "weak" | "moment" | "idea";
-type Marker = { id: string; kind: MarkerKind; tipo?: WeakType; atMs: number };
+type Marker = { id: string; kind: MarkerKind; tipo?: WeakType | StrongType; atMs: number };
 
 const WEAK_TYPES: { key: WeakType; label: string }[] = [
   { key: "tecnico", label: "Técnico" },
@@ -133,6 +135,45 @@ const WEAK_TYPES: { key: WeakType; label: string }[] = [
   { key: "postura", label: "Postura" },
   { key: "outra", label: "Outra" },
 ];
+
+const STRONG_TYPES: { key: StrongType; label: string }[] = [
+  { key: "tecnico", label: "Técnico" },
+  { key: "repertorio", label: "Repertório" },
+  { key: "postura", label: "Postura" },
+  { key: "conexao", label: "Conexão" },
+];
+
+// ── Ícones inline (padrão dos vizinhos: viewBox 0 0 24 24, stroke currentColor,
+// strokeWidth 2, linecap/linejoin round). Sem libs, sem emoji. ───────────────
+const MK = { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+/** ERRO — AlertCircle (círculo + linha vertical + ponto). */
+function IcAlert({ size = 24 }: { size?: number }) {
+  return (
+    <svg {...MK} width={size} height={size} aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  );
+}
+/** ACERTO — Flame (chama). */
+function IcFlame({ size = 24 }: { size?: number }) {
+  return (
+    <svg {...MK} width={size} height={size} aria-hidden>
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+    </svg>
+  );
+}
+/** IDEIA — Lightbulb (lâmpada). */
+function IcBulb({ size = 24 }: { size?: number }) {
+  return (
+    <svg {...MK} width={size} height={size} aria-hidden>
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+      <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5.76.76 1.23 1.52 1.41 2.5" />
+    </svg>
+  );
+}
 
 type Persisted = {
   startedAtMs: number;
@@ -400,52 +441,140 @@ function fmtAt(ms: number): string {
 }
 
 /**
- * Grid 2×2 de alvos grandes (posição = categoria, acertável no tato) + 💡Ideia
- * e 🔥Momento. Um toque marca com timestamp e haptic, contagem ao vivo na tela.
- * Sem precisar olhar nem digitar — a descrição vem no debrief/PC.
+ * Captura ao vivo eyes-free: 3 botões REDONDOS de vidro à direita do timer —
+ * ERRO, ACERTO, IDEIA (ícones SVG, sem emoji). ERRO/ACERTO abrem um LEQUE
+ * RADIAL com os 4 subtipos; IDEIA é toque único. Um toque marca com timestamp
+ * e haptic; a descrição vem no debrief/PC.
+ *
+ * Geometria do leque: como a coluna de botões fica à DIREITA, o arco abre
+ * voltado pra DENTRO da tela (esquerda/cima) — ângulos de ~150° a ~250° (medidos
+ * no sentido horário a partir das 3h, com Y pra baixo). Assim os itens caem no
+ * quadrante superior-esquerdo do botão e NUNCA cortam fora da viewport.
  */
-function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: MarkerKind, t?: WeakType) => void }) {
+const FAN_RADIUS = 116; // distância do centro do botão até cada item do leque
+const FAN_START = 152;   // grau do primeiro item (aponta pra cima-esquerda)
+const FAN_END = 248;     // grau do último item (aponta pra baixo-esquerda)
+
+/** Posição (x,y) de um item do leque, relativa ao centro do botão. */
+function fanOffset(i: number, total: number): { x: number; y: number } {
+  const t = total <= 1 ? 0 : i / (total - 1);
+  const deg = FAN_START + (FAN_END - FAN_START) * t;
+  const rad = (deg * Math.PI) / 180;
+  return { x: Math.cos(rad) * FAN_RADIUS, y: Math.sin(rad) * FAN_RADIUS };
+}
+
+type FanKind = "weak" | "moment";
+
+function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: MarkerKind, t?: WeakType | StrongType) => void }) {
+  // Qual leque está aberto (null = fechado). Erro→WEAK_TYPES, acerto→STRONG_TYPES.
+  const [fan, setFan] = useState<FanKind | null>(null);
   const count = (pred: (m: Marker) => boolean) => markers.filter(pred).length;
+  const errors = count((m) => m.kind === "weak");
+  const hits = count((m) => m.kind === "moment");
   const ideas = count((m) => m.kind === "idea");
-  const moments = count((m) => m.kind === "moment");
+
+  // Seleciona um subtipo no leque: marca + fecha (o haptic vem do onMark).
+  function pick(tipo: WeakType | StrongType) {
+    if (!fan) return;
+    onMark(fan, tipo);
+    setFan(null);
+  }
+
+  const options = fan === "weak" ? WEAK_TYPES : STRONG_TYPES;
+
   return (
     <section className="live-capture">
       <span className="label">Registro ao vivo — um toque</span>
-      <div className="lc-grid">
-        {WEAK_TYPES.map((w) => {
-          const n = count((m) => m.kind === "weak" && m.tipo === w.key);
-          return (
-            <button
-              key={w.key}
-              type="button"
-              className="lc-cell"
-              onClick={() => onMark("weak", w.key)}
-              aria-label={`Registrar erro: ${w.label}${n ? ` (${n} nesta sessão)` : ""}`}
-            >
-              <span className="lc-label">{w.label}</span>
-              {n > 0 && <span className="lc-count">×{n}</span>}
-            </button>
-          );
-        })}
-      </div>
-      <div className="lc-row">
-        <button type="button" className="lc-pill lc-idea" onClick={() => onMark("idea")}>
-          💡 Ideia{ideas > 0 ? ` ×${ideas}` : ""}
+      <div className="lc-round-col">
+        <button
+          type="button"
+          className="glass-round lc-round lc-round-err"
+          onClick={() => setFan((f) => (f === "weak" ? null : "weak"))}
+          aria-label={`Registrar erro${errors ? ` (${errors} nesta sessão)` : ""}`}
+          aria-expanded={fan === "weak"}
+        >
+          <IcAlert />
+          {errors > 0 && <span className="lc-badge">×{errors}</span>}
         </button>
-        <button type="button" className="lc-pill lc-moment" onClick={() => onMark("moment")}>
-          🔥 Momento{moments > 0 ? ` ×${moments}` : ""}
+        <button
+          type="button"
+          className="glass-round lc-round lc-round-hit"
+          onClick={() => setFan((f) => (f === "moment" ? null : "moment"))}
+          aria-label={`Registrar acerto${hits ? ` (${hits} nesta sessão)` : ""}`}
+          aria-expanded={fan === "moment"}
+        >
+          <IcFlame />
+          {hits > 0 && <span className="lc-badge">×{hits}</span>}
+        </button>
+        <button
+          type="button"
+          className="glass-round lc-round lc-round-idea"
+          onClick={() => onMark("idea")}
+          aria-label={`Registrar ideia${ideas ? ` (${ideas} nesta sessão)` : ""}`}
+        >
+          <IcBulb />
+          {ideas > 0 && <span className="lc-badge">×{ideas}</span>}
         </button>
       </div>
       <p className="muted lc-hint">Marca agora (sem descrever) — você detalha no debrief ou no PC.</p>
+
+      {/* Overlay de tela cheia: fundo embaçado/escurecido + leque radial.
+          Tocar fora (no overlay) fecha; o botão central também alterna. */}
+      {fan && (
+        <div className="lc-fan-overlay" onClick={() => setFan(null)}>
+          <div
+            className={"lc-fan lc-fan-" + fan}
+            onClick={(e) => e.stopPropagation()}
+            role="menu"
+            aria-label={fan === "weak" ? "Tipo de erro" : "Tipo de acerto"}
+          >
+            <button
+              type="button"
+              className={"glass-round lc-fan-center " + (fan === "weak" ? "lc-round-err" : "lc-round-hit")}
+              onClick={() => setFan(null)}
+              aria-label="Fechar"
+            >
+              {fan === "weak" ? <IcAlert /> : <IcFlame />}
+            </button>
+            {options.map((o, i) => {
+              const { x, y } = fanOffset(i, options.length);
+              return (
+                <button
+                  key={o.key}
+                  type="button"
+                  role="menuitem"
+                  className="lc-fan-item"
+                  style={{
+                    // posição final do item (offset do centro) + delay escalonado
+                    // pra "abrir em leque" (cada item entra um pouco depois).
+                    ["--fx" as string]: `${x}px`,
+                    ["--fy" as string]: `${y}px`,
+                    animationDelay: `${i * 45}ms`,
+                  }}
+                  onClick={() => pick(o.key)}
+                  aria-label={o.label}
+                >
+                  {o.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
-/** Pré-preenche o debrief: o que foi marcado ao vivo, com o minuto no set. */
+/** Pré-preenche o debrief: o que foi marcado ao vivo, com o minuto no set.
+    Quebra erro E acerto por subtipo (espelhados); ícones SVG, sem emoji. */
 function MarkerSummary({ markers }: { markers: Marker[] }) {
   const weak = WEAK_TYPES.map((w) => ({
     label: w.label,
     n: markers.filter((m) => m.kind === "weak" && m.tipo === w.key).length,
+  })).filter((x) => x.n > 0);
+  const strong = STRONG_TYPES.map((s) => ({
+    label: s.label,
+    n: markers.filter((m) => m.kind === "moment" && m.tipo === s.key).length,
   })).filter((x) => x.n > 0);
   const moments = markers.filter((m) => m.kind === "moment");
   const ideas = markers.filter((m) => m.kind === "idea");
@@ -453,13 +582,24 @@ function MarkerSummary({ markers }: { markers: Marker[] }) {
     <div className="card marker-summary">
       <span className="label">Você marcou nesta sessão</span>
       {weak.length > 0 && (
-        <p className="ms-line">⚑ Pontos fracos: {weak.map((w) => `${w.label} ×${w.n}`).join(" · ")}</p>
+        <p className="ms-line">
+          <span className="ms-ic ms-ic-err"><IcAlert size={16} /></span>
+          Pontos fracos: {weak.map((w) => `${w.label} ×${w.n}`).join(" · ")}
+        </p>
       )}
       {moments.length > 0 && (
-        <p className="ms-line">🔥 Momentos: {moments.length} · {moments.map((m) => fmtAt(m.atMs)).join(", ")}</p>
+        <p className="ms-line">
+          <span className="ms-ic ms-ic-hit"><IcFlame size={16} /></span>
+          Acertos: {moments.length}
+          {strong.length > 0 ? ` · ${strong.map((s) => `${s.label} ×${s.n}`).join(" · ")}` : ""}
+          {` · ${moments.map((m) => fmtAt(m.atMs)).join(", ")}`}
+        </p>
       )}
       {ideas.length > 0 && (
-        <p className="ms-line">💡 Ideias: {ideas.length} · {ideas.map((m) => fmtAt(m.atMs)).join(", ")}</p>
+        <p className="ms-line">
+          <span className="ms-ic ms-ic-idea"><IcBulb size={16} /></span>
+          Ideias: {ideas.length} · {ideas.map((m) => fmtAt(m.atMs)).join(", ")}
+        </p>
       )}
       <p className="muted ms-hint">Já capturados — descreva cada um no PC, na revisão do GIG.</p>
     </div>
@@ -534,7 +674,7 @@ export function Foco() {
   }
 
   /** Registra um marcador de UM TOQUE (ponto fraco/momento/ideia). */
-  function addMarker(kind: MarkerKind, tipo?: WeakType) {
+  function addMarker(kind: MarkerKind, tipo?: WeakType | StrongType) {
     if (phase !== "running" || !sessionIdRef.current) return;
     const atMs = computeElapsed();
     const next = [...markersRef.current, { id: crypto.randomUUID(), kind, tipo, atMs }];

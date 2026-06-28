@@ -144,7 +144,7 @@ export function App() {
           {TABS.map((t) => (
             <button
               key={t}
-              className={"tab-tile" + (tab === t ? " active" : "")}
+              className={"glass-round tab-round" + (tab === t ? " active" : "")}
               onClick={() => setTab(t)}
               aria-label={TAB_LABEL[t]}
               title={TAB_LABEL[t]}
