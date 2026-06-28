@@ -55,6 +55,8 @@ export type FanFilters = {
   ambassador?: boolean;
   /** Esteve nesta GIG (gig_fans). */
   attendedGigId?: number;
+  /** Já foi VIP em alguma lista (fan_list_members). */
+  wasVip?: boolean;
 };
 
 export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
@@ -105,6 +107,9 @@ export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
   if (filters.attendedGigId) {
     params.push(filters.attendedGigId);
     where.push(`id IN (SELECT fan_id FROM gig_fans WHERE gig_id = $${params.length})`);
+  }
+  if (filters.wasVip === true) {
+    where.push("id IN (SELECT fan_id FROM fan_list_members WHERE fan_id IS NOT NULL)");
   }
 
   const sql =
@@ -747,6 +752,59 @@ export async function removeFanListMember(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fan_list_members WHERE id = $1", [id]);
   emitDataChanged();
+}
+
+/** Listas VIP (fan_lists) ligadas a uma GIG específica. */
+export async function listFanListsForGig(gigId: number): Promise<FanList[]> {
+  const db = getDb();
+  return db.select<FanList[]>(
+    "SELECT * FROM fan_lists WHERE gig_id = $1 ORDER BY created_at DESC",
+    [gigId]
+  );
+}
+
+/**
+ * GIGs em que um fã é VIP (membro de alguma lista ligada a um gig). Derivado:
+ * junta fan_list_members → fan_lists (com gig_id) → gigs. Read-only.
+ */
+export async function listVipGigsForFan(
+  fanId: number
+): Promise<{ gig_id: number; gig_name: string; list_name: string }[]> {
+  const db = getDb();
+  return db
+    .select<{ gig_id: number; gig_name: string; list_name: string }[]>(
+      `SELECT g.id AS gig_id,
+              COALESCE(NULLIF(g.event_name, ''), g.venue_name) AS gig_name,
+              fl.name AS list_name
+         FROM fan_list_members flm
+         JOIN fan_lists fl ON fl.id = flm.list_id
+         JOIN gigs g ON g.id = fl.gig_id
+        WHERE flm.fan_id = $1 AND fl.gig_id IS NOT NULL
+        ORDER BY g.date DESC NULLS LAST, g.id DESC`,
+      [fanId]
+    )
+    .catch(() => [] as { gig_id: number; gig_name: string; list_name: string }[]);
+}
+
+/**
+ * Visão derivada "Fãs que já foram VIP": cada fã (com cadastro, fan_id não nulo)
+ * que é membro de alguma lista VIP, com a contagem de listas. Read-only.
+ */
+export async function listVipFansDerived(): Promise<
+  { fan_id: number; name: string; level: FanLevel; lists: number }[]
+> {
+  const db = getDb();
+  return db
+    .select<{ fan_id: number; name: string; level: FanLevel; lists: number }[]>(
+      `SELECT f.id AS fan_id, f.name AS name, f.level AS level,
+              COUNT(DISTINCT flm.list_id) AS lists
+         FROM fan_list_members flm
+         JOIN fans f ON f.id = flm.fan_id
+        WHERE flm.fan_id IS NOT NULL
+        GROUP BY f.id, f.name, f.level
+        ORDER BY f.name COLLATE NOCASE ASC`
+    )
+    .catch(() => [] as { fan_id: number; name: string; level: FanLevel; lists: number }[]);
 }
 
 // ===== GIG presence (gig_fans) =====
