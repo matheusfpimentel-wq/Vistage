@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  BarChart3,
   BookOpen,
   CalendarClock,
   ChevronDown,
@@ -27,6 +28,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
 import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
@@ -53,6 +61,7 @@ import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
 import { formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
 import { useHiddenModules } from "@/lib/moduleVisibility";
+import type { ChartPeriod } from "@/modules/dashboard/charts";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -61,7 +70,8 @@ const FinanceDashboard = lazy(() =>
   }))
 );
 
-// Aba de gráficos (também usa recharts): carrega só quando aberta.
+// Seção de gráficos (também usa recharts): o chunk charts-vendor só carrega
+// quando a seção da visão geral renderiza, sem bloquear o paint inicial.
 const ChartsTab = lazy(() =>
   import("@/modules/dashboard/views/ChartsTab").then((m) => ({
     default: m.ChartsTab,
@@ -159,7 +169,6 @@ export function DashboardPage() {
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
-          <TabsTrigger value="graficos">Gráficos</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
           <TabsTrigger value="career">Carreira em números</TabsTrigger>
         </TabsList>
@@ -190,6 +199,8 @@ export function DashboardPage() {
             <div className="space-y-4">
               <FinancePanel />
             </div>
+
+            <ChartsSection />
           </>
         ) : (
           <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
@@ -204,18 +215,6 @@ export function DashboardPage() {
         </p>
       </TabsContent>
 
-      <TabsContent value="graficos">
-        <Suspense
-          fallback={
-            <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
-              Carregando gráficos…
-            </div>
-          }
-        >
-          <ChartsTab />
-        </Suspense>
-      </TabsContent>
-
       <TabsContent value="timeline">
         <CareerTimelinePage />
       </TabsContent>
@@ -224,6 +223,60 @@ export function DashboardPage() {
         <CareerWrappedPage />
       </TabsContent>
     </Tabs>
+  );
+}
+
+// ============================================================
+// Seção de gráficos (dentro da visão geral) + seletor de período
+// ============================================================
+
+const CHART_PERIOD_LABEL: Record<ChartPeriod, string> = {
+  mes: "Mês",
+  ano: "Ano",
+  ytd: "YTD",
+  tudo: "Todo o período",
+};
+
+function ChartsSection() {
+  // O seletor controla SÓ os gráficos — KPIs/cards da visão geral seguem no mês.
+  const [period, setPeriod] = useState<ChartPeriod>("ano");
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <BarChart3 className="h-4 w-4 text-primary" />
+            Gráficos
+          </CardTitle>
+          <Select value={period} onValueChange={(v) => setPeriod(v as ChartPeriod)}>
+            <SelectTrigger className="h-9 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(CHART_PERIOD_LABEL) as ChartPeriod[]).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {CHART_PERIOD_LABEL[p]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Lazy + Suspense: o chunk do recharts (charts-vendor) só carrega/stream
+            quando a seção renderiza, sem bloquear o paint inicial da visão geral. */}
+        <Suspense
+          fallback={
+            <div className="rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">
+              Carregando gráficos…
+            </div>
+          }
+        >
+          <ChartsTab period={period} />
+        </Suspense>
+      </CardContent>
+    </Card>
   );
 }
 

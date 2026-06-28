@@ -11,23 +11,24 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
-import { loadMonthlyCharts, type MonthlyChartPoint } from "../charts";
+import { loadMonthlyCharts, type ChartPeriod, type MonthlyChartPoint } from "../charts";
 
 type Series = { key: keyof MonthlyChartPoint; name: string; color: string };
 
-/** Gráficos de linha mês a mês (12 meses) das métricas do negócio. */
-export function ChartsTab() {
+/** Gráficos de linha mês a mês das métricas do negócio, no período escolhido. */
+export function ChartsTab({ period }: { period: ChartPeriod }) {
   const [data, setData] = useState<MonthlyChartPoint[] | null>(null);
 
+  // Recarrega ao trocar o período (o "tudo" pode variar conforme os dados).
   useEffect(() => {
     let alive = true;
-    void loadMonthlyCharts().then((d) => {
+    void loadMonthlyCharts(period).then((d) => {
       if (alive) setData(d);
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [period]);
 
   if (!data) {
     return (
