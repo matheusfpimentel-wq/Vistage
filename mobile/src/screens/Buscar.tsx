@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
+import { telLink, waLink, mapsLink } from "../links";
 
 type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class";
 type Row = {
@@ -38,9 +39,6 @@ const KIND_LABEL: Record<string, string> = {
 };
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-function wa(phone: unknown): string | null {
-  return typeof phone === "string" && phone.trim() ? `https://wa.me/${phone.replace(/\D/g, "")}` : null;
-}
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v : null;
 }
@@ -54,11 +52,30 @@ export function Buscar() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [online, setOnline] = useState(navigator.onLine);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Busca lê o relay (Supabase) — offline ela trava. Acompanha o estado da rede
+  // pra avisar em vez de ficar girando.
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const load = useCallback(async () => {
     const t = term.trim().toLowerCase();
     if (!category || !t) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    if (!navigator.onLine) {
       setRows([]);
       setLoading(false);
       return;
@@ -134,6 +151,10 @@ export function Buscar() {
         <p className="muted center-text" style={{ marginTop: "2rem" }}>
           Digite pra buscar em <strong>{CAT_LABEL[category]}</strong>.
         </p>
+      ) : !online ? (
+        <p className="muted center-text" style={{ marginTop: "2rem" }}>
+          📵 A busca precisa de internet. Reconecte e tente de novo.
+        </p>
       ) : loading ? (
         <div className="center">
           <span className="spinner" />
@@ -180,36 +201,35 @@ function Detail({ r }: { r: Row }) {
     if (cache != null) out.push(["Cachê", BRL.format(cache)]);
     if (str(m.promoter_name)) out.push(["Contratante", str(m.promoter_name)]);
     if (str(m.day_contact_name)) {
-      const link = wa(m.day_contact_phone);
+      const tel = telLink(m.day_contact_phone);
+      const wapp = waLink(m.day_contact_phone);
       out.push([
         "Contato do dia",
-        link ? (
-          <a className="link" href={link} target="_blank" rel="noreferrer">
-            {str(m.day_contact_name)} · WhatsApp
-          </a>
-        ) : (
-          str(m.day_contact_name)
-        ),
+        <span className="link-row">
+          {tel ? <a className="link" href={tel}>{str(m.day_contact_name)}</a> : <span>{str(m.day_contact_name)}</span>}
+          {wapp && <a className="link" href={wapp} target="_blank" rel="noreferrer">WhatsApp</a>}
+        </span>,
       ]);
     }
+    const gmap = mapsLink(r.title, str(m.city));
+    if (gmap) out.push(["Endereço", <a className="link" href={gmap} target="_blank" rel="noreferrer">Abrir no Maps</a>]);
   } else if (r.kind === "track") {
     if (num(m.bpm)) out.push(["BPM", String(num(m.bpm))]);
     if (str(m.key)) out.push(["Tom", str(m.key)]);
     if (str(m.genre)) out.push(["Gênero", str(m.genre)]);
     if (str(m.project)) out.push(["Projeto", str(m.project)]);
   } else if (r.kind === "contact") {
-    const link = wa(m.phone);
-    if (str(m.phone))
+    if (str(m.phone)) {
+      const tel = telLink(m.phone);
+      const wapp = waLink(m.phone);
       out.push([
         "Telefone",
-        link ? (
-          <a className="link" href={link} target="_blank" rel="noreferrer">
-            {str(m.phone)} · WhatsApp
-          </a>
-        ) : (
-          str(m.phone)
-        ),
+        <span className="link-row">
+          {tel ? <a className="link" href={tel}>{str(m.phone)}</a> : <span>{str(m.phone)}</span>}
+          {wapp && <a className="link" href={wapp} target="_blank" rel="noreferrer">WhatsApp</a>}
+        </span>,
       ]);
+    }
     if (str(m.email))
       out.push(["Email", <a className="link" href={`mailto:${str(m.email)}`}>{str(m.email)}</a>]);
     if (str(m.instagram)) out.push(["Instagram", str(m.instagram)]);
@@ -218,6 +238,8 @@ function Detail({ r }: { r: Row }) {
     if (num(m.capacity)) out.push(["Capacidade", String(num(m.capacity))]);
     const loc = [str(m.city), str(m.state)].filter(Boolean).join(", ");
     if (loc) out.push(["Local", loc]);
+    const vmap = mapsLink(r.title, str(m.city), str(m.state));
+    if (vmap) out.push(["Mapa", <a className="link" href={vmap} target="_blank" rel="noreferrer">Abrir no Maps</a>]);
   } else if (r.kind === "task") {
     if (str(m.status)) out.push(["Status", str(m.status)]);
     if (str(m.priority)) out.push(["Prioridade", str(m.priority)]);

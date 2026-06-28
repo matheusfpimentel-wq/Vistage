@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { sendCapture } from "../capture";
+import { pendingCount } from "../queue";
 
 type Kind = "highlight" | "task" | "note" | "contact" | "gig";
 const KINDS: { id: Kind; label: string }[] = [
@@ -75,10 +76,13 @@ export function Capturar() {
     setMsg(null);
     try {
       await sendCapture(kind, buildPayload());
-      setMsg("Enviado! Revise no PC pra adicionar ao arquivo.");
       setF(EMPTY);
+      setMsg("Capturado ✓ — sincroniza sozinho.");
+      // Dá um instante pro flush (online) terminar e confirma a subida.
+      await new Promise((r) => setTimeout(r, 700));
+      if ((await pendingCount()) === 0) setMsg("Sincronizado ✓ no PC.");
     } catch (e) {
-      setMsg("Erro: " + ((e as Error).message ?? String(e)));
+      setMsg("Erro ao capturar: " + ((e as Error).message ?? String(e)));
     } finally {
       setBusy(false);
     }
@@ -170,7 +174,7 @@ export function Capturar() {
         </label>
 
         <button className="primary" disabled={busy || !canSend()} onClick={() => void submit()}>
-          {busy ? "Enviando…" : "Enviar pro PC"}
+          {busy ? "Capturando…" : "Capturar"}
         </button>
         {msg && <p className="muted">{msg}</p>}
       </section>

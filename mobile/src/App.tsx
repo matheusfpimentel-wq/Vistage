@@ -28,6 +28,20 @@ const TAB_LABEL: Record<Tab, string> = {
 };
 const TABS: Tab[] = ["hoje", "foco", "brainstorm", "buscar", "tarefas"];
 
+// Atalhos de ícone (long-press no app): ./?go=foco abre direto a aba;
+// ./?go=capturar abre a captura rápida. Lido uma vez no boot.
+function readGo(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get("go");
+  } catch {
+    return null;
+  }
+}
+function initialTab(): Tab {
+  const g = readGo();
+  return g && (TABS as string[]).includes(g) ? (g as Tab) : "hoje";
+}
+
 function PlusIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,8 +53,8 @@ function PlusIcon() {
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
-  const [tab, setTab] = useState<Tab>("hoje");
-  const [capturing, setCapturing] = useState(false);
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [capturing, setCapturing] = useState(() => readGo() === "capturar");
   const [navHidden, setNavHidden] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
   const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });

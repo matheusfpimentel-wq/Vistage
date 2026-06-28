@@ -1,25 +1,38 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { loadStreak } from "../identity";
 import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
+import { telLink, waLink, mapsLink } from "../links";
 
 type Agenda = { id: string; source: string; title: string; start_at: string | null; location: string | null };
 type Contact = { id: string; name: string; reason: string | null; handle: string | null };
-type GigMeta = { date?: string; city?: string | null; cache_amount?: number | null; status?: string | null };
+type StageSlot = { start: string; end: string };
+type GigMeta = {
+  date?: string;
+  city?: string | null;
+  cache_amount?: number | null;
+  status?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  set_periods?: StageSlot[];
+  day_contact_name?: string | null;
+  day_contact_phone?: string | null;
+  promoter_name?: string | null;
+};
 type CatalogGig = { title: string; meta: GigMeta };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-// Frases curtas com gatilho de neurociência (dopamina/hábito/inércia).
-const MOTIVATION = [
-  "Concluir libera dopamina — comece pela tarefa mais fácil e o cérebro pede a próxima.",
-  "Dois minutos vencem a inércia. Depois que começa, continuar é barato.",
-  "Cada GIG fechada reforça a via neural do “eu consigo”. Repita até virar identidade.",
-  "Ambiente molda comportamento: deixe o próximo passo à vista e o atrito some.",
-  "Pequenas vitórias diárias reescrevem o hábito mais que grandes surtos.",
-  "Foco é músculo: 1 bloco hoje deixa o de amanhã mais forte.",
-  "O que você repete, você se torna. Hoje conta pro seu eu de daqui a um ano.",
-];
+// §8: no lugar da neurociência de pôster, um lembrete com DADO REAL (streak,
+// compromissos, contato esfriando, última GIG).
+function realLine(streak: number, upcomingCount: number, cold: Contact | null, lastGig: CatalogGig | null): string {
+  if (streak >= 2) return `🔥 ${streak} dias seguidos de foco — não quebra a corrente hoje.`;
+  if (upcomingCount > 0)
+    return `Você tem ${upcomingCount} compromisso${upcomingCount > 1 ? "s" : ""} à frente. Um passo agora encurta a lista.`;
+  if (cold) return `Faz tempo que você não fala com ${cold.name.split(" ")[0]}. Um "oi" reaquece.`;
+  if (lastGig) return `Última GIG: ${lastGig.title}. Já anotou o que funcionou?`;
+  return "Comece pequeno: um bloco de foco hoje conta pro seu eu de daqui a um ano.";
+}
 
 function localToday(): string {
   const d = new Date();
@@ -75,9 +88,9 @@ export function Hoje({
   const [agenda, setAgenda] = useState<Agenda[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [lastGig, setLastGig] = useState<CatalogGig | null>(null);
+  const [todayGig, setTodayGig] = useState<CatalogGig | null>(null);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
-  const motivation = useMemo(() => MOTIVATION[Math.floor(Math.random() * MOTIVATION.length)], []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -95,6 +108,11 @@ export function Hoje({
       .filter((x) => typeof x.meta?.date === "string" && x.meta.date! <= today && x.meta.status !== "Cancelada")
       .sort((x, y) => (x.meta.date! < y.meta.date! ? 1 : -1));
     setLastGig(gigs[0] ?? null);
+    // GIG de HOJE (se houver) → ativa a variante "dia de GIG" da Home.
+    const todayGigs = ((g.data ?? []) as CatalogGig[])
+      .filter((x) => x.meta?.date === today && x.meta.status !== "Cancelada")
+      .sort((x, y) => (x.meta.start_time ?? "").localeCompare(y.meta.start_time ?? ""));
+    setTodayGig(todayGigs[0] ?? null);
     setStreak(s);
     setLoading(false);
   }, []);
@@ -122,6 +140,7 @@ export function Hoje({
     .filter((i) => i.start_at == null || (localDateOf(i.start_at) ?? "") >= today)
     .slice(0, 10);
   const coldContact = contacts[0] ?? null;
+  const motivation = realLine(streak, upcoming.length, coldContact, lastGig);
 
   function goFocus() {
     try {
@@ -134,6 +153,9 @@ export function Hoje({
 
   return (
     <div className="screen today">
+      {/* §4: variante "dia de GIG" — lidera com a noite. */}
+      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} />}
+
       {/* Topo: streak | grade do dia */}
       <div className="today-top">
         <section className="card today-streak">
@@ -252,6 +274,74 @@ export function Hoje({
         Atualizar
       </button>
     </div>
+  );
+}
+
+/** §4: card-herói do dia de GIG — lidera com a noite (set, cachê, contato, mapa). */
+function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) {
+  const m = gig.meta;
+  const periods =
+    m.set_periods && m.set_periods.length > 0
+      ? m.set_periods
+      : m.start_time
+        ? [{ start: m.start_time, end: m.end_time ?? "" }]
+        : [];
+  const tel = telLink(m.day_contact_phone);
+  const wapp = waLink(m.day_contact_phone);
+  const map = mapsLink(gig.title, m.city);
+  const contactFirst = m.day_contact_name ? m.day_contact_name.split(" ")[0] : null;
+
+  return (
+    <section className="card gig-day">
+      <span className="label">🎧 Hoje você toca</span>
+      <strong className="gig-day-title">{gig.title}</strong>
+      {m.city && <div className="muted gig-day-sub">{m.city}</div>}
+
+      <dl className="gig-day-rows">
+        {periods.length > 0 && (
+          <div>
+            <dt>Set</dt>
+            <dd>{periods.map((p, i) => `${i ? " · " : ""}${p.start || "?"}${p.end ? `–${p.end}` : ""}`).join("")}</dd>
+          </div>
+        )}
+        {typeof m.cache_amount === "number" && m.cache_amount > 0 && (
+          <div>
+            <dt>Cachê</dt>
+            <dd>{BRL.format(m.cache_amount)}</dd>
+          </div>
+        )}
+        {m.promoter_name && (
+          <div>
+            <dt>Contratante</dt>
+            <dd>{m.promoter_name}</dd>
+          </div>
+        )}
+      </dl>
+
+      {(tel || wapp || map) && (
+        <div className="gig-day-actions">
+          {tel && (
+            <a className="gig-act" href={tel}>
+              📞 Ligar{contactFirst ? ` · ${contactFirst}` : ""}
+            </a>
+          )}
+          {wapp && (
+            <a className="gig-act" href={wapp} target="_blank" rel="noreferrer">
+              💬 WhatsApp
+            </a>
+          )}
+          {map && (
+            <a className="gig-act" href={map} target="_blank" rel="noreferrer">
+              📍 Maps
+            </a>
+          )}
+        </div>
+      )}
+
+      <button className="gig-day-focus" onClick={onFocus}>
+        ▶ Ativar Modo Foco
+      </button>
+    </section>
   );
 }
 
