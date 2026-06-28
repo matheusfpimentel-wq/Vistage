@@ -650,16 +650,6 @@ export const useMobileChanges = create<{
   },
 }));
 
-/**
- * Capturas ao vivo do Modo Foco (celular): por enquanto ficam BUFFERIZADAS no
- * capture_inbox (consumed_at = null) até o PR das tabelas dedicadas
- * (performance_weak_points / performance_moments + ideia→ideias). O desktop
- * ainda não as ingere; não as mostramos como "pendentes" pra não poluir a
- * revisão nem tentar ingerir (o que falharia no switch do ingest). Os dados não
- * se perdem — seguem no relay até o PR seguinte processá-los.
- */
-const DEFERRED_CAPTURE_KINDS = new Set(["weak_point", "moment", "focus_idea"]);
-
 export async function fetchPendingCaptures(): Promise<PendingCapture[]> {
   const { data, error } = await supabase
     .from("capture_inbox")
@@ -668,9 +658,7 @@ export async function fetchPendingCaptures(): Promise<PendingCapture[]> {
     .is("discarded_at", null)
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return (data ?? []).filter(
-    (c) => !DEFERRED_CAPTURE_KINDS.has((c as PendingCapture).kind)
-  ) as PendingCapture[];
+  return (data ?? []) as PendingCapture[];
 }
 
 export async function listDiscardedCaptures(): Promise<PendingCapture[]> {
@@ -741,10 +729,13 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
 
   if (kind === "session") {
     const now = new Date().toISOString();
+    // focus_session_id (UUID do celular) liga esta sessão aos marcadores ao vivo
+    // (performance_weak_points/moments). Pode chegar antes OU depois deles — o
+    // vínculo é por esse id, não pela ordem de ingestão.
     await db.execute(
-      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes")]
+      `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes, focus_session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes"), s("focus_session_id")]
     );
   } else if (kind === "highlight" || kind === "note") {
     await db.execute(
@@ -845,6 +836,35 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
         [name.trim()]
       );
     }
+  } else if (kind === "weak_point") {
+    // Ponto fraco marcado AO VIVO no Modo Foco do celular (Técnico/Repertório/
+    // Postura/Outra). A descrição fica vazia — preenchida depois no PC. Ligado à
+    // sessão por focus_session_id; gig_id hoje vem null.
+    await db.execute(
+      `INSERT INTO performance_weak_points (focus_session_id, gig_id, tipo, at_ms, at, descricao)
+       VALUES ($1, $2, $3, $4, $5, NULL)`,
+      [s("focus_session_id"), n("gig_id"), s("tipo"), n("at_ms"), s("at")]
+    );
+  } else if (kind === "moment") {
+    // Momento marcante marcado ao vivo (o "agora!" da apresentação).
+    await db.execute(
+      `INSERT INTO performance_moments (focus_session_id, gig_id, at_ms, at, descricao)
+       VALUES ($1, $2, $3, $4, NULL)`,
+      [s("focus_session_id"), n("gig_id"), n("at_ms"), s("at")]
+    );
+  } else if (kind === "focus_idea") {
+    // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no PC.
+    const { createIdea } = await import("@/modules/ideas/api");
+    await createIdea({
+      title: "Ideia capturada no Modo Foco",
+      body: null,
+      category: null,
+      tags: [],
+      heat: 1,
+      maturation: "Embrião",
+      converted_to: null,
+      converted_id: null,
+    });
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }

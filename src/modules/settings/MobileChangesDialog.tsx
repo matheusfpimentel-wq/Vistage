@@ -25,12 +25,27 @@ const KIND_LABEL: Record<string, string> = {
   task_done: "Tarefa concluída",
   contact: "Pessoa",
   gig: "GIG",
+  weak_point: "Ponto fraco (Modo Foco)",
+  moment: "Momento marcante (Modo Foco)",
+  focus_idea: "Ideia (Modo Foco)",
+};
+
+/** Marcadores ao vivo do Modo Foco: tipo do ponto fraco → rótulo legível. */
+const WEAK_TIPO_LABEL: Record<string, string> = {
+  tecnico: "Técnico",
+  repertorio: "Repertório",
+  postura: "Postura",
+  outra: "Outra",
 };
 
 export function summarizeCapture(c: PendingCapture): string {
   const p = c.payload ?? {};
   const t = (k: string) => (typeof p[k] === "string" ? (p[k] as string) : null);
   const label = KIND_LABEL[c.kind] ?? c.kind;
+  if (c.kind === "weak_point") {
+    const tipo = t("tipo");
+    return tipo ? `${label}: ${WEAK_TIPO_LABEL[tipo] ?? tipo}` : label;
+  }
   const detail = t("title") ?? t("body") ?? t("text") ?? t("name") ?? t("venue_name") ?? t("activity_type") ?? "";
   return detail ? `${label}: ${detail}` : label;
 }

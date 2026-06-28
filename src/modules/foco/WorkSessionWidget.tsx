@@ -244,6 +244,7 @@ export function WorkSessionWidget() {
         context_id: null,
         pause_ms: 0,
         planned_minutes: planned,
+        focus_session_id: null,
         created_at: new Date().toISOString(),
       });
       setStartOpen(false);

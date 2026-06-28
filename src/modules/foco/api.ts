@@ -30,6 +30,9 @@ export type WorkSession = {
   pause_ms: number;
   /** Tempo previsto em minutos (opcional). Alimenta o anel + alerta de venc. */
   planned_minutes: number | null;
+  /** UUID gerado no celular que liga esta sessão aos marcadores ao vivo do Modo
+   *  Foco (performance_weak_points/moments). Null em sessões criadas no PC. */
+  focus_session_id: string | null;
   created_at: string;
 };
 
@@ -234,6 +237,122 @@ export async function listSessions(limit = 50): Promise<WorkSession[]> {
 export async function deleteSession(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM work_sessions WHERE id = $1`, [id]);
+  emitDataChanged();
+}
+
+// ── Marcadores ao vivo do Modo Foco (celular → PC) ───────────────────────────
+// Pontos fracos e momentos marcados durante a apresentação no celular chegam por
+// sync (mobileSync.ingest) ligados pela coluna focus_session_id. Aqui o PC os lê
+// por sessão e permite descrever/excluir cada um (a descrição fica vazia até o
+// usuário preencher no debrief).
+export type PerfWeakPoint = {
+  id: number;
+  focus_session_id: string | null;
+  gig_id: number | null;
+  tipo: string | null;
+  at_ms: number | null;
+  at: string | null;
+  descricao: string | null;
+  created_at: string;
+};
+
+export type PerfMoment = {
+  id: number;
+  focus_session_id: string | null;
+  gig_id: number | null;
+  at_ms: number | null;
+  at: string | null;
+  descricao: string | null;
+  created_at: string;
+};
+
+export type SessionMarkers = {
+  weakPoints: PerfWeakPoint[];
+  moments: PerfMoment[];
+  /** Pontos fracos agregados por tipo, do mais frequente ao menos (pro resumo). */
+  weakByTipo: { tipo: string; count: number }[];
+};
+
+/** Rótulos legíveis dos tipos de ponto fraco (espelha o WeakType do mobile). */
+export const WEAK_TIPO_LABEL: Record<string, string> = {
+  tecnico: "Técnico",
+  repertorio: "Repertório",
+  postura: "Postura",
+  outra: "Outra",
+};
+
+/**
+ * Quantos marcadores cada sessão (focus_session_id) tem — em 2 queries agregadas,
+ * pra a lista de sessões mostrar um selo sem N+1. Chave = focus_session_id.
+ */
+export async function loadSessionMarkerCounts(): Promise<
+  Map<string, { weak: number; moments: number }>
+> {
+  const db = getDb();
+  const map = new Map<string, { weak: number; moments: number }>();
+  const weak = await db
+    .select<{ sid: string; n: number }[]>(
+      `SELECT focus_session_id AS sid, COUNT(*) AS n FROM performance_weak_points
+        WHERE focus_session_id IS NOT NULL GROUP BY focus_session_id`
+    )
+    .catch(() => [] as { sid: string; n: number }[]);
+  const mom = await db
+    .select<{ sid: string; n: number }[]>(
+      `SELECT focus_session_id AS sid, COUNT(*) AS n FROM performance_moments
+        WHERE focus_session_id IS NOT NULL GROUP BY focus_session_id`
+    )
+    .catch(() => [] as { sid: string; n: number }[]);
+  for (const r of weak) map.set(r.sid, { weak: r.n, moments: 0 });
+  for (const r of mom) {
+    const e = map.get(r.sid) ?? { weak: 0, moments: 0 };
+    e.moments = r.n;
+    map.set(r.sid, e);
+  }
+  return map;
+}
+
+export async function loadSessionMarkers(focusSessionId: string): Promise<SessionMarkers> {
+  const db = getDb();
+  const weakPoints = await db.select<PerfWeakPoint[]>(
+    `SELECT * FROM performance_weak_points WHERE focus_session_id = $1 ORDER BY at_ms, id`,
+    [focusSessionId]
+  );
+  const moments = await db.select<PerfMoment[]>(
+    `SELECT * FROM performance_moments WHERE focus_session_id = $1 ORDER BY at_ms, id`,
+    [focusSessionId]
+  );
+  const counts = new Map<string, number>();
+  for (const w of weakPoints) {
+    const tipo = w.tipo ?? "outra";
+    counts.set(tipo, (counts.get(tipo) ?? 0) + 1);
+  }
+  const weakByTipo = [...counts.entries()]
+    .map(([tipo, count]) => ({ tipo, count }))
+    .sort((a, b) => b.count - a.count);
+  return { weakPoints, moments, weakByTipo };
+}
+
+export async function updateWeakPointDescription(id: number, descricao: string | null): Promise<void> {
+  const db = getDb();
+  await db.execute(`UPDATE performance_weak_points SET descricao = $1 WHERE id = $2`, [descricao, id]);
+  emitDataChanged();
+}
+
+export async function deleteWeakPoint(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM performance_weak_points WHERE id = $1`, [id]);
+  emitDataChanged();
+}
+
+export async function updateMomentDescription(id: number, descricao: string | null): Promise<void> {
+  const db = getDb();
+  await db.execute(`UPDATE performance_moments SET descricao = $1 WHERE id = $2`, [descricao, id]);
+  emitDataChanged();
+}
+
+export async function deleteMoment(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM performance_moments WHERE id = $1`, [id]);
   emitDataChanged();
 }
 
