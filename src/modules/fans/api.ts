@@ -248,6 +248,10 @@ const SCORING_DEFAULTS = {
   weightFeedback: 2,
   weightInteracao: 1,
   weightGig: 3,
+  // compra = dinheiro = comprometimento, sinal forte
+  weightCompra: 4,
+  // comportamento de embaixador
+  weightIndicacao: 3,
   halfLifeDays: 180,
   thresholds: { quaseFa: 2, fa: 5, superfa: 12, embaixador: 25 },
 };
@@ -286,6 +290,8 @@ async function computeFanScoreAndLevel(
   const wFb = cfg.weightFeedback ?? SCORING_DEFAULTS.weightFeedback;
   const wInt = cfg.weightInteracao ?? SCORING_DEFAULTS.weightInteracao;
   const wGig = cfg.weightGig ?? SCORING_DEFAULTS.weightGig;
+  const wCompra = cfg.weightCompra ?? SCORING_DEFAULTS.weightCompra;
+  const wIndic = cfg.weightIndicacao ?? SCORING_DEFAULTS.weightIndicacao;
   const halfLife =
     cfg.halfLifeDays && cfg.halfLifeDays > 0 ? cfg.halfLifeDays : SCORING_DEFAULTS.halfLifeDays;
   const th: Required<FanScoreThresholds> = {
@@ -301,7 +307,16 @@ async function computeFanScoreAndLevel(
     [fanId]
   );
   for (const it of interactions) {
-    const w = it.type === "Presença" ? wPres : it.type === "Feedback" ? wFb : wInt;
+    const w =
+      it.type === "Presença"
+        ? wPres
+        : it.type === "Feedback"
+          ? wFb
+          : it.type === "Compra"
+            ? wCompra
+            : it.type === "Indicação"
+              ? wIndic
+              : wInt;
     score += decayedWeight(it.date, w, halfLife);
   }
   // presenças reais em shows: audiência marcada na GIG, datada pela data do show

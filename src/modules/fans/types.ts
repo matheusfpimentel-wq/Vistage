@@ -1,7 +1,7 @@
 export const FAN_LEVELS = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
 export type FanLevel = (typeof FAN_LEVELS)[number];
 
-export const FAN_INTERACTION_TYPES = ["Interação", "Presença", "Feedback"] as const;
+export const FAN_INTERACTION_TYPES = ["Interação", "Presença", "Feedback", "Compra", "Indicação"] as const;
 export type FanInteractionType = (typeof FAN_INTERACTION_TYPES)[number];
 
 export type Fan = {
@@ -85,6 +85,10 @@ export type FanScoringConfig = {
   weightInteracao?: number;
   /** Peso de uma presença real em show (audiência marcada na GIG via gig_fans). */
   weightGig?: number;
+  /** Peso de uma compra (ingresso/merch): dinheiro = comprometimento, sinal forte. */
+  weightCompra?: number;
+  /** Peso de uma indicação (trouxe alguém): comportamento de embaixador. */
+  weightIndicacao?: number;
   /** Meia-vida do decaimento, em dias: um sinal com essa idade vale metade. */
   halfLifeDays?: number;
   thresholds?: FanScoreThresholds;

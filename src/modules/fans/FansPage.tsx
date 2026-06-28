@@ -953,6 +953,8 @@ type ScoringState = {
   weightFeedback: string;
   weightInteracao: string;
   weightGig: string;
+  weightCompra: string;
+  weightIndicacao: string;
   halfLifeDays: string;
   thQuaseFa: string;
   thFa: string;
@@ -965,6 +967,8 @@ const emptyScoring = (): ScoringState => ({
   weightFeedback: "",
   weightInteracao: "",
   weightGig: "",
+  weightCompra: "",
+  weightIndicacao: "",
   halfLifeDays: "",
   thQuaseFa: "",
   thFa: "",
@@ -979,6 +983,8 @@ function scoringToState(s?: FanScoringConfig): ScoringState {
     weightFeedback: v(s?.weightFeedback),
     weightInteracao: v(s?.weightInteracao),
     weightGig: v(s?.weightGig),
+    weightCompra: v(s?.weightCompra),
+    weightIndicacao: v(s?.weightIndicacao),
     halfLifeDays: v(s?.halfLifeDays),
     thQuaseFa: v(s?.thresholds?.quaseFa),
     thFa: v(s?.thresholds?.fa),
@@ -999,6 +1005,8 @@ function stateToScoring(s: ScoringState): FanScoringConfig {
   const wf = num(s.weightFeedback); if (wf != null) scoring.weightFeedback = wf;
   const wi = num(s.weightInteracao); if (wi != null) scoring.weightInteracao = wi;
   const wg = num(s.weightGig); if (wg != null) scoring.weightGig = wg;
+  const wc = num(s.weightCompra); if (wc != null) scoring.weightCompra = wc;
+  const wid = num(s.weightIndicacao); if (wid != null) scoring.weightIndicacao = wid;
   const hl = num(s.halfLifeDays); if (hl != null) scoring.halfLifeDays = hl;
   const thresholds: FanScoreThresholds = {};
   const tq = num(s.thQuaseFa); if (tq != null) thresholds.quaseFa = tq;
@@ -1100,10 +1108,12 @@ function FanUpgradeRulesDialog({
           <div className="space-y-3">
             <div className="text-sm font-semibold">Pesos por sinal</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Presença (interação)" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
+              <ScoreField label="Presença em evento (manual)" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
               <ScoreField label="Feedback" value={s.weightFeedback} placeholder="2" onChange={set("weightFeedback")} />
-              <ScoreField label="Interação simples" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
-              <ScoreField label="Presença em show (GIG)" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
+              <ScoreField label="Interação" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
+              <ScoreField label="Presença em evento (GIG)" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
+              <ScoreField label="Compra (ingresso/merch)" value={s.weightCompra} placeholder="4" onChange={set("weightCompra")} />
+              <ScoreField label="Indicação (trouxe alguém)" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
             </div>
           </div>
 
