@@ -48,7 +48,16 @@ import {
 } from "../types";
 import { createContent } from "@/modules/content/api";
 import { createTask } from "@/modules/tasks/api";
+import { getDb } from "@/lib/db";
 import { useUnsavedConfirm } from "@/lib/dirty";
+
+// Procedência (source) → rótulo curto pro selo "nasceu de" do formulário.
+const SOURCE_LABEL: Record<string, string> = {
+  colisao: "Nasceu de uma colisão de ideias",
+  provocacao: "Nasceu de uma provocação",
+  modo_foco: "Capturada no Modo Foco",
+  biblioteca: "Veio de uma nota da Biblioteca",
+};
 
 type Props = {
   open: boolean;
@@ -142,6 +151,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
   const [otherIdeas, setOtherIdeas] = useState<{ id: number; title: string }[]>([]);
   const [activeLens, setActiveLens] = useState<string | null>(null);
   const [lensBusy, setLensBusy] = useState(false);
+  const [sourceNoteTitle, setSourceNoteTitle] = useState<string | null>(null);
   const confirmClose = useUnsavedConfirm(dirty);
   const setState: typeof setStateRaw = (v) => {
     setStateRaw(v);
@@ -165,6 +175,26 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
       setOtherIdeas(all.map((i) => ({ id: i.id, title: i.title })))
     );
   }, [idea, open]);
+
+  // Backlink da Biblioteca: carrega o título da nota de origem (rastreabilidade).
+  useEffect(() => {
+    if (!open || !idea?.source_note_id) {
+      setSourceNoteTitle(null);
+      return;
+    }
+    let alive = true;
+    void getDb()
+      .select<{ title: string }[]>("SELECT title FROM notes WHERE id = $1", [idea.source_note_id])
+      .then((r) => {
+        if (alive) setSourceNoteTitle(r[0]?.title ?? null);
+      })
+      .catch(() => {
+        /* nota sumiu — sem backlink */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, idea?.source_note_id]);
 
   function set<K extends keyof IdeaCreateInput>(key: K, value: IdeaCreateInput[K]) {
     setState((s) => ({ ...s, [key]: value }));
@@ -316,6 +346,15 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
     }
   }
 
+  const provenance =
+    idea && idea.source_note_id && sourceNoteTitle
+      ? `Veio da nota: ${sourceNoteTitle}`
+      : idea && idea.source && idea.source !== "manual" && SOURCE_LABEL[idea.source]
+        ? SOURCE_LABEL[idea.source]
+        : idea && idea.source_note_id
+          ? "Veio de uma nota da Biblioteca"
+          : null;
+
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl">
@@ -324,6 +363,12 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
         </DialogHeader>
 
         <div className="space-y-4">
+          {provenance && (
+            <div className="flex items-center gap-1.5 rounded-md border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-xs text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
+              {provenance}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>
               Título <span className="text-destructive">*</span>
