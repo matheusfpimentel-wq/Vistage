@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { readDocValue, writeDocValue } from "@/lib/docSettings";
 
 export type SwotKey = "strengths" | "weaknesses" | "opportunities" | "threats";
 
@@ -14,16 +14,16 @@ const EMPTY: SwotData = {
   threats: [],
 };
 
-/** Carrega os itens manuais do SWOT salvos pelo usuário. */
+/**
+ * Carrega os itens manuais do SWOT salvos pelo usuário. Conteúdo do DOCUMENTO
+ * (viaja no .vistage); migra automaticamente do local antigo (app_settings) na
+ * 1ª leitura.
+ */
 export async function loadSwot(): Promise<SwotData> {
   try {
-    const db = getDb();
-    const rows = await db.select<{ value: string }[]>(
-      "SELECT value FROM app_settings WHERE key = $1",
-      [SWOT_SETTING_KEY]
-    );
-    if (!rows[0]) return { ...EMPTY };
-    const parsed = JSON.parse(rows[0].value) as Partial<SwotData>;
+    const raw = await readDocValue(SWOT_SETTING_KEY, SWOT_SETTING_KEY);
+    if (!raw) return { ...EMPTY };
+    const parsed = JSON.parse(raw) as Partial<SwotData>;
     return {
       strengths: parsed.strengths ?? [],
       weaknesses: parsed.weaknesses ?? [],
@@ -35,13 +35,9 @@ export async function loadSwot(): Promise<SwotData> {
   }
 }
 
-/** Salva os itens manuais do SWOT. */
+/** Salva os itens manuais do SWOT (marca o documento como não salvo). */
 export async function saveSwot(data: SwotData): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-    [SWOT_SETTING_KEY, JSON.stringify(data)]
-  );
+  await writeDocValue(SWOT_SETTING_KEY, JSON.stringify(data));
 }
 
 /**
@@ -50,24 +46,16 @@ export async function saveSwot(data: SwotData): Promise<void> {
  */
 export async function loadDismissedOpportunities(): Promise<string[]> {
   try {
-    const db = getDb();
-    const rows = await db.select<{ value: string }[]>(
-      "SELECT value FROM app_settings WHERE key = $1",
-      [DISMISSED_OPP_KEY]
-    );
-    if (!rows[0]) return [];
-    const parsed = JSON.parse(rows[0].value) as unknown;
+    const raw = await readDocValue(DISMISSED_OPP_KEY, DISMISSED_OPP_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
   } catch {
     return [];
   }
 }
 
-/** Salva o conjunto de oportunidades dispensadas. */
+/** Salva o conjunto de oportunidades dispensadas (marca o documento como não salvo). */
 export async function saveDismissedOpportunities(items: string[]): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
-    [DISMISSED_OPP_KEY, JSON.stringify(items)]
-  );
+  await writeDocValue(DISMISSED_OPP_KEY, JSON.stringify(items));
 }

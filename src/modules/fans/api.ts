@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+import { readDocValue, writeDocValue } from "@/lib/docSettings";
 import { toLocalISODate } from "@/lib/format";
 import type {
   FanClubConfig,
@@ -441,22 +442,15 @@ export async function addFanInteraction(
 }
 
 export async function saveFanUpgradeRules(rules: FanUpgradeRules): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `INSERT INTO app_settings (key, value) VALUES ('fan_upgrade_rules', $1)
-     ON CONFLICT(key) DO UPDATE SET value = $1`,
-    [JSON.stringify(rules)]
-  );
+  // Conteúdo do documento: viaja no .vistage + marca como não salvo.
+  await writeDocValue("fan_upgrade_rules", JSON.stringify(rules));
 }
 
 export async function loadFanUpgradeRules(): Promise<FanUpgradeRules> {
-  const db = getDb();
-  const rows = await db.select<{ value: string }[]>(
-    `SELECT value FROM app_settings WHERE key = 'fan_upgrade_rules'`
-  );
-  if (!rows[0]) return {};
+  const raw = await readDocValue("fan_upgrade_rules", "fan_upgrade_rules");
+  if (!raw) return {};
   try {
-    return JSON.parse(rows[0].value) as FanUpgradeRules;
+    return JSON.parse(raw) as FanUpgradeRules;
   } catch {
     return {};
   }
@@ -483,13 +477,10 @@ export const DEFAULT_FAN_CLUB_CONFIG: FanClubConfig = {
 };
 
 export async function loadFanClubConfig(): Promise<FanClubConfig> {
-  const db = getDb();
-  const rows = await db.select<{ value: string }[]>(
-    `SELECT value FROM app_settings WHERE key = 'fan_club_config'`
-  );
-  if (!rows[0]) return DEFAULT_FAN_CLUB_CONFIG;
+  const raw = await readDocValue("fan_club_config", "fan_club_config");
+  if (!raw) return DEFAULT_FAN_CLUB_CONFIG;
   try {
-    const parsed = JSON.parse(rows[0].value) as Partial<FanClubConfig>;
+    const parsed = JSON.parse(raw) as Partial<FanClubConfig>;
     return {
       actions: parsed.actions ?? DEFAULT_FAN_CLUB_CONFIG.actions,
       perks: parsed.perks ?? DEFAULT_FAN_CLUB_CONFIG.perks,
@@ -500,13 +491,8 @@ export async function loadFanClubConfig(): Promise<FanClubConfig> {
 }
 
 export async function saveFanClubConfig(cfg: FanClubConfig): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `INSERT INTO app_settings (key, value) VALUES ('fan_club_config', $1)
-     ON CONFLICT(key) DO UPDATE SET value = $1`,
-    [JSON.stringify(cfg)]
-  );
-  emitDataChanged();
+  // Conteúdo do documento: viaja no .vistage + marca como não salvo.
+  await writeDocValue("fan_club_config", JSON.stringify(cfg));
 }
 
 export async function getFanInteractionCounts(fanId: number): Promise<{
