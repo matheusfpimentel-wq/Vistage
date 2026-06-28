@@ -27,12 +27,13 @@ import {
   type WorkSession,
   endSession,
   getActiveSession,
+  resolveStageGigId,
   startSession,
 } from "./api";
 import { closeSessionOverlay, openSessionOverlay } from "./overlay";
 import { DATA_CHANGED } from "@/lib/events";
 import { listTracks } from "@/modules/music/api";
-import { listGigs } from "@/modules/gigs/api";
+import { listGigs, updateGig } from "@/modules/gigs/api";
 import { listContent } from "@/modules/content/api";
 import { listTasks } from "@/modules/tasks/api";
 import { listClasses } from "@/modules/classes/api";
@@ -108,6 +109,10 @@ export function WorkSessionWidget() {
   const [activityType, setActivityType] = useState<ActivityType>("Criação musical");
   const [energy, setEnergy] = useState(3);
   const [focus, setFocus] = useState(3);
+  // Sessão de PALCO: em vez de energia/foco, avalia o set (vai pro debrief da GIG).
+  const [repertoire, setRepertoire] = useState(3);
+  const [technique, setTechnique] = useState(3);
+  const [charisma, setCharisma] = useState(3);
   const [notes, setNotes] = useState("");
   const [context, setContext] = useState("");
   const [contextType, setContextType] = useState("none");
@@ -280,23 +285,37 @@ export function WorkSessionWidget() {
     // Pós-set (o "ouro"): se foi sessão de PALCO ligada a um gig, ao encerrar
     // manda direto pro debrief — o After-Action Review no momento de maior sinal,
     // logo depois de tocar. Captura o gig antes de limpar o estado da sessão.
-    const stageGigId =
-      session.activity_type === "Tempo de palco" && session.context_type === "gig"
-        ? session.context_id
-        : null;
+    const isStage = session.activity_type === "Tempo de palco";
+    // Palco: usa a GIG vinculada no início; se não vinculou, resolve a próxima/de
+    // hoje (mesma lógica do painel) pra o debrief cair na GIG que acabou de tocar.
+    let stageGigId =
+      isStage && session.context_type === "gig" ? session.context_id : null;
+    if (isStage && !stageGigId) {
+      stageGigId = await resolveStageGigId();
+    }
     try {
-      const ctxType = contextType === "none" ? null : contextType;
-      const ctxId = contextId === "none" ? null : Number(contextId);
+      // Palco grava no debrief da GIG (repertório/técnica/carisma) em vez de
+      // energia/foco; a sessão fica vinculada à GIG pra os marcadores aparecerem lá.
+      const ctxType = isStage ? (stageGigId ? "gig" : null) : contextType === "none" ? null : contextType;
+      const ctxId = isStage ? stageGigId : contextId === "none" ? null : Number(contextId);
       await endSession(
         session.id,
-        energy,
-        focus,
+        isStage ? null : energy,
+        isStage ? null : focus,
         notes || null,
-        context || null,
+        isStage ? null : context || null,
         ctxType,
         ctxType ? ctxId : null,
         pauseMsRef.current
       );
+      if (isStage && stageGigId) {
+        await updateGig({
+          id: stageGigId,
+          rating_repertoire: repertoire,
+          rating_technique: technique,
+          rating_charisma: charisma,
+        }).catch(() => {});
+      }
       void closeSessionOverlay();
       setSession(null);
       setEndOpen(false);
@@ -306,6 +325,9 @@ export function WorkSessionWidget() {
       setContextId("none");
       setEnergy(3);
       setFocus(3);
+      setRepertoire(3);
+      setTechnique(3);
+      setCharisma(3);
       if (stageGigId) {
         toast.success("Set encerrado — vamos pro debrief enquanto está fresco.");
         navigate(`/gigs?debrief=${stageGigId}`);
@@ -429,16 +451,22 @@ export function WorkSessionWidget() {
             <DialogTitle>Encerrar sessão — {session?.activity_type}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <RatingRow
-              label="Nível de energia"
-              value={energy}
-              onChange={setEnergy}
-            />
-            <RatingRow
-              label="Nível de foco"
-              value={focus}
-              onChange={setFocus}
-            />
+            {session?.activity_type === "Tempo de palco" ? (
+              <>
+                {/* Palco: avalia o SET (vai pro debrief da GIG), não energia/foco. */}
+                <RatingRow label="Repertório — curadoria do set" value={repertoire} onChange={setRepertoire} />
+                <RatingRow label="Técnica — mixagem, transições" value={technique} onChange={setTechnique} />
+                <RatingRow label="Carisma — presença, conexão" value={charisma} onChange={setCharisma} />
+                <p className="text-[11px] text-muted-foreground">
+                  As avaliações entram no debrief da GIG — você detalha lá em seguida.
+                </p>
+              </>
+            ) : (
+              <>
+                <RatingRow label="Nível de energia" value={energy} onChange={setEnergy} />
+                <RatingRow label="Nível de foco" value={focus} onChange={setFocus} />
+              </>
+            )}
             <div className="space-y-1.5">
               <Label>Observações (opcional)</Label>
               <Textarea
@@ -448,47 +476,51 @@ export function WorkSessionWidget() {
                 placeholder="O que rolou? O que travou?"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Contexto (opcional)</Label>
-              <Textarea
-                rows={2}
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder="Ex: projeto, GIG, faixa específica…"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Trabalhei em (opcional)</Label>
-              <Select value={contextType} onValueChange={setContextType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  <SelectItem value="track">Track</SelectItem>
-                  <SelectItem value="gig">GIG</SelectItem>
-                  <SelectItem value="content">Conteúdo</SelectItem>
-                  <SelectItem value="task">Tarefa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {contextType !== "none" && (
-              <div className="space-y-1.5">
-                <Label>Item</Label>
-                <Select value={contextId} onValueChange={setContextId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {entityOptions.map((o) => (
-                      <SelectItem key={o.id} value={String(o.id)}>
-                        {o.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {session?.activity_type !== "Tempo de palco" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Contexto (opcional)</Label>
+                  <Textarea
+                    rows={2}
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="Ex: projeto, GIG, faixa específica…"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Trabalhei em (opcional)</Label>
+                  <Select value={contextType} onValueChange={setContextType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      <SelectItem value="track">Track</SelectItem>
+                      <SelectItem value="gig">GIG</SelectItem>
+                      <SelectItem value="content">Conteúdo</SelectItem>
+                      <SelectItem value="task">Tarefa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {contextType !== "none" && (
+                  <div className="space-y-1.5">
+                    <Label>Item</Label>
+                    <Select value={contextId} onValueChange={setContextId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {entityOptions.map((o) => (
+                          <SelectItem key={o.id} value={String(o.id)}>
+                            {o.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
             )}
           </div>
           <DialogFooter>

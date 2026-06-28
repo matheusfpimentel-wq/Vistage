@@ -30,6 +30,7 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
+import { loadGigMarkers, WEAK_TIPO_LABEL, type SessionMarkers } from "@/modules/foco/api";
 import {
   addFanInteraction,
   checkAndUpgradeFan,
@@ -101,6 +102,15 @@ function isComplete(state: DebriefState): boolean {
   );
 }
 
+/** mm:ss do instante DENTRO do set em que o marcador foi tocado (ao vivo). */
+function fmtMarkerAt(atMs: number | null): string {
+  if (atMs == null) return "";
+  const total = Math.max(0, Math.floor(atMs / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 /** Permite ao GigForm finalizar o debrief embutido pelo seu próprio "Salvar". */
 export type DebriefHandle = { commit: () => Promise<void> };
 
@@ -131,6 +141,8 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
   });
   const draftTimer = useRef<number | null>(null);
   const skipNextSave = useRef(true);
+  // Marcadores ao vivo do Modo Foco ligados a esta GIG (erro→fracos, momento→fortes).
+  const [liveMarkers, setLiveMarkers] = useState<SessionMarkers | null>(null);
 
   // hidrata do rascunho ao abrir (se houver) — rascunho tem prioridade sobre o banco
   // já que representa edição mais recente não-confirmada.
@@ -146,6 +158,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     } catch {
       setFansPresent([]);
     }
+    void loadGigMarkers(gig.id).then(setLiveMarkers).catch(() => setLiveMarkers(null));
     (async () => {
       const draft = await loadDebriefDraft(gig.id);
       if (draft) setState({ ...gigToDebrief(gig), ...(draft as DebriefState) });
@@ -177,6 +190,14 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
   function set<K extends keyof DebriefState>(key: K, value: DebriefState[K]) {
     setState((s) => ({ ...s, [key]: value }));
+  }
+
+  /** Joga um resumo dos marcadores ao vivo no fim de um campo (sem apagar o texto). */
+  function appendTo(key: "debrief_strengths" | "debrief_weaknesses", line: string) {
+    setState((s) => {
+      const cur = (s[key] ?? "").trim();
+      return { ...s, [key]: cur ? `${cur}\n${line}` : line };
+    });
   }
 
   /** Cria todas as tarefas a partir do debrief (chamado ao salvar). */
@@ -406,6 +427,61 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
           {/* ============ INSIGHTS ============ */}
           <TabsContent value="learn" className="space-y-4">
+            {liveMarkers && (liveMarkers.moments.length > 0 || liveMarkers.weakPoints.length > 0) && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Marcado ao vivo no Modo Foco
+                </p>
+                {liveMarkers.moments.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      Pontos fortes:
+                    </span>
+                    {liveMarkers.moments.map((m) => (
+                      <span key={m.id} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                        {fmtMarkerAt(m.at_ms)}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        appendTo(
+                          "debrief_strengths",
+                          `Momentos marcados ao vivo: ${liveMarkers.moments.map((m) => fmtMarkerAt(m.at_ms)).filter(Boolean).join(", ")}`
+                        )
+                      }
+                    >
+                      usar
+                    </button>
+                  </div>
+                )}
+                {liveMarkers.weakByTipo.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      Pontos fracos:
+                    </span>
+                    {liveMarkers.weakByTipo.map((w) => (
+                      <span key={w.tipo} className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-300">
+                        {WEAK_TIPO_LABEL[w.tipo] ?? w.tipo} ×{w.count}
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      className="text-xs underline text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        appendTo(
+                          "debrief_weaknesses",
+                          `A melhorar (marcado ao vivo): ${liveMarkers.weakByTipo.map((w) => `${WEAK_TIPO_LABEL[w.tipo] ?? w.tipo} ×${w.count}`).join(", ")}`
+                        )
+                      }
+                    >
+                      usar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <DebriefField
               label="Pontos fortes da apresentação"
               compact

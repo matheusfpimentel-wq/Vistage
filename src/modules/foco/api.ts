@@ -228,8 +228,8 @@ export async function loadFocusPanel(session: {
 
 export async function endSession(
   id: number,
-  energy_level: number,
-  focus_level: number,
+  energy_level: number | null,
+  focus_level: number | null,
   notes: string | null,
   context: string | null = null,
   context_type: string | null = null,
@@ -357,6 +357,63 @@ export async function loadSessionMarkers(focusSessionId: string): Promise<Sessio
     .map(([tipo, count]) => ({ tipo, count }))
     .sort((a, b) => b.count - a.count);
   return { weakPoints, moments, weakByTipo };
+}
+
+/**
+ * Marcadores ao vivo ligados a uma GIG, pro debrief (erro→pontos fracos,
+ * momento→pontos fortes). Junta os dois caminhos: (a) marcadores que já chegaram
+ * com gig_id (o celular manda quando a sessão é de palco) e (b) marcadores de
+ * sessões de trabalho vinculadas à GIG (context_type='gig') pelo focus_session_id.
+ * O OR cobre os dois sem duplicar (um marcador só tem uma origem).
+ */
+export async function loadGigMarkers(gigId: number): Promise<SessionMarkers> {
+  const db = getDb();
+  // $1 e $2 são o MESMO gigId (não reusa um placeholder — o plugin liga por posição).
+  const linkedSessions = `focus_session_id IN (
+        SELECT focus_session_id FROM work_sessions
+         WHERE context_type = 'gig' AND context_id = $2 AND focus_session_id IS NOT NULL
+      )`;
+  const weakPoints = await db
+    .select<PerfWeakPoint[]>(
+      `SELECT * FROM performance_weak_points
+        WHERE gig_id = $1 OR ${linkedSessions}
+        ORDER BY at_ms, id`,
+      [gigId, gigId]
+    )
+    .catch(() => [] as PerfWeakPoint[]);
+  const moments = await db
+    .select<PerfMoment[]>(
+      `SELECT * FROM performance_moments
+        WHERE gig_id = $1 OR ${linkedSessions}
+        ORDER BY at_ms, id`,
+      [gigId, gigId]
+    )
+    .catch(() => [] as PerfMoment[]);
+  const counts = new Map<string, number>();
+  for (const w of weakPoints) {
+    const tipo = w.tipo ?? "outra";
+    counts.set(tipo, (counts.get(tipo) ?? 0) + 1);
+  }
+  const weakByTipo = [...counts.entries()]
+    .map(([tipo, count]) => ({ tipo, count }))
+    .sort((a, b) => b.count - a.count);
+  return { weakPoints, moments, weakByTipo };
+}
+
+/**
+ * Resolve a GIG de uma sessão de palco quando ela não foi vinculada explicitamente:
+ * a próxima (ou de hoje) não-cancelada. Mesma lógica do painel de palco do Modo Foco,
+ * pra o debrief cair na GIG que o usuário acabou de tocar.
+ */
+export async function resolveStageGigId(): Promise<number | null> {
+  const db = getDb();
+  const rows = await db
+    .select<{ id: number }[]>(
+      `SELECT id FROM gigs WHERE date >= date('now') AND status != 'Cancelada'
+        ORDER BY date, start_time LIMIT 1`
+    )
+    .catch(() => [] as { id: number }[]);
+  return rows[0]?.id ?? null;
 }
 
 export async function updateWeakPointDescription(id: number, descricao: string | null): Promise<void> {
