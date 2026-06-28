@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ArrowUpDown, CalendarRange, ListChecks, NotebookPen, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -7,8 +8,9 @@ import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { parsePrepState, prepProgress } from "../prep";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
-import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
+import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
 import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 type Props = {
@@ -60,6 +62,25 @@ function cacheOverdue(g: Gig): boolean {
   return true;
 }
 
+// Definição de uma coluna da tabela desktop: o cabeçalho e o corpo são dirigidos
+// por esta lista, mapeada pela ORDEM do useOrderableColumns — assim header e
+// body nunca dessincronizam ao reordenar.
+type GigCol = {
+  id: string;
+  locked?: boolean;
+  /** chave de ordenação (useTableSort) — quando ausente, o th não ordena. */
+  sortKey?: keyof Gig;
+  /** rótulo do cabeçalho. */
+  header: string;
+  /** classes do <th>. */
+  thClassName: string;
+  /** classes do <td>. */
+  tdClassName?: string;
+  /** se a coluna tem alça de redimensionamento (último th não tem). */
+  resizable?: boolean;
+  cell: (g: Gig) => ReactNode;
+};
+
 export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowSheet, onCreate, density = "full" }: Props) {
   const compact = density === "compact";
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
@@ -72,7 +93,146 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     { id: "rating", width: 110, min: 80 },
     { id: "actions", width: 190, min: 150 },
   ]);
-  const tableWidth = cols.defs.reduce((s, c) => s + cols.widths[c.id], 0);
+
+  // Colunas do meio reordenáveis; "name" (Show/Venue, principal) e "actions" travadas.
+  const colDefs: Record<string, GigCol> = {
+    date: {
+      id: "date",
+      sortKey: "date",
+      header: "Data",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
+      tdClassName: "px-3 py-2 whitespace-nowrap tabular-nums",
+      resizable: true,
+      cell: (g) => formatDate(g.date),
+    },
+    name: {
+      id: "name",
+      locked: true,
+      header: "Show / Venue",
+      thClassName: "px-3 py-2 text-left",
+      tdClassName: "px-3 py-2",
+      resizable: true,
+      cell: (g) => (
+        <>
+          <div className="font-medium flex items-center gap-1.5">
+            <span className="truncate">{gigDisplayName(g)}</span>
+            {cacheOverdue(g) && (
+              <span
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                title="Cachê não recebido"
+              >
+                !
+              </span>
+            )}
+          </div>
+          <div className="truncate text-xs text-muted-foreground">
+            {g.venue_name}
+            {g.venue_city && ` · ${g.venue_city}`}
+          </div>
+        </>
+      ),
+    },
+    contractor: {
+      id: "contractor",
+      header: "Contratante",
+      thClassName: "px-3 py-2 text-left",
+      tdClassName: "truncate px-3 py-2",
+      resizable: true,
+      cell: (g) =>
+        g.promoter_contact_name ? (
+          <span className="truncate">{g.promoter_contact_name}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    status: {
+      id: "status",
+      sortKey: "status",
+      header: "Status",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
+      tdClassName: "px-3 py-2",
+      resizable: true,
+      cell: (g) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={g.status} />
+        </div>
+      ),
+    },
+    cache: {
+      id: "cache",
+      sortKey: "cache_amount",
+      header: "Cachê",
+      thClassName: "px-3 py-2 text-right hover:text-foreground",
+      tdClassName: "px-3 py-2 text-right tabular-nums",
+      resizable: true,
+      cell: (g) => formatCurrency(g.cache_amount),
+    },
+    rating: {
+      id: "rating",
+      header: "Avaliação",
+      thClassName: "px-3 py-2 text-right",
+      tdClassName: "px-3 py-2 text-right tabular-nums",
+      resizable: true,
+      cell: (g) => {
+        const avg = averageRating(g);
+        return avg !== null ? (
+          <span className="text-amber-500">{formatRating(avg)}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        );
+      },
+    },
+    actions: {
+      id: "actions",
+      locked: true,
+      header: "Ações",
+      thClassName: "px-3 py-2 text-right",
+      tdClassName: "px-3 py-2",
+      cell: (g) => (
+        <div className="flex justify-end gap-1">
+          {g.status === "Confirmada" && (
+            <Button
+              size="icon"
+              variant={prepUrgent(g) ? "default" : "ghost"}
+              onClick={() => onPrep(g)}
+              aria-label="Preparação"
+              title="Preparação"
+            >
+              <ListChecks className="h-4 w-4" />
+            </Button>
+          )}
+          {showDebrief(g) && (
+            <Button
+              size="icon"
+              variant={g.debrief_pending === 1 ? "default" : "ghost"}
+              onClick={() => onDebrief(g)}
+              aria-label="Debrief"
+              title="Debrief"
+            >
+              <NotebookPen className="h-4 w-4" />
+            </Button>
+          )}
+          <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">
+            <ScrollText className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => onDelete(g)} aria-label="Excluir">
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      ),
+    },
+  };
+
+  const oc = useOrderableColumns(
+    "gigs",
+    cols.defs.map((c) => ({ id: c.id, locked: colDefs[c.id].locked }))
+  );
+  // Largura total na MESMA ordem das colunas (a soma independe da ordem, mas o
+  // <colgroup> segue oc.order pra casar com header/body).
+  const tableWidth = oc.order.reduce((s, id) => s + cols.widths[id], 0);
 
   if (sorted.length === 0) {
     return (
@@ -195,119 +355,58 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         })}
       </div>
 
-      {/* Desktop: tabela com colunas redimensionáveis (arraste a alça; 2 cliques reseta). */}
+      {/* Desktop: tabela com colunas redimensionáveis (arraste a alça; 2 cliques reseta)
+          e reordenáveis (arraste o cabeçalho; clique ordena). Show/Venue e Ações travadas. */}
       <div className="hidden overflow-x-auto rounded-md border sm:block">
         <table
           className={cn("table-fixed", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}
           style={{ width: tableWidth }}
         >
           <colgroup>
-            {cols.defs.map((c) => (
-              <col key={c.id} style={cols.colStyle(c.id)} />
+            {oc.order.map((id) => (
+              <col key={id} style={cols.colStyle(id)} />
             ))}
           </colgroup>
           <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-            <tr>
-              <SortableHeader<Gig> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground">
-                <ColResizer {...cols.resizer("date")} />
-              </SortableHeader>
-              <th className="relative px-3 py-2 text-left">Show / Venue<ColResizer {...cols.resizer("name")} /></th>
-              <th className="relative px-3 py-2 text-left">Contratante<ColResizer {...cols.resizer("contractor")} /></th>
-              <SortableHeader<Gig> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left hover:text-foreground">
-                <ColResizer {...cols.resizer("status")} />
-              </SortableHeader>
-              <SortableHeader<Gig> col="cache_amount" label="Cachê" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right hover:text-foreground">
-                <ColResizer {...cols.resizer("cache")} />
-              </SortableHeader>
-              <th className="relative px-3 py-2 text-right">Avaliação<ColResizer {...cols.resizer("rating")} /></th>
-              <th className="px-3 py-2 text-right">Ações</th>
-            </tr>
+            <OrderableHeader oc={oc}>
+              <tr>
+                {oc.order.map((id) => {
+                  const c = colDefs[id];
+                  const active = !!c.sortKey && sortKey === c.sortKey;
+                  return (
+                    <SortableTh
+                      key={id}
+                      id={id}
+                      locked={c.locked}
+                      className={cn(c.thClassName, c.sortKey && "cursor-pointer")}
+                      onClick={c.sortKey ? () => handleSort(c.sortKey!) : undefined}
+                      title={c.locked ? undefined : "Clique pra ordenar · arraste pra reposicionar"}
+                    >
+                      {c.sortKey ? (
+                        <SortLabel label={c.header} active={active} dir={active ? sortDir : null} />
+                      ) : (
+                        c.header
+                      )}
+                      {c.resizable && <ColResizer {...cols.resizer(id)} />}
+                    </SortableTh>
+                  );
+                })}
+              </tr>
+            </OrderableHeader>
           </thead>
           <tbody>
-            {sorted.map((g) => {
-              const avg = averageRating(g);
-              return (
-                <tr key={g.id} className="border-t transition-colors hover:bg-muted/40">
-                  <td className="px-3 py-2 whitespace-nowrap tabular-nums">
-                    {formatDate(g.date)}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="font-medium flex items-center gap-1.5">
-                      <span className="truncate">{gigDisplayName(g)}</span>
-                      {cacheOverdue(g) && (
-                        <span
-                          className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
-                          title="Cachê não recebido"
-                        >
-                          !
-                        </span>
-                      )}
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {g.venue_name}
-                      {g.venue_city && ` · ${g.venue_city}`}
-                    </div>
-                  </td>
-                  <td className="truncate px-3 py-2">
-                    {g.promoter_contact_name ? (
-                      <span className="truncate">{g.promoter_contact_name}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={g.status} />
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatCurrency(g.cache_amount)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {avg !== null ? (
-                      <span className="text-amber-500">{formatRating(avg)}</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
-                      {g.status === "Confirmada" && (
-                        <Button
-                          size="icon"
-                          variant={prepUrgent(g) ? "default" : "ghost"}
-                          onClick={() => onPrep(g)}
-                          aria-label="Preparação"
-                          title="Preparação"
-                        >
-                          <ListChecks className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {showDebrief(g) && (
-                        <Button
-                          size="icon"
-                          variant={g.debrief_pending === 1 ? "default" : "ghost"}
-                          onClick={() => onDebrief(g)}
-                          aria-label="Debrief"
-                          title="Debrief"
-                        >
-                          <NotebookPen className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">
-                        <ScrollText className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => onEdit(g)} aria-label="Editar">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => onDelete(g)} aria-label="Excluir">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {sorted.map((g) => (
+              <tr key={g.id} className="border-t transition-colors hover:bg-muted/40">
+                {oc.order.map((id) => {
+                  const c = colDefs[id];
+                  return (
+                    <td key={id} className={c.tdClassName}>
+                      {c.cell(g)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
