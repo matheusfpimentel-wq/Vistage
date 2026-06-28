@@ -41,6 +41,7 @@ export const CSV_ENTITIES = [
   { key: "performance_weak_points", label: "Apresentação — pontos fracos", table: "performance_weak_points" },
   { key: "performance_moments", label: "Apresentação — momentos", table: "performance_moments" },
   { key: "okrs", label: "OKRs", table: "okrs" },
+  { key: "nps_responses", label: "NPS — pesquisa", table: "nps_responses" },
   { key: "library_tracks", label: "Biblioteca — Músicas", table: "library_tracks" },
   { key: "notes", label: "Biblioteca — Notas", table: "notes" },
 ] as const;

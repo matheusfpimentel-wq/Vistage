@@ -48,6 +48,7 @@ const TABLES = [
   "recurring_fests",   // nomes de festas recorrentes salvos (autocomplete) — sem deps
   "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
   "okrs",
+  "nps_responses",           // NPS — pesquisa própria (respostas manuais 0-10); sem deps
   "ideas",
   "idea_collisions",         // idea_a/idea_b/idea_resultante → ideas (DEFERRED_FK)
   "content",
