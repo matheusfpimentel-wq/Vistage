@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { sendCapture } from "../capture";
 import { pendingCount } from "../queue";
+import { addLocalGig } from "../localGigs";
 
 type Kind = "highlight" | "task" | "note" | "contact" | "gig";
 const KINDS: { id: Kind; label: string }[] = [
@@ -76,8 +77,19 @@ export function Capturar() {
     setMsg(null);
     try {
       await sendCapture(kind, buildPayload());
+      // GIG: guarda local pra aparecer JÁ no celular (Buscar/Hoje), sem esperar o
+      // PC processar o espelho. Some sozinha quando a GIG real chega do PC.
+      if (kind === "gig") {
+        await addLocalGig({
+          venue_name: f.venue_name.trim(),
+          date: f.date || null,
+          city: f.city || null,
+          cache_amount: f.cache ? Number(f.cache) : null,
+          notes: f.body || null,
+        });
+      }
       setF(EMPTY);
-      setMsg("Capturado ✓ — sincroniza sozinho.");
+      setMsg(kind === "gig" ? "GIG criada ✓ — já aparece aqui e sobe pro PC." : "Capturado ✓ — sincroniza sozinho.");
       // Dá um instante pro flush (online) terminar e confirma a subida.
       await new Promise((r) => setTimeout(r, 700));
       if ((await pendingCount()) === 0) setMsg("Sincronizado ✓ no PC.");
