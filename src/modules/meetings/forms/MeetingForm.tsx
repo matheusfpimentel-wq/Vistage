@@ -387,7 +387,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
               <Button
                 variant="outline"
                 onClick={() =>
-                  printAta({ title, date, time, location, participants, notes, outcomes: outcomeItems.join("\n") })
+                  void printAta({ title, date, time, location, participants, notes, outcomes: outcomeItems.join("\n") })
                 }
               >
                 <Printer className="h-4 w-4" /> Imprimir ata
