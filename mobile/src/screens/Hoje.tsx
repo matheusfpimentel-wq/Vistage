@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../supabase";
 import { loadStreak } from "../identity";
 import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
+import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 
 type Agenda = { id: string; source: string; source_id?: string; title: string; start_at: string | null; location: string | null };
@@ -110,6 +111,7 @@ export function Hoje({
   const [coldOpen, setColdOpen] = useState<Cold | null>(null);
   const [lastGig, setLastGig] = useState<CatalogGig | null>(null);
   const [todayGig, setTodayGig] = useState<CatalogGig | null>(null);
+  const [localGigs, setLocalGigs] = useState<LocalGig[]>([]);
   const [streak, setStreak] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -119,11 +121,22 @@ export function Hoje({
     const [a, c, g, s] = await Promise.all([
       supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(40),
       supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(12),
-      supabase.from("catalog_mirror").select("title, meta").eq("kind", "gig").limit(80),
+      supabase.from("catalog_mirror").select("title, meta, search_text").eq("kind", "gig").limit(80),
       loadStreak(),
     ]);
     setAgenda((a.data ?? []) as Agenda[]);
     setCooling((c.data ?? []) as Cold[]);
+    // GIGs criadas no celular ainda não sincronizadas: reconcilia contra o espelho
+    // (mesma data + casa no search_text) e guarda as que continuam pendentes.
+    const gigRows = (g.data ?? []) as (CatalogGig & { search_text?: string })[];
+    setLocalGigs(
+      await reconcileLocalGigs(
+        gigRows.map((r) => ({
+          date: typeof r.meta?.date === "string" ? r.meta.date : null,
+          hay: ((r.search_text ?? r.title) || "").toLowerCase(),
+        }))
+      )
+    );
     // Última GIG = a mais recente já passada (ou de hoje).
     const gigs = ((g.data ?? []) as CatalogGig[])
       .filter((x) => typeof x.meta?.date === "string" && x.meta.date! <= today && x.meta.status !== "Cancelada")
@@ -157,8 +170,27 @@ export function Hoje({
   const grid = todays
     .map((i) => ({ ...i, t: timeOf(i.start_at) }))
     .sort((a, b) => (a.t ?? "99") < (b.t ?? "99") ? -1 : 1);
-  const upcoming = agenda
-    .filter((i) => i.start_at == null || (localDateOf(i.start_at) ?? "") >= today)
+  // GIGs criadas no celular (pendentes) viram compromissos sintéticos pra
+  // aparecer JÁ, com data >= hoje. id "local:" marca o selo "pendente".
+  const localUpcoming: Agenda[] = localGigs
+    .filter((g) => !g.date || g.date >= today)
+    .map((g) => ({
+      id: "local:" + g.client_ref,
+      source: "gig",
+      source_id: undefined,
+      title: g.venue_name,
+      start_at: g.date ? `${g.date}T21:00:00` : null,
+      location: g.city,
+    }));
+  const upcoming = [
+    ...localUpcoming,
+    ...agenda.filter((i) => i.start_at == null || (localDateOf(i.start_at) ?? "") >= today),
+  ]
+    .sort((a, b) => {
+      const da = localDateOf(a.start_at) ?? "9999-99-99";
+      const db = localDateOf(b.start_at) ?? "9999-99-99";
+      return da < db ? -1 : da > db ? 1 : 0;
+    })
     .slice(0, 10);
   // Pro CTA "reaquecer" e pra frase do dia: o 1º item que é PESSOA (contato/fã),
   // pois faixa/conteúdo não se "fala". A lista de esfriando mostra todos.
@@ -255,7 +287,10 @@ export function Hoje({
                 ) : (
                   <span className={"commit-ic " + i.source}><SourceIcon source={i.source} /></span>
                 )}
-                <span className="commit-title">{i.title}</span>
+                <span className="commit-title">
+                  {i.title}
+                  {i.id.startsWith("local:") && <span className="pending-badge">pendente</span>}
+                </span>
                 <span className="commit-time">{whenLabel(i.start_at, today)}</span>
               </li>
             ))}

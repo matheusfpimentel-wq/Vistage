@@ -563,6 +563,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .lc-hint { font-size: 0.72rem; text-align: center; }
 
+/* Selo "pendente": GIG criada no celular ainda não sincronizada com o PC. */
+.pending-badge {
+  display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem;
+  border-radius: 999px; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.02em;
+  text-transform: uppercase; vertical-align: middle; white-space: nowrap;
+  color: #f5c83c; background: color-mix(in srgb, #f5c83c 18%, transparent);
+  border: 1px solid color-mix(in srgb, #f5c83c 45%, transparent);
+}
+
 /* Overlay de tela cheia: fundo embaçado + escurecido por trás do leque. */
 .lc-fan-overlay {
   position: fixed; inset: 0; z-index: 40;

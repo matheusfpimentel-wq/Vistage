@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
+import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 
 type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class";
@@ -11,6 +12,8 @@ type Row = {
   title: string;
   subtitle: string | null;
   meta: Record<string, unknown>;
+  /** GIG criada no celular ainda não sincronizada com o PC (selo "pendente"). */
+  pending?: boolean;
 };
 
 /** Categorias do prompt inicial — só ícone (em círculo) + título. "all" = tudo. */
@@ -44,6 +47,18 @@ function str(v: unknown): string | null {
 }
 function num(v: unknown): number | null {
   return typeof v === "number" ? v : null;
+}
+
+/** GIG local pendente → linha do resultado (com selo "pendente"). */
+function localGigToRow(g: LocalGig): Row {
+  return {
+    kind: "gig",
+    source_id: "local:" + g.client_ref,
+    title: g.venue_name,
+    subtitle: [g.date, g.city].filter(Boolean).join(" · ") || null,
+    meta: { date: g.date, city: g.city, cache_amount: g.cache_amount, notes: g.notes },
+    pending: true,
+  };
 }
 
 export function Buscar() {
@@ -83,13 +98,35 @@ export function Buscar() {
     setLoading(true);
     let q = supabase
       .from("catalog_mirror")
-      .select("kind, source_id, title, subtitle, meta")
+      .select("kind, source_id, title, subtitle, meta, search_text")
       .order("title")
       .limit(60);
     if (category !== "all") q = q.eq("kind", category);
     q = q.ilike("search_text", `%${t}%`);
     const { data } = await q;
-    setRows((data ?? []) as Row[]);
+    const raw = (data ?? []) as (Row & { search_text?: string })[];
+    const mirror = raw as Row[]; // search_text é ignorado pelo tipo Row na renderização
+
+    // GIGs criadas no celular ainda não sincronizadas: mostra as pendentes que
+    // casam com a busca, em cima. Reconcilia contra o que já voltou do espelho
+    // (mesma data + casa no search_text) pra não duplicar quando o PC processar.
+    let local: Row[] = [];
+    if (category === "gig" || category === "all") {
+      const seen = raw
+        .filter((r) => r.kind === "gig")
+        .map((r) => ({
+          date: (r.meta?.date as string | undefined) ?? null,
+          hay: ((r.search_text ?? r.title) || "").toLowerCase(),
+        }));
+      const kept = await reconcileLocalGigs(seen);
+      local = kept
+        .filter((g) => {
+          const hay = [g.venue_name, g.city, g.notes, g.date].filter(Boolean).join(" ").toLowerCase();
+          return hay.includes(t);
+        })
+        .map(localGigToRow);
+    }
+    setRows([...local, ...mirror]);
     setLoading(false);
   }, [term, category]);
 
@@ -172,6 +209,7 @@ export function Buscar() {
                   <div className="grow">
                     <strong>{r.title}</strong>
                     {r.subtitle && <span className="muted"> · {r.subtitle}</span>}
+                    {r.pending && <span className="pending-badge">pendente</span>}
                   </div>
                   <span className="kind-chevron" aria-hidden>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={open ? "M18 15l-6-6-6 6" : "M9 6l6 6-6 6"} /></svg>
@@ -264,7 +302,13 @@ function Detail({ r }: { r: Row }) {
           ))}
         </dl>
       )}
-      {["contact", "gig", "track", "venue"].includes(r.kind) && <AnotarBox r={r} />}
+      {r.pending ? (
+        <p className="muted" style={{ fontSize: "0.78rem" }}>
+          GIG criada no celular — sobe pro PC na próxima sincronização.
+        </p>
+      ) : (
+        ["contact", "gig", "track", "venue"].includes(r.kind) && <AnotarBox r={r} />
+      )}
     </div>
   );
 }
