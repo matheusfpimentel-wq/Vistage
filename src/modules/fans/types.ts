@@ -216,3 +216,44 @@ export type FanClubConfig = {
   actions: FanClubAction[];
   perks: FanClubPerkTemplate[];
 };
+
+// ============================================================
+// Ações programadas (regras gatilho → ação automáticas)
+// ============================================================
+// Regras que o usuário compõe ("se X então Y") e que rodam sozinhas sobre os
+// fãs. Persistidas em document_settings (chave "fan_auto_rules"), igual à config
+// do clube — viajam no .vistage e marcam o documento como não salvo. SEM tabela
+// nova. A idempotência (cada regra dispara no máximo uma vez por fã) é garantida
+// no executor por um marcador `[auto:<ruleId>]` gravado no que cada ação cria.
+
+/**
+ * Gatilho de uma ação programada. Cada variante é avaliada contra um fã:
+ *  - level_reached: o fã ATINGIU esse nível (ou um superior na ordem de FAN_LEVELS).
+ *  - fan_for_days: está há >= `days` no nível (nivel_changed_at) ou, sem `level`,
+ *    há >= `days` desde o cadastro (created_at).
+ *  - inactive_days: sem interação há >= `days` (last_interaction_at), opcionalmente
+ *    só para um nível específico.
+ */
+export type FanRuleTrigger =
+  | { type: "level_reached"; level: FanLevel }
+  | { type: "fan_for_days"; level?: FanLevel; days: number }
+  | { type: "inactive_days"; level?: FanLevel; days: number };
+
+/**
+ * Ação executada quando o gatilho casa:
+ *  - grant_perk: concede um perk do catálogo (categoria + nome).
+ *  - log_interaction: registra uma interação (tipo + nota opcional).
+ *  - create_task: cria uma tarefa vinculada ao fã.
+ */
+export type FanRuleAction =
+  | { type: "grant_perk"; perkCategory: FanPerkCategory; perkName: string }
+  | { type: "log_interaction"; interactionType: FanInteractionType; note?: string }
+  | { type: "create_task"; taskTitle: string };
+
+export type FanAutoRule = {
+  id: string;
+  enabled: boolean;
+  name?: string;
+  trigger: FanRuleTrigger;
+  action: FanRuleAction;
+};
