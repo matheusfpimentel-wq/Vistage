@@ -142,35 +142,96 @@ export async function listNotionPages(
 }
 
 /**
- * Garante que a página-pai não esteja arquivada (na lixeira) antes de criar um
- * database sob ela. Se estiver, o Notion recusa o POST /databases com
- * "Can't edit block that is archived. You must unarchive the block before
- * editing." — então a desarquivamos primeiro. Best-effort: se o GET/PATCH
- * falhar, seguimos e deixamos o create lançar o erro real.
+ * Único caso que exige ação do usuário: a integração não está compartilhada com
+ * NENHUMA página (Connections). A mensagem aponta pro passo certo — nunca pra
+ * "escolher um projeto/página", porque o Vistage cria a estrutura sozinho.
  */
-async function ensurePageUnarchived(token: string, pageId: string): Promise<void> {
+export class NotionNeedsConnectionsError extends Error {
+  constructor() {
+    super(
+      "A integração do Vistage não está conectada a nenhuma página no Notion. " +
+        "No Notion, abra uma página → ••• → Connections → adicione a integração do Vistage e tente de novo."
+    );
+    this.name = "NotionNeedsConnectionsError";
+  }
+}
+
+/** Mensagem amigável de um erro do Notion (sem o ruído "Notion API 400: {json}"). */
+export function notionErrorMessage(e: unknown): string {
+  if (e instanceof NotionNeedsConnectionsError) return e.message;
+  const raw = e instanceof Error ? e.message : String(e);
+  const m = /Notion API \d+:\s*(\{[\s\S]*\})/.exec(raw);
+  if (m) {
+    try {
+      const body = JSON.parse(m[1]) as { message?: string };
+      if (body.message) return body.message;
+    } catch {
+      /* corpo não-JSON — usa o texto cru */
+    }
+  }
+  return raw;
+}
+
+/** Estado da página-pai: utilizável, arquivada (na lixeira) ou sumida/sem acesso. */
+async function pageState(token: string, pageId: string): Promise<"ok" | "archived" | "gone"> {
   try {
     const page = await notionApi<{ archived?: boolean; in_trash?: boolean }>(
       token,
       "GET",
       `/pages/${pageId}`
     );
-    if (page.archived || page.in_trash) {
-      await notionApi(token, "PATCH", `/pages/${pageId}`, { archived: false, in_trash: false });
-    }
+    return page.archived || page.in_trash ? "archived" : "ok";
   } catch {
-    /* segue e deixa o create dar o erro real (token/permissão/etc.) */
+    return "gone";
   }
 }
 
-/** Cria o database "Ideias" sob a página escolhida e guarda o id. */
+/**
+ * Resolve uma página-pai utilizável pros databases do Vistage SEM pedir nada ao
+ * usuário (auto-recuperação, idempotente):
+ *  1. Tenta o id guardado — se existe e está OK, usa.
+ *  2. Se está arquivado/na lixeira (e a integração pode editá-lo), DESARQUIVA e usa.
+ *  3. Se está obsoleto/sumido, DESCARTA o id e cria uma página "Vistage" nova sob a
+ *     primeira página acessível (via /search), guardando o novo id. Sem loop no velho.
+ *  4. Se /search não acha NADA → NotionNeedsConnectionsError (único caso de usuário).
+ */
+async function resolveVistageParent(token: string, storedParentId: string | null): Promise<string> {
+  if (storedParentId) {
+    const st = await pageState(token, storedParentId);
+    if (st === "ok") return storedParentId;
+    if (st === "archived") {
+      await notionApi(token, "PATCH", `/pages/${storedParentId}`, {
+        archived: false,
+        in_trash: false,
+      });
+      return storedParentId;
+    }
+    // "gone": id obsoleto/na lixeira — descarta e parte pra busca (sem loop).
+  }
+  const pages = await listNotionPages(token);
+  if (pages.length === 0) throw new NotionNeedsConnectionsError();
+  // Cria uma página-pai "Vistage" sob a primeira página acessível e guarda o id.
+  const host = pages[0].id;
+  const created = await notionApi<{ id: string }>(token, "POST", "/pages", {
+    parent: { type: "page_id", page_id: host },
+    properties: { title: { title: [{ type: "text", text: { content: "Vistage" } }] } },
+  });
+  await setSetting(KEY_PARENT, created.id);
+  return created.id;
+}
+
+/**
+ * Cria o database "Ideias". A página-pai é resolvida automaticamente
+ * (desarquiva/recria sozinho — ver resolveVistageParent); `preferredParentId` é
+ * só uma dica (ex.: a página que o usuário já tinha) — se obsoleta, é descartada.
+ */
 export async function createIdeasDatabase(
   token: string,
-  parentPageId: string
+  preferredParentId?: string
 ): Promise<string> {
-  await ensurePageUnarchived(token, parentPageId);
+  const parent = await resolveVistageParent(token, preferredParentId || (await getSetting(KEY_PARENT)));
   const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
-    parent: { type: "page_id", page_id: parentPageId },
+    parent: { type: "page_id", page_id: parent },
     title: [{ type: "text", text: { content: "💡 Ideias — Vistage" } }],
     properties: {
       Name: { title: {} },
@@ -181,10 +242,7 @@ export async function createIdeasDatabase(
       Tags: { multi_select: {} },
     },
   });
-  await Promise.all([
-    setSetting(KEY_PARENT, parentPageId),
-    setSetting(KEY_DB, res.id),
-  ]);
+  await Promise.all([setSetting(KEY_PARENT, parent), setSetting(KEY_DB, res.id)]);
   return res.id;
 }
 
@@ -278,11 +336,15 @@ export async function syncNotion(): Promise<NotionSyncResult> {
 
 // ── Notas → database própria (separada das ideias) ────────────────────────────
 
-/** Cria o database "Notas" sob a página escolhida (ou a mesma das ideias). */
-export async function createNotesDatabase(token: string, parentPageId: string): Promise<string> {
-  await ensurePageUnarchived(token, parentPageId);
+/**
+ * Cria o database "Notas". O usuário NÃO escolhe a página: a página-pai é
+ * resolvida e consertada sozinha (desarquiva o id guardado, ou descarta o
+ * obsoleto e cria uma "Vistage" nova sob a primeira página acessível). Idempotente.
+ */
+export async function createNotesDatabase(token: string): Promise<string> {
+  const parent = await resolveVistageParent(token, await getSetting(KEY_PARENT));
   const res = await notionApi<{ id: string }>(token, "POST", "/databases", {
-    parent: { type: "page_id", page_id: parentPageId },
+    parent: { type: "page_id", page_id: parent },
     title: [{ type: "text", text: { content: "📝 Notas — Vistage" } }],
     properties: {
       Name: { title: {} },
@@ -291,7 +353,7 @@ export async function createNotesDatabase(token: string, parentPageId: string): 
       Tags: { multi_select: {} },
     },
   });
-  await Promise.all([setSetting(KEY_PARENT, parentPageId), setSetting(KEY_NOTES_DB, res.id)]);
+  await Promise.all([setSetting(KEY_PARENT, parent), setSetting(KEY_NOTES_DB, res.id)]);
   return res.id;
 }
 
