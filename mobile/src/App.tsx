@@ -130,7 +130,7 @@ export function App() {
         {tab === "foco" && <Foco />}
         {tab === "brainstorm" && <Brainstorming />}
         {tab === "buscar" && <Buscar />}
-        {tab === "tarefas" && <Tarefas />}
+        {tab === "tarefas" && <Tarefas onGoFocus={() => setTab("foco")} />}
       </main>
 
       <div className={"tabwrap" + (navHidden ? " hidden" : "")}>

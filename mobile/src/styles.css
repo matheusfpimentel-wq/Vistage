@@ -515,6 +515,13 @@ button { font-family: inherit; cursor: pointer; }
   border: 2px solid var(--muted); background: transparent;
 }
 .check:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
+/* "Play" pra focar na tarefa (à direita, não conflita com o check de concluir). */
+.task-focus {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.task-focus:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 /* Overlay de captura (sheet) */
 .overlay {

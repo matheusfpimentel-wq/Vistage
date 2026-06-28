@@ -33,7 +33,7 @@ function bucketOf(due: string | null, today: string, tomorrow: string, weekEnd: 
   return "Depois";
 }
 
-export function Tarefas() {
+export function Tarefas({ onGoFocus }: { onGoFocus: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [done, setDone] = useState<Set<string>>(new Set());
@@ -83,6 +83,17 @@ export function Tarefas() {
     return { groups: map, total: pending.length };
   }, [tasks, done]);
 
+  // Play → abre o Modo Foco em "Gestão" focado nessa tarefa (mostra o checklist).
+  function startFocusOnTask(t: Task) {
+    try {
+      localStorage.setItem("vistage.foco.task", JSON.stringify({ id: t.source_id, title: t.title }));
+      localStorage.setItem("vistage.foco.suggestedActivity", "Gestão");
+    } catch {
+      /* ok */
+    }
+    onGoFocus();
+  }
+
   return (
     <div className="screen">
       <div className="row-between">
@@ -105,7 +116,7 @@ export function Tarefas() {
               </h3>
               <ul className="list">
                 {groups.get(g)!.map((t) => (
-                  <SwipeTask key={t.source_id} t={t} onComplete={() => void complete(t)} />
+                  <SwipeTask key={t.source_id} t={t} onComplete={() => void complete(t)} onFocus={() => startFocusOnTask(t)} />
                 ))}
               </ul>
             </section>
@@ -123,7 +134,7 @@ export function Tarefas() {
 }
 
 /** Linha com deslizar-pra-concluir (revela "✓ Concluir" e dispara no limiar). */
-function SwipeTask({ t, onComplete }: { t: Task; onComplete: () => void }) {
+function SwipeTask({ t, onComplete, onFocus }: { t: Task; onComplete: () => void; onFocus: () => void }) {
   const [dx, setDx] = useState(0);
   const startX = useRef<number | null>(null);
   const dragging = startX.current != null;
@@ -166,6 +177,9 @@ function SwipeTask({ t, onComplete }: { t: Task; onComplete: () => void }) {
             <span className="muted small"> {[t.category, t.priority, due].filter(Boolean).join(" · ")}</span>
           )}
         </div>
+        <button className="task-focus" aria-label={`Focar em ${t.title}`} onClick={onFocus}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+        </button>
       </div>
     </li>
   );
