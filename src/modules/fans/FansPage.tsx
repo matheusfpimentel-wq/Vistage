@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
+  Bookmark,
   ChevronDown,
   ChevronUp,
   Gift,
@@ -9,6 +10,7 @@ import {
   List,
   Megaphone,
   Pencil,
+  Play,
   Plus,
   Save,
   Settings2,
@@ -40,13 +42,13 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
-import { FanVipDerivedPanel } from "./components/FanVipDerivedPanel";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
   createFanGroup,
   deleteFan,
   deleteFanGroup,
+  deleteFanSegment,
   getFan,
   listFanGroupMembers,
   listFanGroups,
@@ -54,18 +56,20 @@ import {
   listFanPerkCounts,
   listFans,
   listFanOrigens,
+  listFanSegments,
   createFanSegment,
   loadFanUpgradeRules,
+  parseFanSegmentCriterios,
   recomputeAllFanLevels,
   removeFanGroupMember,
   saveFanUpgradeRules,
   type FanFilters,
 } from "./api";
-import { FanSegmentsPanel } from "./components/FanSegmentsPanel";
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
-import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanUpgradeRules } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
 import { formatDate } from "@/lib/format";
+import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { useNewItemShortcut } from "@/lib/shortcuts";
@@ -161,7 +165,7 @@ export function FansPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useModuleView<ViewMode>("fans", "list");
   // "Próximas ações" (valor "hoje") é a aba PADRÃO do Clube de Fãs.
-  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "vip" | "config">("hoje");
+  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "config">("hoje");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
@@ -273,14 +277,15 @@ export function FansPage() {
         <TabsList>
           <TabsTrigger value="fas">Fãs</TabsTrigger>
           <TabsTrigger value="hoje">Próximas ações</TabsTrigger>
-          <TabsTrigger value="grupos">Grupos &amp; Segmentos</TabsTrigger>
-          <TabsTrigger value="vip">Listas VIP</TabsTrigger>
+          <TabsTrigger value="grupos">Grupos</TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
             <Settings2 className="h-3.5 w-3.5" /> Configurar
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="fas" className="space-y-4">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
       <ModuleToolbar
         primaryAction={{ label: "Novo fã", icon: Plus, onClick: openCreate }}
         search={{
@@ -366,19 +371,10 @@ export function FansPage() {
                   Limpar filtros
                 </Button>
               )}
-              <div className="ml-auto flex items-center gap-2">
-                <Input
-                  className="h-8 w-44"
-                  placeholder="Nome do segmento"
-                  value={segName}
-                  onChange={(e) => setSegName(e.target.value)}
-                  disabled={countActiveFilters(filters) === 0}
-                  onKeyDown={(e) => { if (e.key === "Enter") void handleSaveSegment(); }}
-                />
-                <Button size="sm" disabled={!segName.trim() || countActiveFilters(filters) === 0 || savingSeg} onClick={() => void handleSaveSegment()}>
-                  <Save className="h-4 w-4" /> {savingSeg ? "Salvando…" : "Salvar segmento"}
-                </Button>
-              </div>
+              {/* Salvar como segmento mora no menu "Filtros salvos", ao lado da busca. */}
+              <p className="ml-auto text-xs text-muted-foreground">
+                Salve estes filtros em “Filtros salvos”.
+              </p>
             </div>
           </div>
         }
@@ -395,6 +391,18 @@ export function FansPage() {
         resultCount={fans.length}
         resultLabel="fãs"
       />
+        </div>
+        {/* Filtros salvos (segmentos) — aplica/cria/exclui filtros reutilizáveis,
+            ao lado da barra de busca. As listas VIP foram movidas pra GIG. */}
+        <FanSavedFiltersMenu
+          onApply={applySegment}
+          onSaveCurrent={() => void handleSaveSegment()}
+          canSaveCurrent={countActiveFilters(filters) > 0}
+          savingSegment={savingSeg}
+          segName={segName}
+          onSegNameChange={setSegName}
+        />
+      </div>
 
       {loading ? (
         <SkeletonCards />
@@ -543,20 +551,10 @@ export function FansPage() {
         </TabsContent>
 
         <TabsContent value="grupos" className="space-y-6">
-          <FanSegmentsPanel onApply={applySegment} />
           <div>
             <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos (comunidades externas)</h3>
             <FanGroupsPanel fans={fans} embedded />
           </div>
-        </TabsContent>
-
-        <TabsContent value="vip" className="space-y-3">
-          <FanVipDerivedPanel
-            onOpenFan={(id) => {
-              setDetailId(id);
-              setDetailOpen(true);
-            }}
-          />
         </TabsContent>
 
         <TabsContent value="config">
@@ -583,6 +581,168 @@ export function FansPage() {
       <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
 
       <FanClubConfigDialog open={clubConfigOpen} onOpenChange={setClubConfigOpen} />
+    </div>
+  );
+}
+
+/** Descrição curta dos critérios de um segmento (pro menu de filtros salvos). */
+function describeSegment(c: FanFilters): string {
+  const parts: string[] = [];
+  if (c.level && c.level !== "Todos") parts.push(c.level);
+  if (c.city) parts.push(`em ${c.city}`);
+  if (c.origem) parts.push(`origem ${c.origem}`);
+  if (c.minDays) parts.push(`sem contato há +${c.minDays}d`);
+  if (c.hasPerk === true) parts.push("com perk");
+  else if (c.hasPerk === false) parts.push("sem perk");
+  if (c.ambassador) parts.push("embaixadores");
+  if (c.groupId) parts.push("de um grupo");
+  if (c.attendedGigId) parts.push("foram a uma GIG");
+  if (c.wasVip === true) parts.push("já foram VIP");
+  if (c.search) parts.push(`"${c.search}"`);
+  return parts.length ? parts.join(" · ") : "todos os fãs";
+}
+
+// "Filtros salvos" (segmentos = FanFilters serializado, tabela fan_segments).
+// Vive ao lado da busca da lista de Fãs: lista os segmentos salvos pra aplicar de
+// volta ao roster, salva os filtros atuais como um novo segmento e permite excluir.
+// Mesmo padrão de menu do FileMenu (wrapper relativo + clique-fora pra fechar).
+function FanSavedFiltersMenu({
+  onApply,
+  onSaveCurrent,
+  canSaveCurrent,
+  savingSegment,
+  segName,
+  onSegNameChange,
+}: {
+  onApply: (c: FanFilters) => void;
+  onSaveCurrent: () => void;
+  canSaveCurrent: boolean;
+  savingSegment: boolean;
+  segName: string;
+  onSegNameChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [segments, setSegments] = useState<FanSegment[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(async () => {
+    setSegments(await listFanSegments());
+  }, []);
+
+  // Carrega os segmentos e reage a mudanças (criar/excluir emitem DATA_CHANGED),
+  // pra refletir um "salvar segmento" disparado a partir desta mesma barra.
+  useEffect(() => {
+    void refresh();
+    const onChange = () => void refresh();
+    window.addEventListener(DATA_CHANGED, onChange);
+    return () => window.removeEventListener(DATA_CHANGED, onChange);
+  }, [refresh]);
+
+  // Fecha ao clicar fora (idêntico ao menu Arquivo).
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  function handleApply(seg: FanSegment) {
+    onApply(parseFanSegmentCriterios(seg.criterios));
+    setOpen(false);
+  }
+
+  async function handleDelete(seg: FanSegment) {
+    const ok = await confirmDialog({
+      title: "Excluir segmento",
+      description: `Excluir o segmento "${seg.nome}"? (Os fãs não são afetados.)`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+    await deleteFanSegment(seg.id);
+    await refresh();
+  }
+
+  const canSave = canSaveCurrent && !!segName.trim() && !savingSegment;
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant={segments.length > 0 ? "secondary" : "outline"}
+        onClick={() => setOpen((v) => !v)}
+        className="gap-1.5"
+      >
+        <Bookmark className="h-4 w-4" /> Filtros salvos
+        {segments.length > 0 && (
+          <span className="ml-1 rounded-full bg-primary/15 px-1.5 text-xs font-medium text-primary">
+            {segments.length}
+          </span>
+        )}
+      </Button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-md border bg-popover shadow-md">
+          {/* Salvar os filtros atuais como um novo segmento. */}
+          <div className="border-b p-3">
+            <div className="text-xs font-medium text-muted-foreground">Salvar filtros atuais</div>
+            <div className="mt-2 flex items-center gap-2">
+              <Input
+                className="h-8 flex-1"
+                placeholder="Nome do segmento"
+                value={segName}
+                onChange={(e) => onSegNameChange(e.target.value)}
+                disabled={!canSaveCurrent}
+                onKeyDown={(e) => { if (e.key === "Enter" && canSave) onSaveCurrent(); }}
+              />
+              <Button size="sm" className="h-8" disabled={!canSave} onClick={onSaveCurrent}>
+                <Save className="h-4 w-4" /> {savingSegment ? "Salvando…" : "Salvar"}
+              </Button>
+            </div>
+            {!canSaveCurrent && (
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Ative ao menos um filtro pra salvar um segmento.
+              </p>
+            )}
+          </div>
+
+          {/* Lista de segmentos salvos — aplicar de volta ao roster ou excluir. */}
+          <div className="max-h-72 overflow-y-auto p-1">
+            {segments.length === 0 ? (
+              <p className="px-2 py-3 text-sm text-muted-foreground">Nenhum filtro salvo ainda.</p>
+            ) : (
+              segments.map((seg) => {
+                const c = parseFanSegmentCriterios(seg.criterios);
+                return (
+                  <div key={seg.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 flex-col text-left"
+                      onClick={() => handleApply(seg)}
+                    >
+                      <span className="truncate text-sm font-medium">{seg.nome}</span>
+                      <span className="truncate text-xs text-muted-foreground">{describeSegment(c)}</span>
+                    </button>
+                    <Button size="sm" variant="ghost" className="h-7 shrink-0 px-2" onClick={() => handleApply(seg)}>
+                      <Play className="h-3.5 w-3.5" /> Aplicar
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0 text-destructive"
+                      onClick={() => void handleDelete(seg)}
+                      aria-label="Excluir segmento"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
