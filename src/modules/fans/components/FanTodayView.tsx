@@ -1,19 +1,36 @@
 import { useCallback, useEffect, useState } from "react";
-import { Cake, Check, Coffee, Flame, Gift, HeartHandshake, PartyPopper, Sparkles, User, type LucideIcon } from "lucide-react";
+import {
+  Cake,
+  CalendarClock,
+  Check,
+  Coffee,
+  Flame,
+  Gift,
+  HeartHandshake,
+  PartyPopper,
+  Sparkles,
+  Ticket,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonCards } from "@/components/shared/Skeleton";
 import { toast } from "@/components/ui/toaster";
-import { todayISO } from "@/lib/format";
+import { formatDate, todayISO } from "@/lib/format";
 import { useImageUrl } from "@/lib/uploads";
+import { updateTask } from "@/modules/tasks/api";
 import { LevelBadge } from "./LevelBadge";
 import {
   addFanPerk,
   createFanTask,
+  listScheduledFanActions,
   loadFanClubConfig,
   loadFanToday,
+  nextNonSocialGig,
   type FanTodayBuckets,
   type FanTodayItem,
+  type ScheduledFanAction,
 } from "../api";
 import type { FanClubAction, FanClubConfig, FanClubPerkTemplate } from "../types";
 
@@ -29,8 +46,9 @@ type BucketDef = {
   fallback: { label: string; template: string };
 };
 
-// "Hoje" = fila de ação. Cada grupo junta os fãs que precisam do mesmo tipo de
-// toque agora; o botão usa a ação rápida configurada (vira tarefa com {nome}).
+// "Próximas ações" = fila de ação. Cada grupo junta os fãs que precisam do mesmo
+// tipo de toque agora; o botão usa a ação rápida configurada (vira tarefa com
+// {nome}).
 const BUCKETS: BucketDef[] = [
   {
     key: "agradecer",
@@ -39,6 +57,14 @@ const BUCKETS: BucketDef[] = [
     icon: HeartHandshake,
     actionId: "agradecer",
     fallback: { label: "Agradecer", template: "Agradecer presença de {nome} no show" },
+  },
+  {
+    key: "convidar",
+    title: "Convidar pro próximo show",
+    hint: "Estiveram num show recente — chame pra próxima GIG.",
+    icon: Ticket,
+    actionId: "convidar",
+    fallback: { label: "Convidar", template: "Convidar {nome} para o próximo show" },
   },
   {
     key: "parabenizar",
@@ -74,14 +100,26 @@ const BUCKETS: BucketDef[] = [
   },
 ];
 
+/** Próxima GIG não-social, resolvida pra rotular/datar o convite. */
+type NextGig = { id: number; name: string; date: string } | null;
+
 export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void }) {
   const [buckets, setBuckets] = useState<FanTodayBuckets | null>(null);
   const [config, setConfig] = useState<FanClubConfig | null>(null);
+  const [scheduled, setScheduled] = useState<ScheduledFanAction[]>([]);
+  const [nextGig, setNextGig] = useState<NextGig>(null);
 
   const refresh = useCallback(async () => {
-    const [b, c] = await Promise.all([loadFanToday(), loadFanClubConfig()]);
+    const [b, c, s, n] = await Promise.all([
+      loadFanToday(),
+      loadFanClubConfig(),
+      listScheduledFanActions(),
+      nextNonSocialGig(),
+    ]);
     setBuckets(b);
     setConfig(c);
+    setScheduled(s);
+    setNextGig(n);
   }, []);
 
   useEffect(() => {
@@ -92,17 +130,18 @@ export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void
 
   const total =
     buckets.agradecer.length +
+    buckets.convidar.length +
     buckets.parabenizar.length +
     buckets.reativar.length +
     buckets.aniversarios.length +
     buckets.boasVindas.length;
 
-  if (total === 0) {
+  if (total === 0 && scheduled.length === 0) {
     return (
       <EmptyState
         icon={Coffee}
         title="Nada pendente hoje."
-        description="Quando alguém for a um show, esfriar, fizer aniversário ou entrar novo, aparece aqui pra você agir."
+        description="Quando alguém for a um show, esfriar, fizer aniversário ou entrar novo, aparece aqui pra você agir. Ações que você agendar para um fã também aparecem aqui."
       />
     );
   }
@@ -112,9 +151,16 @@ export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void
       <p className="text-xs text-muted-foreground">
         Quem merece um toque agora. Cada ação vira uma tarefa já vinculada ao fã.
       </p>
+
+      {scheduled.length > 0 && (
+        <ScheduledActions items={scheduled} onRefresh={refresh} onOpenFan={onOpenFan} />
+      )}
+
       {BUCKETS.map((def) => {
         const items = buckets[def.key];
         if (!items.length) return null;
+        // O balde "Convidar pro próximo show" só faz sentido com uma GIG à frente.
+        if (def.key === "convidar" && !nextGig) return null;
         const action: FanClubAction =
           config?.actions.find((a) => a.id === def.actionId) ?? {
             id: def.actionId,
@@ -128,10 +174,122 @@ export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void
             items={items}
             action={action}
             perks={config?.perks ?? []}
+            nextGig={def.key === "convidar" ? nextGig : null}
             onOpenFan={onOpenFan}
           />
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Seção "ações anotadas": as TAREFAS pendentes vinculadas a fãs com vencimento,
+ * ordenadas por data (atrasadas em destaque). É a referência cruzada às Tarefas
+ * — "vejo as que anotei".
+ */
+function ScheduledActions({
+  items,
+  onRefresh,
+  onOpenFan,
+}: {
+  items: ScheduledFanAction[];
+  onRefresh: () => Promise<void>;
+  onOpenFan: (fanId: number) => void;
+}) {
+  return (
+    <div className="rounded-lg border">
+      <div className="flex items-center gap-2 border-b px-4 py-2.5">
+        <CalendarClock className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Ações agendadas</span>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {items.length}
+        </span>
+        <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
+          O que você anotou pra fazer, por data.
+        </span>
+      </div>
+      <div className="divide-y">
+        {items.map((it) => (
+          <ScheduledRow key={it.task_id} item={it} onRefresh={onRefresh} onOpenFan={onOpenFan} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ScheduledRow({
+  item,
+  onRefresh,
+  onOpenFan,
+}: {
+  item: ScheduledFanAction;
+  onRefresh: () => Promise<void>;
+  onOpenFan: (fanId: number) => void;
+}) {
+  const photo = useImageUrl(item.fan_photo_path);
+  const [busy, setBusy] = useState(false);
+  const overdue = item.due_date < todayISO();
+
+  const initials = item.fan_name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  async function complete() {
+    setBusy(true);
+    try {
+      await updateTask({ id: item.task_id, status: "Concluída" });
+      toast.success("Ação concluída");
+      await onRefresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2">
+      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-muted">
+        {photo ? (
+          <img src={photo} alt={item.fan_name} className="h-full w-full object-cover object-top" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
+            {initials || <User className="h-4 w-4" />}
+          </div>
+        )}
+      </div>
+      <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpenFan(item.fan_id)}>
+        <div className="flex items-center gap-2">
+          <span className="truncate text-sm font-medium hover:underline">{item.fan_name}</span>
+          <LevelBadge level={item.fan_level} />
+        </div>
+        <div className="truncate text-xs text-muted-foreground">{item.title}</div>
+      </button>
+      <span
+        className={
+          overdue
+            ? "shrink-0 text-xs font-medium text-destructive"
+            : "shrink-0 text-xs text-muted-foreground"
+        }
+        title={overdue ? "Atrasada" : undefined}
+      >
+        {formatDate(item.due_date)}
+      </span>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 shrink-0"
+        disabled={busy}
+        aria-label="Concluir ação"
+        title="Concluir ação"
+        onClick={() => void complete()}
+      >
+        <Check className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
@@ -141,12 +299,14 @@ function TodayBucket({
   items,
   action,
   perks,
+  nextGig,
   onOpenFan,
 }: {
   def: BucketDef;
   items: FanTodayItem[];
   action: FanClubAction;
   perks: FanClubPerkTemplate[];
+  nextGig: NextGig;
   onOpenFan: (fanId: number) => void;
 }) {
   const Icon = def.icon;
@@ -160,7 +320,14 @@ function TodayBucket({
       </div>
       <div className="divide-y">
         {items.map((it) => (
-          <TodayRow key={it.fan_id} item={it} action={action} perks={perks} onOpenFan={onOpenFan} />
+          <TodayRow
+            key={it.fan_id}
+            item={it}
+            action={action}
+            perks={perks}
+            nextGig={nextGig}
+            onOpenFan={onOpenFan}
+          />
         ))}
       </div>
     </div>
@@ -171,11 +338,14 @@ function TodayRow({
   item,
   action,
   perks,
+  nextGig,
   onOpenFan,
 }: {
   item: FanTodayItem;
   action: FanClubAction;
   perks: FanClubPerkTemplate[];
+  /** Quando presente (balde "convidar"), a ação datas no dia da próxima GIG. */
+  nextGig: NextGig;
   onOpenFan: (fanId: number) => void;
 }) {
   const photo = useImageUrl(item.photo_path);
@@ -193,7 +363,15 @@ function TodayRow({
   async function doAction() {
     setBusy(true);
     try {
-      await createFanTask(item.fan_id, action.titleTemplate.replace(/\{nome\}/g, item.name));
+      if (nextGig) {
+        // Convite: vira tarefa "Convidar {nome} para {próxima GIG}" com vencimento
+        // no dia da próxima GIG futura não-social.
+        await createFanTask(item.fan_id, `Convidar ${item.name} para ${nextGig.name}`, {
+          due_date: nextGig.date,
+        });
+      } else {
+        await createFanTask(item.fan_id, action.titleTemplate.replace(/\{nome\}/g, item.name));
+      }
       setActed(true);
       toast.success(`Tarefa criada para ${item.name}`);
     } catch (e) {

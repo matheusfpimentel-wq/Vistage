@@ -150,6 +150,33 @@ export async function getGig(id: number): Promise<Gig | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * Próxima GIG futura que NÃO é "Evento Social": a de MENOR `date` >= hoje cuja
+ * categoria não seja social. Usada pela sugestão "convidar pro próximo show"
+ * (vencimento da tarefa) e pra rotular "{nome da próxima GIG}". Retorna o nome já
+ * resolvido (event_name → venue_name) ou null se não houver nenhuma à frente.
+ */
+export async function nextNonSocialGig(): Promise<{ id: number; name: string; date: string } | null> {
+  const db = getDb();
+  const today = toLocalISODate(); // data LOCAL (à noite no Brasil o UTC pularia 1 dia)
+  const rows = await db
+    .select<{ id: number; name: string | null; date: string }[]>(
+      `SELECT id,
+              COALESCE(NULLIF(event_name, ''), venue_name) AS name,
+              date
+         FROM gigs
+        WHERE date >= $1
+          AND (event_category IS NULL OR event_category <> 'Evento Social')
+        ORDER BY date ASC, start_time ASC
+        LIMIT 1`,
+      [today]
+    )
+    .catch(() => [] as { id: number; name: string | null; date: string }[]);
+  const g = rows[0];
+  if (!g) return null;
+  return { id: g.id, name: g.name?.trim() || "Próximo show", date: g.date };
+}
+
 export async function createGig(input: GigCreateInput): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input).filter((c) => WRITABLE_GIG_COLUMNS.has(c));
