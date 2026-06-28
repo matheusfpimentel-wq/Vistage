@@ -160,7 +160,8 @@ export function FansPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useModuleView<ViewMode>("fans", "list");
-  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "vip" | "config">("fas");
+  // "Próximas ações" (valor "hoje") é a aba PADRÃO do Clube de Fãs.
+  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "vip" | "config">("hoje");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
@@ -228,11 +229,6 @@ export function FansPage() {
 
   useNewItemShortcut(openCreate);
 
-  function openEdit(f: Fan) {
-    setEditing(f);
-    setFormOpen(true);
-  }
-
   function openDetail(f: Fan) {
     setDetailId(f.id);
     setDetailOpen(true);
@@ -276,7 +272,7 @@ export function FansPage() {
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)}>
         <TabsList>
           <TabsTrigger value="fas">Fãs</TabsTrigger>
-          <TabsTrigger value="hoje">Hoje</TabsTrigger>
+          <TabsTrigger value="hoje">Próximas ações</TabsTrigger>
           <TabsTrigger value="grupos">Grupos &amp; Segmentos</TabsTrigger>
           <TabsTrigger value="vip">Listas VIP</TabsTrigger>
           <TabsTrigger value="config" className="gap-1.5">
@@ -427,7 +423,7 @@ export function FansPage() {
               interactionCount={interactionCounts.get(f.id) ?? 0}
               perkCount={perkCounts.get(f.id) ?? 0}
               onOpen={() => openDetail(f)}
-              onEdit={() => openEdit(f)}
+              onEdit={() => openDetail(f)}
               onDelete={() => void handleDelete(f)}
             />
           ))}
@@ -513,7 +509,7 @@ export function FansPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => openEdit(f)}
+                          onClick={() => openDetail(f)}
                           aria-label="Editar"
                         >
                           <Pencil className="h-4 w-4" />
