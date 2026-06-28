@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Flame, ListChecks, Plus, Timer } from "lucide-react";
+import { Check, ListChecks, Plus, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,16 +53,18 @@ export function IdeaSessionDialog({
     setDraft("");
   }, [open]);
 
-  // Cronômetro da fase diverge — ao zerar, passa pra convergir.
+  // Cronômetro da fase diverge — ao zerar, passa pra convergir. Gated em `open`:
+  // o diálogo não desmonta ao fechar, então sem isso o timer seguiria contando
+  // (e até virando convergir) com a janela fechada.
   useEffect(() => {
-    if (phase !== "diverge") return;
+    if (!open || phase !== "diverge") return;
     if (secondsLeft <= 0) {
       setPhase("converge");
       return;
     }
     const t = window.setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
     return () => window.clearTimeout(t);
-  }, [phase, secondsLeft]);
+  }, [open, phase, secondsLeft]);
 
   function start() {
     setSecondsLeft(durationMin * 60);
@@ -283,17 +285,11 @@ export function IdeaSessionDialog({
           </div>
         )}
 
-        {phase !== "setup" && (
+        {phase === "converge" && (
           <DialogFooter>
-            {phase === "diverge" ? (
-              <Button variant="outline" onClick={() => setPhase("converge")}>
-                <Flame className="h-4 w-4" /> Ir pra convergir
-              </Button>
-            ) : (
-              <Button onClick={finish}>
-                <Check className="h-4 w-4" /> Concluir
-              </Button>
-            )}
+            <Button onClick={finish}>
+              <Check className="h-4 w-4" /> Concluir
+            </Button>
           </DialogFooter>
         )}
       </DialogContent>
