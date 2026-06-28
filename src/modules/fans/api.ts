@@ -699,6 +699,128 @@ export async function listGigsForFan(
   );
 }
 
+// ===== Superfície "Hoje" — fila de ação sobre o dado existente =====
+// NÃO é tabela nova: junta, por consulta, os fãs que precisam de ação agora,
+// agrupados por motivo. Cada item vira ação rápida (tarefa) e/ou perk de 1 clique.
+export type FanTodayItem = {
+  fan_id: number;
+  name: string;
+  level: FanLevel;
+  city: string | null;
+  photo_path: string | null;
+  /** Contexto curto do motivo (ex.: "sem contato há 45d"). */
+  detail: string;
+};
+export type FanTodayBuckets = {
+  agradecer: FanTodayItem[];
+  reativar: FanTodayItem[];
+  aniversarios: FanTodayItem[];
+  boasVindas: FanTodayItem[];
+};
+
+function daysSinceISO(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+}
+function relDays(n: number): string {
+  return n <= 0 ? "hoje" : n === 1 ? "ontem" : `há ${n}d`;
+}
+
+type TodayRow = { fan_id: number; name: string; level: FanLevel; city: string | null; photo_path: string | null };
+
+export async function loadFanToday(): Promise<FanTodayBuckets> {
+  const db = getDb();
+
+  // Agradecer presença: esteve num show nos últimos 21 dias e não há interação
+  // registrada nesse período (proxy de "ainda não agradecido").
+  const agradecer = await db
+    .select<(TodayRow & { gig_date: string })[]>(
+      `SELECT f.id AS fan_id, f.name AS name, f.level AS level, f.city AS city, f.photo_path AS photo_path,
+              MAX(g.date) AS gig_date
+         FROM gig_fans gf
+         JOIN gigs g ON g.id = gf.gig_id
+         JOIN fans f ON f.id = gf.fan_id
+        WHERE g.date >= date('now','-21 days') AND g.date <= date('now')
+          AND NOT EXISTS (
+            SELECT 1 FROM fan_interactions fi
+             WHERE fi.fan_id = f.id AND fi.date >= date('now','-21 days')
+          )
+        GROUP BY f.id
+        ORDER BY gig_date DESC
+        LIMIT 50`
+    )
+    .catch(() => [] as (TodayRow & { gig_date: string })[]);
+
+  // Reativar: fã/superfã/embaixador sem contato há 30+ dias (decaindo de nível).
+  const reativar = await db
+    .select<(TodayRow & { last: string })[]>(
+      `SELECT id AS fan_id, name, level, city, photo_path, last_interaction_at AS last
+         FROM fans
+        WHERE level IN ('Fã','Superfã','Embaixador')
+          AND last_interaction_at IS NOT NULL
+          AND last_interaction_at < date('now','-30 days')
+        ORDER BY last_interaction_at ASC
+        LIMIT 50`
+    )
+    .catch(() => [] as (TodayRow & { last: string })[]);
+
+  // Boas-vindas: fã novo, sem nenhuma interação registrada e sem presença recente.
+  const boas = await db
+    .select<(TodayRow & { created_at: string })[]>(
+      `SELECT id AS fan_id, name, level, city, photo_path, created_at
+         FROM fans f
+        WHERE NOT EXISTS (SELECT 1 FROM fan_interactions fi WHERE fi.fan_id = f.id)
+          AND NOT EXISTS (
+            SELECT 1 FROM gig_fans gf JOIN gigs g ON g.id = gf.gig_id
+             WHERE gf.fan_id = f.id AND g.date >= date('now','-21 days')
+          )
+        ORDER BY created_at DESC
+        LIMIT 50`
+    )
+    .catch(() => [] as (TodayRow & { created_at: string })[]);
+
+  // Aniversários: fã com contato vinculado cujo aniversário cai nos próximos 7 dias.
+  const bday = await db
+    .select<(TodayRow & { birthday: string })[]>(
+      `SELECT f.id AS fan_id, f.name AS name, f.level AS level, f.city AS city, f.photo_path AS photo_path, c.birthday AS birthday
+         FROM fans f
+         JOIN contacts c ON c.id = f.contact_id
+        WHERE c.birthday IS NOT NULL AND length(c.birthday) >= 10`
+    )
+    .catch(() => [] as (TodayRow & { birthday: string })[]);
+
+  return {
+    agradecer: agradecer.map((r) => ({ ...stripRow(r), detail: `esteve num show ${relDays(daysSinceISO(r.gig_date))}` })),
+    reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
+    boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo — sem interação ainda" })),
+    aniversarios: birthdaysWithin(bday, 7),
+  };
+}
+
+function stripRow(r: TodayRow): TodayRow {
+  return { fan_id: r.fan_id, name: r.name, level: r.level, city: r.city, photo_path: r.photo_path };
+}
+
+/** Filtra os que fazem aniversário dentro de `within` dias e monta o detalhe. */
+function birthdaysWithin(rows: (TodayRow & { birthday: string })[], within: number): FanTodayItem[] {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const out: { item: FanTodayItem; days: number }[] = [];
+  for (const r of rows) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(r.birthday);
+    if (!m) continue;
+    const mo = Number(m[2]) - 1;
+    const da = Number(m[3]);
+    let next = new Date(today.getFullYear(), mo, da);
+    if (next.getTime() < today.getTime()) next = new Date(today.getFullYear() + 1, mo, da);
+    const days = Math.round((next.getTime() - today.getTime()) / 86_400_000);
+    if (days <= within) {
+      const detail = days === 0 ? "faz aniversário hoje 🎂" : days === 1 ? "faz aniversário amanhã" : `aniversário em ${days}d`;
+      out.push({ item: { ...stripRow(r), detail }, days });
+    }
+  }
+  return out.sort((a, b) => a.days - b.days).map((x) => x.item);
+}
+
 // ===== Perks / VIP / brindes (clube de fãs) =====
 
 export async function listFanPerks(fanId: number): Promise<FanPerk[]> {
