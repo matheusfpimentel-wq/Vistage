@@ -29,8 +29,8 @@ import { formatDate } from "@/lib/format";
  * "Listas VIP" — monta uma lista de nomes (ex.: convidados/VIP) opcionalmente
  * ligada a uma GIG e exporta em texto pronto pra enviar.
  */
-export function FanListsPanel({ fans }: { fans: Fan[] }) {
-  const [open, setOpen] = useState(false);
+export function FanListsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: boolean }) {
+  const [open, setOpen] = useState(embedded);
   const [lists, setLists] = useState<FanList[]>([]);
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -132,18 +132,20 @@ export function FanListsPanel({ fans }: { fans: Fan[] }) {
   }
 
   return (
-    <div className="rounded-md border">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>Listas VIP</span>
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
+    <div className={embedded ? "" : "rounded-md border"}>
+      {!embedded && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span>Listas VIP</span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      )}
 
-      {open && (
-        <div className="space-y-4 border-t p-4">
+      {(embedded || open) && (
+        <div className={embedded ? "space-y-4" : "space-y-4 border-t p-4"}>
           {lists.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhuma lista ainda.</p>
           )}
