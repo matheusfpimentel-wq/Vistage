@@ -292,7 +292,9 @@ button { font-family: inherit; cursor: pointer; }
 .focus-task { display: flex; align-items: center; gap: 0.6rem; width: 100%; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.7rem; text-align: left; color: var(--text); cursor: pointer; }
 .focus-task:active { background: var(--surface); }
 .focus-task-box { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--accent); flex-shrink: 0; }
+.focus-task-box.checked { background: var(--accent); }
 .focus-task-title { flex: 1; font-size: 0.9rem; }
+.focus-task-title.sub-done { text-decoration: line-through; opacity: 0.55; }
 
 /* Play/pause no centro do anel + Encerrar consistente com o resto do app */
 .focus-ring-ic { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; }
@@ -458,6 +460,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 .commit-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
 .commit-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
+/* "Play" no lugar do ícone, em tarefas — foca aquela tarefa (mostra o checklist). */
+.commit-play {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 9px; border: none;
+  color: #fff; background: var(--accent);
+}
+.commit-play:active { filter: brightness(0.9); }
 .commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .commit-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
 .commit-empty { margin: 0; color: var(--muted); font-size: 0.9rem; }
