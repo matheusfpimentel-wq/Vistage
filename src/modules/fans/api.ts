@@ -754,6 +754,78 @@ export async function removeFanListMember(id: number): Promise<void> {
   emitDataChanged();
 }
 
+/**
+ * Importa os membros de uma lista VIP (fan_lists) como fãs do Clube de Fãs,
+ * marcando presença nesta GIG (sinal de pontuação). Pós-show: "trazer quem
+ * esteve na Lista VIP como fãs, com origem = aquele GIG e a presença marcada".
+ *
+ * Por membro:
+ *  - Já é fã cadastrado (fan_id): só marca presença (alreadyFans).
+ *  - Nome livre: dedup por nome (case-insensitive, trim). Se achar um fã com o
+ *    mesmo nome, vincula (linked); senão cria um novo "Possível fã" com
+ *    origem = "GIG: {nome}" (created). Em ambos os casos aponta o membro pro fã
+ *    e marca presença.
+ *
+ * Idempotente: rodar de novo não duplica (dedup por nome + INSERT OR IGNORE em
+ * gig_fans). Recalcula o nível de cada fã tocado (presença sobe a pontuação).
+ */
+export async function importVipListAsFans(
+  listId: number,
+  gig: { id: number; name: string }
+): Promise<{ created: number; linked: number; alreadyFans: number }> {
+  const db = getDb();
+  const members = await listFanListMembers(listId);
+  let created = 0;
+  let linked = 0;
+  let alreadyFans = 0;
+
+  for (const m of members) {
+    let fanId = m.fan_id;
+
+    if (fanId) {
+      // já é fã cadastrado: só marca presença
+      alreadyFans++;
+    } else {
+      const name = m.name?.trim();
+      if (!name) continue; // membro vazio (sem fan_id e sem nome) — ignora
+
+      // dedup por nome (case-insensitive, trim)
+      const existing = await db.select<{ id: number }[]>(
+        "SELECT id FROM fans WHERE lower(trim(name)) = lower(trim($1)) LIMIT 1",
+        [name]
+      );
+      if (existing[0]) {
+        fanId = existing[0].id;
+        linked++;
+      } else {
+        fanId = await createFan({
+          name,
+          level: "Possível fã",
+          is_ambassador: 0,
+          instagram: null,
+          email: null,
+          phone: null,
+          city: null,
+          tags: [],
+          notes: null,
+          photo_path: null,
+          contact_id: null,
+          origem: `GIG: ${gig.name}`,
+        });
+        created++;
+      }
+      // aponta o membro da lista pro fã (idempotência: na próxima vez já tem fan_id)
+      await db.execute("UPDATE fan_list_members SET fan_id = $1 WHERE id = $2", [fanId, m.id]);
+    }
+
+    await addGigFan(gig.id, fanId);
+    await recomputeFanLevel(fanId);
+  }
+
+  emitDataChanged();
+  return { created, linked, alreadyFans };
+}
+
 /** Listas VIP (fan_lists) ligadas a uma GIG específica. */
 export async function listFanListsForGig(gigId: number): Promise<FanList[]> {
   const db = getDb();
