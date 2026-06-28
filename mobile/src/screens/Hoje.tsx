@@ -5,7 +5,26 @@ import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push"
 import { telLink, waLink, mapsLink } from "../links";
 
 type Agenda = { id: string; source: string; title: string; start_at: string | null; location: string | null };
-type Contact = { id: string; name: string; reason: string | null; handle: string | null };
+// "Esfriando": item que o artista alimenta e ficou parado. O tipo vem no prefixo
+// do source_id ("contact:" / "fan:" / "track:" / "content:") — espelho gerado no
+// desktop. Sem prefixo (espelho antigo) cai em "contact".
+type Cold = { id: string; source_id: string; name: string; reason: string | null; handle: string | null };
+type ColdKind = "contact" | "fan" | "track" | "content";
+function coldKind(c: Cold): ColdKind {
+  const p = (c.source_id || "").split(":")[0];
+  return p === "fan" || p === "track" || p === "content" ? p : "contact";
+}
+function isPerson(c: Cold): boolean {
+  const k = coldKind(c);
+  return k === "contact" || k === "fan";
+}
+function ColdIcon({ kind }: { kind: ColdKind }) {
+  const p = { width: 15, height: 15, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (kind === "fan") return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>;
+  if (kind === "track") return <svg {...p}><circle cx="6" cy="18" r="2.5" /><circle cx="17" cy="16" r="2.5" /><path d="M8.5 18V6l11-2v12" /></svg>;
+  if (kind === "content") return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3V9z" /></svg>;
+  return <svg {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+}
 type StageSlot = { start: string; end: string };
 type GigMeta = {
   date?: string;
@@ -25,7 +44,7 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 
 // §8: no lugar da neurociência de pôster, um lembrete com DADO REAL (streak,
 // compromissos, contato esfriando, última GIG).
-function realLine(streak: number, upcomingCount: number, cold: Contact | null, lastGig: CatalogGig | null): string {
+function realLine(streak: number, upcomingCount: number, cold: Cold | null, lastGig: CatalogGig | null): string {
   if (streak >= 2) return `🔥 ${streak} dias seguidos de foco — não quebra a corrente hoje.`;
   if (upcomingCount > 0)
     return `Você tem ${upcomingCount} compromisso${upcomingCount > 1 ? "s" : ""} à frente. Um passo agora encurta a lista.`;
@@ -86,7 +105,7 @@ export function Hoje({
   onGoBrainstorm: () => void;
 }) {
   const [agenda, setAgenda] = useState<Agenda[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [cooling, setCooling] = useState<Cold[]>([]);
   const [lastGig, setLastGig] = useState<CatalogGig | null>(null);
   const [todayGig, setTodayGig] = useState<CatalogGig | null>(null);
   const [streak, setStreak] = useState(0);
@@ -97,12 +116,12 @@ export function Hoje({
     const today = localToday();
     const [a, c, g, s] = await Promise.all([
       supabase.from("agenda_mirror").select("id, source, title, start_at, location").order("start_at", { ascending: true }).limit(40),
-      supabase.from("contact_today").select("id, name, reason, handle").limit(8),
+      supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(12),
       supabase.from("catalog_mirror").select("title, meta").eq("kind", "gig").limit(80),
       loadStreak(),
     ]);
     setAgenda((a.data ?? []) as Agenda[]);
-    setContacts((c.data ?? []) as Contact[]);
+    setCooling((c.data ?? []) as Cold[]);
     // Última GIG = a mais recente já passada (ou de hoje).
     const gigs = ((g.data ?? []) as CatalogGig[])
       .filter((x) => typeof x.meta?.date === "string" && x.meta.date! <= today && x.meta.status !== "Cancelada")
@@ -139,8 +158,10 @@ export function Hoje({
   const upcoming = agenda
     .filter((i) => i.start_at == null || (localDateOf(i.start_at) ?? "") >= today)
     .slice(0, 10);
-  const coldContact = contacts[0] ?? null;
-  const motivation = realLine(streak, upcoming.length, coldContact, lastGig);
+  // Pro CTA "reaquecer" e pra frase do dia: o 1º item que é PESSOA (contato/fã),
+  // pois faixa/conteúdo não se "fala". A lista de esfriando mostra todos.
+  const coldPerson = cooling.find(isPerson) ?? null;
+  const motivation = realLine(streak, upcoming.length, coldPerson, lastGig);
 
   function goFocus() {
     try {
@@ -211,14 +232,14 @@ export function Hoje({
               💡 Soltar uma ideia no Brainstorming
             </button>
           )}
-          {coldContact?.handle && (
+          {coldPerson?.handle && (
             <a
               className="commit-cta-2"
-              href={`https://wa.me/${coldContact.handle.replace(/\D/g, "")}`}
+              href={`https://wa.me/${coldPerson.handle.replace(/\D/g, "")}`}
               target="_blank"
               rel="noreferrer"
             >
-              Reaquecer: falar com {coldContact.name.split(" ")[0]}
+              Reaquecer: falar com {coldPerson.name.split(" ")[0]}
             </a>
           )}
         </div>
@@ -228,19 +249,23 @@ export function Hoje({
       <div className="today-split">
         <section className="card">
           <span className="label">Esfriando</span>
-          {contacts.length === 0 ? (
+          {cooling.length === 0 ? (
             <p className="muted small" style={{ margin: "0.4rem 0 0" }}>Tudo aquecido. 👌</p>
           ) : (
-            <ul className="mini-list">
-              {contacts.map((c) => (
-                <li key={c.id}>
-                  {c.handle ? (
-                    <a className="link" href={`https://wa.me/${c.handle.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
-                      {c.name}
-                    </a>
-                  ) : (
-                    <span>{c.name}</span>
-                  )}
+            <ul className="mini-list cold-list">
+              {cooling.map((c) => (
+                <li key={c.id} className="cold-row">
+                  <span className="cold-ic"><ColdIcon kind={coldKind(c)} /></span>
+                  <span className="cold-body">
+                    {c.handle ? (
+                      <a className="link cold-name" href={`https://wa.me/${c.handle.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
+                        {c.name}
+                      </a>
+                    ) : (
+                      <span className="cold-name">{c.name}</span>
+                    )}
+                    {c.reason && <span className="cold-sub">{c.reason}</span>}
+                  </span>
                 </li>
               ))}
             </ul>

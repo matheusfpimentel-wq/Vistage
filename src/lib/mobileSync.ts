@@ -16,7 +16,7 @@ import { loadIdentity } from "@/modules/identity/api";
 import { loadFocusStreak } from "@/modules/foco/api";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts } from "@/modules/revisao/alerts";
-import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { getCoolingDays, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { loadExtraStats } from "@/components/shared/NotificationBell";
@@ -151,28 +151,97 @@ async function buildFinance(uid: string) {
   return { user_id: uid, month, balance: income - expense, to_receive: recv[0]?.total ?? 0 };
 }
 
-async function buildContacts(uid: string) {
+type CoolingRow = {
+  user_id: string;
+  source_id: string;
+  name: string;
+  reason: string;
+  handle: string | null;
+  due_date: string;
+};
+
+/**
+ * Espelho do "Esfriando" pro mobile: tudo que o artista ALIMENTA (contatos, fãs,
+ * faixas, conteúdos) sem movimento além do tempo de resfriamento configurável
+ * (mesmo `getCoolingDays()` dos alertas do desktop) — fora criação já concluída
+ * (faixa em Pós-lançamento, conteúdo Publicado/Arquivado). O tipo viaja no
+ * prefixo do `source_id` ("contact:" / "fan:" / "track:" / "content:"), então o
+ * celular sabe o ícone sem precisar de coluna nova. Cada tipo é limitado (visão
+ * de relance); os alertas do desktop cobrem o conjunto completo.
+ */
+async function buildCooling(uid: string): Promise<CoolingRow[]> {
   const db = getDb();
-  const today = todayISO();
-  // Os 3 contatos com interação mais antiga (candidatos a follow-up).
-  const rows = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string | null }[]>(
+  const today = toLocalISODate();
+  const cut = new Date();
+  cut.setDate(cut.getDate() - getCoolingDays());
+  const cutoff = toLocalISODate(cut);
+  const daysSince = (iso: string): number =>
+    Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  const out: CoolingRow[] = [];
+
+  // Contatos sem interação (os mais frios primeiro).
+  const contacts = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
     `SELECT id, name, phone, last_interaction_at FROM contacts
-      WHERE last_interaction_at IS NOT NULL ORDER BY last_interaction_at ASC LIMIT 3`,
-    []
+      WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
+      ORDER BY last_interaction_at ASC LIMIT 4`,
+    [cutoff]
   );
-  return rows.map((c) => {
-    const days = c.last_interaction_at
-      ? Math.floor((Date.now() - new Date(c.last_interaction_at).getTime()) / 86_400_000)
-      : null;
-    return {
-      user_id: uid,
-      source_id: String(c.id),
-      name: c.name,
-      reason: days != null ? `Sem contato há ${days} dias` : "Follow-up",
-      handle: c.phone,
-      due_date: today,
-    };
-  });
+  for (const c of contacts) {
+    out.push({
+      user_id: uid, source_id: `contact:${c.id}`, name: c.name,
+      reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
+      handle: c.phone, due_date: today,
+    });
+  }
+
+  // Fãs sem interação.
+  const fans = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
+    `SELECT id, name, phone, last_interaction_at FROM fans
+      WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
+      ORDER BY last_interaction_at ASC LIMIT 3`,
+    [cutoff]
+  );
+  for (const f of fans) {
+    out.push({
+      user_id: uid, source_id: `fan:${f.id}`, name: f.name,
+      reason: `Sem interação há ${daysSince(f.last_interaction_at)} dias`,
+      handle: f.phone, due_date: today,
+    });
+  }
+
+  // Faixas em produção paradas (exclui Pós-lançamento e standby).
+  const tracks = await db.select<{ id: number; title: string | null; updated_at: string }[]>(
+    `SELECT id, title_working as title, updated_at FROM tracks
+      WHERE standby = 0 AND current_stage != 'Pós-lançamento'
+        AND substr(updated_at, 1, 10) < $1
+      ORDER BY updated_at ASC LIMIT 3`,
+    [cutoff]
+  );
+  for (const t of tracks) {
+    out.push({
+      user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
+      reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
+      handle: null, due_date: today,
+    });
+  }
+
+  // Conteúdos parados (exclui Publicado/Arquivado).
+  const content = await db.select<{ id: number; title: string; updated_at: string }[]>(
+    `SELECT id, title, updated_at FROM content
+      WHERE status NOT IN ('Publicado','Arquivado')
+        AND substr(updated_at, 1, 10) < $1
+      ORDER BY updated_at ASC LIMIT 2`,
+    [cutoff]
+  );
+  for (const ct of content) {
+    out.push({
+      user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
+      reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
+      handle: null, due_date: today,
+    });
+  }
+
+  return out;
 }
 
 async function buildFocus(uid: string) {
@@ -516,10 +585,10 @@ export async function pushMirror(): Promise<void> {
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, contacts, focus, catalog, tasks, alerts, provocations] = await Promise.all([
+  const [agenda, finance, cooling, focus, catalog, tasks, alerts, provocations] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
-    buildContacts(uid),
+    buildCooling(uid),
     buildFocus(uid),
     buildCatalog(uid),
     buildTasks(uid),
@@ -534,8 +603,8 @@ export async function pushMirror(): Promise<void> {
     if (error) throw error;
   }
   await supabase.from("contact_today").delete().eq("user_id", uid);
-  if (contacts.length) {
-    const { error } = await supabase.from("contact_today").insert(contacts);
+  if (cooling.length) {
+    const { error } = await supabase.from("contact_today").insert(cooling);
     if (error) throw error;
   }
   // resumo e foco: 1 linha por período → upsert.
