@@ -74,6 +74,24 @@ export function Brainstorming() {
     }
   }
 
+  // Responder vira ideia (§7): captura a provocação atual como ideia (vai pro PC
+  // revisar, igual ao desktop). Fecha o loop provocação→ideia também no celular.
+  async function seedFromInsight() {
+    if (!insight || busy) return;
+    setBusy(true);
+    try {
+      const t = insight.length > 80 ? `${insight.slice(0, 77)}…` : insight;
+      await sendCapture("idea", { title: t, body: insight });
+      setRecent((r) => [t, ...r].slice(0, 30));
+      setCount((n) => n + 1);
+      setInsight((cur) => pick(provs, cur));
+    } catch {
+      /* fila durável cobre — sobe sozinho depois */
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleOthers() {
     const next = !showOthers;
     setShowOthers(next);
@@ -99,9 +117,14 @@ export function Brainstorming() {
 
       <section className="card insight">
         <p className="insight-text">{insight}</p>
-        <button className="ghost" onClick={() => setInsight((cur) => pick(provs, cur))}>
-          Novo insight
-        </button>
+        <div className="row">
+          <button className="ghost" onClick={() => setInsight((cur) => pick(provs, cur))}>
+            Novo insight
+          </button>
+          <button className="ghost" disabled={busy} onClick={() => void seedFromInsight()}>
+            Virar ideia
+          </button>
+        </div>
       </section>
 
       <section className="card form">
