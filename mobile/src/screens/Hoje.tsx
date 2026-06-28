@@ -4,7 +4,7 @@ import { loadStreak } from "../identity";
 import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 import { telLink, waLink, mapsLink } from "../links";
 
-type Agenda = { id: string; source: string; title: string; start_at: string | null; location: string | null };
+type Agenda = { id: string; source: string; source_id?: string; title: string; start_at: string | null; location: string | null };
 // "Esfriando": item que o artista alimenta e ficou parado. O tipo vem no prefixo
 // do source_id ("contact:" / "fan:" / "track:" / "content:") — espelho gerado no
 // desktop. Sem prefixo (espelho antigo) cai em "contact".
@@ -117,7 +117,7 @@ export function Hoje({
     setLoading(true);
     const today = localToday();
     const [a, c, g, s] = await Promise.all([
-      supabase.from("agenda_mirror").select("id, source, title, start_at, location").order("start_at", { ascending: true }).limit(40),
+      supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(40),
       supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(12),
       supabase.from("catalog_mirror").select("title, meta").eq("kind", "gig").limit(80),
       loadStreak(),
@@ -182,6 +182,18 @@ export function Hoje({
     onGoFocus();
   }
 
+  // Play numa tarefa → abre o Modo Foco em "Gestão" já focado nessa tarefa
+  // (mostra o checklist dela). A tarefa viaja pelo localStorage.
+  function startFocusOnTask(taskId: string, title: string) {
+    try {
+      localStorage.setItem("vistage.foco.task", JSON.stringify({ id: taskId, title }));
+      localStorage.setItem("vistage.foco.suggestedActivity", "Gestão");
+    } catch {
+      /* ok */
+    }
+    onGoFocus();
+  }
+
   return (
     <div className="screen today">
       {/* §4: variante "dia de GIG" — lidera com a noite. */}
@@ -231,21 +243,28 @@ export function Hoje({
           <ul className="commit-list">
             {upcoming.map((i) => (
               <li key={i.id}>
-                <span className={"commit-ic " + i.source}><SourceIcon source={i.source} /></span>
+                {i.source === "task" && i.source_id ? (
+                  <button
+                    type="button"
+                    className="commit-play"
+                    onClick={() => startFocusOnTask(i.source_id!, i.title)}
+                    aria-label={`Focar em ${i.title}`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+                  </button>
+                ) : (
+                  <span className={"commit-ic " + i.source}><SourceIcon source={i.source} /></span>
+                )}
                 <span className="commit-title">{i.title}</span>
                 <span className="commit-time">{whenLabel(i.start_at, today)}</span>
               </li>
             ))}
           </ul>
         )}
-        {/* Sugestão de ação REAL dentro do app */}
+        {/* Ação dentro do app: o "play" fica em cada tarefa (foca a tarefa).
+            Sem nada à frente → sugere soltar uma ideia. */}
         <div className="commit-actions">
-          {upcoming.length > 0 ? (
-            <button className="commit-cta" onClick={goFocus}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
-              Focar agora em {suggestActivity(upcoming)}
-            </button>
-          ) : (
+          {upcoming.length === 0 && (
             <button className="commit-cta" onClick={onGoBrainstorm}>
               Soltar uma ideia no Brainstorming
             </button>

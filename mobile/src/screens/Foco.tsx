@@ -370,12 +370,19 @@ function MusicPanel() {
 // ── Painel: GESTÃO (tarefas pendentes pra tickar) ────────────────────────────
 type MirrorTask = { source_id: string; title: string; priority: string | null; due_date: string | null };
 
-function GestaoPanel() {
+type SubItem = { id: number; title: string; done: boolean };
+
+function GestaoPanel({ focusTask }: { focusTask: { id: string; title: string } | null }) {
   const [tasks, setTasks] = useState<MirrorTask[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [done, setDone] = useState<Set<string>>(new Set());
+  // Checklist da tarefa em foco (vem do `meta` do catálogo) + ticks otimistas.
+  const [checklist, setChecklist] = useState<SubItem[] | null>(null);
+  const [subDone, setSubDone] = useState<Record<number, boolean>>({});
 
+  // Sem tarefa em foco → lista as pendentes pra tickar (comportamento padrão).
   useEffect(() => {
+    if (focusTask) return;
     let active = true;
     void supabase
       .from("tasks_mirror")
@@ -390,15 +397,72 @@ function GestaoPanel() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [focusTask]);
+
+  // Com tarefa em foco → puxa o checklist dela do catálogo.
+  useEffect(() => {
+    if (!focusTask) return;
+    let active = true;
+    void supabase
+      .from("catalog_mirror")
+      .select("meta")
+      .eq("kind", "task")
+      .eq("source_id", focusTask.id)
+      .limit(1)
+      .then(({ data }) => {
+        if (!active) return;
+        const meta = (data?.[0]?.meta ?? {}) as { checklist?: SubItem[] };
+        setChecklist(meta.checklist ?? []);
+      });
+    return () => {
+      active = false;
+    };
+  }, [focusTask]);
 
   async function tick(t: MirrorTask) {
     setDone((d) => new Set(d).add(t.source_id)); // some na hora (otimista)
-    // Caminho de volta: vira captura 'task_done' (fila offline); o desktop
-    // conclui na revisão.
     await enqueueCapture("task_done", { task_id: Number(t.source_id), title: t.title });
   }
 
+  async function tickSub(s: SubItem) {
+    const next = !(subDone[s.id] ?? s.done);
+    setSubDone((d) => ({ ...d, [s.id]: next }));
+    await enqueueCapture("subtask_done", { subtask_id: s.id, done: next ? 1 : 0 });
+  }
+
+  // ── Tarefa em foco: título + checklist dela (itens tickáveis) ──────────────
+  if (focusTask) {
+    return (
+      <section className="card">
+        <span className="label">Tarefa em foco</span>
+        <strong className="stage-title">{focusTask.title}</strong>
+        {checklist === null ? (
+          <p className="muted" style={{ marginTop: "0.4rem" }}>Carregando checklist…</p>
+        ) : checklist.length === 0 ? (
+          <p className="muted" style={{ marginTop: "0.4rem" }}>Sem checklist nesta tarefa.</p>
+        ) : (
+          <ul className="focus-tasks">
+            {checklist.map((s) => {
+              const isDone = subDone[s.id] ?? s.done;
+              return (
+                <li key={s.id}>
+                  <button type="button" className="focus-task" onClick={() => void tickSub(s)}>
+                    <span className={"focus-task-box" + (isDone ? " checked" : "")} aria-hidden />
+                    <span className={"focus-task-title" + (isDone ? " sub-done" : "")}>{s.title}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="muted" style={{ fontSize: "0.75rem", marginTop: "0.4rem" }}>
+          Marcar aqui atualiza no PC na próxima sincronização.
+        </p>
+      </section>
+    );
+  }
+
+  // ── Sem tarefa em foco: pendentes pra tickar ───────────────────────────────
   if (!loaded) return null;
   const visible = tasks.filter((t) => !done.has(t.source_id));
   if (visible.length === 0) {
@@ -424,10 +488,10 @@ function GestaoPanel() {
   );
 }
 
-function ContextPanel({ activity }: { activity: string }) {
+function ContextPanel({ activity, focusTask }: { activity: string; focusTask: { id: string; title: string } | null }) {
   if (activity === "Tempo de palco") return <StagePanel />;
   if (activity === "Criação musical") return <MusicPanel />;
-  if (activity === "Gestão") return <GestaoPanel />;
+  if (activity === "Gestão") return <GestaoPanel focusTask={focusTask} />;
   return null;
 }
 
@@ -641,6 +705,10 @@ export function Foco() {
   const markersRef = useRef<Marker[]>([]);
   const sessionIdRef = useRef<string | null>(null);
 
+  // Tarefa em foco (vinda do "play" na tarefa, em Hoje/Tarefas): no modo Gestão
+  // mostra o checklist dela. Lido do localStorage ao montar.
+  const [focusTask, setFocusTask] = useState<{ id: string; title: string } | null>(null);
+
   const plannedMin = (() => {
     const n = Number(plannedStr);
     return plannedStr.trim() && !isNaN(n) && n > 0 ? Math.round(n) : null;
@@ -795,11 +863,17 @@ export function Foco() {
       setPhase("running");
       runTimers();
     } else {
-      // Sem sessão ativa: aplica a atividade sugerida pela tela Hoje (se houver).
+      // Sem sessão ativa: aplica a atividade sugerida pela tela Hoje (se houver) +
+      // a tarefa em foco (play numa tarefa → Gestão mostrando o checklist dela).
       try {
         const suggested = localStorage.getItem("vistage.foco.suggestedActivity");
         if (suggested && ACTIVITIES.includes(suggested)) setActivity(suggested);
         localStorage.removeItem("vistage.foco.suggestedActivity");
+        const taskRaw = localStorage.getItem("vistage.foco.task");
+        if (taskRaw) {
+          try { setFocusTask(JSON.parse(taskRaw) as { id: string; title: string }); } catch { /* ignora */ }
+          localStorage.removeItem("vistage.foco.task");
+        }
       } catch {
         /* ok */
       }
@@ -905,7 +979,7 @@ export function Foco() {
 
           {phase === "running" && <LiveCapture markers={markers} onMark={addMarker} />}
 
-          <ContextPanel activity={activity} />
+          <ContextPanel activity={activity} focusTask={focusTask} />
         </>
       )}
 

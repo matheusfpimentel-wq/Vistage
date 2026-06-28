@@ -453,20 +453,41 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       meta: { city: v.city, state: v.state, capacity: v.capacity },
     });
 
-  // Tarefas em aberto — pesquisáveis no celular (busca por tarefa).
+  // Tarefas em aberto — pesquisáveis no celular (busca por tarefa). Leva também
+  // o CHECKLIST (subtasks) no meta, pro Modo Foco "Gestão" do celular mostrar os
+  // itens da tarefa focada. Sem coluna nova no Supabase (vai no meta do catálogo).
   const ctasks = await db.select<{ id: number; title: string; status: string; priority: string | null; due_date: string | null; category: string | null }[]>(
     `SELECT id, title, status, priority, due_date, category FROM tasks
       WHERE status NOT IN ('Concluída','Cancelada') ORDER BY due_date IS NULL, due_date LIMIT 800`,
     []
   );
-  for (const t of ctasks)
+  const subsByTask = new Map<number, { id: number; title: string; done: boolean }[]>();
+  try {
+    const csubs = await db.select<{ id: number; task_id: number; title: string; done: number }[]>(
+      `SELECT s.id, s.task_id, s.title, s.done FROM subtasks s
+         JOIN tasks t ON t.id = s.task_id
+        WHERE t.status NOT IN ('Concluída','Cancelada')
+        ORDER BY s.task_id, s.position`,
+      []
+    );
+    for (const s of csubs) {
+      const arr = subsByTask.get(s.task_id) ?? [];
+      arr.push({ id: s.id, title: s.title, done: s.done === 1 });
+      subsByTask.set(s.task_id, arr);
+    }
+  } catch {
+    /* banco sem subtasks — segue sem checklist */
+  }
+  for (const t of ctasks) {
+    const checklist = subsByTask.get(t.id) ?? [];
     rows.push({
       user_id: uid, kind: "task", source_id: String(t.id),
       title: t.title,
       subtitle: [t.category, t.priority, t.due_date].filter(Boolean).join(" · ") || null,
       search_text: lc(t.title, t.category, t.priority),
-      meta: { status: t.status, priority: t.priority, due_date: t.due_date, category: t.category },
+      meta: { status: t.status, priority: t.priority, due_date: t.due_date, category: t.category, ...(checklist.length ? { checklist } : {}) },
     });
+  }
 
   // Ideias — pesquisáveis no celular (busca por ideia).
   const cideas = await db.select<{ id: number; title: string; body: string | null; category: string | null; maturation: string; heat: number }[]>(
@@ -892,6 +913,13 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     if (taskId) {
       const { updateTask } = await import("@/modules/tasks/api");
       await updateTask({ id: taskId, status: "Concluída" });
+    }
+  } else if (kind === "subtask_done") {
+    // Item de checklist marcado/desmarcado no celular (Modo Foco → Gestão).
+    const subId = n("subtask_id");
+    if (subId) {
+      const { toggleSubtask } = await import("@/modules/tasks/api");
+      await toggleSubtask(subId, n("done") !== 0);
     }
   } else if (kind === "identity") {
     // Edição de identidade no celular (hoje: nome artístico). Atualiza o registro
