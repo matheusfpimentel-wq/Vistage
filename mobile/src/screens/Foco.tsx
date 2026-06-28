@@ -525,29 +525,30 @@ function fmtAt(ms: number): string {
  * e haptic; a descrição vem no debrief/PC.
  *
  * Geometria do leque: a linha de botões fica EMBAIXO do relógio (centralizada),
- * então o arco abre pra CIMA (em direção ao relógio, onde há espaço) — ângulos de
- * ~215° a ~325° (medidos no sentido horário a partir das 3h, com Y pra baixo).
- * Assim os itens sobem em leque acima do botão tocado. A âncora (fanOrigin) é
- * presa nas bordas pra os itens não cortarem fora da viewport.
+ * então o arco abre pra CIMA. Em vez de DESLOCAR o leque pra caber (o que
+ * desencostava o leque do botão), ele INCLINA pra dentro da tela conforme a
+ * posição do botão: o de erro (mais à esquerda) abre puxado pra direita, o do
+ * meio abre reto pra cima. Assim o leque sai exatamente do botão E os itens nunca
+ * cortam na borda. Ângulos no sentido horário a partir das 3h, com Y pra baixo
+ * (270° = pra cima).
  */
 const FAN_RADIUS = 112; // distância do centro do botão até cada item do leque
-const FAN_START = 215;   // grau do primeiro item (aponta pra cima-esquerda)
-const FAN_END = 325;     // grau do último item (aponta pra cima-direita)
+const FAN_SPAN = 104; // abertura do leque, em graus
 
-/** Posição (x,y) de um item do leque, relativa ao centro do botão. */
-function fanOffset(i: number, total: number): { x: number; y: number } {
-  const t = total <= 1 ? 0 : i / (total - 1);
-  const deg = FAN_START + (FAN_END - FAN_START) * t;
-  const rad = (deg * Math.PI) / 180;
-  return { x: Math.cos(rad) * FAN_RADIUS, y: Math.sin(rad) * FAN_RADIUS };
+/** Faixa angular do leque, inclinada pra DENTRO da tela conforme o x do botão. */
+function fanRange(originX: number): { start: number; end: number } {
+  const w = typeof window !== "undefined" ? window.innerWidth : 390;
+  const frac = Math.min(1, Math.max(0, originX / w)); // 0 = esquerda · 1 = direita
+  const center = 270 + (0.5 - frac) * 90; // 270 = pra cima; inclina até ±45°
+  return { start: center - FAN_SPAN / 2, end: center + FAN_SPAN / 2 };
 }
 
-/** Centro do botão tocado, preso às bordas pra o leque (raio ~112) não cortar
-    fora da tela — os botões agora ficam centralizados embaixo do relógio. */
-function fanAnchor(r: DOMRect): { x: number; y: number } {
-  const margin = FAN_RADIUS + 16;
-  const x = Math.min(Math.max(r.left + r.width / 2, margin), window.innerWidth - margin);
-  return { x, y: r.top + r.height / 2 };
+/** Posição (x,y) de um item do leque, relativa ao centro do botão. */
+function fanOffset(i: number, total: number, startDeg: number, endDeg: number): { x: number; y: number } {
+  const t = total <= 1 ? 0 : i / (total - 1);
+  const deg = startDeg + (endDeg - startDeg) * t;
+  const rad = (deg * Math.PI) / 180;
+  return { x: Math.cos(rad) * FAN_RADIUS, y: Math.sin(rad) * FAN_RADIUS };
 }
 
 type FanKind = "weak" | "moment";
@@ -580,6 +581,8 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
   }
 
   const options = fan === "weak" ? WEAK_TYPES : STRONG_TYPES;
+  // Faixa do leque inclinada conforme a posição do botão (fanOrigin garantido no render).
+  const fanDeg = fanOrigin ? fanRange(fanOrigin.x) : { start: 270 - FAN_SPAN / 2, end: 270 + FAN_SPAN / 2 };
 
   return (
     <section className="live-capture">
@@ -589,7 +592,8 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
           type="button"
           className="glass-round lc-round lc-round-err"
           onClick={(e) => {
-            setFanOrigin(fanAnchor(e.currentTarget.getBoundingClientRect()));
+            const r = e.currentTarget.getBoundingClientRect();
+            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
             setFan((f) => (f === "weak" ? null : "weak"));
           }}
           aria-label={`Registrar erro${errors ? ` (${errors} nesta sessão)` : ""}`}
@@ -602,7 +606,8 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
           type="button"
           className="glass-round lc-round lc-round-hit"
           onClick={(e) => {
-            setFanOrigin(fanAnchor(e.currentTarget.getBoundingClientRect()));
+            const r = e.currentTarget.getBoundingClientRect();
+            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
             setFan((f) => (f === "moment" ? null : "moment"));
           }}
           aria-label={`Registrar acerto${hits ? ` (${hits} nesta sessão)` : ""}`}
@@ -643,7 +648,7 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
               {fan === "weak" ? <IcAlert /> : <IcFlame />}
             </button>
             {options.map((o, i) => {
-              const { x, y } = fanOffset(i, options.length);
+              const { x, y } = fanOffset(i, options.length, fanDeg.start, fanDeg.end);
               return (
                 <button
                   key={o.key}
