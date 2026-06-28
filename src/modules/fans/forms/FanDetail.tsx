@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, Mic2, UserPlus } from "lucide-react";
+import { Loader2, Mic2, Star, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +20,7 @@ import { FanInteractionList } from "../components/FanInteractionList";
 import { FanPerksList } from "../components/FanPerksList";
 import { FanQuickActions } from "../components/FanQuickActions";
 import { FanFields } from "./FanFields";
-import { getFan, listGigsForFan, setFanContactId, updateFan } from "../api";
+import { getFan, listGigsForFan, listVipGigsForFan, setFanContactId, updateFan } from "../api";
 import { createContact, listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import type { Fan, FanCreateInput } from "../types";
@@ -56,6 +56,9 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
   const [gigs, setGigs] = useState<
     { id: number; name: string | null; date: string | null; city: string | null }[]
   >([]);
+  const [vipGigs, setVipGigs] = useState<
+    { gig_id: number; gig_name: string; list_name: string }[]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -68,13 +71,15 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
     if (!fanId) return;
     setLoading(true);
     try {
-      const [f, gs] = await Promise.all([
+      const [f, gs, vips] = await Promise.all([
         getFan(fanId),
         listGigsForFan(fanId).catch(() => []),
+        listVipGigsForFan(fanId).catch(() => []),
       ]);
       setFan(f);
       setStateRaw(f ? fanToState(f) : null);
       setGigs(gs);
+      setVipGigs(vips);
     } finally {
       setLoading(false);
     }
@@ -225,6 +230,26 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
                           {g.date && (
                             <span className="text-muted-foreground">{formatDate(g.date)}</span>
                           )}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {vipGigs.length > 0 && (
+                  <div className="space-y-1.5 border-t pt-3">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                      <Star className="h-3.5 w-3.5" /> VIP em ({vipGigs.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {vipGigs.map((g) => (
+                        <Link
+                          key={`${g.gig_id}-${g.list_name}`}
+                          to={`/gigs?open=${g.gig_id}`}
+                          className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs hover:border-primary"
+                        >
+                          <span className="font-medium">{g.gig_name}</span>
+                          <span className="text-muted-foreground">· {g.list_name}</span>
                         </Link>
                       ))}
                     </div>

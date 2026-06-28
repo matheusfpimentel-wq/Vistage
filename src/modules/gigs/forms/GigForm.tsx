@@ -51,6 +51,7 @@ import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
+import { GigVipList } from "../components/GigVipList";
 import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
@@ -1137,6 +1138,21 @@ export function GigForm({
               )}
             </div>
           </Section>
+          )}
+
+          {state.status !== "Proposta" && (
+            <Section
+              title="Lista VIP / Cortesias"
+              description="Convidados e cortesias desta GIG. Cada lista exporta em texto pronto pra enviar."
+            >
+              {gig ? (
+                <GigVipList gigId={gig.id} />
+              ) : (
+                <div className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                  Salve a GIG primeiro para montar a lista VIP.
+                </div>
+              )}
+            </Section>
           )}
           </TabsContent>
 

@@ -40,7 +40,7 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
-import { FanListsPanel } from "./components/FanListsPanel";
+import { FanVipDerivedPanel } from "./components/FanVipDerivedPanel";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
@@ -90,10 +90,11 @@ type RosterFilters = {
   hasPerk: string; // "" | "yes" | "no"
   ambassador: boolean;
   attendedGigId: string;
+  wasVip: string; // "" | "yes"
 };
 
 const EMPTY_FILTERS: RosterFilters = {
-  level: "Todos", city: "", search: "", groupId: "", origem: "", minDays: "", hasPerk: "", ambassador: false, attendedGigId: "",
+  level: "Todos", city: "", search: "", groupId: "", origem: "", minDays: "", hasPerk: "", ambassador: false, attendedGigId: "", wasVip: "",
 };
 
 function rosterToQuery(f: RosterFilters): FanFilters {
@@ -105,6 +106,7 @@ function rosterToQuery(f: RosterFilters): FanFilters {
   else if (f.hasPerk === "no") q.hasPerk = false;
   if (f.ambassador) q.ambassador = true;
   if (f.attendedGigId) q.attendedGigId = Number(f.attendedGigId);
+  if (f.wasVip === "yes") q.wasVip = true;
   return q;
 }
 
@@ -119,6 +121,7 @@ function queryToRoster(q: FanFilters): RosterFilters {
     hasPerk: q.hasPerk === true ? "yes" : q.hasPerk === false ? "no" : "",
     ambassador: q.ambassador === true,
     attendedGigId: q.attendedGigId != null ? String(q.attendedGigId) : "",
+    wasVip: q.wasVip === true ? "yes" : "",
   };
 }
 
@@ -132,7 +135,8 @@ function countActiveFilters(f: RosterFilters): number {
     (f.minDays ? 1 : 0) +
     (f.hasPerk ? 1 : 0) +
     (f.ambassador ? 1 : 0) +
-    (f.attendedGigId ? 1 : 0)
+    (f.attendedGigId ? 1 : 0) +
+    (f.wasVip ? 1 : 0)
   );
 }
 
@@ -336,6 +340,12 @@ export function FansPage() {
                 value={filters.hasPerk || "any"}
                 onChange={(v) => setFilters((f) => ({ ...f, hasPerk: v === "any" ? "" : v }))}
                 options={[{ value: "any", label: "Tanto faz" }, { value: "yes", label: "Com perk" }, { value: "no", label: "Sem perk" }]}
+              />
+              <FilterSelect
+                label="Já foi VIP"
+                value={filters.wasVip || "any"}
+                onChange={(v) => setFilters((f) => ({ ...f, wasVip: v === "any" ? "" : v }))}
+                options={[{ value: "any", label: "Tanto faz" }, { value: "yes", label: "Sim" }]}
               />
               <FilterSelect
                 label="Esteve na GIG"
@@ -545,11 +555,12 @@ export function FansPage() {
         </TabsContent>
 
         <TabsContent value="vip" className="space-y-3">
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
-            As Listas VIP vão migrar para a aba <strong>Preparação</strong> do GIG — lá ficam junto do evento.
-            Por enquanto seguem aqui, sem perder dado.
-          </div>
-          <FanListsPanel fans={fans} embedded />
+          <FanVipDerivedPanel
+            onOpenFan={(id) => {
+              setDetailId(id);
+              setDetailOpen(true);
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="config">
