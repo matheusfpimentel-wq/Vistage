@@ -1,8 +1,8 @@
-import { Flame, Plus, Trash2 } from "lucide-react";
+import { Flame, Plus, TrendingDown, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { heatCardBg, heatColor, heatLabel, IDEA_HEAT_MAX, type Idea } from "../types";
+import { heatBucket, heatCardBg, heatColor, heatLabel, IDEA_HEAT_MAX, type Idea } from "../types";
 
 type Props = {
   items: Idea[];
@@ -69,6 +69,15 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Pr
               <Badge variant="outline" className="text-xs">
                 {i.maturation}
               </Badge>
+              {i.currentHeat != null && heatBucket(i.currentHeat) < i.heat && (
+                <Badge
+                  variant="outline"
+                  className="gap-0.5 border-sky-500/30 text-xs text-sky-500"
+                  title="Esfriando pela inatividade — toque pra reaquecer"
+                >
+                  <TrendingDown className="h-3 w-3" /> esfriando
+                </Badge>
+              )}
               {i.tags.slice(0, 2).map((t) => (
                 <Badge key={t} variant="outline" className="text-xs">
                   #{t}
