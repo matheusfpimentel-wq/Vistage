@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ClipboardCopy, Pencil, Plus, Trash2, Check, X } from "lucide-react";
+import { ClipboardCopy, Pencil, Plus, Trash2, Check, X, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -8,6 +8,7 @@ import {
   addFanListMember,
   createFanList,
   deleteFanList,
+  importVipListAsFans,
   listFanListMembers,
   listFanListsForGig,
   listFans,
@@ -22,13 +23,14 @@ import type { Fan, FanList, FanListMember } from "@/modules/fans/types";
  * listas, adiciona membros (fã via dropdown OU nome livre), remove e "Copiar
  * texto". As listas aqui já nascem ligadas a esta GIG.
  */
-export function GigVipList({ gigId }: { gigId: number }) {
+export function GigVipList({ gigId, gigName }: { gigId: number; gigName: string }) {
   const [lists, setLists] = useState<FanList[]>([]);
   const [fans, setFans] = useState<Fan[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [members, setMembers] = useState<Record<number, FanListMember[]>>({});
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importingId, setImportingId] = useState<number | null>(null);
   const [memberInput, setMemberInput] = useState<Record<number, { fanId: string; name: string }>>({});
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -119,6 +121,39 @@ export function GigVipList({ gigId }: { gigId: number }) {
     return m.name ?? "—";
   }
 
+  async function handleImport(list: FanList) {
+    const ms = members[list.id] ?? (await listFanListMembers(list.id));
+    const total = ms.length;
+    if (total === 0) {
+      toast.error("Esta lista não tem nomes para importar.");
+      return;
+    }
+    if (
+      !(await confirmDialog({
+        title: "Importar como fãs",
+        description: `Importar os ${total} ${total === 1 ? "nome" : "nomes"} desta lista como fãs do Clube de Fãs, marcando presença nesta GIG?`,
+        confirmLabel: "Importar",
+      }))
+    )
+      return;
+    setImportingId(list.id);
+    try {
+      const r = await importVipListAsFans(list.id, { id: gigId, name: gigName });
+      const parts: string[] = [];
+      if (r.created > 0) parts.push(`${r.created} ${r.created === 1 ? "novo fã" : "novos fãs"}`);
+      if (r.linked > 0) parts.push(`${r.linked} ${r.linked === 1 ? "vinculado" : "vinculados"}`);
+      if (r.alreadyFans > 0) parts.push(`${r.alreadyFans} já ${r.alreadyFans === 1 ? "era fã" : "eram fãs"}`);
+      const resumo = parts.length > 0 ? parts.join(", ") : "nada a importar";
+      toast.success(`${resumo} — presença marcada`);
+      // reflete fãs criados/vinculados na UI (dropdown + nomes da lista)
+      void listFans().then(setFans).catch(() => {});
+      const rows = await listFanListMembers(list.id);
+      setMembers((prev) => ({ ...prev, [list.id]: rows }));
+    } finally {
+      setImportingId(null);
+    }
+  }
+
   async function copyList(list: FanList) {
     const ms = members[list.id] ?? (await listFanListMembers(list.id));
     const lines: string[] = [`🎟️ ${list.name}`, ""];
@@ -190,6 +225,16 @@ export function GigVipList({ gigId }: { gigId: number }) {
                   {list.name}
                 </button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7"
+                onClick={() => void handleImport(list)}
+                disabled={importingId === list.id}
+                title="Trazer estes nomes como fãs do Clube de Fãs, marcando presença nesta GIG"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> Importar como fãs
+              </Button>
               <Button size="sm" variant="outline" className="h-7" onClick={() => void copyList(list)}>
                 <ClipboardCopy className="h-3.5 w-3.5" /> Copiar texto
               </Button>

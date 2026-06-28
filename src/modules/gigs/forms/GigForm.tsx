@@ -52,6 +52,7 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { GigVipList } from "../components/GigVipList";
+import { gigDisplayName } from "../displayName";
 import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { GigSetlist } from "./GigSetlist";
@@ -1146,7 +1147,7 @@ export function GigForm({
               description="Convidados e cortesias desta GIG. Cada lista exporta em texto pronto pra enviar."
             >
               {gig ? (
-                <GigVipList gigId={gig.id} />
+                <GigVipList gigId={gig.id} gigName={gigDisplayName(gig)} />
               ) : (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-sm text-muted-foreground">
                   Salve a GIG primeiro para montar a lista VIP.
