@@ -188,7 +188,7 @@ Um diretório por módulo em `src/modules/`, cada um tipicamente com `api.ts` (d
 
 | Módulo | Rota | O que faz | Tabelas |
 |---|---|---|---|
-| **Dashboard** | `/` | Abas: **Visão geral** (KPIs, cards GIGs/Música/Conteúdo/Festas, timeline semanal, finanças, OKRs), **Linha do tempo**, **Mapa mental**, **Metodologias**, **Carreira em números**. Sub-painéis `/relacionamento` `/criacao` `/gestao`, foco do dia `/hoje`, `/mapa`. | (lê várias) |
+| **Dashboard** | `/` | Abas: **Visão geral** (KPIs, cards GIGs/Música/Conteúdo/Festas, timeline semanal, finanças, OKRs), **Linha do tempo**, **Metodologias**, **Carreira em números**. Sub-painéis de texto `/relacionamento` `/criacao` `/gestao`, foco do dia `/hoje`. | (lê várias) |
 | **Alertas** | `/alertas` | Regras de alerta/insight em editor **SE / ENTÃO** (E/OU, "desaparecer ao clicar"), seguras por whitelist + valores bindados. | `custom_rules` |
 | **GIGs** | `/gigs` | CRUD + 4 views (lista/calendário/kanban/insights); debrief com avaliação; checklist de preparação; setlist N:N com tracks; presença de fãs; push pro Calendar. | `gigs`, `gig_debrief_drafts`, `gig_setlists`, `gig_tracks`, `gig_fans` |
 | **Venues** | `/venues` | CRUD; foto; capacidade, conceito, rider técnico; coordenadas + mapa (Leaflet); DJs residentes; KPIs por casa. | `venues` |
@@ -207,7 +207,7 @@ Um diretório por módulo em `src/modules/`, cada um tipicamente com `api.ts` (d
 | **Reuniões** | `/reunioes` | Reuniões que viram tarefas-lembrete, vinculadas a contatos. | `meetings` |
 | **Financeiro** | `/financeiro` | Dashboard (Recharts); transações (vínculos a gig/track/aula/festa); recorrentes; categorias; patrimônio derivado de equipamentos; import de royalties. | `finance_categories`, `finance_transactions`, `finance_recurring`, `equipment` |
 | **Carreira (Wrapped)** | `/carreira` | "Carreira em números" — retrospectiva (GIGs/lançamentos/festas/conteúdos), pensada pra press kit. | (lê várias) |
-| **Configurações** | `/configuracoes` | Documento (senha), integrações, aparência (tema/accent/menu), atalhos, regras de alerta, mapa mental, exportações CSV/JSON, dados de exemplo. | `app_settings`, `document_settings` |
+| **Configurações** | `/configuracoes` | Documento (senha), integrações, aparência (tema/accent/menu), atalhos, regras de alerta, exportações CSV/JSON, dados de exemplo. | `app_settings`, `document_settings` |
 
 ---
 

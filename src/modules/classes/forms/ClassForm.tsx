@@ -463,8 +463,8 @@ export function ClassForm({
               onChange={(e) => set("title", e.target.value || null)}
             />
             <p className="text-xs text-muted-foreground">
-              É a referência da aula na lista e no mapa mental. Sem título, cai
-              na matéria ou no nome do aluno.
+              É a referência da aula na lista. Sem título, cai na matéria ou no
+              nome do aluno.
             </p>
           </div>
 

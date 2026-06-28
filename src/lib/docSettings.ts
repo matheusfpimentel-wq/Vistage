@@ -21,7 +21,6 @@ import { getDb } from "./db";
 const PORTABLE_PREFIXES = [
   "vistage.cols.",
   "vistage.filter.",
-  "vistage.mindmap.",
   "vistage.rules.",
 ];
 
@@ -65,7 +64,6 @@ export async function hydrateViewPrefsFromDocument(): Promise<void> {
       `SELECT key, value FROM document_settings
         WHERE key LIKE 'vistage.cols.%'
            OR key LIKE 'vistage.filter.%'
-           OR key LIKE 'vistage.mindmap.%'
            OR key LIKE 'vistage.rules.%'`
     );
     for (const r of rows) {

@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, Loader2, RefreshCw } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { ActionPanel } from "@/components/shared/ActionPanel";
 import {
   DEFAULT_NAV,
   NAV_GROUP_META,
@@ -20,7 +13,6 @@ import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 // Criação
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
-import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { listParties } from "@/modules/parties/api";
 import { listClasses } from "@/modules/classes/api";
 // Relacionamento
@@ -31,7 +23,6 @@ import { getFanStats } from "@/modules/fans/api";
 import { listVenues } from "@/modules/venues/api";
 import { listTracks, daysInStage } from "@/modules/music/api";
 import { trackDisplayName } from "@/modules/music/types";
-import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listContent } from "@/modules/content/api";
 // Gestão
 import { loadFinanceInsights } from "@/modules/finance/api";
@@ -39,7 +30,7 @@ import { listOkrs, currentQuarter, okrProgress } from "@/modules/objetivos/api";
 import { loadActivityStats } from "@/modules/foco/api";
 
 // ============================================================
-// Descrições curtas de cada módulo (cartões do hub)
+// Descrições curtas de cada módulo (lista de módulos do grupo)
 // ============================================================
 
 const MODULE_DESC: Record<string, string> = {
@@ -87,7 +78,9 @@ function useAsync<T>(load: () => Promise<T>) {
 }
 
 // ============================================================
-// Componentes de apresentação compartilhados
+// Apresentação — apenas TEXTO (sem cards/KPIs/badges/barras).
+// As seções temáticas voltaram a ser texto puro: os mesmos números e listas,
+// só que como linhas de texto navegáveis, sem o painel visual.
 // ============================================================
 
 function GroupShell({
@@ -102,18 +95,12 @@ function GroupShell({
   children: React.ReactNode;
 }) {
   const meta = NAV_GROUP_META[group];
-  const Icon = meta.icon;
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold leading-tight">{group}</h2>
-            <p className="text-sm text-muted-foreground">{meta.tagline}</p>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold leading-tight">{group}</h2>
+          <p className="text-sm text-muted-foreground">{meta.tagline}</p>
         </div>
         <button
           type="button"
@@ -129,76 +116,27 @@ function GroupShell({
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  to,
-  tone = "default",
-}: {
-  label: string;
-  value: string | number;
-  hint?: React.ReactNode;
-  to: string;
-  tone?: "default" | "danger" | "success";
-}) {
+type StatItem = { label: string; value: React.ReactNode; hint?: React.ReactNode; to: string };
+
+function StatsText({ items }: { items: StatItem[] }) {
   return (
-    <Link
-      to={to}
-      className="block h-full rounded-lg border bg-card px-3 py-2 transition hover:border-primary"
-    >
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-0.5 text-2xl font-semibold tabular-nums",
-          tone === "danger"
-            ? "text-destructive"
-            : tone === "success"
-              ? "text-emerald-500"
-              : "text-primary"
-        )}
-      >
-        {value}
-      </div>
-      {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
-    </Link>
+    <ul className="space-y-1 text-sm">
+      {items.map((it) => (
+        <li key={it.label}>
+          <Link to={it.to} className="hover:underline">
+            <span className="text-muted-foreground">{it.label}:</span>{" "}
+            <span className="font-medium tabular-nums">{it.value}</span>
+            {it.hint != null && it.hint !== "" && (
+              <span className="text-muted-foreground"> — {it.hint}</span>
+            )}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
-function ModuleHub({ group }: { group: NavGroup }) {
-  const modules = modulesInGroup(DEFAULT_NAV, group);
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">Módulos</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-2 sm:grid-cols-2">
-          {modules.map(({ to, label, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className="group flex items-center gap-3 rounded-md border p-3 transition hover:border-primary hover:bg-accent/40"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground transition group-hover:text-foreground">
-                <Icon className="h-4 w-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{label}</div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {MODULE_DESC[to] ?? ""}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100" />
-            </Link>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function HighlightCard({
+function TextSection({
   title,
   empty,
   children,
@@ -208,20 +146,39 @@ function HighlightCard({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {empty ? (
-          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Nada por aqui ainda.
-          </div>
-        ) : (
-          <div className="space-y-2">{children}</div>
+    <div className="space-y-1.5">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {empty ? (
+        <p className="text-sm text-muted-foreground">Nada por aqui ainda.</p>
+      ) : (
+        <ul className="space-y-1 text-sm">{children}</ul>
+      )}
+    </div>
+  );
+}
+
+/** Uma linha de texto navegável: nome em destaque + contexto esmaecido. */
+function TextRow({ to, name, context }: { to: string; name: string; context?: React.ReactNode }) {
+  return (
+    <li>
+      <Link to={to} className="hover:underline">
+        <span className="font-medium">{name}</span>
+        {context != null && context !== "" && (
+          <span className="text-muted-foreground"> — {context}</span>
         )}
-      </CardContent>
-    </Card>
+      </Link>
+    </li>
+  );
+}
+
+function ModuleLinks({ group }: { group: NavGroup }) {
+  const modules = modulesInGroup(DEFAULT_NAV, group);
+  return (
+    <TextSection title="Módulos" empty={modules.length === 0}>
+      {modules.map(({ to, label }) => (
+        <TextRow key={to} to={to} name={label} context={MODULE_DESC[to] ?? ""} />
+      ))}
+    </TextSection>
   );
 }
 
@@ -232,12 +189,6 @@ function CenterLoader() {
     </div>
   );
 }
-
-const KPI_GRID = "grid gap-3 sm:grid-cols-2 lg:grid-cols-4";
-
-// ============================================================
-// Criação (GIGs + Festas + Aulas + Música + Conteúdo)
-// ============================================================
 
 // ============================================================
 // Relacionamento
@@ -269,53 +220,25 @@ export function RelacionamentoDashboard() {
 
           return (
             <>
-              <ActionPanel group="Relacionamento" />
-              <div className={KPI_GRID}>
-                <StatCard
-                  label="Contatos"
-                  value={data.contacts.length}
-                  to="/pessoas?role=Contato"
-                  hint={`${highPriority.length} de prioridade alta`}
-                />
-                <StatCard
-                  label="Venues"
-                  value={data.venues.length}
-                  to="/venues"
-                />
-                <StatCard
-                  label="Fornecedores"
-                  value={data.suppliers.length}
-                  to="/pessoas?role=Fornecedor"
-                />
-                <StatCard
-                  label="Superfãs"
-                  value={data.fanStats.superfa}
-                  to="/fas"
-                  hint={`${totalFans} fãs no total`}
-                />
-              </div>
+              <StatsText
+                items={[
+                  { label: "Contatos", value: data.contacts.length, to: "/pessoas?role=Contato", hint: `${highPriority.length} de prioridade alta` },
+                  { label: "Venues", value: data.venues.length, to: "/venues" },
+                  { label: "Fornecedores", value: data.suppliers.length, to: "/pessoas?role=Fornecedor" },
+                  { label: "Superfãs", value: data.fanStats.superfa, to: "/fas", hint: `${totalFans} fãs no total` },
+                ]}
+              />
 
-              <HighlightCard
+              <TextSection
                 title="Contatos de prioridade alta"
                 empty={highPriority.length === 0}
               >
                 {highPriority.slice(0, 6).map((c) => (
-                  <Link
-                    key={c.id}
-                    to={`/pessoas?open=${c.id}`}
-                    className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
-                  >
-                    <span className="min-w-0 truncate text-sm font-medium">
-                      {c.name}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {c.types[0] ?? "—"}
-                    </span>
-                  </Link>
+                  <TextRow key={c.id} to={`/pessoas?open=${c.id}`} name={c.name} context={c.types[0] ?? "—"} />
                 ))}
-              </HighlightCard>
+              </TextSection>
 
-              <ModuleHub group="Relacionamento" />
+              <ModuleLinks group="Relacionamento" />
             </>
           );
         })()
@@ -366,97 +289,62 @@ export function CriacaoDashboard() {
 
           return (
             <>
-              <ActionPanel group="Criação" />
-              <div className={KPI_GRID}>
-                <StatCard
-                  label="GIGs futuras"
-                  value={upcomingGigs.length}
-                  to="/gigs"
-                  hint={
-                    upcomingGigs[0]
-                      ? `Próxima: ${formatDate(upcomingGigs[0].date)}`
-                      : "Nada agendado"
-                  }
-                />
-                <StatCard
-                  label="Tracks ativas"
-                  value={activeTracks.length}
-                  to="/musica"
-                  hint={`${data.tracks.length - activeTracks.length} em standby`}
-                />
-                <StatCard
-                  label="Conteúdo no pipeline"
-                  value={pipeline.length}
-                  to="/conteudo"
-                  hint={`${published.length} publicados`}
-                />
-                <StatCard
-                  label="Aulas agendadas"
-                  value={upcomingClasses.length}
-                  to="/aulas"
-                  hint={`${data.parties.filter((p) => p.date && p.date >= today && p.status !== "Cancelada").length} festa(s) em andamento`}
-                />
-              </div>
+              <StatsText
+                items={[
+                  {
+                    label: "GIGs futuras",
+                    value: upcomingGigs.length,
+                    to: "/gigs",
+                    hint: upcomingGigs[0] ? `Próxima: ${formatDate(upcomingGigs[0].date)}` : "Nada agendado",
+                  },
+                  {
+                    label: "Tracks ativas",
+                    value: activeTracks.length,
+                    to: "/musica",
+                    hint: `${data.tracks.length - activeTracks.length} em standby`,
+                  },
+                  {
+                    label: "Conteúdo no pipeline",
+                    value: pipeline.length,
+                    to: "/conteudo",
+                    hint: `${published.length} publicados`,
+                  },
+                  {
+                    label: "Aulas agendadas",
+                    value: upcomingClasses.length,
+                    to: "/aulas",
+                    hint: `${data.parties.filter((p) => p.date && p.date >= today && p.status !== "Cancelada").length} festa(s) em andamento`,
+                  },
+                ]}
+              />
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <HighlightCard
-                  title="Próximas GIGs"
-                  empty={upcomingGigs.length === 0}
-                >
-                  {upcomingGigs.slice(0, 5).map((g) => (
-                    <Link
-                      key={g.id}
-                      to={`/gigs?open=${g.id}`}
-                      className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">
-                          {gigDisplayName(g)}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {g.venue_name} · {formatDate(g.date)}
-                        </div>
-                      </div>
-                      <StatusBadge status={g.status} />
-                    </Link>
-                  ))}
-                </HighlightCard>
+              <TextSection title="Próximas GIGs" empty={upcomingGigs.length === 0}>
+                {upcomingGigs.slice(0, 5).map((g) => (
+                  <TextRow
+                    key={g.id}
+                    to={`/gigs?open=${g.id}`}
+                    name={gigDisplayName(g)}
+                    context={`${g.venue_name} · ${formatDate(g.date)} · ${g.status}`}
+                  />
+                ))}
+              </TextSection>
 
-                <HighlightCard
-                  title="Tracks ativas"
-                  empty={activeTracks.length === 0}
-                >
-                  {activeTracks.slice(0, 6).map((t) => {
-                    const d = daysInStage(t);
-                    return (
-                      <Link
-                        key={t.id}
-                        to="/musica"
-                        className="flex items-center justify-between gap-3 rounded-md border p-3 transition hover:border-primary"
-                      >
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">
-                            {trackDisplayName(t)}
-                          </div>
-                          {d !== null && (
-                            <div
-                              className={cn(
-                                "text-xs",
-                                d > 30 ? "text-amber-500" : "text-muted-foreground"
-                              )}
-                            >
-                              {d}d no stage atual
-                            </div>
-                          )}
-                        </div>
-                        <StageBadge stage={t.current_stage} />
-                      </Link>
-                    );
-                  })}
-                </HighlightCard>
-              </div>
+              <TextSection title="Tracks ativas" empty={activeTracks.length === 0}>
+                {activeTracks.slice(0, 6).map((t) => {
+                  const d = daysInStage(t);
+                  const stage = t.current_stage ?? "—";
+                  return (
+                    <TextRow
+                      key={t.id}
+                      to="/musica"
+                      name={trackDisplayName(t)}
+                      context={d !== null ? `${stage} · ${d}d no stage` : stage}
+                    />
+                  );
+                })}
+              </TextSection>
 
-              <ModuleHub group="Criação" />
+              <ModuleLinks group="Criação" />
             </>
           );
         })()
@@ -505,72 +393,27 @@ export function GestaoDashboard() {
 
           return (
             <>
-              <ActionPanel group="Produtividade" />
-              <div className={KPI_GRID}>
-                <StatCard
-                  label="Receita do mês"
-                  value={formatCurrency(data.fin.monthIncome)}
-                  to="/financeiro"
-                />
-                <StatCard
-                  label="Saldo do mês"
-                  value={formatCurrency(data.fin.monthBalance)}
-                  to="/financeiro"
-                  tone={data.fin.monthBalance >= 0 ? "success" : "danger"}
-                />
-                <StatCard
-                  label="OKRs"
-                  value={avgPct !== null ? `${avgPct}%` : "—"}
-                  to="/objetivos"
-                  hint={`${shownOkrs.length} objetivo(s) · ${quarter}`}
-                />
-                <StatCard
-                  label="Horas de foco"
-                  value={`${focusHours}h`}
-                  to="/foco"
-                  hint={`${data.activity.reduce((s, a) => s + (a.sessions ?? 0), 0)} sessões`}
-                />
-              </div>
+              <StatsText
+                items={[
+                  { label: "Receita do mês", value: formatCurrency(data.fin.monthIncome), to: "/financeiro" },
+                  { label: "Saldo do mês", value: formatCurrency(data.fin.monthBalance), to: "/financeiro" },
+                  { label: "OKRs", value: avgPct !== null ? `${avgPct}%` : "—", to: "/objetivos", hint: `${shownOkrs.length} objetivo(s) · ${quarter}` },
+                  { label: "Horas de foco", value: `${focusHours}h`, to: "/foco", hint: `${data.activity.reduce((s, a) => s + (a.sessions ?? 0), 0)} sessões` },
+                ]}
+              />
 
-              <HighlightCard
-                title={`OKRs · ${quarter}`}
-                empty={shownOkrs.length === 0}
-              >
-                {shownOkrs.map((o) => {
-                  const pct = Math.round(okrProgress(o) * 100);
-                  return (
-                    <Link
-                      key={o.id}
-                      to="/objetivos"
-                      className="block space-y-1.5 rounded-md border p-3 transition hover:border-primary"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium leading-tight">
-                          {o.objective}
-                        </span>
-                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                          {pct}%
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            pct >= 70
-                              ? "bg-emerald-500"
-                              : pct >= 40
-                                ? "bg-amber-500"
-                                : "bg-primary/60"
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </HighlightCard>
+              <TextSection title={`OKRs · ${quarter}`} empty={shownOkrs.length === 0}>
+                {shownOkrs.map((o) => (
+                  <TextRow
+                    key={o.id}
+                    to="/objetivos"
+                    name={o.objective}
+                    context={`${Math.round(okrProgress(o) * 100)}%`}
+                  />
+                ))}
+              </TextSection>
 
-              <ModuleHub group="Produtividade" />
+              <ModuleLinks group="Produtividade" />
             </>
           );
         })()

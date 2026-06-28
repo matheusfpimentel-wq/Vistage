@@ -29,7 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CareerTimelinePage } from "@/modules/carreira/CareerTimelinePage";
-import { MindMapPage } from "@/modules/dashboard/MindMapPage";
 import { MetodologiasPage } from "@/modules/dashboard/MetodologiasPage";
 import { CareerWrappedPage } from "@/modules/dashboard/CareerWrappedPage";
 import { cn } from "@/lib/utils";
@@ -208,7 +207,6 @@ export function DashboardPage() {
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
           <TabsTrigger value="graficos">Gráficos</TabsTrigger>
           <TabsTrigger value="timeline">Linha do tempo</TabsTrigger>
-          <TabsTrigger value="mindmap">Mapa mental</TabsTrigger>
           <TabsTrigger value="metodologias">Metodologias</TabsTrigger>
           <TabsTrigger value="career">Carreira em números</TabsTrigger>
         </TabsList>
@@ -268,10 +266,6 @@ export function DashboardPage() {
 
       <TabsContent value="timeline">
         <CareerTimelinePage />
-      </TabsContent>
-
-      <TabsContent value="mindmap" className="-mx-1">
-        <MindMapPage />
       </TabsContent>
 
       <TabsContent value="metodologias">
