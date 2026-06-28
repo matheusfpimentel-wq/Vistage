@@ -15,7 +15,7 @@ import { applyAccent, type Accent } from "@/lib/theme";
 import { CircularTimer } from "./CircularTimer";
 import { getDb } from "@/lib/db";
 import { loadFocusPanel, type FocusPanel, type WorkSession } from "./api";
-import { updateTask } from "@/modules/tasks/api";
+import { toggleSubtask, updateTask } from "@/modules/tasks/api";
 
 // Tamanhos da janela: compacto (só o círculo) e expandido (círculo + painel).
 const COMPACT = OVERLAY_COMPACT;
@@ -293,6 +293,14 @@ export function SessionOverlay() {
                 /* ignore */
               }
             }}
+            onToggleSub={async (id, done) => {
+              try {
+                await toggleSubtask(id, done);
+                await refreshPanel();
+              } catch {
+                /* ignore */
+              }
+            }}
           />
         </div>
       ) : (
@@ -324,9 +332,11 @@ export function SessionOverlay() {
 function PanelView({
   panel,
   onToggleTask,
+  onToggleSub,
 }: {
   panel: FocusPanel;
   onToggleTask: (id: number) => void;
+  onToggleSub: (id: number, done: boolean) => void;
 }) {
   if (!panel) {
     return (
@@ -405,9 +415,38 @@ function PanelView({
     );
   }
 
+  // Gestão ligada a uma tarefa → checklist (subtasks) dela.
+  if (panel.kind === "task-checklist") {
+    return (
+      <div className="space-y-1.5 text-xs">
+        <div className="font-semibold">{panel.title}</div>
+        {panel.subtasks.length === 0 ? (
+          <p className="py-2 text-center text-muted-foreground">Sem checklist nesta tarefa.</p>
+        ) : (
+          <ul className="space-y-1">
+            {panel.subtasks.map((s) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  onClick={() => onToggleSub(s.id, !s.done)}
+                  className="flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition hover:bg-accent"
+                >
+                  <span className={"flex h-4 w-4 shrink-0 items-center justify-center rounded border " + (s.done ? "border-primary bg-primary text-primary-foreground" : "border-input")}>
+                    <Check className={"h-3 w-3 " + (s.done ? "opacity-100" : "opacity-0")} />
+                  </span>
+                  <span className={"flex-1 truncate" + (s.done ? " text-muted-foreground line-through" : "")}>{s.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  }
+
   // tasks
   if (panel.tasks.length === 0) {
-    return <p className="py-4 text-center text-xs text-muted-foreground">Sem tarefas pendentes. 🎯</p>;
+    return <p className="py-4 text-center text-xs text-muted-foreground">Sem tarefas pendentes.</p>;
   }
   return (
     <ul className="space-y-1">

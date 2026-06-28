@@ -77,6 +77,13 @@ export type FocusPanel =
       kind: "tasks";
       tasks: { id: number; title: string; priority: string | null; due_date: string | null }[];
     }
+  | {
+      // Sessão de Gestão ligada a uma tarefa específica → o checklist dela.
+      kind: "task-checklist";
+      taskId: number;
+      title: string;
+      subtasks: { id: number; title: string; done: boolean }[];
+    }
   | null;
 
 function parseStageSlots(time_slots: string | null, start: string | null, end: string | null): StageSlot[] {
@@ -186,6 +193,26 @@ export async function loadFocusPanel(session: {
   }
 
   if (act === "Gestão") {
+    // Ligada a uma tarefa → mostra o checklist (subtasks) dela pra tickar.
+    if (session.context_type === "task" && session.context_id) {
+      const trows = await db.select<{ title: string }[]>(
+        `SELECT title FROM tasks WHERE id = $1`,
+        [session.context_id]
+      );
+      const t = trows[0];
+      if (t) {
+        const subs = await db.select<{ id: number; title: string; done: number }[]>(
+          `SELECT id, title, done FROM subtasks WHERE task_id = $1 ORDER BY position`,
+          [session.context_id]
+        );
+        return {
+          kind: "task-checklist",
+          taskId: session.context_id,
+          title: t.title,
+          subtasks: subs.map((s) => ({ id: s.id, title: s.title, done: s.done === 1 })),
+        };
+      }
+    }
     const tasks = await db.select<
       { id: number; title: string; priority: string | null; due_date: string | null }[]
     >(

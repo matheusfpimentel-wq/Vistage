@@ -45,6 +45,9 @@ const ACTIVITY_CONTEXT: Record<string, string> = {
   "Criação musical": "track",
   Aulas: "class",
   "Produção de festa": "party",
+  // Gestão pode referenciar uma TAREFA — aí o painel da sessão mostra o
+  // checklist dela (subtasks) pra tickar enquanto foca.
+  "Gestão": "task",
 };
 
 async function loadEntityOptions(type: string): Promise<EntityOption[]> {
