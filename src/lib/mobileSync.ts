@@ -953,10 +953,12 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
   } else if (kind === "focus_idea") {
     // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no
     // PC, semeada com a procedência (Modo Foco) e o GIG quando o celular o manda.
+    // Se veio uma breve nota digitada no celular, ela vira o título/corpo.
     const { createIdea } = await import("@/modules/ideas/api");
+    const note = s("note")?.trim();
     await createIdea({
-      title: "Ideia capturada no Modo Foco",
-      body: null,
+      title: note ? (note.length > 80 ? note.slice(0, 77) + "…" : note) : "Ideia capturada no Modo Foco",
+      body: note || null,
       category: null,
       tags: [],
       heat: 1,
