@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
@@ -89,6 +90,7 @@ export function FansPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [view, setView] = useModuleView<ViewMode>("fans", "list");
+  const [section, setSection] = useState<"fas" | "grupos" | "vip" | "config">("fas");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
@@ -178,6 +180,17 @@ export function FansPage() {
 
   return (
     <div className="space-y-4">
+      <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)}>
+        <TabsList>
+          <TabsTrigger value="fas">Fãs</TabsTrigger>
+          <TabsTrigger value="grupos">Grupos</TabsTrigger>
+          <TabsTrigger value="vip">Listas VIP</TabsTrigger>
+          <TabsTrigger value="config" className="gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" /> Configurar
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="fas" className="space-y-4">
       <ModuleToolbar
         primaryAction={{ label: "Novo fã", icon: Plus, onClick: openCreate }}
         search={{
@@ -220,27 +233,14 @@ export function FansPage() {
           </>
         }
         viewToggle={
-          <div className="flex items-center gap-2">
-            <ViewToggle
-              options={[
-                { value: "cards", label: "Cards", icon: LayoutGrid },
-                { value: "list", label: "Lista", icon: List },
-              ]}
-              value={view}
-              onChange={setView}
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Configurar pontuação de fãs"
-              onClick={() => setUpgradeRulesOpen(true)}
-            >
-              <Settings2 className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => setClubConfigOpen(true)}>
-              <Megaphone className="h-4 w-4" /> Ações do clube
-            </Button>
-          </div>
+          <ViewToggle
+            options={[
+              { value: "cards", label: "Cards", icon: LayoutGrid },
+              { value: "list", label: "Lista", icon: List },
+            ]}
+            value={view}
+            onChange={setView}
+          />
         }
         resultCount={fans.length}
         resultLabel="fãs"
@@ -251,7 +251,17 @@ export function FansPage() {
       ) : fans.length === 0 ? (
         <EmptyState
           icon={Heart}
-          title="Nenhum fã cadastrado ainda."
+          title={filters.search || filters.level !== "Todos" || filters.city.trim() ? "Nenhum fã com esses filtros." : "Comece seu Clube de Fãs."}
+          description={
+            filters.search || filters.level !== "Todos" || filters.city.trim()
+              ? "Ajuste a busca ou os filtros."
+              : "Cadastre quem acompanha seu trabalho. O nível de cada um cresce com presença, interação e feedback — e decai sozinho com o tempo."
+          }
+          action={
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Novo fã
+            </Button>
+          }
         />
       ) : view === "cards" ? (
         <PendingTasksProvider entityType="fan">
@@ -371,6 +381,27 @@ export function FansPage() {
           </table>
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="grupos">
+          <FanGroupsPanel fans={fans} embedded />
+        </TabsContent>
+
+        <TabsContent value="vip" className="space-y-3">
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-muted-foreground">
+            As Listas VIP vão migrar para a aba <strong>Preparação</strong> do GIG — lá ficam junto do evento.
+            Por enquanto seguem aqui, sem perder dado.
+          </div>
+          <FanListsPanel fans={fans} embedded />
+        </TabsContent>
+
+        <TabsContent value="config">
+          <FanClubConfigSurface
+            onEditScoring={() => setUpgradeRulesOpen(true)}
+            onEditActions={() => setClubConfigOpen(true)}
+          />
+        </TabsContent>
+      </Tabs>
 
       <FanForm
         open={formOpen}
@@ -385,13 +416,52 @@ export function FansPage() {
         fanId={detailId}
       />
 
-      <FanGroupsPanel fans={fans} />
-
-      <FanListsPanel fans={fans} />
-
       <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
 
       <FanClubConfigDialog open={clubConfigOpen} onOpenChange={setClubConfigOpen} />
+    </div>
+  );
+}
+
+// Aba "Configurar clube" — consolida num lugar só os ajustes que antes ficavam
+// soltos na barra: pontuação/níveis e ações rápidas + catálogo de perks. Cada
+// cartão abre o editor correspondente.
+function FanClubConfigSurface({
+  onEditScoring,
+  onEditActions,
+}: {
+  onEditScoring: () => void;
+  onEditActions: () => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <button
+        type="button"
+        onClick={onEditScoring}
+        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Settings2 className="h-4 w-4" />
+        </span>
+        <span className="font-medium">Pontuação e níveis</span>
+        <span className="text-xs text-muted-foreground">
+          Pesos de cada sinal, decaimento (meia-vida) e limiares de nível. Recalcular todos os fãs.
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onEditActions}
+        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Megaphone className="h-4 w-4" />
+        </span>
+        <span className="font-medium">Ações rápidas e perks</span>
+        <span className="text-xs text-muted-foreground">
+          Botões que viram tarefa ({"{nome}"}) e o catálogo de perks/brindes de um clique.
+        </span>
+      </button>
     </div>
   );
 }
@@ -515,8 +585,8 @@ function FanCard({
   );
 }
 
-function FanGroupsPanel({ fans }: { fans: Fan[] }) {
-  const [open, setOpen] = useState(false);
+function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: boolean }) {
+  const [open, setOpen] = useState(embedded);
   const [groups, setGroups] = useState<FanGroup[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [members, setMembers] = useState<Record<number, FanGroupMember[]>>({});
@@ -577,18 +647,20 @@ function FanGroupsPanel({ fans }: { fans: Fan[] }) {
   }
 
   return (
-    <div className="rounded-md border">
-      <button
-        type="button"
-        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span>Grupos de Fãs</span>
-        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
+    <div className={embedded ? "" : "rounded-md border"}>
+      {!embedded && (
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span>Grupos de Fãs</span>
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+      )}
 
-      {open && (
-        <div className="border-t p-4 space-y-4">
+      {(embedded || open) && (
+        <div className={embedded ? "space-y-4" : "border-t p-4 space-y-4"}>
           {groups.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum grupo cadastrado.</p>
           )}
