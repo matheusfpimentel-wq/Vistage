@@ -484,7 +484,7 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
 
   return (
     <section className="live-capture">
-      <span className="label">Registro ao vivo — um toque</span>
+      <span className="label">Ao vivo</span>
       <div className="lc-round-col">
         <button
           type="button"
@@ -516,7 +516,7 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
           {ideas > 0 && <span className="lc-badge">×{ideas}</span>}
         </button>
       </div>
-      <p className="muted lc-hint">Marca agora (sem descrever) — você detalha no debrief ou no PC.</p>
+      <p className="muted lc-hint">Detalhe depois, no PC.</p>
 
       {/* Overlay de tela cheia: fundo embaçado/escurecido + leque radial.
           Tocar fora (no overlay) fecha; o botão central também alterna. */}

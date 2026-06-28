@@ -81,7 +81,7 @@ export async function buildFocusBody(): Promise<string> {
     .order("start_at")
     .limit(3);
   const tasks = (data ?? []) as { title: string }[];
-  if (!tasks.length) return "Sem pendências marcadas. Foco total. 🎯";
+  if (!tasks.length) return "Sem pendências marcadas. Foco total.";
   return "Pendências: " + tasks.map((t) => t.title).join(" · ");
 }
 

@@ -95,7 +95,7 @@ export function Tarefas() {
           <span className="spinner" />
         </div>
       ) : total === 0 ? (
-        <p className="muted">Nada pendente por aqui. 🎉</p>
+        <p className="muted">Nada pendente por aqui.</p>
       ) : (
         <>
           {GROUP_ORDER.filter((g) => groups.has(g)).map((g) => (
