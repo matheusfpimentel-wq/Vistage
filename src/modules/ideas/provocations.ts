@@ -15,11 +15,15 @@ import { listIdeas } from "./api";
  * perenes (built-in) só podem ser ocultadas/mostradas. A gestão fica em
  * Configurações → Insights; aqui só a fonte de dados.
  */
-export type RawInsight = { key: string; text: string; deletable: boolean };
+/** derivada-de-dado (vem do seu material) vs genérica (perene/built-in). */
+export type InsightKind = "derived" | "generic";
+export type RawInsight = { key: string; text: string; deletable: boolean; kind: InsightKind };
 
 // Persiste no .vistage (prefixo vistage.filter.* é hidratado ao abrir o doc).
 export const DISMISS_KEY = "vistage.filter.insightDie.dismissed";
 export const DELETED_KEY = "vistage.filter.insightDie.deleted";
+export const PINNED_KEY = "vistage.filter.insightDie.pinned";
+export const SNOOZE_KEY = "vistage.filter.insightDie.snooze";
 
 export function loadSet(storageKey: string): Set<string> {
   try {
@@ -33,6 +37,43 @@ export function loadSet(storageKey: string): Set<string> {
 
 export function saveSet(storageKey: string, set: Set<string>) {
   persistDocSetting(storageKey, JSON.stringify([...set]));
+}
+
+/** Sonecas: mapa key→ISO de até quando a provocação fica oculta. Portátil. */
+export function loadSnooze(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(SNOOZE_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return obj && typeof obj === "object" && !Array.isArray(obj)
+      ? (obj as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSnooze(map: Record<string, string>) {
+  persistDocSetting(SNOOZE_KEY, JSON.stringify(map));
+}
+
+/** Adia uma provocação por N dias (grava o "até quando"). */
+export function snoozeInsight(key: string, days: number) {
+  const map = loadSnooze();
+  const until = new Date(Date.now() + days * 86400000).toISOString();
+  map[key] = until;
+  saveSnooze(map);
+}
+
+/** Keys com soneca ATIVA (até no futuro). Expirados são ignorados na leitura. */
+export function activeSnoozeKeys(): Set<string> {
+  const map = loadSnooze();
+  const now = Date.now();
+  const active = new Set<string>();
+  for (const [k, until] of Object.entries(map)) {
+    const t = Date.parse(until);
+    if (!Number.isNaN(t) && t > now) active.add(k);
+  }
+  return active;
 }
 
 // Provocações perenes — garantem variedade mesmo com pouco dado cadastrado.
@@ -51,8 +92,9 @@ export const EVERGREEN: string[] = [
 export async function generateRaw(): Promise<RawInsight[]> {
   const today = toLocalISODate();
   const out: RawInsight[] = [];
-  const add = (key: string, text: string, deletable: boolean) =>
-    out.push({ key, text, deletable });
+  // Derivadas-de-dado por padrão (vêm do seu material); só as perenes são 'generic'.
+  const add = (key: string, text: string, deletable: boolean, kind: InsightKind = "derived") =>
+    out.push({ key, text, deletable, kind });
 
   try {
     const okrs = await listOkrs();
@@ -80,7 +122,15 @@ export async function generateRaw(): Promise<RawInsight[]> {
   } catch { /* ignore */ }
 
   try {
-    const hot = await listIdeas({ heat: 3 });
+    // Ideias genuinamente quentes AGORA (Calor efetivo, já com o decaimento),
+    // fora arquivadas/prontas. (Antes filtrava heat=3 exato — morna, não quente.)
+    const all = await listIdeas();
+    const hot = all.filter(
+      (i) =>
+        (i.currentHeat ?? i.heat) >= 4 &&
+        i.maturation !== "Arquivada" &&
+        i.maturation !== "Pronta"
+    );
     for (const i of hot.slice(0, 8)) {
       add(`idea:${i.id}`, `Ideia quente: "${i.title}". Que primeiro passo a tornaria real?`, true);
     }
@@ -109,8 +159,9 @@ export async function generateRaw(): Promise<RawInsight[]> {
     }
   } catch { /* ignore */ }
 
-  // provocações perenes (built-in) — não deletáveis, só ocultáveis
-  EVERGREEN.forEach((text, i) => add(`evergreen:${i}`, text, false));
+  // provocações perenes (built-in) — não deletáveis, só ocultáveis. Genéricas:
+  // entram atrás das derivadas-de-dado no ranking do banner.
+  EVERGREEN.forEach((text, i) => add(`evergreen:${i}`, text, false, "generic"));
 
   return out;
 }

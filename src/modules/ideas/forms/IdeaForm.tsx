@@ -1,5 +1,16 @@
 import { useEffect, useState } from "react";
-import { Loader2, Trash2, X } from "lucide-react";
+import {
+  Eye,
+  Lightbulb,
+  Loader2,
+  Maximize2,
+  Repeat,
+  Scissors,
+  Sparkles,
+  Trash2,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -77,6 +88,38 @@ function ideaToState(i: Idea): IdeaCreateInput {
   };
 }
 
+/**
+ * Lentes (§4): provocação aplicada à PRÓPRIA ideia — um toque dá um ângulo novo
+ * sobre ela. Heurística de prática (sem laboratório por trás, diferente da fila
+ * Ressurgir). `q` monta a pergunta a partir do título atual.
+ */
+const LENSES: { key: string; label: string; icon: LucideIcon; q: (t: string) => string }[] = [
+  {
+    key: "inverter",
+    label: "Inverter",
+    icon: Repeat,
+    q: (t) => `Como você PIORARIA "${t}" de propósito? Às vezes o avesso revela o caminho.`,
+  },
+  {
+    key: "escalar",
+    label: "Escalar",
+    icon: Maximize2,
+    q: (t) => `E se "${t}" fosse 10× maior? E se fosse 10× menor? O que muda?`,
+  },
+  {
+    key: "remover",
+    label: "Remover",
+    icon: Scissors,
+    q: (t) => `Tire o elemento mais óbvio de "${t}". O que ainda funciona sem ele?`,
+  },
+  {
+    key: "olhoFa",
+    label: "Olho do fã",
+    icon: Eye,
+    q: (t) => `Como um fã descreveria "${t}" pra um amigo? O que ele destacaria?`,
+  },
+];
+
 const CONVERSION_OPTIONS = [
   { label: "Novo set", converted_to: "task" as const, description: "Set novo" },
   { label: "GIG", converted_to: "gig" as const, description: null },
@@ -97,6 +140,8 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
   const [taskTitle, setTaskTitle] = useState("");
   const [creatingTask, setCreatingTask] = useState(false);
   const [otherIdeas, setOtherIdeas] = useState<{ id: number; title: string }[]>([]);
+  const [activeLens, setActiveLens] = useState<string | null>(null);
+  const [lensBusy, setLensBusy] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
   const setState: typeof setStateRaw = (v) => {
     setStateRaw(v);
@@ -115,6 +160,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
     setTagInput("");
     setTitleError(null);
     setDirty(false);
+    setActiveLens(null);
     void listIdeas().then((all) =>
       setOtherIdeas(all.map((i) => ({ id: i.id, title: i.title })))
     );
@@ -180,6 +226,32 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
       toast.error(`Erro: ${String(e)}`);
     } finally {
       setCreatingTask(false);
+    }
+  }
+
+  // Lente → ideia: captura o ângulo como uma nova ideia relacionada a esta.
+  async function handleLensToIdea(question: string) {
+    if (!idea) return;
+    setLensBusy(true);
+    try {
+      await createIdea({
+        title: question.length > 80 ? `${question.slice(0, 77)}…` : question,
+        body: `${question}\n\n(lente sobre "${idea.title}")`,
+        category: state.category,
+        tags: [],
+        heat: 3,
+        maturation: "Embrião",
+        converted_to: null,
+        converted_id: null,
+        related_idea_id: idea.id,
+        source: "provocacao",
+      });
+      toast.success("Ângulo virou ideia");
+      onSaved(idea.id);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setLensBusy(false);
     }
   }
 
@@ -418,6 +490,56 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
               })}
             </div>
           </div>
+
+          {idea && (
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Lentes
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Um ângulo novo sobre esta ideia — toque uma lente.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {LENSES.map((l) => {
+                  const Icon = l.icon;
+                  const active = activeLens === l.key;
+                  return (
+                    <button
+                      key={l.key}
+                      type="button"
+                      onClick={() => setActiveLens(active ? null : l.key)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
+                        active ? "border-primary bg-primary/10 text-primary" : "hover:bg-accent"
+                      )}
+                    >
+                      <Icon className="h-3.5 w-3.5" /> {l.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {activeLens &&
+                (() => {
+                  const lens = LENSES.find((l) => l.key === activeLens);
+                  if (!lens) return null;
+                  const q = lens.q(state.title.trim() || "esta ideia");
+                  return (
+                    <div className="mt-1.5 space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+                      <p className="text-sm">{q}</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={lensBusy}
+                        onClick={() => void handleLensToIdea(q)}
+                      >
+                        <Lightbulb className="h-3.5 w-3.5" /> Virar ideia
+                      </Button>
+                    </div>
+                  );
+                })()}
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label>Tags</Label>
