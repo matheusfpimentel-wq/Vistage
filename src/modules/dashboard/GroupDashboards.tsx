@@ -9,6 +9,7 @@ import {
   modulesInGroup,
   type NavGroup,
 } from "@/lib/nav";
+import { useHiddenModules } from "@/lib/moduleVisibility";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 // Criação
 import { listGigs } from "@/modules/gigs/api";
@@ -172,7 +173,9 @@ function TextRow({ to, name, context }: { to: string; name: string; context?: Re
 }
 
 function ModuleLinks({ group }: { group: NavGroup }) {
-  const modules = modulesInGroup(DEFAULT_NAV, group);
+  // Perfil: módulos de CRIAÇÃO ocultos não aparecem na lista do hub do grupo.
+  const hidden = useHiddenModules();
+  const modules = modulesInGroup(DEFAULT_NAV, group).filter((m) => !hidden.has(m.to));
   return (
     <TextSection title="Módulos" empty={modules.length === 0}>
       {modules.map(({ to, label }) => (
@@ -264,6 +267,8 @@ export function CriacaoDashboard() {
   }, []);
   const { data, loading, reload } = useAsync(load);
   const today = todayISO();
+  // Perfil: módulos de CRIAÇÃO ocultos não contribuem pro hub do grupo.
+  const hidden = useHiddenModules();
 
   return (
     <GroupShell group="Criação" loading={loading} onReload={reload}>
@@ -315,34 +320,38 @@ export function CriacaoDashboard() {
                     to: "/aulas",
                     hint: `${data.parties.filter((p) => p.date && p.date >= today && p.status !== "Cancelada").length} festa(s) em andamento`,
                   },
-                ]}
+                ].filter((it) => !it.to || !hidden.has(it.to))}
               />
 
-              <TextSection title="Próximas GIGs" empty={upcomingGigs.length === 0}>
-                {upcomingGigs.slice(0, 5).map((g) => (
-                  <TextRow
-                    key={g.id}
-                    to={`/gigs?open=${g.id}`}
-                    name={gigDisplayName(g)}
-                    context={`${g.venue_name} · ${formatDate(g.date)} · ${g.status}`}
-                  />
-                ))}
-              </TextSection>
-
-              <TextSection title="Tracks ativas" empty={activeTracks.length === 0}>
-                {activeTracks.slice(0, 6).map((t) => {
-                  const d = daysInStage(t);
-                  const stage = t.current_stage ?? "—";
-                  return (
+              {!hidden.has("/gigs") && (
+                <TextSection title="Próximas GIGs" empty={upcomingGigs.length === 0}>
+                  {upcomingGigs.slice(0, 5).map((g) => (
                     <TextRow
-                      key={t.id}
-                      to="/musica"
-                      name={trackDisplayName(t)}
-                      context={d !== null ? `${stage} · ${d}d no stage` : stage}
+                      key={g.id}
+                      to={`/gigs?open=${g.id}`}
+                      name={gigDisplayName(g)}
+                      context={`${g.venue_name} · ${formatDate(g.date)} · ${g.status}`}
                     />
-                  );
-                })}
-              </TextSection>
+                  ))}
+                </TextSection>
+              )}
+
+              {!hidden.has("/musica") && (
+                <TextSection title="Tracks ativas" empty={activeTracks.length === 0}>
+                  {activeTracks.slice(0, 6).map((t) => {
+                    const d = daysInStage(t);
+                    const stage = t.current_stage ?? "—";
+                    return (
+                      <TextRow
+                        key={t.id}
+                        to="/musica"
+                        name={trackDisplayName(t)}
+                        context={d !== null ? `${stage} · ${d}d no stage` : stage}
+                      />
+                    );
+                  })}
+                </TextSection>
+              )}
 
               <ModuleLinks group="Criação" />
             </>

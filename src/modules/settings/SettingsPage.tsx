@@ -9,6 +9,16 @@ import { cn } from "@/lib/utils";
 import { useThemeStore, ACCENTS } from "@/lib/theme";
 import { reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
+import {
+  CRIACAO_MODULE_IDS,
+  MODULE_LABELS,
+  PROFILE_PRESETS,
+  applyProfilePreset,
+  matchPreset,
+  setModuleHidden,
+  useHiddenModules,
+} from "@/lib/moduleVisibility";
+import { Toggle } from "./CustomRulesSection";
 import { ShortcutSettings } from "./ShortcutSettings";
 import { CsvImportExport } from "./CsvImportExport";
 import { DiscardedCapturesCard } from "./DiscardedCapturesCard";
@@ -52,9 +62,9 @@ export function SettingsPage() {
   }
 
   return (
-    <Tabs defaultValue="personalizacao" className="space-y-4">
+    <Tabs defaultValue="perfil" className="space-y-4">
       <TabsList className="w-full justify-start">
-        <TabsTrigger value="personalizacao">Personalização</TabsTrigger>
+        <TabsTrigger value="perfil">Perfil</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
         <TabsTrigger value="backup">Backup</TabsTrigger>
         <TabsTrigger value="avancado">Configurações avançadas</TabsTrigger>
@@ -109,8 +119,17 @@ export function SettingsPage() {
         <GoogleSettings />
       </TabsContent>
 
-      {/* ─── Personalização ──────────────────────────────────── */}
-      <TabsContent value="personalizacao" className="space-y-6">
+      {/* ─── Perfil & Módulos + Personalização ───────────────── */}
+      <TabsContent value="perfil" className="space-y-6">
+        <ProfileModulesCard />
+
+        <div className="flex items-center gap-3 pt-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Personalização
+          </h3>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Aparência</CardTitle>
@@ -206,6 +225,66 @@ export function SettingsPage() {
         )}
       </TabsContent>
     </Tabs>
+  );
+}
+
+/**
+ * Perfil & Módulos: presets de perfil (Tudo / Só toco / …) + toggle por módulo de
+ * CRIAÇÃO. Ocultar é filtro de superfície — não apaga nada; religar restaura.
+ */
+function ProfileModulesCard() {
+  const hidden = useHiddenModules();
+  const activePreset = matchPreset(hidden);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Perfil & Módulos</CardTitle>
+        <CardDescription>
+          Ocultar um módulo o some do menu, do "+", da busca, dos alertas e do
+          Dashboard — sem apagar nada; religar restaura.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Presets — ligam/desligam um conjunto de módulos de uma vez. */}
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">Perfil</p>
+          <div className="flex flex-wrap gap-2">
+            {PROFILE_PRESETS.map((p) => (
+              <Button
+                key={p.id}
+                variant={activePreset === p.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => applyProfilePreset(p.id)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Toggle por módulo (ligado = visível). */}
+        <div className="space-y-1.5">
+          <p className="text-sm font-medium">Módulos</p>
+          <div className="space-y-1.5">
+            {CRIACAO_MODULE_IDS.map((id) => {
+              const visible = !hidden.has(id);
+              return (
+                <div
+                  key={id}
+                  className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+                >
+                  <span className={cn("text-sm", !visible && "text-muted-foreground")}>
+                    {MODULE_LABELS[id]}
+                  </span>
+                  <Toggle on={visible} onClick={() => setModuleHidden(id, visible)} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

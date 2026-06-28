@@ -17,6 +17,7 @@ import { loadFocusStreak } from "@/modules/foco/api";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { loadExtraStats } from "@/components/shared/NotificationBell";
 import { EVERGREEN, generateRaw } from "@/modules/ideas/provocations";
@@ -588,7 +589,7 @@ async function buildAlerts(uid: string): Promise<
 > {
   try {
     const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
-    const items = [...computeAlerts(stats, extra, getDisabledRuleIds()), ...(await evaluateCustomRules())];
+    const items = [...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()), ...(await evaluateCustomRules())];
     const seen = new Set<string>();
     const out: { user_id: string; key: string; label: string; route: string | null; critical: boolean; icon: string }[] = [];
     for (const a of items) {

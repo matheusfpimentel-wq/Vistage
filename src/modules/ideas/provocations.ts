@@ -1,6 +1,7 @@
 import { formatDate, toLocalISODate } from "@/lib/format";
 import { getDb } from "@/lib/db";
 import { persistDocSetting } from "@/lib/docSettings";
+import { isModuleVisible } from "@/lib/moduleVisibility";
 import { listOkrs, okrProgress } from "@/modules/objetivos/api";
 import { listTasks } from "@/modules/tasks/api";
 import { listGigs } from "@/modules/gigs/api";
@@ -137,28 +138,32 @@ export async function generateRaw(): Promise<RawInsight[]> {
     }
   } catch { /* ignore */ }
 
-  try {
-    const gigs = await listGigs();
-    const upcoming = gigs
-      .filter((g) => g.date >= today && g.status !== "Cancelada")
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (upcoming[0]) {
-      add(`gig-next:${upcoming[0].id}`, `Próxima GIG: ${gigDisplayName(upcoming[0])} em ${formatDate(upcoming[0].date)}. Algo a preparar?`, true);
-    }
-    const recent = gigs
-      .filter((g) => g.status === "Concluída")
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 12);
-    for (const g of recent) {
-      const where = gigDisplayName(g);
-      for (const [idx, line] of (g.debrief_weaknesses ?? "")
-        .split("\n").map((l) => l.trim()).filter(Boolean).entries()) {
-        add(`gig-weak:${g.id}:${idx}`, `Dificuldade em ${where}: ${line} — como evitar na próxima?`, true);
+  // Provocações derivadas de GIGs só fazem sentido com o módulo GIGs visível
+  // (Perfil). Oculto → pula (weakagg/fancool abaixo NÃO dependem de /gigs).
+  if (isModuleVisible("/gigs")) {
+    try {
+      const gigs = await listGigs();
+      const upcoming = gigs
+        .filter((g) => g.date >= today && g.status !== "Cancelada")
+        .sort((a, b) => a.date.localeCompare(b.date));
+      if (upcoming[0]) {
+        add(`gig-next:${upcoming[0].id}`, `Próxima GIG: ${gigDisplayName(upcoming[0])} em ${formatDate(upcoming[0].date)}. Algo a preparar?`, true);
       }
-      const learn = (g.debrief_learnings ?? "").trim();
-      if (learn) add(`gig-learn:${g.id}`, `Aprendizado de ${where}: ${learn}. Como aplicar de novo?`, true);
-    }
-  } catch { /* ignore */ }
+      const recent = gigs
+        .filter((g) => g.status === "Concluída")
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 12);
+      for (const g of recent) {
+        const where = gigDisplayName(g);
+        for (const [idx, line] of (g.debrief_weaknesses ?? "")
+          .split("\n").map((l) => l.trim()).filter(Boolean).entries()) {
+          add(`gig-weak:${g.id}:${idx}`, `Dificuldade em ${where}: ${line} — como evitar na próxima?`, true);
+        }
+        const learn = (g.debrief_learnings ?? "").trim();
+        if (learn) add(`gig-learn:${g.id}`, `Aprendizado de ${where}: ${learn}. Como aplicar de novo?`, true);
+      }
+    } catch { /* ignore */ }
+  }
 
   // §5 Modo Foco (agregado): pontos fracos marcados ao vivo no último mês viram
   // uma provocação por TIPO recorrente — o erro repetido pede uma ideia que o resolva.

@@ -55,6 +55,7 @@ import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
 import { formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
+import { useHiddenModules } from "@/lib/moduleVisibility";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -175,6 +176,9 @@ export function DashboardPage() {
   const [data, setData] = useState<DashData | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Perfil: módulos de CRIAÇÃO ocultos não contribuem cards/KPIs no Dashboard
+  // (dados seguem intactos; cards core — financeiro, OKRs, tarefas — ficam).
+  const hidden = useHiddenModules();
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -225,14 +229,14 @@ export function DashboardPage() {
       <TabsContent value="overview" className="space-y-6">
         {data ? (
           <>
-            <KpiRow data={data} />
+            <KpiRow data={data} hidden={hidden} />
             <div className="grid gap-4 lg:grid-cols-2">
-              <GigsCard data={data} />
-              <MusicCard data={data} />
-              <ContentCard data={data} />
-              <FestasCard data={data} />
+              {!hidden.has("/gigs") && <GigsCard data={data} />}
+              {!hidden.has("/musica") && <MusicCard data={data} />}
+              {!hidden.has("/conteudo") && <ContentCard data={data} />}
+              {!hidden.has("/festas") && <FestasCard data={data} />}
             </div>
-            <WeekTimeline data={data} />
+            <WeekTimeline data={data} hidden={hidden} />
 
             <div className="space-y-4">
               <FinancePanel />
@@ -283,7 +287,7 @@ export function DashboardPage() {
 // Bloco 1 — KPIs estratégicos
 // ============================================================
 
-function KpiRow({ data }: { data: DashData }) {
+function KpiRow({ data, hidden }: { data: DashData; hidden: Set<string> }) {
   const { gigs, fin } = data;
   const month = todayISO().slice(0, 7);
 
@@ -305,24 +309,26 @@ function KpiRow({ data }: { data: DashData }) {
         to="/financeiro"
         footer={<TrendIndicator delta={revenueTrend} />}
       />
-      <KpiCard
-        label="GIGs do mês"
-        value={monthGigs.length.toString()}
-        to="/gigs"
-        footer={
-          <span className="text-xs text-muted-foreground">
-            {concluidas} concluídas · {confirmadas} confirmadas · {propostas}{" "}
-            propostas
-          </span>
-        }
-      />
-      <EmExecucaoCard data={data} />
+      {!hidden.has("/gigs") && (
+        <KpiCard
+          label="GIGs do mês"
+          value={monthGigs.length.toString()}
+          to="/gigs"
+          footer={
+            <span className="text-xs text-muted-foreground">
+              {concluidas} concluídas · {confirmadas} confirmadas · {propostas}{" "}
+              propostas
+            </span>
+          }
+        />
+      )}
+      <EmExecucaoCard data={data} hidden={hidden} />
       <OkrMiniCard okrs={data.okrs} />
     </div>
   );
 }
 
-function EmExecucaoCard({ data }: { data: DashData }) {
+function EmExecucaoCard({ data, hidden }: { data: DashData; hidden: Set<string> }) {
   const today = todayISO();
 
   const upcomingGigs = data.gigs.filter(
@@ -353,39 +359,47 @@ function EmExecucaoCard({ data }: { data: DashData }) {
         <CardDescription className="text-xs">Em execução</CardDescription>
       </CardHeader>
       <CardContent className="pt-0 space-y-1">
-        <Link
-          to="/gigs"
-          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
-        >
-          <Disc3 className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="tabular-nums font-medium">{upcomingGigs}</span>
-          <span className="text-muted-foreground">GIGs futuras</span>
-        </Link>
-        <Link
-          to="/conteudo"
-          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
-        >
-          <Film className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="tabular-nums font-medium">{contentInProgress}</span>
-          <span className="text-muted-foreground">Conteúdos</span>
-        </Link>
-        <Link
-          to="/musica"
-          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
-        >
-          <Music className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="tabular-nums font-medium">{activeTracks}</span>
-          <span className="text-muted-foreground">Tracks ativas</span>
-        </Link>
-        <Link
-          to="/festas"
-          className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
-        >
-          <PartyPopper className="h-3 w-3 shrink-0 text-muted-foreground" />
-          <span className="tabular-nums font-medium">{partiesPipeline}</span>
-          <span className="text-muted-foreground">Festas em andamento</span>
-        </Link>
-        {upcomingClasses > 0 && (
+        {!hidden.has("/gigs") && (
+          <Link
+            to="/gigs"
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+          >
+            <Disc3 className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="tabular-nums font-medium">{upcomingGigs}</span>
+            <span className="text-muted-foreground">GIGs futuras</span>
+          </Link>
+        )}
+        {!hidden.has("/conteudo") && (
+          <Link
+            to="/conteudo"
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+          >
+            <Film className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="tabular-nums font-medium">{contentInProgress}</span>
+            <span className="text-muted-foreground">Conteúdos</span>
+          </Link>
+        )}
+        {!hidden.has("/musica") && (
+          <Link
+            to="/musica"
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+          >
+            <Music className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="tabular-nums font-medium">{activeTracks}</span>
+            <span className="text-muted-foreground">Tracks ativas</span>
+          </Link>
+        )}
+        {!hidden.has("/festas") && (
+          <Link
+            to="/festas"
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
+          >
+            <PartyPopper className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <span className="tabular-nums font-medium">{partiesPipeline}</span>
+            <span className="text-muted-foreground">Festas em andamento</span>
+          </Link>
+        )}
+        {!hidden.has("/aulas") && upcomingClasses > 0 && (
           <Link
             to="/aulas"
             className="flex items-center gap-2 rounded px-1 py-0.5 text-xs transition hover:bg-accent"
@@ -1043,7 +1057,7 @@ type TimelineItem = {
   to: string;
 };
 
-function WeekTimeline({ data }: { data: DashData }) {
+function WeekTimeline({ data, hidden }: { data: DashData; hidden: Set<string> }) {
   const { gigs, weekTasks, content, parties } = data;
   const days = useMemo(() => nextNDays(7), []);
 
@@ -1055,23 +1069,30 @@ function WeekTimeline({ data }: { data: DashData }) {
       const key = date.slice(0, 10);
       if (map.has(key)) map.get(key)!.push(item);
     };
-    for (const g of gigs) {
-      if (g.status === "Cancelada") continue;
-      push(g.date, { kind: "gig", label: gigDisplayName(g), to: `/gigs?open=${g.id}` });
+    // Perfil: módulos de CRIAÇÃO ocultos não contribuem pra "Sua semana".
+    if (!hidden.has("/gigs")) {
+      for (const g of gigs) {
+        if (g.status === "Cancelada") continue;
+        push(g.date, { kind: "gig", label: gigDisplayName(g), to: `/gigs?open=${g.id}` });
+      }
     }
     for (const t of weekTasks) {
       push(t.due_date, { kind: "task", label: t.title, to: "/tarefas" });
     }
-    for (const c of content) {
-      if (c.status === "Publicado" || c.status === "Arquivado") continue;
-      push(c.publish_date, { kind: "content", label: c.title, to: "/conteudo" });
+    if (!hidden.has("/conteudo")) {
+      for (const c of content) {
+        if (c.status === "Publicado" || c.status === "Arquivado") continue;
+        push(c.publish_date, { kind: "content", label: c.title, to: "/conteudo" });
+      }
     }
-    for (const p of parties) {
-      if (p.status === "Cancelada" || p.status === "Realizada") continue;
-      push(p.date, { kind: "party", label: p.title, to: "/festas" });
+    if (!hidden.has("/festas")) {
+      for (const p of parties) {
+        if (p.status === "Cancelada" || p.status === "Realizada") continue;
+        push(p.date, { kind: "party", label: p.title, to: "/festas" });
+      }
     }
     return map;
-  }, [days, gigs, weekTasks, content, parties]);
+  }, [days, gigs, weekTasks, content, parties, hidden]);
 
   const totalItems = days.reduce((s, d) => s + (byDay.get(d)?.length ?? 0), 0);
 
