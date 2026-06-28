@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Cake, Check, Coffee, Flame, Gift, HeartHandshake, Sparkles, User, type LucideIcon } from "lucide-react";
+import { Cake, Check, Coffee, Flame, Gift, HeartHandshake, PartyPopper, Sparkles, User, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonCards } from "@/components/shared/Skeleton";
@@ -39,6 +39,14 @@ const BUCKETS: BucketDef[] = [
     icon: HeartHandshake,
     actionId: "agradecer",
     fallback: { label: "Agradecer", template: "Agradecer presença de {nome} no show" },
+  },
+  {
+    key: "parabenizar",
+    title: "Parabenizar",
+    hint: "Subiram de nível nos últimos dias — vale um toque.",
+    icon: PartyPopper,
+    actionId: "parabenizar",
+    fallback: { label: "Parabenizar", template: "Parabenizar {nome} pela evolução" },
   },
   {
     key: "reativar",
@@ -83,7 +91,11 @@ export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void
   if (!buckets) return <SkeletonCards />;
 
   const total =
-    buckets.agradecer.length + buckets.reativar.length + buckets.aniversarios.length + buckets.boasVindas.length;
+    buckets.agradecer.length +
+    buckets.parabenizar.length +
+    buckets.reativar.length +
+    buckets.aniversarios.length +
+    buckets.boasVindas.length;
 
   if (total === 0) {
     return (

@@ -2194,6 +2194,12 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 151,
+    description:
+      "Clube de Fãs — fans.nivel_changed_at: data/hora da última troca de nível do fã (preenchida pelo recálculo de pontuação quando o nível muda). Usada para o balde 'Parabenizar' da superfície 'Hoje' (subiu de nível recentemente) e o 'no nível X desde {data}' do perfil. Aditiva/idempotente.",
+    sql: `ALTER TABLE fans ADD COLUMN nivel_changed_at TEXT;`,
+  },
 ];
 
 

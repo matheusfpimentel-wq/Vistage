@@ -21,6 +21,8 @@ export type Fan = {
   contact_id: number | null;
   /** Origem/aquisição do fã (texto livre) — filtro e dimensão de segmento. */
   origem: string | null;
+  /** Data/hora da última troca de nível (gravada pelo recálculo quando o nível muda). */
+  nivel_changed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -35,7 +37,7 @@ export type FanSegment = {
 
 export type FanCreateInput = Omit<
   Fan,
-  "id" | "created_at" | "updated_at" | "last_interaction_at" | "origem"
+  "id" | "created_at" | "updated_at" | "last_interaction_at" | "origem" | "nivel_changed_at"
 > & {
   last_interaction_at?: string | null;
   origem?: string | null;

@@ -198,6 +198,29 @@ export async function updateFan(input: FanUpdateInput): Promise<void> {
   emitDataChanged();
 }
 
+/** Id do fã que referencia este contato (procedência), se existir. */
+export async function findFanIdByContactId(contactId: number): Promise<number | null> {
+  const db = getDb();
+  const rows = await db.select<{ id: number }[]>(
+    "SELECT id FROM fans WHERE contact_id = $1 LIMIT 1",
+    [contactId]
+  );
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Vincula um fã a um contato do CRM (referência leve de procedência). Usado pela
+ * conversão manual Fã→Pessoa — guarda só o vínculo, sem sincronização viva.
+ */
+export async function setFanContactId(fanId: number, contactId: number | null): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE fans SET contact_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+    [contactId, fanId]
+  );
+  emitDataChanged();
+}
+
 export async function deleteFan(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM fans WHERE id = $1", [id]);
@@ -314,8 +337,10 @@ export async function recomputeFanLevel(fanId: number): Promise<void> {
   // Embaixador é manual (is_ambassador) e imune ao recálculo.
   const level = cur[0].is_ambassador ? "Embaixador" : computed;
   if (cur[0].level !== level) {
+    // Marca a transição de nível (alimenta o balde "Parabenizar" e o "no nível
+    // X desde {data}" do perfil).
     await db.execute(
-      `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      `UPDATE fans SET level = $1, nivel_changed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
       [level, fanId]
     );
     emitDataChanged();
@@ -338,7 +363,7 @@ export async function recomputeAllFanLevels(): Promise<number> {
     const level = f.is_ambassador ? "Embaixador" : computed;
     if (f.level !== level) {
       await db.execute(
-        `UPDATE fans SET level = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+        `UPDATE fans SET level = $1, nivel_changed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
         [level, f.id]
       );
       changed++;
@@ -800,6 +825,7 @@ export type FanTodayItem = {
 };
 export type FanTodayBuckets = {
   agradecer: FanTodayItem[];
+  parabenizar: FanTodayItem[];
   reativar: FanTodayItem[];
   aniversarios: FanTodayItem[];
   boasVindas: FanTodayItem[];
@@ -836,6 +862,20 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
         LIMIT 50`
     )
     .catch(() => [] as (TodayRow & { gig_date: string })[]);
+
+  // Parabenizar: subiu de nível nos últimos 14 dias (transição registrada em
+  // nivel_changed_at pelo recálculo de pontuação). Só níveis que valem festejo.
+  const parabenizar = await db
+    .select<(TodayRow & { changed: string })[]>(
+      `SELECT id AS fan_id, name, level, city, photo_path, nivel_changed_at AS changed
+         FROM fans
+        WHERE nivel_changed_at IS NOT NULL
+          AND nivel_changed_at >= date('now','-14 days')
+          AND level IN ('Fã','Superfã','Embaixador')
+        ORDER BY nivel_changed_at DESC
+        LIMIT 50`
+    )
+    .catch(() => [] as (TodayRow & { changed: string })[]);
 
   // Reativar: fã/superfã/embaixador sem contato há 30+ dias (decaindo de nível).
   const reativar = await db
@@ -877,6 +917,7 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
 
   return {
     agradecer: agradecer.map((r) => ({ ...stripRow(r), detail: `esteve num show ${relDays(daysSinceISO(r.gig_date))}` })),
+    parabenizar: parabenizar.map((r) => ({ ...stripRow(r), detail: `subiu para ${r.level}` })),
     reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
     boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo — sem interação ainda" })),
     aniversarios: birthdaysWithin(bday, 7),
