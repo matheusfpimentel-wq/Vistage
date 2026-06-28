@@ -3,7 +3,9 @@ import { emitDataChanged } from "@/lib/events";
 import { readDocValue, writeDocValue } from "@/lib/docSettings";
 import { toLocalISODate } from "@/lib/format";
 import { nextNonSocialGig } from "@/modules/gigs/api";
+import { FAN_LEVELS } from "./types";
 import type {
+  FanAutoRule,
   FanClubConfig,
   Fan,
   FanCreateInput,
@@ -20,6 +22,7 @@ import type {
   FanPerk,
   FanPerkCreateInput,
   FanPerkUpdateInput,
+  FanRuleTrigger,
   FanScoreThresholds,
   FanSegment,
   FanUpdateInput,
@@ -498,6 +501,174 @@ export async function loadFanClubConfig(): Promise<FanClubConfig> {
 export async function saveFanClubConfig(cfg: FanClubConfig): Promise<void> {
   // Conteúdo do documento: viaja no .vistage + marca como não salvo.
   await writeDocValue("fan_club_config", JSON.stringify(cfg));
+}
+
+// ============================================================
+// Ações programadas (regras gatilho → ação automáticas)
+// ============================================================
+// As regras moram em document_settings (chave "fan_auto_rules"), igual a
+// fan_club_config/fan_upgrade_rules: viajam no .vistage e marcam "não salvo".
+// SEM tabela nova. O executor (runFanAutoRules) é IDEMPOTENTE: cada regra dispara
+// no máximo uma vez por fã, garantido por um marcador `[auto:<ruleId>]` gravado
+// no que a ação cria + checagem desse marcador antes de agir.
+
+export async function loadFanAutoRules(): Promise<FanAutoRule[]> {
+  const raw = await readDocValue("fan_auto_rules", "fan_auto_rules");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as FanAutoRule[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveFanAutoRules(rules: FanAutoRule[]): Promise<void> {
+  // Conteúdo do documento: viaja no .vistage + marca como não salvo.
+  await writeDocValue("fan_auto_rules", JSON.stringify(rules));
+}
+
+/** Marcador de idempotência gravado pelas ações automáticas de uma regra. */
+function autoMarker(ruleId: string): string {
+  return `[auto:${ruleId}]`;
+}
+
+/** Dias inteiros decorridos desde uma data ISO (SQLite datetime/date). >= 0. */
+function daysSince(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  // Datas só-data (YYYY-MM-DD) ou datetime do SQLite ("YYYY-MM-DD HH:MM:SS", UTC).
+  const iso = dateStr.includes("T")
+    ? dateStr
+    : dateStr.length <= 10
+      ? `${dateStr}T00:00:00Z`
+      : `${dateStr.replace(" ", "T")}Z`;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+}
+
+/** O fã está nesse nível OU em um superior (índice menor em FAN_LEVELS)? */
+function levelAtLeast(fanLevel: FanLevel, target: FanLevel): boolean {
+  const fi = FAN_LEVELS.indexOf(fanLevel);
+  const ti = FAN_LEVELS.indexOf(target);
+  if (fi < 0 || ti < 0) return false;
+  return fi <= ti; // FAN_LEVELS vai do mais alto (índice 0) ao mais baixo
+}
+
+/** Avalia o gatilho de uma regra contra um fã (true = ação deve disparar). */
+function triggerMatches(trigger: FanRuleTrigger, fan: Fan): boolean {
+  switch (trigger.type) {
+    case "level_reached":
+      return levelAtLeast(fan.level, trigger.level);
+    case "fan_for_days": {
+      // Com nível: tempo no nível atual (precisa estar nele) a partir de
+      // nivel_changed_at; sem nível: tempo de cadastro (created_at).
+      if (trigger.level) {
+        if (fan.level !== trigger.level) return false;
+        const d = daysSince(fan.nivel_changed_at ?? fan.created_at);
+        return d != null && d >= trigger.days;
+      }
+      const d = daysSince(fan.created_at);
+      return d != null && d >= trigger.days;
+    }
+    case "inactive_days": {
+      if (trigger.level && fan.level !== trigger.level) return false;
+      const d = daysSince(fan.last_interaction_at);
+      return d != null && d >= trigger.days;
+    }
+    default:
+      return false;
+  }
+}
+
+/**
+ * Executa as ações programadas (regras gatilho → ação) sobre todos os fãs.
+ * Retorna o nº de ações efetivamente disparadas.
+ *
+ * IDEMPOTÊNCIA (ponto crítico): toda ação automática grava o marcador
+ * `[auto:<ruleId>]` no que cria (perk.notes / interaction.note / descrição da
+ * tarefa). ANTES de agir, verifica se já existe algo com esse marcador para o fã
+ * e, se existir, PULA. Assim cada regra dispara no máximo UMA vez por fã, mesmo
+ * rodando o executor várias vezes (a cada abertura da tela). Rodar 3x seguidas
+ * cria a ação só na 1ª: na 2ª/3ª o marcador já está lá e tudo é pulado.
+ * Espelha a idempotência por marcador de syncSuperfanFollowupTasks.
+ */
+export async function runFanAutoRules(): Promise<number> {
+  const db = getDb();
+  let rules: FanAutoRule[];
+  try {
+    rules = (await loadFanAutoRules()).filter((r) => r.enabled);
+  } catch {
+    return 0;
+  }
+  if (rules.length === 0) return 0;
+
+  const fans = await listFans();
+  let fired = 0;
+
+  for (const rule of rules) {
+    const marker = autoMarker(rule.id);
+    const like = `%${marker}%`;
+    for (const fan of fans) {
+      if (!triggerMatches(rule.trigger, fan)) continue;
+      try {
+        const act = rule.action;
+        if (act.type === "grant_perk") {
+          // Já concedido por esta regra? (perk com o marcador na nota)
+          const dup = await db.select<{ id: number }[]>(
+            `SELECT id FROM fan_perks WHERE fan_id = $1 AND notes LIKE $2 LIMIT 1`,
+            [fan.id, like]
+          );
+          if (dup.length > 0) continue;
+          await addFanPerk({
+            fan_id: fan.id,
+            category: act.perkCategory,
+            name: act.perkName,
+            status: "Planejado",
+            date: null,
+            notes: `Ação programada ${marker}`,
+          });
+          fired++;
+        } else if (act.type === "log_interaction") {
+          // Já registrada por esta regra? (interação com o marcador na nota)
+          const dup = await db.select<{ id: number }[]>(
+            `SELECT id FROM fan_interactions WHERE fan_id = $1 AND note LIKE $2 LIMIT 1`,
+            [fan.id, like]
+          );
+          if (dup.length > 0) continue;
+          const baseNote = act.note?.trim() ? act.note.trim() : "Ação programada";
+          await addFanInteraction(
+            fan.id,
+            toLocalISODate(),
+            `${baseNote} ${marker}`,
+            act.interactionType
+          );
+          fired++;
+        } else if (act.type === "create_task") {
+          // Já existe tarefa ABERTA vinculada ao fã com o marcador? (título ou
+          // descrição). Espelha a checagem de idempotência do follow-up.
+          const dup = await db.select<{ id: number }[]>(
+            `SELECT t.id FROM tasks t
+               JOIN task_links tl ON tl.task_id = t.id
+              WHERE tl.entity_type = 'fan' AND tl.entity_id = $1
+                AND t.status NOT IN ('Concluída', 'Cancelada')
+                AND (t.title LIKE $2 OR t.description LIKE $2)
+              LIMIT 1`,
+            [fan.id, like]
+          );
+          if (dup.length > 0) continue;
+          await createFanTask(fan.id, act.taskTitle, {
+            description: `Ação programada ${marker}`,
+          });
+          fired++;
+        }
+      } catch {
+        // não interrompe as demais regras/fãs por um erro pontual
+      }
+    }
+  }
+
+  return fired;
 }
 
 export async function getFanInteractionCounts(fanId: number): Promise<{

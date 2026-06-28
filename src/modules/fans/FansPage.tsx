@@ -19,6 +19,7 @@ import {
   Trash2,
   User,
   Users,
+  Zap,
 } from "lucide-react";
 import {
   DndContext,
@@ -56,6 +57,7 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
+import { FanAutoRulesDialog } from "./components/FanAutoRulesDialog";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
@@ -77,6 +79,7 @@ import {
   loadFanUpgradeRules,
   parseFanSegmentCriterios,
   recomputeAllFanLevels,
+  runFanAutoRules,
   removeFanGroupMember,
   saveFanUpgradeRules,
   type FanFilters,
@@ -204,6 +207,7 @@ export function FansPage() {
   const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "config">("hoje");
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
+  const [autoRulesOpen, setAutoRulesOpen] = useState(false);
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
   const cols = useResizableColumns("fans", [
     { id: "name", width: 240, min: 140 },
@@ -253,6 +257,19 @@ export function FansPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Roda as ações programadas (regras gatilho→ação) uma vez ao abrir o Clube de
+  // Fãs, DEPOIS do primeiro load. Idempotente (marcador [auto:<ruleId>] por
+  // regra×fã), então chamar a cada abertura não duplica nada. Não roda no boot do
+  // app (evita escrever antes de o rastreio de "não salvo" assentar). Se algo
+  // disparar, refaz o load pra refletir os novos perks/interações/tarefas.
+  useEffect(() => {
+    void runFanAutoRules()
+      .then((fired) => {
+        if (fired > 0) void refresh();
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const openId = searchParams.get("open");
@@ -669,6 +686,7 @@ export function FansPage() {
           <FanClubConfigSurface
             onEditScoring={() => setUpgradeRulesOpen(true)}
             onEditActions={() => setClubConfigOpen(true)}
+            onEditAutoRules={() => setAutoRulesOpen(true)}
           />
         </TabsContent>
       </Tabs>
@@ -689,6 +707,8 @@ export function FansPage() {
       <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
 
       <FanClubConfigDialog open={clubConfigOpen} onOpenChange={setClubConfigOpen} />
+
+      <FanAutoRulesDialog open={autoRulesOpen} onOpenChange={setAutoRulesOpen} />
     </div>
   );
 }
@@ -861,9 +881,11 @@ function FanSavedFiltersMenu({
 function FanClubConfigSurface({
   onEditScoring,
   onEditActions,
+  onEditAutoRules,
 }: {
   onEditScoring: () => void;
   onEditActions: () => void;
+  onEditAutoRules: () => void;
 }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -892,6 +914,21 @@ function FanClubConfigSurface({
         <span className="font-medium">Ações rápidas e perks</span>
         <span className="text-xs text-muted-foreground">
           Botões que viram tarefa ({"{nome}"}) e o catálogo de perks/brindes de um clique.
+        </span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onEditAutoRules}
+        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Zap className="h-4 w-4" />
+        </span>
+        <span className="font-medium">Ações programadas</span>
+        <span className="text-xs text-muted-foreground">
+          Regras "se… então…" que rodam sozinhas: ao subir de nível, ser fã há X dias
+          ou ficar inativo, concede perk / registra interação / cria tarefa.
         </span>
       </button>
     </div>
@@ -1785,6 +1822,9 @@ function FanUpgradeRulesDialog({
     try {
       await persist(); // recalcula já com os pesos atuais da tela
       const changed = await recomputeAllFanLevels();
+      // Dispara as ações programadas logo após o recálculo, pra que regras de
+      // "atingiu nível X" reajam aos novos níveis na hora. Idempotente.
+      await runFanAutoRules().catch(() => 0);
       toast.success(changed > 0 ? `${changed} nível(is) atualizado(s)` : "Nenhum nível mudou");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
