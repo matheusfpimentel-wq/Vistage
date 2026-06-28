@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ListTodo, Plus } from "lucide-react";
+import { CalendarPlus, Check, ListTodo, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
 import { DATA_CHANGED } from "@/lib/events";
 import { createFanTask, loadFanClubConfig } from "../api";
 import type { FanClubAction } from "../types";
-import { listTasksLinkedTo } from "@/modules/tasks/api";
+import { listTasksLinkedTo, updateTask } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
-import { formatDate } from "@/lib/format";
+import { formatDate, todayISO } from "@/lib/format";
 
 type Props = {
   fanId: number;
@@ -25,6 +25,9 @@ export function FanQuickActions({ fanId, fanName }: Props) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [actions, setActions] = useState<FanClubAction[]>([]);
   const [custom, setCustom] = useState("");
+  // Agendar ação: título + data de vencimento (vira tarefa do fã com due_date).
+  const [schedTitle, setSchedTitle] = useState("");
+  const [schedDate, setSchedDate] = useState(todayISO());
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -49,6 +52,37 @@ export function FanQuickActions({ fanId, fanName }: Props) {
     try {
       await createFanTask(fanId, title.trim());
       toast.success("Tarefa criada e vinculada ao fã");
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Agenda uma ação: cria uma tarefa do fã com vencimento na data escolhida. */
+  async function schedule() {
+    if (!schedTitle.trim() || !schedDate) return;
+    setBusy(true);
+    try {
+      await createFanTask(fanId, schedTitle.trim(), { due_date: schedDate });
+      toast.success("Ação agendada e vinculada ao fã");
+      setSchedTitle("");
+      setSchedDate(todayISO());
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Conclui a tarefa/ação (reusa o updateTask do módulo de tarefas). */
+  async function complete(taskId: number) {
+    setBusy(true);
+    try {
+      await updateTask({ id: taskId, status: "Concluída" });
+      toast.success("Ação concluída");
       await refresh();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -98,6 +132,32 @@ export function FanQuickActions({ fanId, fanName }: Props) {
         </Button>
       </div>
 
+      <div className="space-y-2 rounded-md border p-3">
+        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <CalendarPlus className="h-3.5 w-3.5" />
+          Agendar ação para uma data
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            placeholder="O que fazer… (ex: ligar, convidar, mandar mensagem)"
+            value={schedTitle}
+            onChange={(e) => setSchedTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && schedTitle.trim() && schedDate) void schedule();
+            }}
+          />
+          <Input
+            type="date"
+            className="sm:w-40"
+            value={schedDate}
+            onChange={(e) => setSchedDate(e.target.value)}
+          />
+          <Button disabled={busy || !schedTitle.trim() || !schedDate} onClick={() => void schedule()}>
+            <CalendarPlus className="h-4 w-4" /> Agendar
+          </Button>
+        </div>
+      </div>
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">
@@ -125,6 +185,17 @@ export function FanQuickActions({ fanId, fanName }: Props) {
                     {formatDate(t.due_date)}
                   </span>
                 )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  disabled={busy}
+                  aria-label="Concluir ação"
+                  title="Concluir ação"
+                  onClick={() => void complete(t.id)}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
               </div>
             ))}
           </div>

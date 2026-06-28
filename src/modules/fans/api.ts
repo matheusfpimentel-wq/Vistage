@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
 import { readDocValue, writeDocValue } from "@/lib/docSettings";
 import { toLocalISODate } from "@/lib/format";
+import { nextNonSocialGig } from "@/modules/gigs/api";
 import type {
   FanClubConfig,
   Fan,
@@ -24,6 +25,10 @@ import type {
   FanUpdateInput,
   FanUpgradeRules,
 } from "./types";
+
+// Re-exporta pra que a UI de fãs (Próximas ações) leia a próxima GIG não-social
+// pelo mesmo barril `../api` que já usa, sem alcançar o módulo de GIGs.
+export { nextNonSocialGig };
 
 type FanRow = Omit<Fan, "tags"> & { tags: string | null };
 
@@ -1010,7 +1015,51 @@ export type FanTodayBuckets = {
   reativar: FanTodayItem[];
   aniversarios: FanTodayItem[];
   boasVindas: FanTodayItem[];
+  /** Esteve num show recente e ainda não foi convidado pra próxima GIG. */
+  convidar: FanTodayItem[];
 };
+
+/**
+ * Uma ação agendada = TAREFA pendente vinculada a um fã COM vencimento. Não é
+ * tabela nova: é uma referência cruzada às Tarefas (task_links entity_type
+ * "fan"). Usada pela seção "ações anotadas" de Próximas ações.
+ */
+export type ScheduledFanAction = {
+  task_id: number;
+  title: string;
+  due_date: string;
+  fan_id: number;
+  fan_name: string;
+  fan_level: FanLevel;
+  fan_photo_path: string | null;
+};
+
+/**
+ * Tarefas pendentes vinculadas a fãs e COM vencimento (ações agendadas/anotadas),
+ * já com o fã resolvido, ordenadas por vencimento (atrasadas primeiro). É a
+ * referência cruzada "vejo as que anotei" da aba Próximas ações. Read-only.
+ */
+export async function listScheduledFanActions(): Promise<ScheduledFanAction[]> {
+  const db = getDb();
+  return db
+    .select<ScheduledFanAction[]>(
+      `SELECT t.id AS task_id,
+              t.title AS title,
+              t.due_date AS due_date,
+              f.id AS fan_id,
+              f.name AS fan_name,
+              f.level AS fan_level,
+              f.photo_path AS fan_photo_path
+         FROM tasks t
+         JOIN task_links tl ON tl.task_id = t.id
+         JOIN fans f ON f.id = tl.entity_id
+        WHERE tl.entity_type = 'fan'
+          AND t.due_date IS NOT NULL
+          AND t.status NOT IN ('Concluída', 'Cancelada')
+        ORDER BY t.due_date ASC, f.name COLLATE NOCASE ASC`
+    )
+    .catch(() => [] as ScheduledFanAction[]);
+}
 
 function daysSinceISO(iso: string): number {
   return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
@@ -1086,6 +1135,34 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
     )
     .catch(() => [] as (TodayRow & { created_at: string })[]);
 
+  // Convidar pro próximo show: esteve num show recente (mesma janela do
+  // "Agradecer", presença nos últimos 21 dias) e ainda NÃO tem um convite
+  // pendente — proxy: nenhuma tarefa aberta vinculada ao fã começando com
+  // "Convidar ". Só faz sentido se houver uma próxima GIG não-social à frente.
+  const next = await nextNonSocialGig();
+  const convidar = next
+    ? await db
+        .select<(TodayRow & { gig_date: string })[]>(
+          `SELECT f.id AS fan_id, f.name AS name, f.level AS level, f.city AS city, f.photo_path AS photo_path,
+                  MAX(g.date) AS gig_date
+             FROM gig_fans gf
+             JOIN gigs g ON g.id = gf.gig_id
+             JOIN fans f ON f.id = gf.fan_id
+            WHERE g.date >= date('now','-21 days') AND g.date <= date('now')
+              AND NOT EXISTS (
+                SELECT 1 FROM tasks t
+                  JOIN task_links tl ON tl.task_id = t.id
+                 WHERE tl.entity_type = 'fan' AND tl.entity_id = f.id
+                   AND t.status NOT IN ('Concluída', 'Cancelada')
+                   AND t.title LIKE 'Convidar %'
+              )
+            GROUP BY f.id
+            ORDER BY gig_date DESC
+            LIMIT 50`
+        )
+        .catch(() => [] as (TodayRow & { gig_date: string })[])
+    : [];
+
   // Aniversários: fã com contato vinculado cujo aniversário cai nos próximos 7 dias.
   const bday = await db
     .select<(TodayRow & { birthday: string })[]>(
@@ -1101,6 +1178,10 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
     parabenizar: parabenizar.map((r) => ({ ...stripRow(r), detail: `subiu para ${r.level}` })),
     reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
     boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo — sem interação ainda" })),
+    convidar: convidar.map((r) => ({
+      ...stripRow(r),
+      detail: next ? `esteve num show ${relDays(daysSinceISO(r.gig_date))} · ${next.name}` : "",
+    })),
     aniversarios: birthdaysWithin(bday, 7),
   };
 }
