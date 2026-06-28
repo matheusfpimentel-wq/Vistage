@@ -60,9 +60,9 @@ export function CsvImportExport() {
       const res = await exportAllCsv();
       if (res) {
         toast.success(
-          `${res.files} tabelas exportadas para a pasta escolhida` +
+          `${res.files} tabela(s) exportada(s) num .zip` +
             (res.skippedEmpty.length > 0
-              ? ` (${res.skippedEmpty.length} vazias puladas)`
+              ? ` (${res.skippedEmpty.length} vazia(s) pulada(s))`
               : "")
         );
       }
@@ -175,7 +175,7 @@ export function CsvImportExport() {
               Exportar tudo em CSV
             </Button>
             <p className="mt-2 text-xs text-muted-foreground">
-              Gera um arquivo CSV por tabela numa pasta à sua escolha.
+              Gera um único arquivo .zip com um CSV por tabela.
             </p>
           </div>
         </CardContent>
