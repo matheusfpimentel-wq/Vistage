@@ -27,6 +27,7 @@ import {
   getNotesNotionConfig,
   getNotionConfig,
   listNotionPages,
+  notionErrorMessage,
   saveNotionToken,
   syncNotesNotion,
   syncNotion,
@@ -41,7 +42,6 @@ export function NotionSettings() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [pages, setPages] = useState<{ id: string; title: string }[]>([]);
   const [parentPage, setParentPage] = useState("");
-  const [savedParent, setSavedParent] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -56,7 +56,6 @@ export function NotionSettings() {
     setSavedToken(c.token);
     setDatabaseId(c.databaseId);
     setLastSync(c.lastSync);
-    setSavedParent(c.parentPageId);
     const nc = await getNotesNotionConfig();
     setNotesDbId(nc.databaseId);
     setNotesLastSync(nc.lastSync);
@@ -105,15 +104,16 @@ export function NotionSettings() {
   }
 
   async function handleCreateDb() {
-    if (!savedToken || !parentPage) return;
+    if (!savedToken) return;
     setCreating(true);
     try {
-      await createIdeasDatabase(savedToken, parentPage);
+      // parentPage é só uma dica; o Vistage resolve/conserta a página-pai sozinho.
+      await createIdeasDatabase(savedToken, parentPage || undefined);
       toast.success("Database de ideias criado no Notion");
       await refresh();
       void handleSync();
     } catch (e) {
-      toast.error(`Erro ao criar database: ${String(e)}`);
+      toast.error(notionErrorMessage(e));
     } finally {
       setCreating(false);
     }
@@ -128,18 +128,16 @@ export function NotionSettings() {
   }
 
   async function handleCreateNotesDb() {
-    if (!savedToken || !savedParent) {
-      toast.error("Faltou a página-pai do Notion (a mesma das ideias).");
-      return;
-    }
+    if (!savedToken) return;
     setCreatingNotes(true);
     try {
-      await createNotesDatabase(savedToken, savedParent);
+      // Sem pedir página: o Vistage cria/desarquiva/recria a página-pai sozinho.
+      await createNotesDatabase(savedToken);
       toast.success("Database de Notas criado no Notion");
       await refresh();
       void handleSyncNotes();
     } catch (e) {
-      toast.error(`Erro ao criar database de Notas: ${String(e)}`);
+      toast.error(notionErrorMessage(e));
     } finally {
       setCreatingNotes(false);
     }
@@ -245,7 +243,7 @@ export function NotionSettings() {
               </p>
             )}
             <div className="flex gap-2">
-              <Button onClick={() => void handleCreateDb()} disabled={creating || !parentPage}>
+              <Button onClick={() => void handleCreateDb()} disabled={creating}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Criar database e sincronizar
               </Button>
@@ -281,7 +279,7 @@ export function NotionSettings() {
                 </>
               ) : (
                 <>
-                  <Button size="sm" variant="outline" onClick={() => void handleCreateNotesDb()} disabled={creatingNotes || !savedParent}>
+                  <Button size="sm" variant="outline" onClick={() => void handleCreateNotesDb()} disabled={creatingNotes}>
                     {creatingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     Criar database de Notas
                   </Button>
