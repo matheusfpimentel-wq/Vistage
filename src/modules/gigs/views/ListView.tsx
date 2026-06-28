@@ -1,11 +1,11 @@
-import { AlertTriangle, ArrowUpDown, CalendarRange, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
+import { ArrowUpDown, CalendarRange, ListChecks, NotebookPen, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
+import { parsePrepState, prepProgress } from "../prep";
 import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
@@ -30,6 +30,21 @@ type Props = {
  */
 function showDebrief(g: Gig): boolean {
   return g.status === "Concluída";
+}
+
+/**
+ * Preparação em destaque: GIG futura, faltando ≤ 48h pra começar e com o
+ * checklist de preparação ainda incompleto. O horário usa g.date + start_time
+ * (default "00:00"); se a data não parsear, não destaca.
+ */
+function prepUrgent(g: Gig): boolean {
+  const { done, total } = prepProgress(parsePrepState(g.prep_state));
+  if (done >= total) return false;
+  const start = new Date(`${g.date}T${g.start_time || "00:00"}`);
+  const ms = start.getTime();
+  if (isNaN(ms)) return false;
+  const diff = ms - Date.now();
+  return diff > 0 && diff < 48 * 60 * 60 * 1000;
 }
 
 /**
@@ -138,29 +153,31 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={g.status} />
-                {g.debrief_pending === 1 && (
-                  <Badge variant="warning" className="gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    Debrief pendente
-                  </Badge>
-                )}
                 {avg !== null && (
                   <span className="text-xs text-amber-500">{formatRating(avg)}</span>
                 )}
               </div>
               <div className="flex justify-end gap-1 border-t pt-2">
                 {g.status === "Confirmada" && (
-                  <Button size="sm" variant="ghost" onClick={() => onPrep(g)}>
-                    Preparar
+                  <Button
+                    size="icon"
+                    variant={prepUrgent(g) ? "default" : "ghost"}
+                    onClick={() => onPrep(g)}
+                    aria-label="Preparação"
+                    title="Preparação"
+                  >
+                    <ListChecks className="h-4 w-4" />
                   </Button>
                 )}
                 {showDebrief(g) && (
                   <Button
-                    size="sm"
+                    size="icon"
                     variant={g.debrief_pending === 1 ? "default" : "ghost"}
                     onClick={() => onDebrief(g)}
+                    aria-label="Debrief"
+                    title="Debrief"
                   >
-                    Debrief
+                    <NotebookPen className="h-4 w-4" />
                   </Button>
                 )}
                 <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">
@@ -241,12 +258,6 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={g.status} />
-                      {g.debrief_pending === 1 && (
-                        <Badge variant="warning" className="gap-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          Debrief pendente
-                        </Badge>
-                      )}
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
@@ -262,17 +273,25 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1">
                       {g.status === "Confirmada" && (
-                        <Button size="sm" variant="ghost" onClick={() => onPrep(g)}>
-                          Preparação
+                        <Button
+                          size="icon"
+                          variant={prepUrgent(g) ? "default" : "ghost"}
+                          onClick={() => onPrep(g)}
+                          aria-label="Preparação"
+                          title="Preparação"
+                        >
+                          <ListChecks className="h-4 w-4" />
                         </Button>
                       )}
                       {showDebrief(g) && (
                         <Button
-                          size="sm"
+                          size="icon"
                           variant={g.debrief_pending === 1 ? "default" : "ghost"}
                           onClick={() => onDebrief(g)}
+                          aria-label="Debrief"
+                          title="Debrief"
                         >
-                          Debrief
+                          <NotebookPen className="h-4 w-4" />
                         </Button>
                       )}
                       <Button size="icon" variant="ghost" onClick={() => onShowSheet(g)} aria-label="Show Sheet" title="Show Sheet">

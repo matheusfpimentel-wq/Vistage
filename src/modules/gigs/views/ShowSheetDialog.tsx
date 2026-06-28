@@ -1,13 +1,18 @@
 import { useEffect, useState } from "react";
-import { CalendarClock, Lightbulb, MapPin, Phone, ScrollText } from "lucide-react";
+import { CalendarClock, Lightbulb, MapPin, Phone, Printer, ScrollText } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toaster";
 import { loadFocusPanel, type FocusPanel } from "@/modules/foco/api";
+import { listFanListMembers, listFanListsForGig, listFans } from "@/modules/fans/api";
 import { gigDisplayName } from "../displayName";
+import { getSetlistsForGig } from "../setlist";
+import { printShowSheet } from "../showSheetPdf";
 import { formatDate } from "@/lib/format";
 import type { Gig } from "../types";
 
@@ -58,14 +63,70 @@ export function ShowSheetDialog({
     ? `https://wa.me/${panel.dayContactPhone.replace(/\D/g, "")}`
     : null;
 
+  const [printing, setPrinting] = useState(false);
+
+  async function handlePrint() {
+    if (!gig) return;
+    setPrinting(true);
+    try {
+      // Setlist mais recente da GIG (getSetlistsForGig ordena por imported_at DESC).
+      const setlists = await getSetlistsForGig(gig.id);
+      const tracks = setlists[0]?.tracks ?? [];
+
+      // Listas VIP / cortesias com os nomes resolvidos (fã cadastrado ou nome livre).
+      const vipLists = await listFanListsForGig(gig.id);
+      let fans: Awaited<ReturnType<typeof listFans>> = [];
+      const needsFans = vipLists.length > 0;
+      if (needsFans) {
+        fans = await listFans().catch(() => []);
+      }
+      const resolvedVip = await Promise.all(
+        vipLists.map(async (list) => {
+          const ms = await listFanListMembers(list.id);
+          const members = ms.map((m) =>
+            m.fan_id
+              ? fans.find((f) => f.id === m.fan_id)?.name ?? m.name ?? "—"
+              : m.name ?? "—"
+          );
+          return { name: list.name, members };
+        })
+      );
+
+      await printShowSheet(gig, {
+        dayContactName: panel?.dayContactName ?? gig.day_contact_name,
+        dayContactPhone: panel?.dayContactPhone ?? gig.day_contact_phone,
+        slots: panel?.slots ?? [],
+        tracks,
+        vipLists: resolvedVip,
+      });
+    } catch (e) {
+      toast.error(`Erro ao carregar dados da Show Sheet: ${String(e)}`);
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ScrollText className="h-4 w-4 text-primary" />
-            Show Sheet
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle className="flex items-center gap-2">
+              <ScrollText className="h-4 w-4 text-primary" />
+              Show Sheet
+            </DialogTitle>
+            {gig && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void handlePrint()}
+                disabled={printing || loading}
+              >
+                <Printer className="h-4 w-4" />
+                Imprimir Show Sheet
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {gig && (
