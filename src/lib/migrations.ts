@@ -2224,6 +2224,23 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_idea_collisions_res ON idea_collisions(idea_resultante);
     `,
   },
+  {
+    version: 153,
+    description:
+      "NPS — pesquisa própria: nps_responses guarda respostas de NPS registradas manualmente (escala 0-10, padrão do mercado), SEPARADA do NPS derivado das avaliações de contratante das GIGs (escala 0-5). score 0-10, respondent (quem respondeu, opcional), comment (opcional), response_date (ISO da data da resposta), source (procedência, ex.: 'manual'). Aditiva/idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS nps_responses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        score INTEGER NOT NULL,
+        respondent TEXT,
+        comment TEXT,
+        response_date TEXT,
+        source TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_nps_responses_date ON nps_responses(response_date);
+    `,
+  },
 ];
 
 
