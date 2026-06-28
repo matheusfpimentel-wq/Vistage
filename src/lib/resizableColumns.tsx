@@ -132,6 +132,9 @@ export function ColResizer({
       onMouseDown={onMouseDown}
       onDoubleClick={onDoubleClick}
       onClick={(e) => e.stopPropagation()}
+      // Impede o sensor de arrasto (dnd-kit, onPointerDown) de iniciar uma
+      // reordenação quando o usuário pega a alça de redimensionamento.
+      onPointerDown={(e) => e.stopPropagation()}
       className={cn(
         "absolute right-0 top-0 z-10 flex h-full w-2 cursor-col-resize touch-none select-none items-stretch justify-center",
         "after:my-1 after:w-px after:bg-border after:transition-colors hover:after:bg-primary hover:after:w-0.5",

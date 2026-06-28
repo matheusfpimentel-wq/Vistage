@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDate, formatCurrency } from "@/lib/format";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
-import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { useTableSort } from "@/lib/useTableSort";
+import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
 import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 type Props = {
@@ -14,8 +16,111 @@ type Props = {
   density?: ListDensity;
 };
 
+// Cabeçalho e corpo dirigidos pela mesma ORDEM (useOrderableColumns): "title"
+// (principal) e "actions" travadas; as do meio reordenam ao arrastar o cabeçalho.
+type PartyCol = {
+  id: string;
+  locked?: boolean;
+  sortKey?: keyof PartyDeserialized;
+  header: string;
+  thClassName: string;
+  tdClassName?: string;
+  cell: (p: PartyDeserialized) => ReactNode;
+};
+
 export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props) {
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(parties);
+
+  const colDefs: Record<string, PartyCol> = {
+    status: {
+      id: "status",
+      sortKey: "status",
+      header: "Status",
+      thClassName: "px-3 py-2",
+      tdClassName: "px-3 py-2",
+      cell: (p) => <Badge className={partyStatusColor(p.status)}>{p.status}</Badge>,
+    },
+    title: {
+      id: "title",
+      locked: true,
+      header: "Título",
+      thClassName: "px-3 py-2",
+      tdClassName: "px-3 py-2 font-medium",
+      cell: (p) => p.title,
+    },
+    date: {
+      id: "date",
+      sortKey: "date",
+      header: "Data",
+      thClassName: "px-3 py-2",
+      tdClassName: "px-3 py-2 text-muted-foreground",
+      cell: (p) => (p.date ? formatDate(p.date) : "—"),
+    },
+    venue: {
+      id: "venue",
+      sortKey: "venue_name",
+      header: "Venue",
+      thClassName: "px-3 py-2",
+      tdClassName: "px-3 py-2 text-muted-foreground",
+      cell: (p) => p.venue_name ?? "—",
+    },
+    capacity: {
+      id: "capacity",
+      sortKey: "expected_capacity",
+      header: "Capacidade",
+      thClassName: "px-3 py-2 text-right",
+      tdClassName: "px-3 py-2 text-right tabular-nums text-muted-foreground",
+      cell: (p) => p.expected_capacity ?? "—",
+    },
+    revenue: {
+      id: "revenue",
+      header: "Receita est.",
+      thClassName: "px-3 py-2 text-right",
+      tdClassName: "px-3 py-2 text-right tabular-nums",
+      cell: (p) => {
+        const rev = estimatedRevenue(p);
+        return rev > 0 ? formatCurrency(rev) : "—";
+      },
+    },
+    actions: {
+      id: "actions",
+      locked: true,
+      header: "",
+      thClassName: "px-3 py-2",
+      tdClassName: "px-3 py-2",
+      cell: (p) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => onEdit(p)}
+            aria-label="Editar"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => onDelete(p)}
+            aria-label="Excluir"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  };
+
+  const oc = useOrderableColumns(
+    "parties",
+    ["status", "title", "date", "venue", "capacity", "revenue", "actions"].map((id) => ({
+      id,
+      locked: colDefs[id].locked,
+    }))
+  );
+
   if (parties.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -29,67 +134,44 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
     <div className="overflow-x-auto rounded-md border">
       <table className={cn("w-full", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}>
         <thead>
-          <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-            <SortableHeader<PartyDeserialized> col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
-            <SortableHeader<PartyDeserialized> col="title" label="Título" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
-            <SortableHeader<PartyDeserialized> col="date" label="Data" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
-            <SortableHeader<PartyDeserialized> col="venue_name" label="Venue" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2" />
-            <SortableHeader<PartyDeserialized> col="expected_capacity" label="Capacidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
-            <th className="px-3 py-2 text-right">Receita est.</th>
-            <th className="px-3 py-2" />
-          </tr>
+          <OrderableHeader oc={oc}>
+            <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+              {oc.order.map((id) => {
+                const c = colDefs[id];
+                const active = !!c.sortKey && sortKey === c.sortKey;
+                return (
+                  <SortableTh
+                    key={id}
+                    id={id}
+                    locked={c.locked}
+                    className={cn(c.thClassName, c.sortKey && "cursor-pointer")}
+                    onClick={c.sortKey ? () => handleSort(c.sortKey!) : undefined}
+                    title={c.locked ? undefined : "Clique pra ordenar · arraste pra reposicionar"}
+                  >
+                    {c.sortKey ? (
+                      <SortLabel label={c.header} active={active} dir={active ? sortDir : null} />
+                    ) : (
+                      c.header
+                    )}
+                  </SortableTh>
+                );
+              })}
+            </tr>
+          </OrderableHeader>
         </thead>
         <tbody>
-          {sorted.map((p) => {
-            const rev = estimatedRevenue(p);
-            return (
-              <tr
-                key={p.id}
-                className="border-b last:border-0 hover:bg-muted/20"
-              >
-                <td className="px-3 py-2">
-                  <Badge className={partyStatusColor(p.status)}>
-                    {p.status}
-                  </Badge>
-                </td>
-                <td className="px-3 py-2 font-medium">{p.title}</td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {p.date ? formatDate(p.date) : "—"}
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">
-                  {p.venue_name ?? "—"}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                  {p.expected_capacity ?? "—"}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">
-                  {rev > 0 ? formatCurrency(rev) : "—"}
-                </td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onEdit(p)}
-                      aria-label="Editar"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={() => onDelete(p)}
-                      aria-label="Excluir"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+          {sorted.map((p) => (
+            <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
+              {oc.order.map((id) => {
+                const c = colDefs[id];
+                return (
+                  <td key={id} className={c.tdClassName}>
+                    {c.cell(p)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

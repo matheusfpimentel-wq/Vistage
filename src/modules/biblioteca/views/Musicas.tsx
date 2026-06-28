@@ -72,6 +72,9 @@ const ALL_COLS: ColDef[] = [
   { id: "status", label: "Status", width: "80px", sortKey: "file_missing" },
 ];
 const COL_BY_ID = Object.fromEntries(ALL_COLS.map((c) => [c.id, c])) as Record<string, ColDef>;
+// Campo PRINCIPAL travado (não arrastável, posição fixa) — consistente com as
+// outras tabelas. Só as colunas do meio reordenam entre si.
+const LOCKED_COL_ID = "title";
 
 const COLS_LS = "vistage.biblioteca.musicas.cols.v1";
 type SortState = { id: string; dir: "asc" | "desc" } | null;
@@ -224,6 +227,9 @@ export function Musicas() {
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
+    // "title" é o campo PRINCIPAL: travado, posição fixa. Não pode ser arrastado
+    // nem ter algo solto na sua posição (mantém ancorado no índice 0).
+    if (active.id === LOCKED_COL_ID || over.id === LOCKED_COL_ID) return;
     const oldIndex = prefs.order.indexOf(String(active.id));
     const newIndex = prefs.order.indexOf(String(over.id));
     if (oldIndex < 0 || newIndex < 0) return;
@@ -426,6 +432,7 @@ export function Musicas() {
                 <HeaderCell
                   key={c.id}
                   col={c}
+                  locked={c.id === LOCKED_COL_ID}
                   dir={prefs.sort?.id === c.id ? prefs.sort.dir : null}
                   onClick={() => onHeaderClick(c)}
                 />
@@ -519,17 +526,19 @@ export function Musicas() {
   );
 }
 
-function HeaderCell({ col, dir, onClick }: { col: ColDef; dir: "asc" | "desc" | null; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.id });
+function HeaderCell({ col, locked, dir, onClick }: { col: ColDef; locked?: boolean; dir: "asc" | "desc" | null; onClick: () => void }) {
+  // Travada (campo principal): mantém a ordenação por clique, mas sem os
+  // listeners de arrasto — fica ancorada na posição.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.id, disabled: locked });
   return (
     <span
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
       {...attributes}
-      {...listeners}
+      {...(locked ? {} : listeners)}
       onClick={onClick}
       className="flex cursor-pointer select-none items-center gap-1 hover:text-foreground"
-      title="Clique pra ordenar · arraste pra reposicionar"
+      title={locked ? "Clique pra ordenar" : "Clique pra ordenar · arraste pra reposicionar"}
     >
       {col.label}
       {dir === "asc" ? <ChevronUp className="h-3 w-3" /> : dir === "desc" ? <ChevronDown className="h-3 w-3" /> : null}
