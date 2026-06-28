@@ -14,8 +14,10 @@ import {
   type RuleCategory,
 } from "@/modules/revisao/alerts";
 import {
+  getCoolingDays,
   getDisabledRuleIds,
   restoreDefaultRules,
+  setCoolingDays,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
@@ -40,6 +42,7 @@ export function AdvancedRulesSettings() {
   const [disabled, setDisabled] = useState<Set<string>>(
     () => new Set(getDisabledRuleIds())
   );
+  const [coolingDays, setCoolingDaysState] = useState(() => getCoolingDays());
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
@@ -141,6 +144,26 @@ export function AdvancedRulesSettings() {
                         <p className="text-xs leading-snug text-muted-foreground">
                           Dispara quando: {r.trigger}
                         </p>
+                        {r.id === "cooling" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Tempo de resfriamento:</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={coolingDays}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(1, Math.min(365, n));
+                                setCoolingDaysState(clamped);
+                                setCoolingDays(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>dias</span>
+                          </label>
+                        )}
                       </div>
                       {locked ? (
                         <span

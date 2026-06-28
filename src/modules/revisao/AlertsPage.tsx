@@ -9,6 +9,7 @@ import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "./customRules";
 import { loadPartyFinanceAlerts } from "./partyFinanceAlerts";
 import { filterSnoozed, snoozeAlert } from "./snooze";
+import { ackCooling, loadCoolingAlerts } from "./cooling";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
 
@@ -26,16 +27,18 @@ export function AlertsPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const [stats, custom, partyFin] = await Promise.all([
+        const [stats, custom, partyFin, cooling] = await Promise.all([
           loadWeekStats(),
           evaluateCustomRules(),
           loadPartyFinanceAlerts(),
+          loadCoolingAlerts(),
         ]);
         setAlerts(
           await filterSnoozed([
             ...computeAlerts(stats, undefined, getDisabledRuleIds(), getHiddenModules()),
             ...custom,
             ...partyFin,
+            ...cooling,
           ])
         );
       } catch {
@@ -58,8 +61,11 @@ export function AlertsPage() {
     };
   }, [refresh]);
 
-  const dismiss = useCallback((key: string) => {
-    void snoozeAlert(key);
+  const dismiss = useCallback((a: AlertItem) => {
+    // "Esfriando" → registra os itens como aceitos (some até tocar de novo).
+    // Demais alertas → snooze por 24h.
+    if (a.coolingRefs && a.coolingRefs.length > 0) void ackCooling(a.coolingRefs);
+    else void snoozeAlert(a.key);
   }, []);
 
   const groups: Record<AlertSeverity, AlertItem[]> = { critico: [], atencao: [], info: [] };
@@ -129,7 +135,7 @@ function AlertSection({
   title: string;
   severity: AlertSeverity;
   items: AlertItem[];
-  onDismiss: (key: string) => void;
+  onDismiss: (item: AlertItem) => void;
 }) {
   const rowBg = severity === "critico" ? "bg-red-500/5" : severity === "atencao" ? "bg-amber-500/5" : "";
   const dot = severity === "critico" ? "bg-red-500" : severity === "atencao" ? "bg-amber-500" : "bg-muted-foreground/40";
@@ -156,10 +162,10 @@ function AlertSection({
             </Link>
             <button
               type="button"
-              onClick={() => onDismiss(a.key)}
+              onClick={() => onDismiss(a)}
               className="flex h-9 w-9 shrink-0 items-center justify-center self-stretch text-muted-foreground/60 transition hover:text-foreground"
-              title="Dispensar por 24h"
-              aria-label="Dispensar alerta por 24 horas"
+              title={a.coolingRefs ? "Deixar esfriar" : "Dispensar por 24h"}
+              aria-label={a.coolingRefs ? "Deixar esfriar" : "Dispensar alerta por 24 horas"}
             >
               <BellOff className="h-4 w-4" />
             </button>

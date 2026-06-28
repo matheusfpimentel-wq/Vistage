@@ -51,6 +51,12 @@ export type AlertItem = {
   dismissible?: boolean;
   /** Prioridade (preenchida por regras do usuário; builtins derivam do catálogo). */
   severidade?: AlertSeverity;
+  /**
+   * Alerta de "esfriando": refs ("contact:12", "track:7", …) dos itens frios que
+   * ele representa. Quando presente, a UI mostra "Deixar esfriar" e o clique
+   * registra esses itens como aceitos (ackCooling) — ver cooling.ts.
+   */
+  coolingRefs?: string[];
 };
 
 /** Prioridade efetiva de um alerta: a própria, ou a do catálogo builtin, ou via `critical`. */
@@ -124,14 +130,12 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída há mais de 48h com cachê ainda não recebido" },
   { id: "no-upcoming-gigs", category: "GIGs", severidade: "atencao", message: "Nenhuma GIG marcada à frente", trigger: "Não há nenhuma GIG futura agendada" },
   { id: "ideas-stuck", category: "Produção", severidade: "info", message: "Ideias quentes paradas em Embrião há +15 dias", trigger: "Ideia 'quente' sem evoluir do estágio Embrião por mais de 15 dias" },
-  { id: "tracks-stalled", category: "Produção", severidade: "atencao", message: "Faixas sem movimento há +15 dias", trigger: "Faixa em produção sem nenhuma atualização por mais de 15 dias" },
-  { id: "content-stalled", category: "Produção", severidade: "info", message: "Conteúdos sem movimento há +15 dias", trigger: "Conteúdo sem nenhuma atualização por mais de 15 dias" },
   { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Funil de produção vazio", trigger: "Nada em produção E nenhuma faixa nova há +30 dias (funde os dois alertas antigos)" },
   { id: "track-standby-overdue-", category: "Produção", severidade: "info", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
   { id: "parties-undated", category: "Festas", severidade: "info", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
   { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
   { id: "students-low-balance", category: "Aulas", severidade: "atencao", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com 2 ou menos aulas (ou 2h) restantes — hora de renovar" },
-  { id: "superfans-stale", category: "Pessoas", severidade: "info", message: "Superfãs sem interação nos últimos 30 dias", trigger: "Superfã sem nenhuma interação registrada há 30 dias" },
+  { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: "Contato, fã, faixa ou conteúdo sem movimento por mais que o tempo de resfriamento configurado (padrão 15 dias) — fora itens de criação já concluídos. Dispense com \"Deixar esfriar\".", dynamic: true },
   { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
   { id: "okrs-lagging", category: "Objetivos", severidade: "atencao", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
   // ── Dinheiro em primeiro plano (loader partyFinanceAlerts) ──────────────────
@@ -166,11 +170,8 @@ const MODULE_BY_RULE_ID: Record<string, string> = {
   "gigs-unpaid": "/gigs",
   "no-upcoming-gigs": "/gigs",
   // Produção Musical (/musica)
-  "tracks-stalled": "/musica",
   "funil-producao-vazio": "/musica",
   "track-standby-overdue-": "/musica",
-  // Conteúdo (/conteudo)
-  "content-stalled": "/conteudo",
   // Produção de Festas (/festas)
   "parties-undated": "/festas",
   "festa-vendas-baixas-": "/festas",
@@ -256,25 +257,11 @@ export function computeAlerts(
       critical: true,
       label: `${stats.hotIdeasStuck} ideia${plural(stats.hotIdeasStuck)} quente${plural(stats.hotIdeasStuck)} parada${plural(stats.hotIdeasStuck)} em Embrião +15d`,
     });
-  if (stats.stalledTracks > 0)
-    alerts.push({
-      key: "tracks-stalled",
-      icon: "music",
-      to: "/musica",
-      critical: false,
-      label: `${stats.stalledTracks} track${plural(stats.stalledTracks)} sem movimento há +15 dias`,
-    });
-  // "Festas sem movimento +15d" foi CORTADA: staleness sem gate fingia urgência
-  // (festa a 6 meses não precisa de cobrança). A prontidão por proximidade de
-  // data cobre o que importa.
-  if (stats.stalledContent > 0)
-    alerts.push({
-      key: "content-stalled",
-      icon: "clock",
-      to: "/conteudo",
-      critical: false,
-      label: `${stats.stalledContent} conteúdo${plural(stats.stalledContent)} sem movimento há +15 dias`,
-    });
+  // Estagnação de faixas/conteúdos (e superfãs, abaixo) virou o alerta UNIFICADO
+  // "Esfriando" (loadCoolingAlerts em cooling.ts): um só conceito, com tempo de
+  // resfriamento configurável e ação "Deixar esfriar". "Festas sem movimento"
+  // segue cortada — staleness sem gate fingia urgência (festa a 6 meses não
+  // precisa de cobrança); a prontidão por proximidade de data cobre o que importa.
   if (stats.undatedParties > 0)
     alerts.push({
       key: "parties-undated",
@@ -328,14 +315,7 @@ export function computeAlerts(
         : `${list.length} alunos com pacote de aulas quase no fim`,
     });
   }
-  if (stats.superfasSemInteracao > 0)
-    alerts.push({
-      key: "superfans-stale",
-      icon: "heart",
-      to: "/fas",
-      critical: false,
-      label: `${stats.superfasSemInteracao} superfã${plural(stats.superfasSemInteracao)} sem interação nos últimos 30 dias`,
-    });
+  // (superfãs sem interação → agora cobertos pelo alerta unificado "Esfriando")
   if (stats.okrsLagging > 0)
     alerts.push({
       key: "okrs-lagging",
@@ -370,8 +350,8 @@ export function computeAlerts(
     });
   }
 
-  // "Superfãs com interação pendente 30+d" era DUPLICATA exata de
-  // "superfans-stale" (logo acima) — removida.
+  // Superfãs/contatos sem interação → cobertos pelo alerta unificado "Esfriando"
+  // (loadCoolingAlerts em cooling.ts), não mais por regras separadas aqui.
 
   // Mensagens de motivação/parabéns NÃO são alertas — foram removidas do
   // sininho (os campos de ExtraStats correspondentes ficam sem uso aqui).
