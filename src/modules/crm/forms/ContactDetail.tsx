@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { CalendarRange, DollarSign, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,13 +49,12 @@ import {
   getContactStats,
   getMirrorState,
   listGigsByContact,
-  removeFanForContact,
   removeStudentForContact,
   updateContact,
-  upsertFanMirror,
   upsertStudentMirror,
   upsertSupplierMirror,
 } from "../api";
+import { createFan, findFanIdByContactId } from "@/modules/fans/api";
 import {
   getSupplierIdForContact,
   removeSupplierForContact,
@@ -119,6 +118,8 @@ export function ContactDetail({
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [mirror, setMirror] = useState({ fan: false, student: false });
+  const [linking, setLinking] = useState(false);
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("info");
 
@@ -247,25 +248,61 @@ export function ContactDetail({
     }
   }
 
-  async function toggleMirror(kind: "fan" | "student") {
+  async function toggleStudentMirror() {
     if (!contact) return;
-    const label = kind === "fan" ? "fã" : "aluno";
-    if (!mirror[kind]) {
-      if (kind === "fan") await upsertFanMirror(contact);
-      else await upsertStudentMirror(contact);
+    if (!mirror.student) {
+      await upsertStudentMirror(contact);
       await refresh();
-      toast.success(`Perfil de ${label} criado`);
+      toast.success("Perfil de aluno criado");
     } else {
       const ok = await confirmDialog({
-        title: `Remover perfil de ${label}`,
-        description: `Isso vai excluir o perfil paralelo de ${label} desta pessoa. Tem certeza?`,
+        title: "Remover perfil de aluno",
+        description: "Isso vai excluir o perfil paralelo de aluno desta pessoa. Tem certeza?",
         confirmLabel: "Remover",
         destructive: true,
       });
       if (!ok) return;
-      if (kind === "fan") await removeFanForContact(contact.id);
-      else await removeStudentForContact(contact.id);
+      await removeStudentForContact(contact.id);
       await refresh();
+    }
+  }
+
+  // Conversão manual Pessoa → Fã (§14): cria um fã semeado a partir do contato,
+  // guardando a procedência em fans.contact_id. NUNCA apaga — é um clone pontual,
+  // sem sync (diferente do antigo chip-espelho destrutivo, aposentado).
+  async function handleMakeFan() {
+    if (!contact) return;
+    const existing = await findFanIdByContactId(contact.id);
+    if (existing != null) {
+      toast.info("Esta pessoa já é um fã.", {
+        action: { label: "Abrir", onClick: () => navigate(`/fas?open=${existing}`) },
+      });
+      return;
+    }
+    setLinking(true);
+    try {
+      const fanId = await createFan({
+        name: contact.name,
+        level: "Possível fã",
+        is_ambassador: 0,
+        instagram: contact.instagram,
+        email: contact.email,
+        phone: contact.phone,
+        city: contact.city,
+        tags: [],
+        notes: contact.notes,
+        photo_path: contact.photo_path,
+        contact_id: contact.id,
+        origem: "Pessoas (CRM)",
+      });
+      await refresh();
+      toast.success("Fã criado a partir desta pessoa.", {
+        action: { label: "Abrir", onClick: () => navigate(`/fas?open=${fanId}`) },
+      });
+    } catch (e) {
+      toast.error(`Erro ao criar fã: ${String(e)}`);
+    } finally {
+      setLinking(false);
     }
   }
 
@@ -422,24 +459,24 @@ export function ContactDetail({
                       onClick={() => void toggleSupplier()}
                     />
                     <RelButton
-                      label="Fã"
-                      active={mirror.fan}
-                      onClick={() => void toggleMirror("fan")}
-                    />
-                    <RelButton
                       label="Aluno"
                       active={mirror.student}
-                      onClick={() => void toggleMirror("student")}
+                      onClick={() => void toggleStudentMirror()}
                     />
                   </div>
-                  {(mirror.fan || mirror.student) && (
+                  {/* Fã↔Pessoa é conversão MANUAL (§14): um clone pontual, sem sync.
+                      Substitui o antigo chip-espelho destrutivo. */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" disabled={linking} onClick={() => void handleMakeFan()}>
+                      {mirror.fan ? "Já é um fã — abrir" : "Tornar também um fã"}
+                    </Button>
+                    {mirror.fan && (
+                      <span className="text-xs text-muted-foreground">Perfil de fã vinculado a esta pessoa.</span>
+                    )}
+                  </div>
+                  {mirror.student && (
                     <p className="text-xs text-muted-foreground">
-                      {mirror.fan && mirror.student
-                        ? "Perfis paralelos de fã e aluno criados"
-                        : mirror.fan
-                          ? "Perfil paralelo de fã criado"
-                          : "Perfil paralelo de aluno criado"}
-                      {" "}— editável no módulo correspondente.
+                      Perfil paralelo de aluno criado — editável no módulo correspondente.
                     </p>
                   )}
                 </div>
