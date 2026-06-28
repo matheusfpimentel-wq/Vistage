@@ -22,7 +22,7 @@ export type LibraryTrack = {
   archived_at: string | null;
 };
 
-type ScannedTrack = {
+export type ScannedTrack = {
   path: string;
   title: string | null;
   artist: string | null;
@@ -62,8 +62,12 @@ export async function listTracks(): Promise<LibraryTrack[]> {
 }
 
 // ── scan + reconciliação (diff antes de aplicar — nunca sobrescreve cego) ─────
-export async function scanReconcile(path: string, includeSubdirs: boolean): Promise<ScanDiff> {
-  const scanned = await invoke<ScannedTrack[]>("audio_scan_folder", { path, includeSubdirs });
+/**
+ * Transforma as faixas escaneadas num ScanDiff (novas / recolocadas / ausentes),
+ * confrontando-as com o banco. Separado de `scanReconcile` pra ser reusado pela
+ * varredura em segundo plano (que recebe as faixas via evento, não via invoke).
+ */
+export async function reconcileScanned(scanned: ScannedTrack[], path: string): Promise<ScanDiff> {
   const existing = await listTracks();
   const byPath = new Map(existing.filter((t) => t.file_path).map((t) => [t.file_path!, t]));
   const byMatch = new Map(existing.filter((t) => t.match_key).map((t) => [t.match_key!, t]));
@@ -93,6 +97,11 @@ export async function scanReconcile(path: string, includeSubdirs: boolean): Prom
   );
 
   return { scannedCount: scanned.length, newTracks, moved, missing };
+}
+
+export async function scanReconcile(path: string, includeSubdirs: boolean): Promise<ScanDiff> {
+  const scanned = await invoke<ScannedTrack[]>("audio_scan_folder", { path, includeSubdirs });
+  return reconcileScanned(scanned, path);
 }
 
 export async function applyScan(diff: ScanDiff): Promise<void> {

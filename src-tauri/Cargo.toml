@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "protocol-asset"] }
 # libsql como banco LOCAL (new_local) — um arquivo SQLite na máquina, sem nuvem.
 # Mantemos as features default do libsql; as de rede (remote/sync/tls) ficam
 # ociosas agora, mas removê-las é desnecessário e arriscaria o build.

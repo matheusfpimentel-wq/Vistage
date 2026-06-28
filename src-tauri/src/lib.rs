@@ -57,6 +57,7 @@ pub fn run() {
             gdrive::gdrive_list_folder,
             gdrive::gdrive_file_meta,
             audio::audio_scan_folder,
+            audio::audio_scan_folder_bg,
             audio::audio_read_tags,
             audio::audio_write_tags,
             audio::audio_paths_exist,
