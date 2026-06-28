@@ -136,8 +136,9 @@ export function IdeasPage() {
     setCollisionOpen(true);
   }
 
-  // Após colidir, abre a ideia recém-nascida pra desenvolver na hora.
-  async function handleCollisionCreated(newId: number) {
+  // Abre a ideia recém-nascida (colisão / responder-vira-ideia) pra desenvolver
+  // na hora.
+  async function openCreatedIdea(newId: number) {
     await refresh();
     const idea = await getIdea(newId);
     if (idea) openEdit(idea);
@@ -271,7 +272,7 @@ export function IdeasPage() {
       ) : (
         <Tabs defaultValue="board">
           <div className="mb-3">
-            <InsightDie />
+            <InsightDie onCreatedIdea={(id) => void openCreatedIdea(id)} />
           </div>
           <TabsList>
             <TabsTrigger value="board">Mural</TabsTrigger>
@@ -332,7 +333,7 @@ export function IdeasPage() {
         open={collisionOpen}
         onOpenChange={setCollisionOpen}
         presetIdeaA={collisionPresetA}
-        onCreated={(id) => void handleCollisionCreated(id)}
+        onCreated={(id) => void openCreatedIdea(id)}
       />
 
       <TrackForm
