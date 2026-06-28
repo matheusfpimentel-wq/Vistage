@@ -13,16 +13,16 @@ type Row = {
   meta: Record<string, unknown>;
 };
 
-/** Categorias do prompt inicial — ícone + texto. "all" = todas as informações. */
-const CATEGORIES: { id: Kind; label: string; hint: string; icon: ReactNode }[] = [
-  { id: "all", label: "Todas as informações", hint: "Busca em tudo", icon: <IcLayers /> },
-  { id: "gig", label: "GIGs", hint: "Shows e festas", icon: <IcGig /> },
-  { id: "task", label: "Tarefas", hint: "A fazer e em andamento", icon: <IcCheck /> },
-  { id: "idea", label: "Ideias", hint: "Insights e brainstorm", icon: <IcBulb /> },
-  { id: "track", label: "Músicas", hint: "Faixas em produção", icon: <IcNote /> },
-  { id: "contact", label: "Pessoas", hint: "Contatos e fornecedores", icon: <IcUser /> },
-  { id: "venue", label: "Venues", hint: "Casas e locais", icon: <IcPin /> },
-  { id: "class", label: "Aulas", hint: "Sessões e alunos", icon: <IcClass /> },
+/** Categorias do prompt inicial — só ícone (em círculo) + título. "all" = tudo. */
+const CATEGORIES: { id: Kind; label: string; icon: ReactNode }[] = [
+  { id: "all", label: "Todas as informações", icon: <IcLayers /> },
+  { id: "gig", label: "GIGs", icon: <IcGig /> },
+  { id: "task", label: "Tarefas", icon: <IcCheck /> },
+  { id: "idea", label: "Ideias", icon: <IcBulb /> },
+  { id: "track", label: "Músicas", icon: <IcNote /> },
+  { id: "contact", label: "Pessoas", icon: <IcUser /> },
+  { id: "venue", label: "Venues", icon: <IcPin /> },
+  { id: "class", label: "Aulas", icon: <IcClass /> },
 ];
 const CAT_LABEL: Record<Kind, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c.label])
@@ -117,10 +117,7 @@ export function Buscar() {
           {CATEGORIES.map((c) => (
             <button key={c.id} className="cat-btn" onClick={() => setCategory(c.id)}>
               <span className="cat-ic">{c.icon}</span>
-              <span className="cat-text">
-                <strong>{c.label}</strong>
-                <span className="muted">{c.hint}</span>
-              </span>
+              <strong className="cat-label">{c.label}</strong>
               <span className="cat-chevron" aria-hidden>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
               </span>
@@ -153,7 +150,7 @@ export function Buscar() {
         </p>
       ) : !online ? (
         <p className="muted center-text" style={{ marginTop: "2rem" }}>
-          📵 A busca precisa de internet. Reconecte e tente de novo.
+          A busca precisa de internet. Reconecte e tente de novo.
         </p>
       ) : loading ? (
         <div className="center">

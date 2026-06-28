@@ -25,6 +25,7 @@ function ColdIcon({ kind }: { kind: ColdKind }) {
   if (kind === "content") return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3V9z" /></svg>;
   return <svg {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
 }
+const COLD_KIND_LABEL: Record<ColdKind, string> = { contact: "Contato", fan: "Fã", track: "Faixa", content: "Conteúdo" };
 type StageSlot = { start: string; end: string };
 type GigMeta = {
   date?: string;
@@ -45,7 +46,7 @@ const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" 
 // §8: no lugar da neurociência de pôster, um lembrete com DADO REAL (streak,
 // compromissos, contato esfriando, última GIG).
 function realLine(streak: number, upcomingCount: number, cold: Cold | null, lastGig: CatalogGig | null): string {
-  if (streak >= 2) return `🔥 ${streak} dias seguidos de foco — não quebra a corrente hoje.`;
+  if (streak >= 2) return `${streak} dias seguidos de foco — não quebra a corrente hoje.`;
   if (upcomingCount > 0)
     return `Você tem ${upcomingCount} compromisso${upcomingCount > 1 ? "s" : ""} à frente. Um passo agora encurta a lista.`;
   if (cold) return `Faz tempo que você não fala com ${cold.name.split(" ")[0]}. Um "oi" reaquece.`;
@@ -106,6 +107,7 @@ export function Hoje({
 }) {
   const [agenda, setAgenda] = useState<Agenda[]>([]);
   const [cooling, setCooling] = useState<Cold[]>([]);
+  const [coldOpen, setColdOpen] = useState<Cold | null>(null);
   const [lastGig, setLastGig] = useState<CatalogGig | null>(null);
   const [todayGig, setTodayGig] = useState<CatalogGig | null>(null);
   const [streak, setStreak] = useState(0);
@@ -162,6 +164,14 @@ export function Hoje({
   // pois faixa/conteúdo não se "fala". A lista de esfriando mostra todos.
   const coldPerson = cooling.find(isPerson) ?? null;
   const motivation = realLine(streak, upcoming.length, coldPerson, lastGig);
+  // Dia sem nada na grade → sugere a ação mais "pesada" (maior pendência primeiro):
+  // esfriando > compromissos à frente > brainstorm.
+  const daySuggestion =
+    cooling.length > 0
+      ? { text: `${cooling.length} esfriando — reaquecer`, onClick: () => setColdOpen(cooling[0]) }
+      : upcoming.length > 0
+        ? { text: "Prepare o que vem", onClick: () => goFocus() }
+        : { text: "Solte uma ideia", onClick: onGoBrainstorm };
 
   function goFocus() {
     try {
@@ -180,14 +190,21 @@ export function Hoje({
       {/* Topo: streak | grade do dia */}
       <div className="today-top">
         <section className="card today-streak">
-          <span className="streak-flame">🔥</span>
-          <strong className="streak-num">{streak}</strong>
+          <div className="streak-main">
+            <span className="streak-flame" aria-hidden>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+            </span>
+            <strong className="streak-num">{streak}</strong>
+          </div>
           <span className="muted small">{streak === 1 ? "dia seguido" : "dias seguidos"}</span>
         </section>
         <section className="card today-grid">
           <span className="label">Hoje</span>
           {grid.length === 0 ? (
-            <p className="muted small" style={{ margin: "0.4rem 0 0" }}>Dia livre 🎧</p>
+            <button className="grid-suggest" onClick={daySuggestion.onClick}>
+              {daySuggestion.text}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+            </button>
           ) : (
             <ul className="grid-list">
               {grid.map((i) => (
@@ -225,11 +242,12 @@ export function Hoje({
         <div className="commit-actions">
           {upcoming.length > 0 ? (
             <button className="commit-cta" onClick={goFocus}>
-              ▶ Focar agora em {suggestActivity(upcoming)}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
+              Focar agora em {suggestActivity(upcoming)}
             </button>
           ) : (
             <button className="commit-cta" onClick={onGoBrainstorm}>
-              💡 Soltar uma ideia no Brainstorming
+              Soltar uma ideia no Brainstorming
             </button>
           )}
           {coldPerson?.handle && (
@@ -250,22 +268,18 @@ export function Hoje({
         <section className="card">
           <span className="label">Esfriando</span>
           {cooling.length === 0 ? (
-            <p className="muted small" style={{ margin: "0.4rem 0 0" }}>Tudo aquecido. 👌</p>
+            <p className="muted small" style={{ margin: "0.4rem 0 0" }}>Tudo aquecido.</p>
           ) : (
             <ul className="mini-list cold-list">
               {cooling.map((c) => (
                 <li key={c.id} className="cold-row">
-                  <span className="cold-ic"><ColdIcon kind={coldKind(c)} /></span>
-                  <span className="cold-body">
-                    {c.handle ? (
-                      <a className="link cold-name" href={`https://wa.me/${c.handle.replace(/\D/g, "")}`} target="_blank" rel="noreferrer">
-                        {c.name}
-                      </a>
-                    ) : (
+                  <button type="button" className="cold-tap" onClick={() => setColdOpen(c)}>
+                    <span className="cold-ic"><ColdIcon kind={coldKind(c)} /></span>
+                    <span className="cold-body">
                       <span className="cold-name">{c.name}</span>
-                    )}
-                    {c.reason && <span className="cold-sub">{c.reason}</span>}
-                  </span>
+                      {c.reason && <span className="cold-sub">{c.reason}</span>}
+                    </span>
+                  </button>
                 </li>
               ))}
             </ul>
@@ -289,7 +303,9 @@ export function Hoje({
 
       {/* Motivação (neurociência) */}
       <section className="card today-motivation">
-        <span className="motivation-spark">✦</span>
+        <span className="motivation-spark" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6.5L20 11l-6 2.5L12 22l-2-8.5L4 11l6-2.5z" /></svg>
+        </span>
         <p>{motivation}</p>
       </section>
 
@@ -298,6 +314,42 @@ export function Hoje({
       <button className="ghost full" onClick={() => void load()}>
         Atualizar
       </button>
+
+      {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} />}
+    </div>
+  );
+}
+
+/** Detalhe do item esfriando (sheet): tipo, há quanto está parado e ação. */
+function ColdSheet({ item, onClose }: { item: Cold; onClose: () => void }) {
+  const kind = coldKind(item);
+  const digits = item.handle ? item.handle.replace(/\D/g, "") : "";
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head">
+          <strong>{item.name}</strong>
+          <button className="iconbtn" onClick={onClose} aria-label="Fechar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="cold-detail">
+          <span className="cold-detail-kind">
+            <ColdIcon kind={kind} /> {COLD_KIND_LABEL[kind]}
+          </span>
+          {item.reason && <p className="muted" style={{ margin: 0 }}>{item.reason}</p>}
+          {digits ? (
+            <div className="cold-detail-actions">
+              <a className="primary full" style={{ marginTop: 0 }} href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">
+                Reaquecer no WhatsApp
+              </a>
+              <a className="ghost full" style={{ marginTop: 0 }} href={`tel:${digits}`}>Ligar</a>
+            </div>
+          ) : (
+            <p className="muted small" style={{ margin: 0 }}>Abra no PC pra retomar de onde parou.</p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -318,7 +370,7 @@ function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) 
 
   return (
     <section className="card gig-day">
-      <span className="label">🎧 Hoje você toca</span>
+      <span className="label">Hoje você toca</span>
       <strong className="gig-day-title">{gig.title}</strong>
       {m.city && <div className="muted gig-day-sub">{m.city}</div>}
 
@@ -347,17 +399,20 @@ function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) 
         <div className="gig-day-actions">
           {tel && (
             <a className="gig-act" href={tel}>
-              📞 Ligar{contactFirst ? ` · ${contactFirst}` : ""}
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+              Ligar{contactFirst ? ` · ${contactFirst}` : ""}
             </a>
           )}
           {wapp && (
             <a className="gig-act" href={wapp} target="_blank" rel="noreferrer">
-              💬 WhatsApp
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+              WhatsApp
             </a>
           )}
           {map && (
             <a className="gig-act" href={map} target="_blank" rel="noreferrer">
-              📍 Maps
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>
+              Maps
             </a>
           )}
         </div>

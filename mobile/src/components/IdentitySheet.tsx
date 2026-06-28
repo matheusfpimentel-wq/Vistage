@@ -94,13 +94,26 @@ export function IdentitySheet({
             </div>
             <div>
               <span className="label">Streak</span>
-              <strong className="big">🔥 {info.streak}</strong>
+              <strong className="big" style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+                {info.streak}
+              </strong>
             </div>
           </div>
 
           <div className="identity-actions">
-            <button className="ghost full" onClick={onToggleTheme}>
-              {theme === "dark" ? "☀️ Modo claro" : "🌙 Modo escuro"}
+            <button className="ghost full" onClick={onToggleTheme} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.45rem" }}>
+              {theme === "dark" ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+                  Modo claro
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+                  Modo escuro
+                </>
+              )}
             </button>
             <button className="ghost full" onClick={onSignOut}>
               Sair da conta

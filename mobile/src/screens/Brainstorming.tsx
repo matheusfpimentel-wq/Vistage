@@ -145,7 +145,7 @@ export function Brainstorming() {
         <button className="primary" disabled={busy || !canSend} onClick={() => void add()}>
           {busy ? "Enviando…" : "Adicionar ideia"}
         </button>
-        <p className="muted small">As ideias vão pro PC revisar e entram no seu arquivo.</p>
+        <p className="muted small">Revisadas no PC.</p>
       </section>
 
       {recent.length > 0 && (
