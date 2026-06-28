@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Combine, Lightbulb, Plus, Zap } from "lucide-react";
+import { Combine, Lightbulb, Plus, Timer, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import {
@@ -34,6 +34,7 @@ import {
   type IdeaFilters,
 } from "./api";
 import { IdeaCollisionDialog } from "./forms/IdeaCollisionDialog";
+import { IdeaSessionDialog } from "./forms/IdeaSessionDialog";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
@@ -71,6 +72,7 @@ export function IdeasPage() {
   const [quickOpen, setQuickOpen] = useState(false);
   const [collisionOpen, setCollisionOpen] = useState(false);
   const [collisionPresetA, setCollisionPresetA] = useState<{ id: number; title: string } | null>(null);
+  const [sessionOpen, setSessionOpen] = useState(false);
   const [convertingIdea, setConvertingIdea] = useState<Idea | null>(null);
   const [trackFormOpen, setTrackFormOpen] = useState(false);
   const [gigFormOpen, setGigFormOpen] = useState(false);
@@ -181,6 +183,7 @@ export function IdeasPage() {
         secondaryActions={[
           { label: "Captura rápida", icon: Zap, onClick: () => setQuickOpen(true) },
           { label: "Colidir", icon: Combine, onClick: () => openCollision() },
+          { label: "Sessão", icon: Timer, onClick: () => setSessionOpen(true) },
         ]}
         search={{
           value: filters.search,
@@ -334,6 +337,12 @@ export function IdeasPage() {
         onOpenChange={setCollisionOpen}
         presetIdeaA={collisionPresetA}
         onCreated={(id) => void openCreatedIdea(id)}
+      />
+
+      <IdeaSessionDialog
+        open={sessionOpen}
+        onOpenChange={setSessionOpen}
+        onDone={() => void refresh()}
       />
 
       <TrackForm

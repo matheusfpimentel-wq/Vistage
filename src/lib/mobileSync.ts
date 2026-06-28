@@ -853,7 +853,8 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
       [s("focus_session_id"), n("gig_id"), n("at_ms"), s("at")]
     );
   } else if (kind === "focus_idea") {
-    // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no PC.
+    // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no
+    // PC, semeada com a procedência (Modo Foco) e o GIG quando o celular o manda.
     const { createIdea } = await import("@/modules/ideas/api");
     await createIdea({
       title: "Ideia capturada no Modo Foco",
@@ -864,6 +865,8 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
       maturation: "Embrião",
       converted_to: null,
       converted_id: null,
+      source: "modo_foco",
+      source_ref_id: n("gig_id"),
     });
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

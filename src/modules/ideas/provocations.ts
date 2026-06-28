@@ -1,4 +1,5 @@
 import { formatDate, toLocalISODate } from "@/lib/format";
+import { getDb } from "@/lib/db";
 import { persistDocSetting } from "@/lib/docSettings";
 import { listOkrs, okrProgress } from "@/modules/objetivos/api";
 import { listTasks } from "@/modules/tasks/api";
@@ -156,6 +157,43 @@ export async function generateRaw(): Promise<RawInsight[]> {
       }
       const learn = (g.debrief_learnings ?? "").trim();
       if (learn) add(`gig-learn:${g.id}`, `Aprendizado de ${where}: ${learn}. Como aplicar de novo?`, true);
+    }
+  } catch { /* ignore */ }
+
+  // §5 Modo Foco (agregado): pontos fracos marcados ao vivo no último mês viram
+  // uma provocação por TIPO recorrente — o erro repetido pede uma ideia que o resolva.
+  try {
+    const rows = await getDb().select<{ tipo: string; n: number }[]>(
+      `SELECT tipo, COUNT(*) AS n FROM performance_weak_points
+        WHERE tipo IS NOT NULL AND tipo != '' AND created_at >= date('now','-30 days')
+        GROUP BY tipo HAVING n >= 2 ORDER BY n DESC`
+    );
+    for (const r of rows) {
+      add(
+        `weakagg:${r.tipo}`,
+        `Você marcou ${r.n}× "${r.tipo}" no Modo Foco no último mês — que ideia resolve isso de vez?`,
+        true
+      );
+    }
+  } catch { /* ignore */ }
+
+  // §5 Fã esfriando: superfã/embaixador sem contato faz tempo vira semente —
+  // relacionamento que esfria pede uma ideia que reaproxime.
+  try {
+    const fans = await getDb().select<{ id: number; name: string; days: number }[]>(
+      `SELECT id, name, CAST(julianday('now') - julianday(last_interaction_at) AS INTEGER) AS days
+         FROM fans
+        WHERE last_interaction_at IS NOT NULL
+          AND level IN ('Superfã', 'Embaixador')
+          AND julianday('now') - julianday(last_interaction_at) >= 45
+        ORDER BY days DESC LIMIT 5`
+    );
+    for (const f of fans) {
+      add(
+        `fancool:${f.id}`,
+        `${f.name} é um superfã, mas faz ${f.days} dias sem contato. Que ideia te reaproxima?`,
+        true
+      );
     }
   } catch { /* ignore */ }
 
