@@ -2200,6 +2200,30 @@ const MIGRATIONS: Migration[] = [
       "Clube de Fãs — fans.nivel_changed_at: data/hora da última troca de nível do fã (preenchida pelo recálculo de pontuação quando o nível muda). Usada para o balde 'Parabenizar' da superfície 'Hoje' (subiu de nível recentemente) e o 'no nível X desde {data}' do perfil. Aditiva/idempotente.",
     sql: `ALTER TABLE fans ADD COLUMN nivel_changed_at TEXT;`,
   },
+  {
+    version: 152,
+    description:
+      "Ideias & Insights — ressurgimento: ideas.last_touched_at (relógio do decaimento do Calor — tocar/editar/reaquecer a ideia reseta; o Calor efetivo decai por inatividade, espelhando a meia-vida do motor de fãs), ideas.source (manual/provocacao/modo_foco/biblioteca/colisao — procedência da ideia) + ideas.source_ref_id (id da origem, interpretado por source). idea_collisions guarda a colisão gerativa (duas ideias OU ideia + semente do material) que pariu uma terceira ideia. Backfill: last_touched_at recebe updated_at/created_at; source vira 'manual' no acervo existente. Aditiva/idempotente.",
+    sql: `
+      ALTER TABLE ideas ADD COLUMN last_touched_at TEXT;
+      ALTER TABLE ideas ADD COLUMN source TEXT;
+      ALTER TABLE ideas ADD COLUMN source_ref_id INTEGER;
+      UPDATE ideas SET last_touched_at = COALESCE(updated_at, created_at) WHERE last_touched_at IS NULL;
+      UPDATE ideas SET source = 'manual' WHERE source IS NULL;
+      CREATE TABLE IF NOT EXISTS idea_collisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idea_a INTEGER REFERENCES ideas(id) ON DELETE CASCADE,
+        idea_b INTEGER REFERENCES ideas(id) ON DELETE SET NULL,
+        seed_tipo TEXT,
+        seed_id INTEGER,
+        seed_label TEXT,
+        idea_resultante INTEGER REFERENCES ideas(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_idea_collisions_a ON idea_collisions(idea_a);
+      CREATE INDEX IF NOT EXISTS idx_idea_collisions_res ON idea_collisions(idea_resultante);
+    `,
+  },
 ];
 
 

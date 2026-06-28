@@ -49,6 +49,7 @@ const TABLES = [
   "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
   "okrs",
   "ideas",
+  "idea_collisions",         // idea_a/idea_b/idea_resultante → ideas (DEFERRED_FK)
   "content",
   "suppliers",
   "custom_rules",       // regras de alerta/insight do usuário — viajam no .vistage
@@ -849,6 +850,9 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   // Biblioteca: ideas é inserida ANTES de notes (está no topo de TABLES), então
   // source_note_id é adiado p/ a 2ª passagem. note_folders.parent_id é self-ref.
   ideas: { source_note_id: "notes" },
+  // Colisão de ideias: todas as referências apontam p/ ideas (anuláveis) — adiadas
+  // p/ a 2ª passagem, descartando referência órfã em vez de quebrar.
+  idea_collisions: { idea_a: "ideas", idea_b: "ideas", idea_resultante: "ideas" },
   note_folders: { parent_id: "note_folders" },
   // setlist: a faixa da biblioteca é anulável (ON DELETE SET NULL preserva o snapshot)
   gig_library_tracks: { library_track_id: "library_tracks" },

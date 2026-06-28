@@ -12,6 +12,7 @@ export const CSV_ENTITIES = [
   { key: "meetings", label: "Reuniões", table: "meetings" },
   { key: "content", label: "Conteúdos", table: "content" },
   { key: "ideas", label: "Ideias", table: "ideas" },
+  { key: "idea_collisions", label: "Ideias — colisões", table: "idea_collisions" },
   { key: "students", label: "Alunos", table: "students" },
   { key: "parties", label: "Festas", table: "parties" },
   { key: "party_costs", label: "Custos de festas", table: "party_costs" },

@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { emitDataChanged } from "@/lib/events";
+import { daysSince, effectiveHeat } from "./types";
 import type {
   Idea,
   IdeaCategory,
@@ -10,7 +11,7 @@ import type {
   IdeaUpdateInput,
 } from "./types";
 
-type IdeaRow = Omit<Idea, "tags"> & { tags: string | null };
+type IdeaRow = Omit<Idea, "tags" | "currentHeat" | "daysSinceTouch"> & { tags: string | null };
 
 function rowToIdea(r: IdeaRow): Idea {
   let tags: string[] = [];
@@ -21,7 +22,15 @@ function rowToIdea(r: IdeaRow): Idea {
       tags = [];
     }
   }
-  return { ...r, tags };
+  // Calor efetivo (decaído pela inatividade) — relógio = last_touched_at, com
+  // fallback p/ updated_at/created_at no acervo anterior à migração v152.
+  const touched = r.last_touched_at ?? r.updated_at ?? r.created_at;
+  return {
+    ...r,
+    tags,
+    daysSinceTouch: daysSince(touched),
+    currentHeat: effectiveHeat(r.heat, touched),
+  };
 }
 
 export type IdeaFilters = {
@@ -60,12 +69,22 @@ export async function listIdeas(filters: IdeaFilters = {}): Promise<Idea[]> {
     (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
     " ORDER BY heat DESC, updated_at DESC";
   const rows = await db.select<IdeaRow[]>(sql, params);
-  return rows.map(rowToIdea);
+  const ideas = rows.map(rowToIdea);
+  // Ordena pelo Calor EFETIVO (decaído): ideia parada afunda, ideia tocada sobe.
+  // Sort estável → empate preserva a ordem do SQL (updated_at DESC).
+  ideas.sort((a, b) => (b.currentHeat ?? b.heat) - (a.currentHeat ?? a.heat));
+  return ideas;
 }
 
 export async function createIdea(input: IdeaCreateInput): Promise<number> {
   const db = getDb();
-  const payload = { ...input, tags: JSON.stringify(input.tags ?? []) };
+  // source default 'manual'; last_touched_at é gravado logo após o insert (não dá
+  // pra usar CURRENT_TIMESTAMP no VALUES dinâmico) — relógio do decaimento começa agora.
+  const payload = {
+    ...input,
+    tags: JSON.stringify(input.tags ?? []),
+    source: input.source ?? "manual",
+  };
   const cols = Object.keys(payload);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
   const values = cols.map((k) => (payload as Record<string, unknown>)[k]);
@@ -74,6 +93,7 @@ export async function createIdea(input: IdeaCreateInput): Promise<number> {
     values
   );
   const id = Number(res.lastInsertId);
+  await db.execute("UPDATE ideas SET last_touched_at = CURRENT_TIMESTAMP WHERE id = $1", [id]);
   // Ideias NÃO geram tarefa automática — a criação de tarefa(s) é manual, pela
   // opção que aparece quando a ideia está em "Desenvolvendo" (ver IdeaForm).
   emitDataChanged();
@@ -90,8 +110,9 @@ export async function updateIdea(input: IdeaUpdateInput): Promise<void> {
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
   const values = cols.map((k) => payload[k]);
   values.push(id);
+  // Editar a ideia também a "toca" (reaquece): reseta o relógio do decaimento.
   await db.execute(
-    `UPDATE ideas SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
+    `UPDATE ideas SET ${sets}, updated_at = CURRENT_TIMESTAMP, last_touched_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
   const rows = await db.select<{ task_id: number | null }[]>(
@@ -141,4 +162,92 @@ export async function markIdeaAsConverted(
       WHERE id = $3`,
     [to, newId, ideaId]
   );
+}
+
+// ============================================================
+// Ressurgimento — decaimento do Calor + fila "Ressurgir"
+// ============================================================
+
+/** Ideia esfriada (Calor efetivo ≤ este valor) já é candidata a ressurgir. */
+const IDEA_RESURFACE_COOLED_BELOW = 2.5;
+/** Só ressurge o que está dormente há pelo menos tantos dias. */
+const IDEA_RESURFACE_MIN_DORMANT_DAYS = 21;
+
+/**
+ * Reaquece a ideia: reseta o relógio do decaimento (last_touched_at = agora), de
+ * modo que o Calor efetivo volta a ser o Calor armazenado. Não altera o Calor
+ * manual nem a maturação — é só "voltei a olhar pra isto".
+ */
+export async function touchIdea(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE ideas SET last_touched_at = CURRENT_TIMESTAMP WHERE id = $1",
+    [id]
+  );
+  emitDataChanged();
+}
+
+/**
+ * Arquiva de vez (maturação 'Arquivada'): sai do mural ativo, da fila Ressurgir e
+ * das provocações. NÃO reaquece (não toca o relógio do decaimento).
+ */
+export async function archiveIdea(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE ideas SET maturation = 'Arquivada', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+    [id]
+  );
+  emitDataChanged();
+}
+
+/**
+ * Fila "Ressurgir": ideias dormentes (estavam mornas/quentes, esfriaram pela
+ * inatividade e ninguém tocou há um tempo) — candidatas a um olhar fresco.
+ * Exclui Pronta/Arquivada/convertidas. Ordena pelas mais esfriadas primeiro.
+ */
+export async function listResurfaceIdeas(limit = 20): Promise<Idea[]> {
+  const db = getDb();
+  const rows = await db.select<IdeaRow[]>(
+    `SELECT * FROM ideas
+       WHERE maturation NOT IN ('Pronta', 'Arquivada')
+         AND converted_id IS NULL
+         AND heat >= 3`
+  );
+  const ideas = rows
+    .map(rowToIdea)
+    .filter(
+      (i) =>
+        (i.daysSinceTouch ?? 0) >= IDEA_RESURFACE_MIN_DORMANT_DAYS &&
+        (i.currentHeat ?? i.heat) <= IDEA_RESURFACE_COOLED_BELOW
+    );
+  ideas.sort((a, b) => {
+    const dropA = a.heat - (a.currentHeat ?? a.heat);
+    const dropB = b.heat - (b.currentHeat ?? b.heat);
+    if (dropB !== dropA) return dropB - dropA;
+    return (b.daysSinceTouch ?? 0) - (a.daysSinceTouch ?? 0);
+  });
+  return ideas.slice(0, limit);
+}
+
+/**
+ * Cria uma tarefa a partir de uma ideia (semeada com a tag 'ideia', vencimento
+ * +60d) — mesma forma do "Criar tarefa" do IdeaForm. Não vincula task_id (a
+ * ideia segue viva); quem chama decide se reaquece/arquiva depois.
+ */
+export async function createTaskFromIdea(idea: Pick<Idea, "title">): Promise<number> {
+  const { createTask } = await import("@/modules/tasks/api");
+  const { toLocalISODate } = await import("@/lib/format");
+  const due = new Date();
+  due.setDate(due.getDate() + 60);
+  return createTask({
+    title: idea.title.trim(),
+    description: null,
+    category: null,
+    gig_id: null,
+    contact_id: null,
+    priority: "Média",
+    status: "A fazer",
+    due_date: toLocalISODate(due),
+    tags: ["ideia"],
+  });
 }

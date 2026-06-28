@@ -22,8 +22,16 @@ import { QuickCapture } from "./forms/QuickCapture";
 import { IdeaList } from "./views/IdeaList";
 import { IdeaKanban } from "./views/IdeaKanban";
 import { IdeaBoard } from "./views/IdeaBoard";
+import { IdeaResurfaceView } from "./views/IdeaResurfaceView";
 import { InsightDie } from "./InsightDie";
-import { deleteIdea, listIdeas, markIdeaAsConverted, updateIdea, type IdeaFilters } from "./api";
+import {
+  deleteIdea,
+  listIdeas,
+  listResurfaceIdeas,
+  markIdeaAsConverted,
+  updateIdea,
+  type IdeaFilters,
+} from "./api";
 import { TrackForm } from "@/modules/music/forms/TrackForm";
 import { GigForm } from "@/modules/gigs/forms/GigForm";
 import {
@@ -48,6 +56,7 @@ type HeatFilter = IdeaHeat | "all";
 export function IdeasPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Idea[]>([]);
+  const [resurface, setResurface] = useState<Idea[]>([]);
   const [filters, setFilters] = useState<{
     category: CategoryFilter;
     maturation: MaturationFilter;
@@ -73,8 +82,9 @@ export function IdeasPage() {
   );
 
   const refresh = useCallback(async () => {
-    const data = await listIdeas(queryFilters);
+    const [data, res] = await Promise.all([listIdeas(queryFilters), listResurfaceIdeas()]);
     setItems(data);
+    setResurface(res);
   }, [queryFilters]);
 
   useEffect(() => {
@@ -248,6 +258,14 @@ export function IdeasPage() {
             <TabsTrigger value="board">Mural</TabsTrigger>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="list">Lista</TabsTrigger>
+            <TabsTrigger value="ressurgir">
+              Ressurgir
+              {resurface.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+                  {resurface.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="board">
@@ -260,6 +278,10 @@ export function IdeasPage() {
 
           <TabsContent value="list">
             <IdeaList items={items} onEdit={openEdit} onDelete={handleDelete} onConvertToTrack={openConvertToTrack} />
+          </TabsContent>
+
+          <TabsContent value="ressurgir">
+            <IdeaResurfaceView items={resurface} onEdit={openEdit} onChanged={() => void refresh()} />
           </TabsContent>
         </Tabs>
       )}
