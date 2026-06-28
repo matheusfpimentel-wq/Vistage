@@ -540,12 +540,14 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* ── Captura ao vivo (Modo Foco) ──────────────────────────────────────────── */
-.live-capture { width: 100%; display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.4rem; }
-/* Botões redondos de vidro à DIREITA do timer (coluna). Reusa .glass-round. */
-.lc-round-col {
-  display: flex; flex-direction: column; gap: 0.7rem;
-  align-items: flex-end; align-self: flex-end;
+.live-capture { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; margin-top: 0.1rem; }
+/* Botões redondos LOGO ABAIXO do relógio (centralizados), num arco que segue a
+   linha de baixo do círculo — o do meio desce um tico (∪). Reusa .glass-round. */
+.lc-round-row {
+  display: flex; flex-direction: row; align-items: flex-start; justify-content: center;
+  gap: 1.4rem;
 }
+.lc-round-row > :nth-child(2) { margin-top: 20px; }
 .lc-round { position: relative; width: 60px; height: 60px; }
 /* Matiz por categoria no anel (ícone segue branco). */
 .lc-round-err { border-color: color-mix(in srgb, var(--neg) 55%, rgba(255,255,255,0.18)); }

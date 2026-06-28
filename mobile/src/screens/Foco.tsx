@@ -524,14 +524,15 @@ function fmtAt(ms: number): string {
  * RADIAL com os 4 subtipos; IDEIA é toque único. Um toque marca com timestamp
  * e haptic; a descrição vem no debrief/PC.
  *
- * Geometria do leque: como a coluna de botões fica à DIREITA, o arco abre
- * voltado pra DENTRO da tela (esquerda/cima) — ângulos de ~150° a ~250° (medidos
- * no sentido horário a partir das 3h, com Y pra baixo). Assim os itens caem no
- * quadrante superior-esquerdo do botão e NUNCA cortam fora da viewport.
+ * Geometria do leque: a linha de botões fica EMBAIXO do relógio (centralizada),
+ * então o arco abre pra CIMA (em direção ao relógio, onde há espaço) — ângulos de
+ * ~215° a ~325° (medidos no sentido horário a partir das 3h, com Y pra baixo).
+ * Assim os itens sobem em leque acima do botão tocado. A âncora (fanOrigin) é
+ * presa nas bordas pra os itens não cortarem fora da viewport.
  */
-const FAN_RADIUS = 116; // distância do centro do botão até cada item do leque
-const FAN_START = 152;   // grau do primeiro item (aponta pra cima-esquerda)
-const FAN_END = 248;     // grau do último item (aponta pra baixo-esquerda)
+const FAN_RADIUS = 112; // distância do centro do botão até cada item do leque
+const FAN_START = 215;   // grau do primeiro item (aponta pra cima-esquerda)
+const FAN_END = 325;     // grau do último item (aponta pra cima-direita)
 
 /** Posição (x,y) de um item do leque, relativa ao centro do botão. */
 function fanOffset(i: number, total: number): { x: number; y: number } {
@@ -539,6 +540,14 @@ function fanOffset(i: number, total: number): { x: number; y: number } {
   const deg = FAN_START + (FAN_END - FAN_START) * t;
   const rad = (deg * Math.PI) / 180;
   return { x: Math.cos(rad) * FAN_RADIUS, y: Math.sin(rad) * FAN_RADIUS };
+}
+
+/** Centro do botão tocado, preso às bordas pra o leque (raio ~112) não cortar
+    fora da tela — os botões agora ficam centralizados embaixo do relógio. */
+function fanAnchor(r: DOMRect): { x: number; y: number } {
+  const margin = FAN_RADIUS + 16;
+  const x = Math.min(Math.max(r.left + r.width / 2, margin), window.innerWidth - margin);
+  return { x, y: r.top + r.height / 2 };
 }
 
 type FanKind = "weak" | "moment";
@@ -575,13 +584,12 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
   return (
     <section className="live-capture">
       <span className="label">Ao vivo</span>
-      <div className="lc-round-col">
+      <div className="lc-round-row">
         <button
           type="button"
           className="glass-round lc-round lc-round-err"
           onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            setFanOrigin(fanAnchor(e.currentTarget.getBoundingClientRect()));
             setFan((f) => (f === "weak" ? null : "weak"));
           }}
           aria-label={`Registrar erro${errors ? ` (${errors} nesta sessão)` : ""}`}
@@ -594,8 +602,7 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
           type="button"
           className="glass-round lc-round lc-round-hit"
           onClick={(e) => {
-            const r = e.currentTarget.getBoundingClientRect();
-            setFanOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+            setFanOrigin(fanAnchor(e.currentTarget.getBoundingClientRect()));
             setFan((f) => (f === "moment" ? null : "moment"));
           }}
           aria-label={`Registrar acerto${hits ? ` (${hits} nesta sessão)` : ""}`}
@@ -1057,6 +1064,10 @@ export function Foco() {
             </p>
           )}
 
+          {/* Captura ao vivo: LOGO ABAIXO do relógio e EM CIMA de Encerrar,
+              num arco que segue a linha do círculo. */}
+          {phase === "running" && <LiveCapture markers={markers} onMark={addMarker} />}
+
           {phase === "idle" ? (
             <div className="form" style={{ width: "100%", maxWidth: 360 }}>
               <label>
@@ -1086,8 +1097,6 @@ export function Foco() {
               Encerrar
             </button>
           )}
-
-          {phase === "running" && <LiveCapture markers={markers} onMark={addMarker} />}
 
           <ContextPanel activity={activity} focusTask={focusTask} />
         </>
