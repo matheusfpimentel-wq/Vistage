@@ -40,13 +40,15 @@ function pickRanked(pool: Insight[], avoidKey?: string): Insight | null {
     pool.filter((i) => !pinned.has(i.key) && i.kind === "derived"),
     pool.filter((i) => !pinned.has(i.key) && i.kind === "generic"),
   ];
+  // Exclui a atual SEMPRE; se isso esvaziar o tier (ex.: só uma fixada, que é a
+  // atual), cai pro próximo tier em vez de repeti-la.
   for (const tier of tiers) {
-    if (tier.length === 0) continue;
-    const choices = tier.length > 1 && avoidKey ? tier.filter((i) => i.key !== avoidKey) : tier;
-    const from = choices.length ? choices : tier;
-    return from[Math.floor(Math.random() * from.length)];
+    const choices = avoidKey ? tier.filter((i) => i.key !== avoidKey) : tier;
+    if (choices.length === 0) continue;
+    return choices[Math.floor(Math.random() * choices.length)];
   }
-  return null;
+  // Tudo esgotou ao excluir a atual (pool só tem ela) — repete em vez de nada.
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function InsightDie({ onCreatedIdea }: { onCreatedIdea?: (id: number) => void } = {}) {
