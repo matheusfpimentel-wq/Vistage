@@ -207,7 +207,7 @@ Um diretório por módulo em `src/modules/`, cada um tipicamente com `api.ts` (d
 | **Reuniões** | `/reunioes` | Reuniões que viram tarefas-lembrete, vinculadas a contatos. | `meetings` |
 | **Financeiro** | `/financeiro` | Dashboard (Recharts); transações (vínculos a gig/track/aula/festa); recorrentes; categorias; patrimônio derivado de equipamentos; import de royalties. | `finance_categories`, `finance_transactions`, `finance_recurring`, `equipment` |
 | **Carreira (Wrapped)** | `/carreira` | "Carreira em números" — retrospectiva (GIGs/lançamentos/festas/conteúdos), pensada pra press kit. | (lê várias) |
-| **Configurações** | `/configuracoes` | Documento (senha), integrações, aparência (tema/accent/menu), atalhos, regras de alerta, mapa mental, exportações CSV/JSON, dados de exemplo. | `app_settings`, `document_settings` |
+| **Configurações** | `/configuracoes` | Documento (senha), integrações, aparência (tema/accent/menu), atalhos, regras de alerta, exportações CSV/JSON, dados de exemplo. | `app_settings`, `document_settings` |
 
 ---
 
