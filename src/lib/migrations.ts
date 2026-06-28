@@ -2180,6 +2180,20 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_work_sessions_focus_sid ON work_sessions(focus_session_id);
     `,
   },
+  {
+    version: 150,
+    description:
+      "Clube de Fãs — fan_segments: filtros salvos como segmento reutilizável (critérios em JSON, ex.: 'superfãs em Curitiba sem contato há 30d'). fans.origem: origem/aquisição do fã (texto livre), usada como filtro e dimensão de segmento. Aditiva.",
+    sql: `
+      ALTER TABLE fans ADD COLUMN origem TEXT;
+      CREATE TABLE IF NOT EXISTS fan_segments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT NOT NULL,
+        criterios TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 

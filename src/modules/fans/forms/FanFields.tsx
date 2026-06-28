@@ -138,6 +138,13 @@ export function FanFields({
             onChange={(e) => setState((s) => ({ ...s, city: e.target.value || null }))}
           />
         </Field>
+        <Field label="Origem">
+          <Input
+            placeholder="Como chegou (show, indicação, Instagram…)"
+            value={state.origem ?? ""}
+            onChange={(e) => setState((s) => ({ ...s, origem: e.target.value || null }))}
+          />
+        </Field>
       </div>
 
       <div className="space-y-1.5">

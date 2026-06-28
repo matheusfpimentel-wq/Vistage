@@ -19,15 +19,26 @@ export type Fan = {
   last_interaction_at: string | null;
   photo_path: string | null;
   contact_id: number | null;
+  /** Origem/aquisição do fã (texto livre) — filtro e dimensão de segmento. */
+  origem: string | null;
   created_at: string;
   updated_at: string;
 };
 
+export type FanSegment = {
+  id: number;
+  nome: string;
+  /** Critérios = o objeto FanFilters serializado em JSON. */
+  criterios: string;
+  created_at: string;
+};
+
 export type FanCreateInput = Omit<
   Fan,
-  "id" | "created_at" | "updated_at" | "last_interaction_at"
+  "id" | "created_at" | "updated_at" | "last_interaction_at" | "origem"
 > & {
   last_interaction_at?: string | null;
+  origem?: string | null;
 };
 
 export type FanUpdateInput = Partial<FanCreateInput> & { id: number };

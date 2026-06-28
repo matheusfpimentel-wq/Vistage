@@ -19,6 +19,7 @@ import type {
   FanPerkCreateInput,
   FanPerkUpdateInput,
   FanScoreThresholds,
+  FanSegment,
   FanUpdateInput,
   FanUpgradeRules,
 } from "./types";
@@ -41,6 +42,19 @@ export type FanFilters = {
   level?: FanLevel | "Todos";
   city?: string;
   search?: string;
+  /** Pertence a este grupo (fan_group_members). */
+  groupId?: number;
+  /** Origem/aquisição exata. */
+  origem?: string;
+  /** Faixa de dias desde a última interação (decaimento). */
+  minDays?: number;
+  maxDays?: number;
+  /** Tem (true) / não tem (false) algum perk. */
+  hasPerk?: boolean;
+  /** Apenas embaixadores (destaque manual). */
+  ambassador?: boolean;
+  /** Esteve nesta GIG (gig_fans). */
+  attendedGigId?: number;
 };
 
 export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
@@ -64,6 +78,34 @@ export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
       `(name LIKE $${i - 3} OR email LIKE $${i - 2} OR phone LIKE $${i - 1} OR instagram LIKE $${i})`
     );
   }
+  if (filters.groupId) {
+    params.push(filters.groupId);
+    where.push(`id IN (SELECT fan_id FROM fan_group_members WHERE group_id = $${params.length})`);
+  }
+  if (filters.origem && filters.origem.trim().length > 0) {
+    params.push(filters.origem.trim());
+    where.push(`origem = $${params.length}`);
+  }
+  if (filters.minDays != null) {
+    params.push(filters.minDays);
+    where.push(`last_interaction_at IS NOT NULL AND julianday('now') - julianday(last_interaction_at) >= $${params.length}`);
+  }
+  if (filters.maxDays != null) {
+    params.push(filters.maxDays);
+    where.push(`last_interaction_at IS NOT NULL AND julianday('now') - julianday(last_interaction_at) <= $${params.length}`);
+  }
+  if (filters.hasPerk === true) {
+    where.push(`EXISTS (SELECT 1 FROM fan_perks WHERE fan_perks.fan_id = fans.id)`);
+  } else if (filters.hasPerk === false) {
+    where.push(`NOT EXISTS (SELECT 1 FROM fan_perks WHERE fan_perks.fan_id = fans.id)`);
+  }
+  if (filters.ambassador === true) {
+    where.push(`is_ambassador = 1`);
+  }
+  if (filters.attendedGigId) {
+    params.push(filters.attendedGigId);
+    where.push(`id IN (SELECT fan_id FROM gig_fans WHERE gig_id = $${params.length})`);
+  }
 
   const sql =
     "SELECT * FROM fans" +
@@ -77,6 +119,51 @@ export async function getFan(id: number): Promise<Fan | null> {
   const db = getDb();
   const rows = await db.select<FanRow[]>("SELECT * FROM fans WHERE id = $1", [id]);
   return rows[0] ? rowToFan(rows[0]) : null;
+}
+
+/** Valores distintos de origem já usados (pro dropdown do filtro). */
+export async function listFanOrigens(): Promise<string[]> {
+  const db = getDb();
+  const rows = await db
+    .select<{ origem: string }[]>(
+      `SELECT DISTINCT origem FROM fans WHERE origem IS NOT NULL AND TRIM(origem) <> '' ORDER BY origem COLLATE NOCASE ASC`
+    )
+    .catch(() => [] as { origem: string }[]);
+  return rows.map((r) => r.origem);
+}
+
+// ── Segmentos (filtros salvos) ───────────────────────────────────────────────
+export async function listFanSegments(): Promise<FanSegment[]> {
+  const db = getDb();
+  return db
+    .select<FanSegment[]>(`SELECT * FROM fan_segments ORDER BY nome COLLATE NOCASE ASC`)
+    .catch(() => [] as FanSegment[]);
+}
+
+export async function createFanSegment(nome: string, criterios: FanFilters): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO fan_segments (nome, criterios) VALUES ($1, $2)`,
+    [nome, JSON.stringify(criterios)]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function deleteFanSegment(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute(`DELETE FROM fan_segments WHERE id = $1`, [id]);
+  emitDataChanged();
+}
+
+/** Decodifica os critérios JSON de um segmento de volta pra FanFilters (tolerante). */
+export function parseFanSegmentCriterios(criterios: string): FanFilters {
+  try {
+    const o = JSON.parse(criterios) as FanFilters;
+    return o && typeof o === "object" ? o : {};
+  } catch {
+    return {};
+  }
 }
 
 export async function createFan(input: FanCreateInput): Promise<number> {
