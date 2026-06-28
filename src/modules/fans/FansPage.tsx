@@ -148,6 +148,7 @@ export function FansPage() {
   const [gigOptions, setGigOptions] = useState<{ id: number; label: string }[]>([]);
   const [origens, setOrigens] = useState<string[]>([]);
   const [segName, setSegName] = useState("");
+  const [savingSeg, setSavingSeg] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Fan | null>(null);
@@ -247,13 +248,16 @@ export function FansPage() {
 
   async function handleSaveSegment() {
     const nome = segName.trim();
-    if (!nome || countActiveFilters(filters) === 0) return;
+    if (!nome || countActiveFilters(filters) === 0 || savingSeg) return;
+    setSavingSeg(true);
     try {
       await createFanSegment(nome, queryFilters);
       toast.success(`Segmento "${nome}" salvo`);
       setSegName("");
     } catch (e) {
       toast.error(`Erro ao salvar segmento: ${String(e)}`);
+    } finally {
+      setSavingSeg(false);
     }
   }
 
@@ -365,8 +369,8 @@ export function FansPage() {
                   disabled={countActiveFilters(filters) === 0}
                   onKeyDown={(e) => { if (e.key === "Enter") void handleSaveSegment(); }}
                 />
-                <Button size="sm" disabled={!segName.trim() || countActiveFilters(filters) === 0} onClick={() => void handleSaveSegment()}>
-                  <Save className="h-4 w-4" /> Salvar segmento
+                <Button size="sm" disabled={!segName.trim() || countActiveFilters(filters) === 0 || savingSeg} onClick={() => void handleSaveSegment()}>
+                  <Save className="h-4 w-4" /> {savingSeg ? "Salvando…" : "Salvar segmento"}
                 </Button>
               </div>
             </div>

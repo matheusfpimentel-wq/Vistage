@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Megaphone, Play, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -41,17 +41,22 @@ export function FanSegmentsPanel({ onApply }: { onApply: (c: FanFilters) => void
   const [segments, setSegments] = useState<FanSegment[]>([]);
   const [actions, setActions] = useState<FanClubAction[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
     setSegments(await listFanSegments());
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
     void loadFanClubConfig().then((c) => setActions(c.actions)).catch(() => {});
     const onChange = () => void refresh();
     window.addEventListener(DATA_CHANGED, onChange);
-    return () => window.removeEventListener(DATA_CHANGED, onChange);
+    return () => {
+      mountedRef.current = false;
+      window.removeEventListener(DATA_CHANGED, onChange);
+    };
   }, [refresh]);
 
   async function handleDelete(seg: FanSegment) {
@@ -80,16 +85,21 @@ export function FanSegmentsPanel({ onApply }: { onApply: (c: FanFilters) => void
     });
     if (!ok) return;
     setBusyId(seg.id);
-    try {
-      for (const f of fans) {
+    // Sequencial com try/catch por fã: uma falha no meio não derruba o resto;
+    // ao fim, reporta quantas saíram e quantas falharam.
+    let okCount = 0;
+    let failCount = 0;
+    for (const f of fans) {
+      try {
         await createFanTask(f.id, action.titleTemplate.replace(/\{nome\}/g, f.name));
+        okCount++;
+      } catch {
+        failCount++;
       }
-      toast.success(`${fans.length} tarefa(s) criada(s) para "${seg.nome}"`);
-    } catch (e) {
-      toast.error(`Erro na ação em lote: ${String(e)}`);
-    } finally {
-      setBusyId(null);
     }
+    if (mountedRef.current) setBusyId(null);
+    if (failCount === 0) toast.success(`${okCount} tarefa(s) criada(s) para "${seg.nome}"`);
+    else toast.error(`${okCount} criada(s), ${failCount} falharam`);
   }
 
   return (
