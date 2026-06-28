@@ -10,6 +10,7 @@ import { getHiddenModules } from "@/lib/moduleVisibility";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
+import { ackCooling, loadCoolingAlerts } from "@/modules/revisao/cooling";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
 import { toast } from "@/components/ui/toaster";
@@ -136,39 +137,6 @@ export async function loadExtraStats(): Promise<ExtraStats> {
   }
 }
 
-export async function loadRelationshipAlerts(): Promise<AlertItem[]> {
-  try {
-    const db = getDb();
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 45);
-    const cutoff = toLocalISODate(cutoffDate); // data LOCAL (não UTC)
-    // Considera como "último contato" o mais recente entre last_interaction_at
-    // e a data da GIG mais recente com esse produtor (promoter_contact_id).
-    // Se houve GIG dentro de 45 dias, não alerta.
-    const rows = await db.select<{ id: number; name: string }[]>(
-      `SELECT c.id, c.name
-         FROM contacts c
-        WHERE c.rating >= 4
-          AND (c.last_interaction_at IS NULL OR c.last_interaction_at < $1)
-          AND COALESCE(
-                (SELECT MAX(g.date) FROM gigs g WHERE g.promoter_contact_id = c.id),
-                '0000-00-00'
-              ) < $1
-        ORDER BY c.rating DESC LIMIT 3`,
-      [cutoff]
-    );
-    return rows.map((c) => ({
-      key: `crm-radar-${c.id}`,
-      label: `Faz mais de 45 dias sem contato com ${c.name}. Boa hora para retomar.`,
-      to: `/pessoas?open=${c.id}`,
-      critical: false,
-      icon: "heart" as const,
-    }));
-  } catch {
-    return [];
-  }
-}
-
 /** GIGs cuja data já passou mas continuam como Confirmada/Proposta. */
 export async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
   try {
@@ -260,12 +228,12 @@ export function NotificationBell() {
         // silently ignore
       }
       void Promise.all([
-        loadRelationshipAlerts(),
+        loadCoolingAlerts(),
         loadStaleGigStatusAlerts(),
         loadOverdueReceivableAlerts(),
         loadPartyFinanceAlerts(),
-      ]).then(([rel, stale, receivables, partyFin]) =>
-        setCrmAlerts([...partyFin, ...receivables, ...stale, ...rel])
+      ]).then(([cooling, stale, receivables, partyFin]) =>
+        setCrmAlerts([...partyFin, ...receivables, ...stale, ...cooling])
       );
     }, 500);
   }, []);
@@ -273,12 +241,12 @@ export function NotificationBell() {
   useEffect(() => {
     const load = () =>
       void Promise.all([
-        loadRelationshipAlerts(),
+        loadCoolingAlerts(),
         loadStaleGigStatusAlerts(),
         loadOverdueReceivableAlerts(),
         loadPartyFinanceAlerts(),
-      ]).then(([rel, stale, receivables, partyFin]) =>
-        setCrmAlerts([...partyFin, ...receivables, ...stale, ...rel])
+      ]).then(([cooling, stale, receivables, partyFin]) =>
+        setCrmAlerts([...partyFin, ...receivables, ...stale, ...cooling])
       );
     load();
     const crmInterval = setInterval(load, 5 * 60_000);
@@ -444,6 +412,17 @@ export function NotificationBell() {
                           }}
                         >
                           Dispensar
+                        </button>
+                      </div>
+                    )}
+                    {a.coolingRefs && a.coolingRefs.length > 0 && (
+                      <div className="mt-1.5 pl-7">
+                        <button
+                          type="button"
+                          className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+                          onClick={() => void ackCooling(a.coolingRefs!)}
+                        >
+                          Deixar esfriar
                         </button>
                       </div>
                     )}

@@ -40,3 +40,32 @@ export function toggleRuleDisabled(id: string, disabled: boolean): string[] {
 export function restoreDefaultRules(): void {
   setDisabledRuleIds([]);
 }
+
+/**
+ * "Tempo de resfriamento" (em dias): além desse tempo sem alimentar, um item
+ * passa a "esfriar" (ver cooling.ts). Configurável pelo usuário e PORTÁTIL
+ * (mesma família "vistage.rules." das regras — viaja no .vistage, hidrata no
+ * cache local pra leitura síncrona, sem marcar o documento como sujo).
+ */
+export const COOLING_DAYS_KEY = "vistage.rules.cooling_days";
+export const DEFAULT_COOLING_DAYS = 15;
+
+/** Lê o tempo de resfriamento (dias) do cache local, com padrão e limites sãos. */
+export function getCoolingDays(): number {
+  try {
+    const raw = localStorage.getItem(COOLING_DAYS_KEY);
+    if (raw) {
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n) && n >= 1 && n <= 365) return n;
+    }
+  } catch {
+    /* storage indisponível — usa o padrão */
+  }
+  return DEFAULT_COOLING_DAYS;
+}
+
+/** Define o tempo de resfriamento (write-through: cache + documento, portátil). */
+export function setCoolingDays(days: number): void {
+  const n = Math.max(1, Math.min(365, Math.round(days)));
+  persistDocSetting(COOLING_DAYS_KEY, String(n));
+}
