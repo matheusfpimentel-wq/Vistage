@@ -1,5 +1,6 @@
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
+import { zipSync, strToU8 } from "fflate";
 import { getDb } from "./db";
 
 export const CSV_ENTITIES = [
@@ -209,27 +210,28 @@ export async function exportTransactionsCsv(
 }
 
 export type ExportAllResult = {
-  folder: string;
+  path: string;
   files: number;
   skippedEmpty: string[];
 };
 
 /**
- * Exporta TODAS as entidades conhecidas (CSV_ENTITIES) para uma pasta
- * escolhida pelo usuário, um arquivo .csv por tabela. Tabelas vazias são
- * puladas. Dá portabilidade total dos dados de uma vez só.
+ * Exporta TODAS as entidades conhecidas (CSV_ENTITIES) num único arquivo .zip
+ * escolhido pelo usuário — um .csv por tabela dentro do zip. Tabelas vazias são
+ * puladas. Dá portabilidade total dos dados de uma vez só, num arquivo só (mesmo
+ * motor fflate do contêiner .vistage).
  */
 export async function exportAllCsv(): Promise<ExportAllResult | null> {
-  const folder = await openDialog({
-    directory: true,
-    multiple: false,
-    title: "Escolher pasta para exportar todos os CSVs",
+  const stamp = new Date().toISOString().slice(0, 10);
+  const path = await saveDialog({
+    title: "Exportar todos os CSVs (.zip)",
+    defaultPath: `vistage-csv-${stamp}.zip`,
+    filters: [{ name: "ZIP", extensions: ["zip"] }],
   });
-  if (!folder || typeof folder !== "string") return null;
+  if (!path) return null;
 
   const db = getDb();
-  const stamp = new Date().toISOString().slice(0, 10);
-  const sep = folder.includes("\\") ? "\\" : "/";
+  const entries: Record<string, Uint8Array> = {};
   let files = 0;
   const skippedEmpty: string[] = [];
 
@@ -242,12 +244,17 @@ export async function exportAllCsv(): Promise<ExportAllResult | null> {
       continue;
     }
     const csv = buildCsv(Object.keys(rows[0]), rows);
-    const path = `${folder}${sep}vistage-${ent.table}-${stamp}.csv`;
-    await writeTextFile(path, csv);
+    // BOM (﻿) para o Excel reconhecer UTF-8 (acentos), igual à exportação avulsa.
+    entries[`vistage-${ent.table}-${stamp}.csv`] = strToU8("﻿" + csv);
     files += 1;
   }
 
-  return { folder, files, skippedEmpty };
+  // level 6: CSV é texto e comprime bem (diferente do .vistage, que embala mídia
+  // já comprimida e por isso usa store/level 0).
+  const bytes = zipSync(entries, { level: 6 });
+  await writeFile(path, bytes);
+
+  return { path, files, skippedEmpty };
 }
 
 export async function pickAndParseCsv(): Promise<string[][] | null> {
