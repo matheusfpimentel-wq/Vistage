@@ -551,3 +551,22 @@ button { font-family: inherit; cursor: pointer; }
 
 /* tap-to-action: linha com vários links (telefone · WhatsApp) */
 .link-row { display: inline-flex; flex-wrap: wrap; gap: 0.1rem 0.7rem; align-items: baseline; }
+
+/* ── §5 Anexo de voz/foto na captura ──────────────────────────────────────── */
+.capture-media { display: flex; flex-direction: column; gap: 0.4rem; }
+.cm-actions { display: flex; gap: 0.5rem; }
+.cm-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.3rem;
+  padding: 0.6rem; border-radius: 12px; font-size: 0.92rem; font-weight: 600; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.cm-btn:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.cm-btn.recording { background: rgba(244, 90, 60, 0.18); border-color: var(--neg); color: var(--neg); }
+.cm-btn.disabled { opacity: 0.4; pointer-events: none; }
+.cm-preview { display: flex; align-items: center; gap: 0.6rem; }
+.cm-preview img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; border: 1px solid var(--border); }
+.cm-preview audio { flex: 1; height: 36px; }
+.cm-remove {
+  background: none; border: none; color: var(--neg); font-size: 0.85rem; font-weight: 600; cursor: pointer;
+}
+.cm-hint { font-size: 0.72rem; }
