@@ -246,7 +246,7 @@ function KpiRow({ data, hidden }: { data: DashData; hidden: Set<string> }) {
   const propostas = monthGigs.filter((g) => g.status === "Proposta").length;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <KpiCard
         label="Receita do mês"
         value={formatCurrency(curRevenue)}

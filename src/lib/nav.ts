@@ -266,12 +266,17 @@ function normalizeOrder(order: string[] | null): string[] | null {
 
 function normalizeItemGroups(groups: ItemGroups): ItemGroups {
   const out: ItemGroups = {};
-  // Remapeia chaves de rota aposentada e, de quebra, normaliza o GRUPO de
-  // destino de cada item (ex.: item salvo em "Gestão" passa a "Administração").
+  // 1ª passada: rotas ATUAIS (não-aposentadas) — têm precedência sobre a legada
+  // (independe da ordem de iteração: a rota atual sempre vence a aposentada).
   for (const [route, group] of Object.entries(groups)) {
-    const key = LEGACY_ROUTE_MAP[route] ?? route;
-    // Rota aposentada só herda o grupo se a rota atual ainda não tiver um.
-    if (out[key] === undefined) out[key] = normalizeGroupName(group);
+    if (LEGACY_ROUTE_MAP[route]) continue;
+    out[route] = normalizeGroupName(group);
+  }
+  // 2ª passada: rota aposentada (ex.: /crm→/pessoas) só herda o grupo se a rota
+  // atual ainda não tiver um. Normaliza também o GRUPO ("Gestão"→"Administração").
+  for (const [route, group] of Object.entries(groups)) {
+    const current = LEGACY_ROUTE_MAP[route];
+    if (current && out[current] === undefined) out[current] = normalizeGroupName(group);
   }
   return out;
 }
