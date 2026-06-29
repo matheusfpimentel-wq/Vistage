@@ -12,6 +12,7 @@ import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
 import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
+import { parsePrepState } from "@/modules/gigs/prep";
 import { loadIdentity } from "@/modules/identity/api";
 import { loadFocusStreak } from "@/modules/foco/api";
 import { loadWeekStats } from "@/modules/revisao/api";
@@ -363,33 +364,16 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     venue_name: string; event_name: string | null; recurring_event_name: string | null;
     venue_city: string | null; venue_address: string | null; status: string; cache_amount: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
-    time_slots: string | null; gig_research: string | null;
+    time_slots: string | null; gig_research: string | null; prep_state: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
             g.venue_city, g.venue_address, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
-            pc.name AS promoter_name, g.time_slots, g.gig_research
+            pc.name AS promoter_name, g.time_slots, g.gig_research, g.prep_state
        FROM gigs g
        LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
       ORDER BY g.date DESC LIMIT 800`,
     []
   );
-  // Tarefas abertas por GIG → checklist de "Preparação" no celular (empacotado no
-  // meta, sem coluna nova no espelho). Tickar no celular manda uma captura task_done.
-  const prepRows = await db
-    .select<{ id: number; title: string; gig_id: number }[]>(
-      `SELECT id, title, gig_id FROM tasks
-        WHERE gig_id IS NOT NULL AND status NOT IN ('Concluída','Cancelada')
-        ORDER BY (due_date IS NULL), due_date LIMIT 500`,
-      []
-    )
-    .catch(() => [] as { id: number; title: string; gig_id: number }[]);
-  const prepByGig = new Map<number, { id: number; title: string }[]>();
-  for (const t of prepRows) {
-    const arr = prepByGig.get(t.gig_id) ?? [];
-    arr.push({ id: t.id, title: t.title });
-    prepByGig.set(t.gig_id, arr);
-  }
-
   for (const g of gigs) {
     // Título da festa (recorrente - edição / evento), com fallback pro venue —
     // mesmo padrão do desktop (gigDisplayName). Antes ia só o venue.
@@ -408,8 +392,9 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
         set_periods: parseMirrorSlots(g.time_slots, g.start_time, g.end_time),
         ideas: parseMirrorIdeas(g.gig_research),
-        // Checklist de Preparação (tarefas abertas da GIG).
-        prep_tasks: prepByGig.get(g.id) ?? [],
+        // Checklist de Preparação (da aba Preparação): ids dos itens já marcados.
+        // A estrutura (grupos/itens) é fixa e replicada no celular (PREP_GROUPS).
+        prep_done: Object.keys(parsePrepState(g.prep_state)),
       },
     });
   }
@@ -1073,6 +1058,34 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         source: "modo_foco",
         source_ref_id: null,
       });
+    }
+  } else if (kind === "prep_check") {
+    // Item do checklist de Preparação (aba Preparação) marcado/desmarcado no
+    // celular → atualiza o JSON em gigs.prep_state (mesma estrutura do PC).
+    const gigId = n("gig_id");
+    const itemId = s("item_id");
+    if (gigId != null && itemId) {
+      const done = n("done") !== 0; // ausente = marcar
+      const rows = await db.select<{ prep_state: string | null }[]>(
+        `SELECT prep_state FROM gigs WHERE id = $1`,
+        [gigId]
+      );
+      const state = parsePrepState(rows[0]?.prep_state ?? null);
+      if (done) state[itemId] = 1;
+      else delete state[itemId];
+      await db.execute(`UPDATE gigs SET prep_state = $1 WHERE id = $2`, [JSON.stringify(state), gigId]);
+    }
+  } else if (kind === "prep_note") {
+    // Insight de preparação (a lâmpada no Modo Foco → Preparação) vai pras
+    // Observações da aba Preparação da GIG (só acrescenta).
+    const gigId = n("gig_id");
+    const note = s("note")?.trim();
+    if (gigId != null && note) {
+      const stamped = `[celular ${todayISO()}] ${note}`;
+      await db.execute(
+        `UPDATE gigs SET prep_notes = TRIM(COALESCE(prep_notes || char(10), '') || $1) WHERE id = $2`,
+        [stamped, gigId]
+      );
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

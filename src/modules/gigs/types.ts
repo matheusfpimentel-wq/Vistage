@@ -97,6 +97,8 @@ export type Gig = {
   main_goal: string | null;
   /** JSON string com `{ [itemId: string]: 1 }` para itens marcados. */
   prep_state: string | null;
+  /** Observações livres da aba Preparação (separadas do checklist). */
+  prep_notes: string | null;
   /** JSON array com IDs de equipamentos a levar. */
   gig_equipment: string;  // JSON array, parsed to number[]
   /** JSON array de músicas pesquisadas para a GIG: [{title, artist, note}] */

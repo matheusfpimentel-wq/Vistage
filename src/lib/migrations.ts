@@ -2256,6 +2256,12 @@ const MIGRATIONS: Migration[] = [
       "Marcadores ao vivo do Modo Foco — performance_moments.tipo: subtipo do momento marcante (técnico/repertório/postura/conexão), espelhando o tipo do ponto fraco. Antes só os pontos fracos carregavam tipo; agora os pontos fortes também, pro debrief quebrar por categoria. Aditiva/idempotente.",
     sql: `ALTER TABLE performance_moments ADD COLUMN tipo TEXT;`,
   },
+  {
+    version: 156,
+    description:
+      "GIG — gigs.prep_notes: observações livres da aba Preparação (separadas do checklist prep_state). A lâmpada de insight do Modo Foco → Preparação no celular acrescenta aqui. Aditiva/idempotente.",
+    sql: `ALTER TABLE gigs ADD COLUMN prep_notes TEXT;`,
+  },
 ];
 
 

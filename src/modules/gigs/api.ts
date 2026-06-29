@@ -63,6 +63,7 @@ const GIG_COLUMNS = [
   "gcal_synced_at",
   "main_goal",
   "prep_state",
+  "prep_notes",
   "main_goal_task_id",
   "prep_task_id",
   "gig_equipment",

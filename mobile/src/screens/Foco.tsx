@@ -177,6 +177,14 @@ function IcBulb({ size = 24 }: { size?: number }) {
     </svg>
   );
 }
+/** CHECK — marcar item da preparação. */
+function IcCheck({ size = 24 }: { size?: number }) {
+  return (
+    <svg {...MK} width={size} height={size} aria-hidden>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
 
 type Persisted = {
   startedAtMs: number;
@@ -223,8 +231,45 @@ type GigMeta = {
   day_contact_phone?: string | null;
   set_periods?: StageSlot[];
   ideas?: string[];
-  prep_tasks?: { id: number; title: string }[];
+  /** Itens do checklist de Preparação (da aba Preparação) já marcados. */
+  prep_done?: string[];
 };
+
+// Checklist de Preparação — estrutura FIXA, espelha PREP_GROUPS do desktop
+// (src/modules/gigs/prep.ts). O estado (marcados) vem por meta.prep_done.
+const PREP_GROUPS: { id: string; title: string; items: { id: string; label: string }[] }[] = [
+  {
+    id: "musical",
+    title: "Preparação Musical",
+    items: [
+      { id: "set-analisado", label: "Set analisado" },
+      { id: "tagging", label: "Tagging" },
+      { id: "hot-cues", label: "Hot cues" },
+      { id: "set-exportado", label: "Set exportado" },
+      { id: "rider-confirmado", label: "Rider confirmado" },
+    ],
+  },
+  {
+    id: "marketing",
+    title: "Marketing",
+    items: [
+      { id: "flyers-recebidos", label: "Flyers e mídias recebidos" },
+      { id: "stories-publicado", label: "Stories publicado" },
+      { id: "fas-acionados", label: "Fãs acionados" },
+    ],
+  },
+  {
+    id: "logistica",
+    title: "Logística",
+    items: [
+      { id: "equip-carregados", label: "Equipamentos carregados (fone, Phase, powerbank)" },
+      { id: "backup-separado", label: "Backup separado" },
+      { id: "timetable-recebida", label: "Timetable recebida" },
+      { id: "outfit-escolhido", label: "Outfit escolhido" },
+      { id: "check-equipamentos", label: "Check geral de equipamentos" },
+    ],
+  },
+];
 type StageGig = { title: string } & GigMeta;
 /** GIG candidata no Modo Foco (palco/preparação): id + título + meta do espelho. */
 type StageGigOption = { id: number; title: string; meta: GigMeta };
@@ -510,45 +555,154 @@ function GestaoPanel({ focusTask }: { focusTask: { id: string; title: string } |
   );
 }
 
-// ── Painel: PREPARAÇÃO (checklist da GIG: tarefas abertas, vêm no meta) ───────
-function PreparacaoPanel({ gig, loading }: { gig: StageGigOption | null; loading: boolean }) {
-  const [done, setDone] = useState<Set<number>>(new Set());
-
-  async function tick(t: { id: number; title: string }) {
-    setDone((d) => new Set(d).add(t.id)); // some na hora (otimista)
-    await enqueueCapture("task_done", { task_id: t.id, title: t.title });
-  }
-
+// ── Painel: PREPARAÇÃO (checklist estruturado da aba Preparação da GIG) ───────
+// Os grupos/itens são fixos (PREP_GROUPS); o que está marcado vem de
+// meta.prep_done. Tocar um item alterna e manda uma captura prep_check.
+function PreparacaoPanel({ gig, loading, done, onTick }: {
+  gig: StageGigOption | null;
+  loading: boolean;
+  done: Set<string>;
+  onTick: (itemId: string, label: string) => void;
+}) {
   if (loading) return <p className="muted center-text">Carregando GIGs…</p>;
   if (!gig) return <p className="muted center-text">Sem GIG confirmada ou proposta à frente pra preparar.</p>;
-  const tasks = gig.meta.prep_tasks ?? [];
-  const visible = tasks.filter((t) => !done.has(t.id));
   return (
     <section className="card">
       <span className="label">Preparar: {gig.title}</span>
-      {visible.length === 0 ? (
-        <p className="muted" style={{ marginTop: "0.4rem" }}>Sem tarefas de preparação abertas pra esta GIG.</p>
-      ) : (
-        <ul className="focus-tasks">
-          {visible.map((t) => (
-            <li key={t.id}>
-              <button type="button" className="focus-task" onClick={() => void tick(t)}>
-                <span className="focus-task-box" aria-hidden />
-                <span className="focus-task-title">{t.title}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {PREP_GROUPS.map((grp) => {
+        const total = grp.items.length;
+        const doneCount = grp.items.filter((it) => done.has(it.id)).length;
+        return (
+          <div key={grp.id} className="prep-group">
+            <div className="prep-group-head">
+              <span className="prep-group-title">{grp.title}</span>
+              <span className="prep-group-count">{doneCount}/{total}</span>
+            </div>
+            <ul className="focus-tasks">
+              {grp.items.map((it) => {
+                const isDone = done.has(it.id);
+                return (
+                  <li key={it.id}>
+                    <button type="button" className="focus-task" onClick={() => onTick(it.id, it.label)}>
+                      <span className={"focus-task-box" + (isDone ? " checked" : "")} aria-hidden />
+                      <span className={"focus-task-title" + (isDone ? " sub-done" : "")}>{it.label}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
       <p className="muted" style={{ fontSize: "0.75rem", marginTop: "0.4rem" }}>
-        Concluir aqui marca no PC na próxima sincronização.
+        Marcar aqui atualiza no PC na próxima sincronização.
       </p>
     </section>
   );
 }
 
-function ContextPanel({ activity, focusTask, stageGig, stageLoading }: { activity: string; focusTask: { id: string; title: string } | null; stageGig: StageGigOption | null; stageLoading: boolean }) {
-  if (activity === "Preparação") return <PreparacaoPanel gig={stageGig} loading={stageLoading} />;
+// Captura ao vivo no Modo Foco → PREPARAÇÃO: nada de erro/momento (isso é palco).
+// Só uma lâmpada (insight → Observações da aba Preparação) e um Check pra marcar
+// um item do checklist, escolhido ao clicar.
+function PrepLiveCapture({ gig, done, onTick }: {
+  gig: StageGigOption | null;
+  done: Set<string>;
+  onTick: (itemId: string, label: string) => void;
+}) {
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [pickOpen, setPickOpen] = useState(false);
+
+  function saveNote() {
+    const t = noteText.trim();
+    if (t && gig) void enqueueCapture("prep_note", { gig_id: gig.id, note: t });
+    setNoteText("");
+    setNoteOpen(false);
+    void haptic("light");
+  }
+  const undone = PREP_GROUPS.flatMap((g) => g.items).filter((it) => !done.has(it.id));
+
+  return (
+    <section className="live-capture">
+      <span className="label">Preparação ao vivo</span>
+      <div className="lc-round-row">
+        <button
+          type="button"
+          className="glass-round lc-round lc-round-idea"
+          onClick={() => setNoteOpen(true)}
+          aria-label="Anotar observação de preparação"
+        >
+          <IcBulb />
+        </button>
+        <button
+          type="button"
+          className="glass-round lc-round lc-round-check"
+          onClick={() => setPickOpen(true)}
+          disabled={!gig}
+          aria-label="Marcar item do checklist"
+        >
+          <IcCheck />
+        </button>
+      </div>
+      <p className="muted lc-hint">Lâmpada: observação. Check: marcar item.</p>
+
+      {noteOpen && (
+        <div className="lc-fan-overlay" onClick={() => setNoteOpen(false)}>
+          <div className="lc-idea-box" onClick={(e) => e.stopPropagation()}>
+            <span className="label">Observação da preparação</span>
+            <textarea
+              autoFocus
+              rows={2}
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Anota a observação (curtinho)…"
+            />
+            <div className="lc-idea-actions">
+              <button type="button" className="ghost" onClick={() => { setNoteText(""); setNoteOpen(false); }}>
+                Cancelar
+              </button>
+              <button type="button" className="primary" onClick={saveNote}>
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pickOpen && (
+        <div className="lc-fan-overlay" onClick={() => setPickOpen(false)}>
+          <div className="lc-idea-box lc-pick-box" onClick={(e) => e.stopPropagation()}>
+            <span className="label">Marcar item da preparação</span>
+            {undone.length === 0 ? (
+              <p className="muted small" style={{ margin: "0.3rem 0" }}>Tudo marcado! 🎉</p>
+            ) : (
+              <ul className="focus-tasks">
+                {undone.map((it) => (
+                  <li key={it.id}>
+                    <button
+                      type="button"
+                      className="focus-task"
+                      onClick={() => { onTick(it.id, it.label); setPickOpen(false); }}
+                    >
+                      <span className="focus-task-box" aria-hidden />
+                      <span className="focus-task-title">{it.label}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="lc-idea-actions">
+              <button type="button" className="ghost" onClick={() => setPickOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ContextPanel({ activity, focusTask, stageGig, stageLoading, prepDone, onTickPrep }: { activity: string; focusTask: { id: string; title: string } | null; stageGig: StageGigOption | null; stageLoading: boolean; prepDone: Set<string>; onTickPrep: (itemId: string, label: string) => void }) {
+  if (activity === "Preparação") return <PreparacaoPanel gig={stageGig} loading={stageLoading} done={prepDone} onTick={onTickPrep} />;
   if (activity === "Tempo de palco") return <StagePanel option={stageGig} loading={stageLoading} />;
   if (activity === "Criação musical") return <MusicPanel />;
   if (activity === "Gestão") return <GestaoPanel focusTask={focusTask} />;
@@ -886,6 +1040,9 @@ export function Foco() {
   const stageGigRef = useRef<StageGigOption | null>(null);
   const [gigOptions, setGigOptions] = useState<StageGigOption[]>([]);
   const [gigsReady, setGigsReady] = useState(true);
+  // Checklist de Preparação marcado (otimista) da GIG escolhida — semeado pelo
+  // meta.prep_done e alterado pelo painel/Check do Modo Foco (manda prep_check).
+  const [prepDone, setPrepDone] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1115,6 +1272,26 @@ export function Foco() {
     stageGigRef.current = o;
   }
 
+  // Semeia o checklist de Preparação com o que já está marcado na GIG (meta).
+  useEffect(() => {
+    setPrepDone(new Set(stageGig?.meta.prep_done ?? []));
+  }, [stageGig?.id]);
+
+  // Alterna um item do checklist de Preparação (otimista) e manda a captura.
+  function tickPrep(itemId: string, label: string) {
+    const sg = stageGigRef.current;
+    if (!sg) return;
+    const willDone = !prepDone.has(itemId);
+    setPrepDone((d) => {
+      const next = new Set(d);
+      if (willDone) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+    void enqueueCapture("prep_check", { gig_id: sg.id, item_id: itemId, item_label: label, done: willDone ? 1 : 0 });
+    void haptic("light");
+  }
+
   async function save() {
     if (!doneAt) return;
     setBusy(true);
@@ -1197,7 +1374,9 @@ export function Foco() {
 
           {/* Captura ao vivo: LOGO ABAIXO do relógio e EM CIMA de Encerrar,
               num arco que segue a linha do círculo. */}
-          {phase === "running" && <LiveCapture markers={markers} onMark={addMarker} />}
+          {phase === "running" && (activity === "Preparação"
+            ? <PrepLiveCapture gig={stageGig} done={prepDone} onTick={tickPrep} />
+            : <LiveCapture markers={markers} onMark={addMarker} />)}
 
           {phase === "idle" ? (
             <div className="form" style={{ width: "100%", maxWidth: 360 }}>
@@ -1238,7 +1417,7 @@ export function Foco() {
               loading={!gigsReady}
             />
           )}
-          <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} stageLoading={!gigsReady} />
+          <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} stageLoading={!gigsReady} prepDone={prepDone} onTickPrep={tickPrep} />
         </>
       )}
 
