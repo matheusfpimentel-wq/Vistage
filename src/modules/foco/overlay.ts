@@ -8,7 +8,7 @@ const OVERLAY_LABEL = "work-session";
  * a criação da janela (aqui) e o toggle Expandir/Retrair (SessionOverlay).
  */
 export const OVERLAY_COMPACT = { w: 168, h: 168 };
-export const OVERLAY_EXPANDED = { w: 300, h: 540 };
+export const OVERLAY_EXPANDED = { w: 320, h: 600 };
 
 // Prevents concurrent calls from creating two windows before the first one is registered.
 let _creating = false;

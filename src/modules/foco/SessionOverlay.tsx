@@ -224,18 +224,20 @@ export function SessionOverlay() {
         <button
           type="button"
           onClick={() => void closeSelf()}
+          onMouseDown={(e) => e.stopPropagation()}
           title="Fechar mini-janela"
-          className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
+          className="absolute right-0.5 top-0.5 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
         >
-          <X className="h-3 w-3" />
+          <X className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           onClick={() => void toggleExpand()}
+          onMouseDown={(e) => e.stopPropagation()}
           title="Expandir — ver informações da sessão"
-          className="absolute bottom-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
+          className="absolute bottom-0.5 right-0.5 flex h-6 w-6 items-center justify-center rounded text-muted-foreground/70 transition hover:bg-accent hover:text-foreground"
         >
-          <Maximize2 className="h-3 w-3" />
+          <Maximize2 className="h-3.5 w-3.5" />
         </button>
         {expired && (
           <span className="pointer-events-none absolute left-1/2 top-0.5 -translate-x-1/2 text-[11px]">
@@ -259,10 +261,11 @@ export function SessionOverlay() {
         <button
           type="button"
           onClick={() => void closeSelf()}
+          onMouseDown={(e) => e.stopPropagation()}
           title="Fechar mini-janela"
-          className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition hover:bg-accent hover:text-foreground"
+          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition hover:bg-accent hover:text-foreground"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
