@@ -44,6 +44,9 @@ type EntityOption = { id: number; name: string };
 
 const ACTIVITY_CONTEXT: Record<string, string> = {
   "Tempo de palco": "gig",
+  // Preparação de um show: vincula a uma GIG (confirmada/proposta) e mostra o
+  // checklist de preparação dela (tarefas abertas da GIG) durante o foco.
+  "Preparação": "gig",
   "Criação musical": "track",
   Aulas: "class",
   "Produção de festa": "party",
