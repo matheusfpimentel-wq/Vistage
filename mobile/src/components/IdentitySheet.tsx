@@ -84,7 +84,7 @@ export function IdentitySheet({
             />
           </label>
           <button className="primary" disabled={saving || !dirty} onClick={() => void save()}>
-            {saving ? "Enviando…" : saved ? "Enviado ✓ — revisar no PC" : "Salvar nome"}
+            {saving ? "Enviando…" : saved ? "Enviado ✓ · revisar no PC" : "Salvar nome"}
           </button>
 
           <div className="identity-stats">

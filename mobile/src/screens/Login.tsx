@@ -74,7 +74,7 @@ export function Login() {
         {busy ? (isSignup ? "Criando…" : "Entrando…") : isSignup ? "Criar conta" : "Entrar"}
       </button>
       <button className="link" style={{ marginTop: "0.75rem" }} onClick={toggleMode}>
-        {isSignup ? "Já tenho conta — entrar" : "Criar uma conta"}
+        {isSignup ? "Já tenho conta · entrar" : "Criar uma conta"}
       </button>
     </div>
   );

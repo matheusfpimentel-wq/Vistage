@@ -513,7 +513,7 @@ function NotificationsCard() {
     setMsg(null);
     const r = await sendTestPush();
     setBusy(false);
-    setMsg(r.ok ? "Resumo enviado — deve chegar em instantes." : r.reason ?? "Falhou.");
+    setMsg(r.ok ? "Resumo enviado · deve chegar em instantes." : r.reason ?? "Falhou.");
   }
 
   return (

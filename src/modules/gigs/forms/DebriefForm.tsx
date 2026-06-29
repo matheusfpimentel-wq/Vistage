@@ -330,7 +330,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     setSaving(true);
     try {
       await persistDebrief(false);
-      toast.warning("Debrief salvo como pendente — finalize quando puder.");
+      toast.warning("Debrief salvo como pendente: finalize quando puder.");
       onCompleted();
       onOpenChange?.(false);
     } catch (e) {
@@ -505,7 +505,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
           {/* ============ AVALIAÇÕES ============ */}
           <TabsContent value="ratings" className="space-y-6">
             <RatingSlider
-              label="Carisma — presença de palco, conexão com o público"
+              label="Carisma: presença de palco, conexão com o público"
               required
               value={state.rating_charisma}
               note={state.rating_charisma_note}
@@ -513,7 +513,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
               onNoteChange={(n) => set("rating_charisma_note", n)}
             />
             <RatingSlider
-              label="Técnica — mixagem, transições, leitura de pista"
+              label="Técnica: mixagem, transições, leitura de pista"
               required
               value={state.rating_technique}
               note={state.rating_technique_note}
@@ -521,7 +521,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
               onNoteChange={(n) => set("rating_technique_note", n)}
             />
             <RatingSlider
-              label="Repertório — escolhas musicais, curadoria do set"
+              label="Repertório: escolhas musicais, curadoria do set"
               required
               value={state.rating_repertoire}
               note={state.rating_repertoire_note}
