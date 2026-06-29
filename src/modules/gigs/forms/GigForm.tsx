@@ -1385,7 +1385,9 @@ function ResearchList({
   );
 }
 
-/** Lista editável linha-a-linha. Persiste como texto com linhas separadas por \n. */
+/** Lista editável linha-a-linha. Persiste como texto com linhas separadas por \n.
+    Mantém estado interno editável (permite linha vazia e espaços enquanto digita);
+    só normaliza (trim + remove vazias) ao propagar pro pai. */
 function LineListField({
   value,
   onChange,
@@ -1395,10 +1397,26 @@ function LineListField({
   onChange: (v: string | null) => void;
   placeholder?: string;
 }) {
-  const lines = (value ?? "").split("\n").filter((l) => l.trim().length > 0);
-  const rows = lines.length > 0 ? lines : [""];
+  const split = (v: string | null) => (v ?? "").split("\n").filter((l) => l.trim().length > 0);
+  const [rows, setRows] = useState<string[]>(() => {
+    const l = split(value);
+    return l.length > 0 ? l : [""];
+  });
 
-  function commit(next: string[]) {
+  // Re-sincroniza se o value EXTERNO mudar (trocar de GIG, carregar rascunho) sem
+  // brigar com a digitação: só quando o conteúdo normalizado realmente difere.
+  useEffect(() => {
+    const external = split(value);
+    const current = rows.map((l) => l.trim()).filter((l) => l.length > 0);
+    if (external.join("\n") !== current.join("\n")) {
+      setRows(external.length > 0 ? external : [""]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  // Atualiza o estado interno (cru) e propaga o valor normalizado pro pai.
+  function update(next: string[]) {
+    setRows(next.length > 0 ? next : [""]);
     const cleaned = next.map((l) => l.trim()).filter((l) => l.length > 0);
     onChange(cleaned.length > 0 ? cleaned.join("\n") : null);
   }
@@ -1413,7 +1431,7 @@ function LineListField({
             onChange={(e) => {
               const next = [...rows];
               next[i] = e.target.value;
-              commit(next);
+              update(next);
             }}
           />
           <Button
@@ -1421,19 +1439,20 @@ function LineListField({
             size="icon"
             variant="ghost"
             className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-            onClick={() => commit(rows.filter((_, idx) => idx !== i))}
+            onClick={() => update(rows.filter((_, idx) => idx !== i))}
             aria-label="Remover"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       ))}
+      {/* Adiciona uma linha vazia editável (NÃO normaliza — senão a vazia some). */}
       <Button
         type="button"
         size="sm"
         variant="outline"
         className="text-xs"
-        onClick={() => commit([...rows, ""])}
+        onClick={() => setRows((r) => [...r, ""])}
       >
         <Plus className="h-3.5 w-3.5" /> Adicionar
       </Button>
