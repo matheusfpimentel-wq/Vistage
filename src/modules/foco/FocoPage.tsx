@@ -47,6 +47,7 @@ import {
   updateMomentDescription,
   deleteMoment,
   WEAK_TIPO_LABEL,
+  STRONG_TIPO_LABEL,
   type HeatmapCell,
   type ActivityStats,
   type TimePerProject,
@@ -453,7 +454,7 @@ function SessionMarkerPanel({
   markers: SessionMarkers;
   onChanged: () => Promise<void>;
 }) {
-  const { weakPoints, moments, weakByTipo } = markers;
+  const { weakPoints, moments, weakByTipo, momentsByTipo } = markers;
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
@@ -489,14 +490,22 @@ function SessionMarkerPanel({
 
       {moments.length > 0 && (
         <div className="space-y-2">
-          <span className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500">
-            <Star className="h-3.5 w-3.5" /> Momentos marcantes
-          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-500">
+              <Star className="h-3.5 w-3.5" /> Pontos fortes
+            </span>
+            {momentsByTipo.map((m) => (
+              <span key={m.tipo} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+                {STRONG_TIPO_LABEL[m.tipo] ?? m.tipo} ×{m.count}
+              </span>
+            ))}
+          </div>
           <div className="space-y-1.5">
             {moments.map((m) => (
               <MarkerEditRow
                 key={m.id}
                 badge={formatAtMs(m.at_ms)}
+                tag={STRONG_TIPO_LABEL[m.tipo ?? "outra"] ?? m.tipo ?? "Outro"}
                 descricao={m.descricao}
                 onSave={(text) => updateMomentDescription(m.id, text)}
                 onDelete={async () => { await deleteMoment(m.id); await onChanged(); }}
