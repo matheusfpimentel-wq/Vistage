@@ -106,8 +106,16 @@ export function MobileChangesDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && setDismissed(true)}>
-      <DialogContent className="max-w-md">
+    // Decisão OBRIGATÓRIA: não fecha ao clicar fora / Esc / X — só pelos botões
+    // (Depois / Descartar / Fundir). Evita descartar sem querer o que veio do
+    // celular. "Depois" adia; num novo início de sessão o app pergunta de novo.
+    <Dialog open={open}>
+      <DialogContent
+        className="max-w-md"
+        hideClose
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="h-4 w-4" />
@@ -117,7 +125,7 @@ export function MobileChangesDialog() {
 
         <p className="text-sm text-muted-foreground">
           Você adicionou {pending.length} {pending.length === 1 ? "coisa" : "coisas"} no
-          celular. Quer adicionar ao seu arquivo agora?
+          celular. Decida o que fazer — não fecha sozinho pra você não perder nada.
         </p>
 
         <ul className="max-h-60 space-y-1.5 overflow-y-auto">
