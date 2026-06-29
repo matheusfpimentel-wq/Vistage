@@ -243,8 +243,9 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       ).catch(() => {});
     }
     // Espelhamento: conclui as demais tarefas de preparação vinculadas à GIG,
-    // exceto a de cobrança (payment_task_id), que sobrevive até o cachê entrar.
-    await syncGigLinkedTasksStatus(id, "Concluída", { keepPaymentTask: true }).catch(() => {});
+    // exceto a de cobrança (sobrevive até o cachê entrar) e os OBJETIVOS da GIG
+    // (metas a perseguir — ficam abertas mesmo depois do show).
+    await syncGigLinkedTasksStatus(id, "Concluída", { keepPaymentTask: true, keepObjectiveTasks: true }).catch(() => {});
     // Auto-create debrief task (idempotent)
     try {
       const gigRow = rows[0];
@@ -439,7 +440,7 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
 async function syncGigLinkedTasksStatus(
   gigId: number,
   status: "Concluída" | "Cancelada",
-  opts?: { keepPaymentTask?: boolean }
+  opts?: { keepPaymentTask?: boolean; keepObjectiveTasks?: boolean }
 ): Promise<void> {
   const db = getDb();
   let exceptId: number | null = null;
@@ -450,11 +451,18 @@ async function syncGigLinkedTasksStatus(
     );
     exceptId = rows[0]?.payment_task_id ?? null;
   }
+  // Objetivos da GIG (principal + concretos, tag "objetivo-gig") são METAS a
+  // perseguir — não chores de preparação. NÃO se concluem só porque a GIG
+  // aconteceu: continuam abertas pra o usuário tocar depois. Só preparação,
+  // logística e afins entram no espelhamento de conclusão.
+  const objectiveClause = opts?.keepObjectiveTasks
+    ? " AND (tags IS NULL OR tags NOT LIKE '%objetivo-gig%')"
+    : "";
   await db.execute(
     `UPDATE tasks SET status = $1, updated_at = CURRENT_TIMESTAMP
        WHERE gig_id = $2
          AND status NOT IN ('Concluída', 'Cancelada')
-         AND ($3 IS NULL OR id <> $3)`,
+         AND ($3 IS NULL OR id <> $3)${objectiveClause}`,
     [status, gigId, exceptId]
   );
   emitDataChanged();
