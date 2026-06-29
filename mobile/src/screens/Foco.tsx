@@ -241,6 +241,11 @@ type GigMeta = {
   ideas?: string[];
   /** Itens do checklist de Preparação (da aba Preparação) já marcados. */
   prep_done?: string[];
+  /** Objetivos da GIG (aba Briefing) pro card de objetivos no palco. */
+  main_goal?: string | null;
+  opportunities?: string | null;
+  concrete_goals?: string[];
+  targets?: string[];
 };
 
 // Checklist de Preparação — estrutura FIXA, espelha PREP_GROUPS do desktop
@@ -343,8 +348,12 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
       ? [{ start: gig.start_time, end: gig.end_time ?? "" }]
       : [];
   const wa = gig.day_contact_phone ? `https://wa.me/${gig.day_contact_phone.replace(/\D/g, "")}` : null;
+  const concretos = gig.concrete_goals ?? [];
+  const alvos = gig.targets ?? [];
+  const hasGoals = !!(gig.main_goal || gig.opportunities || concretos.length || alvos.length);
 
   return (
+    <>
     <section className="card stage">
       <span className="label">{gig.date && gig.date < todayISO() ? "No palco" : gig.date === todayISO() ? "Hoje no palco" : "Próximo palco"}</span>
       <strong className="stage-title">{gig.title}</strong>
@@ -398,6 +407,45 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
         </>
       )}
     </section>
+
+    {hasGoals && (
+      <section className="card stage-goals">
+        <span className="label">Objetivos</span>
+        {gig.main_goal && (
+          <div className="goal-block">
+            <span className="goal-h">Objetivo principal</span>
+            <p className="goal-text">{gig.main_goal}</p>
+          </div>
+        )}
+        {gig.opportunities && (
+          <div className="goal-block">
+            <span className="goal-h">Oportunidades</span>
+            <p className="goal-text">{gig.opportunities}</p>
+          </div>
+        )}
+        {(concretos.length > 0 || alvos.length > 0) && (
+          <div className="goal-cols">
+            <div className="goal-col">
+              <span className="goal-h">Concretos</span>
+              {concretos.length > 0 ? (
+                <ul className="goal-list">{concretos.map((g, i) => <li key={i}>{g}</li>)}</ul>
+              ) : (
+                <span className="muted small">—</span>
+              )}
+            </div>
+            <div className="goal-col">
+              <span className="goal-h">Alvos</span>
+              {alvos.length > 0 ? (
+                <ul className="goal-list">{alvos.map((t, i) => <li key={i}>{t}</li>)}</ul>
+              ) : (
+                <span className="muted small">—</span>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+    )}
+    </>
   );
 }
 

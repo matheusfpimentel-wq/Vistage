@@ -264,6 +264,17 @@ button { font-family: inherit; cursor: pointer; }
 .stage-timing.live { color: var(--pos); }
 .stage-rows { margin-top: 0.25rem; }
 
+/* Card de objetivos no palco: principal + oportunidades em cima, 2 colunas embaixo. */
+.stage-goals { display: flex; flex-direction: column; gap: 0.6rem; }
+.goal-block { display: flex; flex-direction: column; gap: 0.15rem; }
+.goal-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.goal-text { margin: 0; font-size: 0.92rem; line-height: 1.4; white-space: pre-wrap; }
+.goal-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+.goal-col { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.goal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.88rem; }
+.goal-list li { position: relative; padding-left: 0.8rem; overflow-wrap: anywhere; }
+.goal-list li::before { content: "·"; position: absolute; left: 0.2rem; color: var(--accent); font-weight: 700; }
+
 /* Picker de GIG no Modo Foco (palco/preparação): escolher entre as futuras. */
 .gig-picker { display: flex; flex-direction: column; gap: 0.35rem; width: 100%; margin-bottom: 0.5rem; }
 .gig-picker-list { display: flex; flex-direction: column; gap: 0.35rem; }
