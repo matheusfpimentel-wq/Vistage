@@ -230,31 +230,48 @@ type StageGig = { title: string } & GigMeta;
 type StageGigOption = { id: number; title: string; meta: GigMeta };
 
 // Palco vincula a GIGs CONFIRMADAS; preparação também aceita PROPOSTAS. ("A
-// Caminho" conta como confirmada — é o status do dia da GIG.) Sempre futuras.
+// Caminho" conta como confirmada — é o status do dia da GIG.)
 const STAGE_CONFIRMED = ["Confirmada", "A Caminho"];
 
-/** GIGs futuras elegíveis pro modo, ordenadas pela mais próxima primeiro — viram
-    as opções do picker (o usuário escolhe; o padrão é a primeira/mais próxima). */
+/** GIGs elegíveis pro modo, viram as opções do picker (padrão = a mais próxima).
+    Palco: QUALQUER confirmada, mesmo com a data já passada — útil no atraso de
+    entrada (vira o dia seguinte e a GIG ainda é "a de ontem"); ordena pela
+    proximidade de hoje. Preparação: só futuras (confirmadas ou propostas). */
 function eligibleStageGigs(
   rows: { source_id: string; title: string; meta: GigMeta }[],
   activity: string
 ): StageGigOption[] {
   const today = todayISO();
-  const allowProposta = activity === "Preparação";
-  return rows
+  const isPrep = activity === "Preparação";
+  const todayMs = Date.parse(`${today}T00:00:00`);
+  const list = rows
     .map((r) => ({ id: Number(r.source_id), title: r.title, meta: (r.meta ?? {}) as GigMeta }))
     .filter((g) => {
       if (!Number.isFinite(g.id)) return false;
       const d = g.meta.date;
-      if (typeof d !== "string" || d < today) return false;
+      if (typeof d !== "string") return false;
+      if (isPrep && d < today) return false; // preparar é pro que está por vir
       const st = g.meta.status ?? "";
       if (STAGE_CONFIRMED.includes(st)) return true;
-      return allowProposta && st === "Proposta";
-    })
-    .sort((a, b) => {
+      return isPrep && st === "Proposta";
+    });
+  if (isPrep) {
+    // Preparação: mais próxima primeiro (todas futuras).
+    return list.sort((a, b) => {
       const da = a.meta.date ?? "", db = b.meta.date ?? "";
       return da < db ? -1 : da > db ? 1 : (a.meta.start_time ?? "").localeCompare(b.meta.start_time ?? "");
     });
+  }
+  // Palco: pela proximidade de hoje; em empate, a futura antes da passada.
+  return list.sort((a, b) => {
+    const ka = Math.abs(Date.parse(`${a.meta.date}T00:00:00`) - todayMs);
+    const kb = Math.abs(Date.parse(`${b.meta.date}T00:00:00`) - todayMs);
+    if (ka !== kb) return ka - kb;
+    const af = (a.meta.date ?? "") >= today ? 0 : 1;
+    const bf = (b.meta.date ?? "") >= today ? 0 : 1;
+    if (af !== bf) return af - bf;
+    return (a.meta.start_time ?? "").localeCompare(b.meta.start_time ?? "");
+  });
 }
 
 function fmtDate(d?: string): string {
@@ -276,7 +293,7 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
 
   return (
     <section className="card stage">
-      <span className="label">{gig.date === todayISO() ? "Hoje no palco" : "Próximo palco"}</span>
+      <span className="label">{gig.date && gig.date < todayISO() ? "No palco" : gig.date === todayISO() ? "Hoje no palco" : "Próximo palco"}</span>
       <strong className="stage-title">{gig.title}</strong>
       <div className="muted stage-sub">{[fmtDate(gig.date), gig.city].filter(Boolean).join(" · ")}</div>
       <dl className="detail-rows stage-rows">
