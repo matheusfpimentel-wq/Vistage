@@ -329,7 +329,7 @@ export function WorkSessionWidget() {
       setTechnique(3);
       setCharisma(3);
       if (stageGigId) {
-        toast.success("Set encerrado — vamos pro debrief enquanto está fresco.");
+        toast.success("Set encerrado: vamos pro debrief enquanto está fresco.");
         navigate(`/gigs?debrief=${stageGigId}`);
       } else {
         toast.success("Sessão encerrada");
@@ -448,15 +448,15 @@ export function WorkSessionWidget() {
       <Dialog open={endOpen} onOpenChange={setEndOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Encerrar sessão — {session?.activity_type}</DialogTitle>
+            <DialogTitle>Encerrar sessão: {session?.activity_type}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {session?.activity_type === "Tempo de palco" ? (
               <>
                 {/* Palco: avalia o SET (vai pro debrief da GIG), não energia/foco. */}
-                <RatingRow label="Repertório — curadoria do set" value={repertoire} onChange={setRepertoire} />
-                <RatingRow label="Técnica — mixagem, transições" value={technique} onChange={setTechnique} />
-                <RatingRow label="Carisma — presença, conexão" value={charisma} onChange={setCharisma} />
+                <RatingRow label="Repertório: curadoria do set" value={repertoire} onChange={setRepertoire} />
+                <RatingRow label="Técnica: mixagem, transições" value={technique} onChange={setTechnique} />
+                <RatingRow label="Carisma: presença, conexão" value={charisma} onChange={setCharisma} />
                 <p className="text-[11px] text-muted-foreground">
                   As avaliações entram no debrief da GIG — você detalha lá em seguida.
                 </p>

@@ -736,7 +736,7 @@ function MarkerSummary({ markers }: { markers: Marker[] }) {
           Ideias: {ideas.length} · {ideas.map((m) => fmtAt(m.atMs)).join(", ")}
         </p>
       )}
-      <p className="muted ms-hint">Já capturados — descreva cada um no PC, na revisão do GIG.</p>
+      <p className="muted ms-hint">Já capturados: descreva cada um no PC, na revisão do GIG.</p>
     </div>
   );
 }

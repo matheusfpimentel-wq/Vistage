@@ -791,7 +791,7 @@ export function GigForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field
                 label="Contato no dia"
-                hint="Quem te recebe na chegada — produção, RP, etc."
+                hint="Quem te recebe na chegada: produção, RP, etc."
               >
                 <Input
                   value={state.day_contact_name ?? ""}
@@ -1500,7 +1500,7 @@ function EquipmentToCarry({
     <div className="space-y-3">
       <Label className="text-sm">O que preciso levar</Label>
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">Patrimônio cadastrado — marque o que vai usar nessa GIG:</p>
+        <p className="text-xs text-muted-foreground">Patrimônio cadastrado: marque o que vai usar nessa GIG:</p>
         {categories.map((cat) => {
           const items = allEquipment.filter((e) => (e.category ?? "Sem categoria") === cat);
           return (

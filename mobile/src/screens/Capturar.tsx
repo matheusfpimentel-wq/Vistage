@@ -89,7 +89,7 @@ export function Capturar() {
         });
       }
       setF(EMPTY);
-      setMsg(kind === "gig" ? "GIG criada ✓ — já aparece aqui e sobe pro PC." : "Capturado ✓ — sincroniza sozinho.");
+      setMsg(kind === "gig" ? "GIG criada ✓ · já aparece aqui e sobe pro PC." : "Capturado ✓ · sincroniza sozinho.");
       // Dá um instante pro flush (online) terminar e confirma a subida.
       await new Promise((r) => setTimeout(r, 700));
       if ((await pendingCount()) === 0) setMsg("Sincronizado ✓ no PC.");
