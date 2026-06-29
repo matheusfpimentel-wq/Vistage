@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Film, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Film, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
-import { loadGigMarkers, WEAK_TIPO_LABEL, type SessionMarkers } from "@/modules/foco/api";
+import { clearGigMarkers, loadGigMarkers, STRONG_TIPO_LABEL, WEAK_TIPO_LABEL, type SessionMarkers } from "@/modules/foco/api";
 import {
   addFanInteraction,
   checkAndUpgradeFan,
@@ -102,15 +102,6 @@ function isComplete(state: DebriefState): boolean {
   );
 }
 
-/** mm:ss do instante DENTRO do set em que o marcador foi tocado (ao vivo). */
-function fmtMarkerAt(atMs: number | null): string {
-  if (atMs == null) return "";
-  const total = Math.max(0, Math.floor(atMs / 1000));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 /** Permite ao GigForm finalizar o debrief embutido pelo seu próprio "Salvar". */
 export type DebriefHandle = { commit: () => Promise<void> };
 
@@ -161,8 +152,24 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     void loadGigMarkers(gig.id).then(setLiveMarkers).catch(() => setLiveMarkers(null));
     (async () => {
       const draft = await loadDebriefDraft(gig.id);
-      if (draft) setState({ ...gigToDebrief(gig), ...(draft as DebriefState) });
-      else setState(gigToDebrief(gig));
+      const base = gigToDebrief(gig);
+      if (draft) {
+        const merged = { ...base, ...(draft as DebriefState) };
+        // Avaliações vindas do sync do celular (gravadas NA GIG) não podem ser
+        // apagadas por um rascunho antigo que ainda estava sem nota: se o rascunho
+        // está null e a GIG tem nota, a da GIG vence (senão a estrela "some").
+        for (const k of [
+          "rating_charisma",
+          "rating_technique",
+          "rating_repertoire",
+          "rating_contractor",
+        ] as const) {
+          if (merged[k] == null && base[k] != null) merged[k] = base[k];
+        }
+        setState(merged);
+      } else {
+        setState(base);
+      }
       // libera autosave após o estado inicial
       window.setTimeout(() => {
         skipNextSave.current = false;
@@ -198,6 +205,25 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       const cur = (s[key] ?? "").trim();
       return { ...s, [key]: cur ? `${cur}\n${line}` : line };
     });
+  }
+
+  /** Apaga os marcadores ao vivo desta GIG (o "x" do bloco) pra não ficarem pra
+   *  sempre — o texto que você já copiou pros campos permanece. */
+  async function clearMarkers() {
+    const ok = await confirmDialog({
+      title: "Apagar marcadores ao vivo",
+      description:
+        "Remove os pontos fortes/fracos marcados ao vivo no Modo Foco desta GIG. O que você já copiou pros campos fica. Apagar?",
+      confirmLabel: "Apagar",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await clearGigMarkers(gig.id);
+      setLiveMarkers(null);
+    } catch (e) {
+      toast.error(`Erro ao apagar: ${String(e)}`);
+    }
   }
 
   /** Cria todas as tarefas a partir do debrief (chamado ao salvar). */
@@ -429,17 +455,28 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
           <TabsContent value="learn" className="space-y-4">
             {liveMarkers && (liveMarkers.moments.length > 0 || liveMarkers.weakPoints.length > 0) && (
               <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Marcado ao vivo no Modo Foco
-                </p>
-                {liveMarkers.moments.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Marcado ao vivo no Modo Foco
+                  </p>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() => void clearMarkers()}
+                    aria-label="Apagar marcadores ao vivo"
+                    title="Apagar marcadores ao vivo"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                {liveMarkers.momentsByTipo.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
                       Pontos fortes:
                     </span>
-                    {liveMarkers.moments.map((m) => (
-                      <span key={m.id} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
-                        {fmtMarkerAt(m.at_ms)}
+                    {liveMarkers.momentsByTipo.map((m) => (
+                      <span key={m.tipo} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                        {STRONG_TIPO_LABEL[m.tipo] ?? m.tipo} ×{m.count}
                       </span>
                     ))}
                     <button
@@ -448,7 +485,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                       onClick={() =>
                         appendTo(
                           "debrief_strengths",
-                          `Momentos marcados ao vivo: ${liveMarkers.moments.map((m) => fmtMarkerAt(m.at_ms)).filter(Boolean).join(", ")}`
+                          `Pontos fortes (marcado ao vivo): ${liveMarkers.momentsByTipo.map((m) => `${STRONG_TIPO_LABEL[m.tipo] ?? m.tipo} ×${m.count}`).join(", ")}`
                         )
                       }
                     >

@@ -2250,6 +2250,12 @@ const MIGRATIONS: Migration[] = [
       UPDATE focus_blocks SET category = 'Preparação' WHERE category = 'Treino';
     `,
   },
+  {
+    version: 155,
+    description:
+      "Marcadores ao vivo do Modo Foco — performance_moments.tipo: subtipo do momento marcante (técnico/repertório/postura/conexão), espelhando o tipo do ponto fraco. Antes só os pontos fracos carregavam tipo; agora os pontos fortes também, pro debrief quebrar por categoria. Aditiva/idempotente.",
+    sql: `ALTER TABLE performance_moments ADD COLUMN tipo TEXT;`,
+  },
 ];
 
 

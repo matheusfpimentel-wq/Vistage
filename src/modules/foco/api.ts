@@ -304,6 +304,7 @@ export type PerfMoment = {
   id: number;
   focus_session_id: string | null;
   gig_id: number | null;
+  tipo: string | null;
   at_ms: number | null;
   at: string | null;
   descricao: string | null;
@@ -315,6 +316,8 @@ export type SessionMarkers = {
   moments: PerfMoment[];
   /** Pontos fracos agregados por tipo, do mais frequente ao menos (pro resumo). */
   weakByTipo: { tipo: string; count: number }[];
+  /** Pontos fortes (momentos) agregados por tipo, idem. */
+  momentsByTipo: { tipo: string; count: number }[];
 };
 
 /** Rótulos legíveis dos tipos de ponto fraco (espelha o WeakType do mobile). */
@@ -324,6 +327,27 @@ export const WEAK_TIPO_LABEL: Record<string, string> = {
   postura: "Postura",
   outra: "Outra",
 };
+
+/** Rótulos dos tipos de ponto forte/momento (espelha o StrongType do mobile). */
+export const STRONG_TIPO_LABEL: Record<string, string> = {
+  tecnico: "Técnico",
+  repertorio: "Repertório",
+  postura: "Postura",
+  conexao: "Conexão",
+  outra: "Outro",
+};
+
+/** Agrega marcadores por tipo (null → "outra"), do mais frequente ao menos. */
+function countByTipo(rows: { tipo: string | null }[]): { tipo: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const tipo = r.tipo ?? "outra";
+    counts.set(tipo, (counts.get(tipo) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([tipo, count]) => ({ tipo, count }))
+    .sort((a, b) => b.count - a.count);
+}
 
 /**
  * Quantos marcadores cada sessão (focus_session_id) tem — em 2 queries agregadas,
@@ -365,15 +389,7 @@ export async function loadSessionMarkers(focusSessionId: string): Promise<Sessio
     `SELECT * FROM performance_moments WHERE focus_session_id = $1 ORDER BY at_ms, id`,
     [focusSessionId]
   );
-  const counts = new Map<string, number>();
-  for (const w of weakPoints) {
-    const tipo = w.tipo ?? "outra";
-    counts.set(tipo, (counts.get(tipo) ?? 0) + 1);
-  }
-  const weakByTipo = [...counts.entries()]
-    .map(([tipo, count]) => ({ tipo, count }))
-    .sort((a, b) => b.count - a.count);
-  return { weakPoints, moments, weakByTipo };
+  return { weakPoints, moments, weakByTipo: countByTipo(weakPoints), momentsByTipo: countByTipo(moments) };
 }
 
 /**
@@ -406,15 +422,25 @@ export async function loadGigMarkers(gigId: number): Promise<SessionMarkers> {
       [gigId, gigId]
     )
     .catch(() => [] as PerfMoment[]);
-  const counts = new Map<string, number>();
-  for (const w of weakPoints) {
-    const tipo = w.tipo ?? "outra";
-    counts.set(tipo, (counts.get(tipo) ?? 0) + 1);
-  }
-  const weakByTipo = [...counts.entries()]
-    .map(([tipo, count]) => ({ tipo, count }))
-    .sort((a, b) => b.count - a.count);
-  return { weakPoints, moments, weakByTipo };
+  return { weakPoints, moments, weakByTipo: countByTipo(weakPoints), momentsByTipo: countByTipo(moments) };
+}
+
+/** Apaga TODOS os marcadores ao vivo (pontos fracos + momentos) ligados a uma
+ *  GIG — direto pelo gig_id OU pela sessão de trabalho vinculada. Pro botão "x"
+ *  do bloco "Marcado ao vivo no Modo Foco" do debrief, pra não ficarem pra sempre. */
+export async function clearGigMarkers(gigId: number): Promise<void> {
+  const db = getDb();
+  const linked = `focus_session_id IN (
+        SELECT focus_session_id FROM work_sessions
+         WHERE context_type = 'gig' AND context_id = $2 AND focus_session_id IS NOT NULL
+      )`;
+  await db
+    .execute(`DELETE FROM performance_weak_points WHERE gig_id = $1 OR ${linked}`, [gigId, gigId])
+    .catch(() => {});
+  await db
+    .execute(`DELETE FROM performance_moments WHERE gig_id = $1 OR ${linked}`, [gigId, gigId])
+    .catch(() => {});
+  emitDataChanged();
 }
 
 /**

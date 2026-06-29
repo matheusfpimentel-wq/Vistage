@@ -1033,31 +1033,47 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
       [s("focus_session_id"), gid, s("tipo"), n("at_ms"), s("at")]
     );
   } else if (kind === "moment") {
-    // Momento marcante marcado ao vivo (o "agora!" da apresentação).
+    // Momento marcante marcado ao vivo (o "agora!" da apresentação) — agora com
+    // subtipo (técnico/repertório/postura/conexão), espelhando o ponto fraco.
     const gid = n("gig_id") ?? (await resolveSessionGig(db, s("focus_session_id")));
     await db.execute(
-      `INSERT INTO performance_moments (focus_session_id, gig_id, at_ms, at, descricao)
-       VALUES ($1, $2, $3, $4, NULL)`,
-      [s("focus_session_id"), gid, n("at_ms"), s("at")]
+      `INSERT INTO performance_moments (focus_session_id, gig_id, tipo, at_ms, at, descricao)
+       VALUES ($1, $2, $3, $4, $5, NULL)`,
+      [s("focus_session_id"), gid, s("tipo"), n("at_ms"), s("at")]
     );
   } else if (kind === "focus_idea") {
-    // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no
-    // PC, semeada com a procedência (Modo Foco) e o GIG quando o celular o manda.
-    // Se veio uma breve nota digitada no celular, ela vira o título/corpo.
-    const { createIdea } = await import("@/modules/ideas/api");
-    const note = s("note")?.trim();
-    await createIdea({
-      title: note ? (note.length > 80 ? note.slice(0, 77) + "…" : note) : "Ideia capturada no Modo Foco",
-      body: note || null,
-      category: null,
-      tags: [],
-      heat: 1,
-      maturation: "Embrião",
-      converted_to: null,
-      converted_id: null,
-      source: "modo_foco",
-      source_ref_id: n("gig_id"),
-    });
+    // 💡 marcada ao vivo. Numa sessão de PALCO (com GIG), o usuário quer a sacada
+    // no campo Insights do debrief da GIG — não como ideia solta. Fora do palco
+    // (sem GIG), vira ideia Embrião/fria pra descrever/desenvolver depois no PC.
+    const note = s("note")?.trim() || null;
+    const gigId = n("gig_id");
+    if (gigId != null) {
+      const at = n("at_ms");
+      const stamp = at != null
+        ? `${Math.floor(at / 60000)}:${String(Math.floor((at % 60000) / 1000)).padStart(2, "0")}`
+        : null;
+      const line = note
+        ? (stamp ? `[${stamp}] ${note}` : note)
+        : (stamp ? `Ideia marcada ao vivo (${stamp})` : "Ideia marcada ao vivo");
+      await db.execute(
+        `UPDATE gigs SET debrief_learnings = TRIM(COALESCE(debrief_learnings || char(10), '') || $1) WHERE id = $2`,
+        [line, gigId]
+      );
+    } else {
+      const { createIdea } = await import("@/modules/ideas/api");
+      await createIdea({
+        title: note ? (note.length > 80 ? note.slice(0, 77) + "…" : note) : "Ideia capturada no Modo Foco",
+        body: note,
+        category: null,
+        tags: [],
+        heat: 1,
+        maturation: "Embrião",
+        converted_to: null,
+        converted_id: null,
+        source: "modo_foco",
+        source_ref_id: null,
+      });
+    }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }
