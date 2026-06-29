@@ -365,10 +365,12 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     venue_city: string | null; venue_address: string | null; status: string; cache_amount: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
     time_slots: string | null; gig_research: string | null; prep_state: string | null;
+    main_goal: string | null; opportunities: string | null; concrete_goals: string | null; targets: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
             g.venue_city, g.venue_address, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
-            pc.name AS promoter_name, g.time_slots, g.gig_research, g.prep_state
+            pc.name AS promoter_name, g.time_slots, g.gig_research, g.prep_state,
+            g.main_goal, g.opportunities, g.concrete_goals, g.targets
        FROM gigs g
        LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
       ORDER BY g.date DESC LIMIT 800`,
@@ -395,6 +397,11 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // Checklist de Preparação (da aba Preparação): ids dos itens já marcados.
         // A estrutura (grupos/itens) é fixa e replicada no celular (PREP_GROUPS).
         prep_done: Object.keys(parsePrepState(g.prep_state)),
+        // Objetivos da GIG (aba Briefing) pro card de objetivos no palco.
+        main_goal: g.main_goal,
+        opportunities: g.opportunities,
+        concrete_goals: (g.concrete_goals ?? "").split("\n").map((l) => l.trim()).filter(Boolean),
+        targets: (g.targets ?? "").split("\n").map((l) => l.trim()).filter(Boolean),
       },
     });
   }
