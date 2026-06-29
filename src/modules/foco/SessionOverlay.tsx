@@ -174,6 +174,18 @@ export function SessionOverlay() {
     }
   }
 
+  // Encerrar a partir do overlay: pede pro WorkSessionWidget (janela principal)
+  // abrir o diálogo de encerramento (avaliação) E traz a janela pra frente. Antes
+  // só trazia a janela — o botão parecia "não funcionar".
+  async function requestEnd() {
+    try {
+      await emit("work-session-request-end");
+    } catch {
+      /* ignore */
+    }
+    await focusMain();
+  }
+
   async function closeSelf() {
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -321,8 +333,8 @@ export function SessionOverlay() {
         </button>
         <button
           type="button"
-          onClick={() => void focusMain()}
-          title="Encerrar na janela principal"
+          onClick={() => void requestEnd()}
+          title="Encerrar a sessão (avalia na janela principal)"
           className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary/20 text-xs font-medium text-primary transition hover:bg-primary/30"
         >
           <Square className="h-3.5 w-3.5" /> Encerrar

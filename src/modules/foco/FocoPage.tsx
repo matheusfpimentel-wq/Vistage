@@ -662,16 +662,6 @@ function ActivityCard({ stats, totalMinutes }: { stats: ActivityStats[]; totalMi
             </span>
           ))}
         </div>
-        <div className="space-y-1">
-          {stats.slice(0, 3).map((s) => (
-            <div key={s.activity_type} className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{s.activity_type}</span>
-              <span className="tabular-nums">
-                ⚡{s.avg_energy} 🎯{s.avg_focus}
-              </span>
-            </div>
-          ))}
-        </div>
       </CardContent>
     </Card>
   );

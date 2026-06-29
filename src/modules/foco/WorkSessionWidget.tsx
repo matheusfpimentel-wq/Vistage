@@ -196,6 +196,22 @@ export function WorkSessionWidget() {
     return () => { if (unlisten) unlisten(); };
   }, []);
 
+  // A mini-janela (overlay) pede pra encerrar pelo botão "Encerrar" → abrimos o
+  // diálogo de encerramento aqui na janela principal pra avaliar e salvar. (O
+  // overlay também traz esta janela pra frente.)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen("work-session-request-end", () => {
+          setEndOpen(true);
+        });
+      } catch { /* ignore */ }
+    })();
+    return () => { if (unlisten) unlisten(); };
+  }, []);
+
   useEffect(() => {
     sessionRef.current = session;
     if (session) {
