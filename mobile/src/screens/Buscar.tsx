@@ -85,7 +85,7 @@ export function Buscar() {
 
   const load = useCallback(async () => {
     const t = term.trim().toLowerCase();
-    if (!category || !t) {
+    if (!category) {
       setRows([]);
       setLoading(false);
       return;
@@ -96,13 +96,14 @@ export function Buscar() {
       return;
     }
     setLoading(true);
+    // Sem termo: lista TUDO do módulo (lista livre). Com termo: filtra por search_text.
     let q = supabase
       .from("catalog_mirror")
       .select("kind, source_id, title, subtitle, meta, search_text")
       .order("title")
-      .limit(60);
+      .limit(t ? 60 : 200);
     if (category !== "all") q = q.eq("kind", category);
-    q = q.ilike("search_text", `%${t}%`);
+    if (t) q = q.ilike("search_text", `%${t}%`);
     const { data } = await q;
     const raw = (data ?? []) as (Row & { search_text?: string })[];
     const mirror = raw as Row[]; // search_text é ignorado pelo tipo Row na renderização
@@ -130,7 +131,7 @@ export function Buscar() {
     setLoading(false);
   }, [term, category]);
 
-  // Busca ao digitar (debounce). Sem termo → nada na tela.
+  // Carrega ao escolher o módulo e ao digitar (debounce). Sem termo = lista tudo.
   useEffect(() => {
     if (!category) return;
     const id = setTimeout(() => void load(), 220);
@@ -181,11 +182,7 @@ export function Buscar() {
         />
       </div>
 
-      {t === "" ? (
-        <p className="muted center-text" style={{ marginTop: "2rem" }}>
-          Digite pra buscar em <strong>{CAT_LABEL[category]}</strong>.
-        </p>
-      ) : !online ? (
+      {!online ? (
         <p className="muted center-text" style={{ marginTop: "2rem" }}>
           A busca precisa de internet. Reconecte e tente de novo.
         </p>
@@ -194,7 +191,7 @@ export function Buscar() {
           <span className="spinner" />
         </div>
       ) : rows.length === 0 ? (
-        <p className="muted">Nada encontrado.</p>
+        <p className="muted">{t ? "Nada encontrado." : "Nada aqui ainda."}</p>
       ) : (
         <ul className="list">
           {rows.map((r) => {
@@ -246,7 +243,7 @@ function Detail({ r }: { r: Row }) {
         </span>,
       ]);
     }
-    const gmap = mapsLink(r.title, str(m.city));
+    const gmap = mapsLink(str(m.address) ?? str(m.venue_name) ?? r.title, str(m.city));
     if (gmap) out.push(["Endereço", <a className="link" href={gmap} target="_blank" rel="noreferrer">Abrir no Maps</a>]);
   } else if (r.kind === "track") {
     if (num(m.bpm)) out.push(["BPM", String(num(m.bpm))]);

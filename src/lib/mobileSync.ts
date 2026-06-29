@@ -361,12 +361,12 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   const gigs = await db.select<{
     id: number; date: string; start_time: string | null; end_time: string | null;
     venue_name: string; event_name: string | null; recurring_event_name: string | null;
-    venue_city: string | null; status: string; cache_amount: number | null;
+    venue_city: string | null; venue_address: string | null; status: string; cache_amount: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
     time_slots: string | null; gig_research: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
-            g.venue_city, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
+            g.venue_city, g.venue_address, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
             pc.name AS promoter_name, g.time_slots, g.gig_research
        FROM gigs g
        LEFT JOIN contacts pc ON pc.id = g.promoter_contact_id
@@ -384,6 +384,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       search_text: lc(gigTitle, g.venue_name, g.event_name, g.recurring_event_name, g.venue_city, g.status, g.date, g.promoter_name, g.day_contact_name),
       meta: {
         date: g.date, start_time: g.start_time, end_time: g.end_time, city: g.venue_city,
+        // venue_name + endereço pro Maps cair no LOCAL certo (não no nome do evento).
+        venue_name: g.venue_name, address: g.venue_address,
         status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
         day_contact_name: g.day_contact_name, day_contact_phone: g.day_contact_phone,
         // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
