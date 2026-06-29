@@ -626,6 +626,16 @@ button { font-family: inherit; cursor: pointer; }
 .lc-round-hit:active { background: color-mix(in srgb, #fb923c 30%, rgba(20,20,30,0.55)); }
 .lc-round-idea { border-color: color-mix(in srgb, #f5c83c 55%, rgba(255,255,255,0.18)); }
 .lc-round-idea:active { background: color-mix(in srgb, #f5c83c 30%, rgba(20,20,30,0.55)); }
+/* Check da Preparação ao vivo (verde). */
+.lc-round-check { border-color: color-mix(in srgb, var(--pos) 55%, rgba(255,255,255,0.18)); }
+.lc-round-check:active { background: color-mix(in srgb, var(--pos) 30%, rgba(20,20,30,0.55)); }
+.lc-pick-box { max-height: 70vh; overflow-y: auto; }
+
+/* Checklist de Preparação no painel (grupos fixos da aba Preparação). */
+.prep-group { margin-top: 0.6rem; }
+.prep-group-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.3rem; }
+.prep-group-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
+.prep-group-count { font-size: 0.72rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
 /* Badge contadora discreta (×N) no canto do botão. */
 .lc-badge {
   position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px;

@@ -144,6 +144,7 @@ const EMPTY: FormState = {
   gcal_event_id: null,
   main_goal: null,
   prep_state: null,
+  prep_notes: null,
   gig_equipment: "[]",
   gig_research: null,
   main_goal_task_id: null,
@@ -1018,6 +1019,17 @@ export function GigForm({
               groupFilter={isSocialCategory(state.event_category) ? ["musical", "logistica"] : undefined}
               onChange={(prep) => { setState((s) => ({ ...s, prep })); setDirty(true); }}
             />
+
+            <Field
+              label="Observações"
+              hint="Anotações livres da preparação. Os insights da lâmpada do Modo Foco (Preparação) no celular caem aqui."
+            >
+              <Textarea
+                rows={2}
+                value={state.prep_notes ?? ""}
+                onChange={(e) => set("prep_notes", e.target.value || null)}
+              />
+            </Field>
 
             <Field
               label="Equipamento da casa"
