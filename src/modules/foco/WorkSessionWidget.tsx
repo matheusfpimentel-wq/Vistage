@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Monitor, Play, Square } from "lucide-react";
+import { Monitor, Play, Square, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -546,21 +546,18 @@ function RatingRow({
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}: <span className="font-semibold text-primary">{value}</span>/5</Label>
-      <div className="flex gap-1.5">
+      <Label>{label}</Label>
+      <div className="flex items-center gap-1" role="radiogroup" aria-label={label}>
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(n)}
-            className={cn(
-              "flex-1 rounded border py-1 text-xs transition",
-              value >= n
-                ? "border-primary bg-primary/20 text-primary"
-                : "border-input hover:bg-accent"
-            )}
+            className="rounded p-0.5 transition hover:scale-110"
+            aria-label={`${n} estrela${n > 1 ? "s" : ""}`}
+            aria-pressed={value === n}
           >
-            {n}
+            <Star className={cn("h-6 w-6 transition-colors", value >= n ? "fill-amber-500 text-amber-500" : "text-muted-foreground")} />
           </button>
         ))}
       </div>

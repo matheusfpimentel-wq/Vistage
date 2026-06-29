@@ -565,6 +565,17 @@ button { font-family: inherit; cursor: pointer; }
 }
 .lc-hint { font-size: 0.72rem; text-align: center; }
 
+/* Avaliação por estrelas no debrief (repertório/técnica/carisma, energia/foco). */
+.star-row { display: flex; flex-direction: column; gap: 0.3rem; }
+.star-row > .label { font-size: 0.85rem; }
+.stars { display: flex; gap: 0.35rem; }
+.star {
+  background: none; border: none; padding: 0.1rem; cursor: pointer; line-height: 0;
+  color: var(--border); transition: transform 0.1s ease, color 0.12s ease;
+}
+.star:active { transform: scale(0.88); }
+.star.on { color: #f5c83c; }
+
 /* Selo "pendente": GIG criada no celular ainda não sincronizada com o PC. */
 .pending-badge {
   display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem;
