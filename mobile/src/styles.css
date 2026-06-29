@@ -53,7 +53,7 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 
 /* Header: identidade (isótipo + nome) à esquerda */
 .identity-chip {
-  display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 60vw;
+  display: flex; align-items: center; gap: 0.5rem; min-width: 0; max-width: 72vw;
   background: none; border: none; padding: 0.15rem 0.3rem 0.15rem 0.15rem; border-radius: 999px;
   color: var(--text);
 }
@@ -65,7 +65,7 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.identity-chip-name { font-weight: 700; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.identity-chip-name { font-weight: 700; font-size: 0.95rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .topbar-actions { display: flex; align-items: center; gap: 0.35rem; }
 .bell-streak { display: flex; align-items: center; gap: 0.15rem; }
@@ -316,12 +316,15 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Play/pause no centro do anel + Encerrar consistente com o resto do app */
 .focus-ring-ic { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; }
-.focus-encerrar {
-  min-width: 160px; padding: 0.7rem 1.4rem; border-radius: 12px; font-weight: 600; font-size: 1rem;
-  background: transparent; color: var(--danger);
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--border));
+/* Encerrar = botão redondo vermelho com quadrado de stop. */
+.focus-stop {
+  display: flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--danger); color: #fff; border: none;
+  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--danger) 60%, transparent);
+  transition: transform 0.15s ease, filter 0.15s ease;
 }
-.focus-encerrar:active { background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.focus-stop:active { transform: scale(0.9); filter: brightness(0.92); }
 
 /* ── Login / utilidades ────────────────────────── */
 .center { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 1.5rem; }
@@ -618,6 +621,9 @@ button { font-family: inherit; cursor: pointer; }
   gap: 1.4rem;
 }
 .lc-round-row > :nth-child(2) { margin-top: 20px; }
+/* Preparação: só 2 botões (lâmpada | check), nivelados — sem o degrau do arco. */
+.lc-round-row.lc-prep { align-items: center; gap: 2.4rem; }
+.lc-round-row.lc-prep > :nth-child(2) { margin-top: 0; }
 .lc-round { position: relative; width: 60px; height: 60px; }
 /* Matiz por categoria no anel (ícone segue branco). */
 .lc-round-err { border-color: color-mix(in srgb, var(--neg) 55%, rgba(255,255,255,0.18)); }
