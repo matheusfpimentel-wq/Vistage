@@ -264,6 +264,24 @@ button { font-family: inherit; cursor: pointer; }
 .stage-timing.live { color: var(--pos); }
 .stage-rows { margin-top: 0.25rem; }
 
+/* Picker de GIG no Modo Foco (palco/preparação): escolher entre as futuras. */
+.gig-picker { display: flex; flex-direction: column; gap: 0.35rem; width: 100%; margin-bottom: 0.5rem; }
+.gig-picker-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.gig-opt {
+  display: flex; flex-direction: column; gap: 0.1rem; text-align: left; width: 100%;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 0.6rem 0.7rem; color: var(--text);
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+}
+.gig-opt:active { transform: scale(0.99); }
+.gig-opt.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.gig-opt-title { font-weight: 700; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gig-opt-sub { font-size: 0.78rem; color: var(--muted); }
+
 /* ── Foco ──────────────────────────────────────── */
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }
 .big-btn { width: 100%; max-width: 320px; padding: 1.1rem; font-size: 1.1rem; }
