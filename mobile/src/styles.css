@@ -385,10 +385,10 @@ button { font-family: inherit; cursor: pointer; }
 .tabbar-rail .glass-round,
 .tabbar-rail .glass-round.active { color: #fff; }
 
-/* Botão de captura no header */
+/* Botão de captura no header — redondo */
 .capture-fab {
   display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; border-radius: 11px;
+  width: 38px; height: 38px; border-radius: 50%;
   background: var(--accent); color: #fff; border: none;
 }
 .capture-fab:active { filter: brightness(0.92); }
@@ -405,6 +405,7 @@ button { font-family: inherit; cursor: pointer; }
 .small { font-size: 0.78rem; }
 
 /* Brainstorming */
+.brainstorm { gap: 0.5rem; }
 .insight { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
 .insight-text { margin: 0 0 0.6rem; font-size: 0.98rem; line-height: 1.35; }
 .card.form { display: flex; flex-direction: column; gap: 0.55rem; }
@@ -412,6 +413,57 @@ button { font-family: inherit; cursor: pointer; }
   width: 100%; background: var(--bg); border: 1px solid var(--border);
   color: var(--text); border-radius: 10px; padding: 0.6rem 0.7rem; font: inherit;
 }
+
+/* Ações mínimas da provocação: dado (outra) · lâmpada acesa (virar ideia). */
+.insight-actions { display: flex; gap: 0.5rem; }
+.ic-mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.ic-mini:active { transform: scale(0.9); }
+.ic-mini:disabled { opacity: 0.5; }
+.ic-mini.lit {
+  color: #f5c83c;
+  border-color: color-mix(in srgb, #f5c83c 45%, var(--border));
+  background: color-mix(in srgb, #f5c83c 12%, var(--surface-2));
+}
+
+/* Linha de adicionar: sprint da sessão (redondo) + botão redondo de +. */
+.bs-add-row { display: flex; align-items: center; justify-content: flex-end; gap: 0.6rem; }
+.round-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; height: 40px; padding: 0 0.55rem; border-radius: 999px;
+  font-size: 0.98rem; font-weight: 800; font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+.round-add {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto;
+  background: var(--accent); color: #fff; border: none;
+  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.55);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.round-add:active { filter: brightness(0.92); transform: scale(0.93); }
+.round-add:disabled { opacity: 0.45; box-shadow: none; }
+
+/* Mural de ideias — 2 colunas, fundo pintado pelo CALOR (igual ao mural do PC:
+   frio zinco → amarelo → âmbar → laranja → vermelho quente). */
+.idea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; }
+.idea-cell {
+  display: flex; flex-direction: column; gap: 0.2rem; min-width: 0;
+  border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.7rem;
+  background: var(--surface);
+}
+.idea-cell strong { font-size: 0.9rem; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.idea-cell .small { font-size: 0.7rem; }
+.idea-cell.heat-1 { background: color-mix(in srgb, #a1a1aa 8%, var(--surface)); border-color: color-mix(in srgb, #a1a1aa 28%, var(--border)); }
+.idea-cell.heat-2 { background: color-mix(in srgb, #eab308 9%, var(--surface)); border-color: color-mix(in srgb, #eab308 30%, var(--border)); }
+.idea-cell.heat-3 { background: color-mix(in srgb, #f59e0b 9%, var(--surface)); border-color: color-mix(in srgb, #f59e0b 30%, var(--border)); }
+.idea-cell.heat-4 { background: color-mix(in srgb, #f97316 11%, var(--surface)); border-color: color-mix(in srgb, #f97316 33%, var(--border)); }
+.idea-cell.heat-5 { background: color-mix(in srgb, #ef4444 13%, var(--surface)); border-color: color-mix(in srgb, #ef4444 38%, var(--border)); }
 
 /* ── Tela Hoje (redesenhada) ─────────────────────────────────────────── */
 .today-top { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 0.5rem; }
