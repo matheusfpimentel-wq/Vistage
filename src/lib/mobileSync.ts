@@ -373,6 +373,23 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       ORDER BY g.date DESC LIMIT 800`,
     []
   );
+  // Tarefas abertas por GIG → checklist de "Preparação" no celular (empacotado no
+  // meta, sem coluna nova no espelho). Tickar no celular manda uma captura task_done.
+  const prepRows = await db
+    .select<{ id: number; title: string; gig_id: number }[]>(
+      `SELECT id, title, gig_id FROM tasks
+        WHERE gig_id IS NOT NULL AND status NOT IN ('Concluída','Cancelada')
+        ORDER BY (due_date IS NULL), due_date LIMIT 500`,
+      []
+    )
+    .catch(() => [] as { id: number; title: string; gig_id: number }[]);
+  const prepByGig = new Map<number, { id: number; title: string }[]>();
+  for (const t of prepRows) {
+    const arr = prepByGig.get(t.gig_id) ?? [];
+    arr.push({ id: t.id, title: t.title });
+    prepByGig.set(t.gig_id, arr);
+  }
+
   for (const g of gigs) {
     // Título da festa (recorrente - edição / evento), com fallback pro venue —
     // mesmo padrão do desktop (gigDisplayName). Antes ia só o venue.
@@ -391,6 +408,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
         set_periods: parseMirrorSlots(g.time_slots, g.start_time, g.end_time),
         ideas: parseMirrorIdeas(g.gig_research),
+        // Checklist de Preparação (tarefas abertas da GIG).
+        prep_tasks: prepByGig.get(g.id) ?? [],
       },
     });
   }

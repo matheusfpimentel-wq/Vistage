@@ -505,7 +505,68 @@ function GestaoPanel({ focusTask }: { focusTask: { id: string; title: string } |
   );
 }
 
-function ContextPanel({ activity, focusTask }: { activity: string; focusTask: { id: string; title: string } | null }) {
+// ── Painel: PREPARAÇÃO (checklist da GIG: tarefas abertas, vêm no meta) ───────
+function PreparacaoPanel({ gig }: { gig: { id: number; title: string } | null }) {
+  const [tasks, setTasks] = useState<{ id: number; title: string }[] | null>(null);
+  const [done, setDone] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!gig) {
+      setTasks(null);
+      return;
+    }
+    let active = true;
+    void supabase
+      .from("catalog_mirror")
+      .select("meta")
+      .eq("kind", "gig")
+      .eq("source_id", String(gig.id))
+      .limit(1)
+      .then(({ data }) => {
+        if (!active) return;
+        const meta = (data?.[0]?.meta ?? {}) as { prep_tasks?: { id: number; title: string }[] };
+        setTasks(meta.prep_tasks ?? []);
+      });
+    return () => {
+      active = false;
+    };
+  }, [gig?.id]);
+
+  async function tick(t: { id: number; title: string }) {
+    setDone((d) => new Set(d).add(t.id)); // some na hora (otimista)
+    await enqueueCapture("task_done", { task_id: t.id, title: t.title });
+  }
+
+  if (!gig) return <p className="muted center-text">Sem GIG próxima pra preparar.</p>;
+  const visible = (tasks ?? []).filter((t) => !done.has(t.id));
+  return (
+    <section className="card">
+      <span className="label">Preparar: {gig.title}</span>
+      {tasks === null ? (
+        <p className="muted" style={{ marginTop: "0.4rem" }}>Carregando checklist…</p>
+      ) : visible.length === 0 ? (
+        <p className="muted" style={{ marginTop: "0.4rem" }}>Sem tarefas de preparação abertas pra esta GIG.</p>
+      ) : (
+        <ul className="focus-tasks">
+          {visible.map((t) => (
+            <li key={t.id}>
+              <button type="button" className="focus-task" onClick={() => void tick(t)}>
+                <span className="focus-task-box" aria-hidden />
+                <span className="focus-task-title">{t.title}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted" style={{ fontSize: "0.75rem", marginTop: "0.4rem" }}>
+        Concluir aqui marca no PC na próxima sincronização.
+      </p>
+    </section>
+  );
+}
+
+function ContextPanel({ activity, focusTask, stageGig }: { activity: string; focusTask: { id: string; title: string } | null; stageGig: { id: number; title: string } | null }) {
+  if (activity === "Preparação") return <PreparacaoPanel gig={stageGig} />;
   if (activity === "Tempo de palco") return <StagePanel />;
   if (activity === "Criação musical") return <MusicPanel />;
   if (activity === "Gestão") return <GestaoPanel focusTask={focusTask} />;
@@ -992,10 +1053,11 @@ export function Foco() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resolve a GIG do palco (próxima/de hoje) quando a atividade é "Tempo de palco",
-  // pra os marcadores ao vivo e o debrief caírem nela. Limpa pras outras atividades.
+  // Resolve a GIG (próxima/de hoje) quando a atividade é "Tempo de palco" ou
+  // "Preparação" — pros marcadores/debrief (palco) e o checklist (preparação)
+  // caírem nela. Limpa pras outras atividades.
   useEffect(() => {
-    if (activity !== "Tempo de palco") {
+    if (activity !== "Tempo de palco" && activity !== "Preparação") {
       setStageGig(null);
       stageGigRef.current = null;
       return;
@@ -1022,10 +1084,12 @@ export function Foco() {
     setMsg(null);
     try {
       const isStage = activity === "Tempo de palco";
+      const isPrep = activity === "Preparação";
       const sg = stageGigRef.current;
       // focus_session_id liga o debrief aos marcadores ao vivo (o desktop junta).
       // Palco: manda as avaliações do set + o gig_id → o desktop grava no debrief
-      // da GIG (repertório/técnica/carisma) em vez de energia/foco.
+      // da GIG (repertório/técnica/carisma) em vez de energia/foco. Preparação:
+      // só vincula a sessão à GIG (sem avaliações).
       await enqueueCapture("session", {
         started_at: doneAt.startedAt,
         ended_at: doneAt.endedAt,
@@ -1035,13 +1099,13 @@ export function Foco() {
         focus_level: isStage ? null : focusLvl,
         notes: notes || null,
         focus_session_id: sessionIdRef.current,
-        ...(isStage && sg
+        ...((isStage || isPrep) && sg
           ? {
               context_type: "gig",
               gig_id: sg.id,
-              rating_repertoire: repertoire,
-              rating_technique: technique,
-              rating_charisma: charisma,
+              ...(isStage
+                ? { rating_repertoire: repertoire, rating_technique: technique, rating_charisma: charisma }
+                : {}),
             }
           : {}),
       });
@@ -1131,7 +1195,7 @@ export function Foco() {
             </button>
           )}
 
-          <ContextPanel activity={activity} focusTask={focusTask} />
+          <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} />
         </>
       )}
 
