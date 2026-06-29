@@ -2241,6 +2241,15 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_nps_responses_date ON nps_responses(response_date);
     `,
   },
+  {
+    version: 154,
+    description:
+      "Renomeia o tipo de foco 'Treino' para 'Preparação' nos dados existentes (work_sessions.activity_type e focus_blocks.category). Idempotente.",
+    sql: `
+      UPDATE work_sessions SET activity_type = 'Preparação' WHERE activity_type = 'Treino';
+      UPDATE focus_blocks SET category = 'Preparação' WHERE category = 'Treino';
+    `,
+  },
 ];
 
 

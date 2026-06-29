@@ -11,7 +11,7 @@ export const ACTIVITY_TYPES = [
   "Produção de festa",
   "Estudo",
   "Tempo de palco",
-  "Treino",
+  "Preparação",
   "Outro",
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
@@ -219,6 +219,23 @@ export async function loadFocusPanel(session: {
       `SELECT id, title, priority, due_date FROM tasks
         WHERE status NOT IN ('Concluída','Cancelada')
         ORDER BY (due_date IS NULL), due_date LIMIT 12`
+    );
+    return { kind: "tasks", tasks };
+  }
+
+  if (act === "Preparação") {
+    // Preparação de show: checklist = tarefas abertas da GIG vinculada (ou, se
+    // nenhuma foi vinculada, da próxima/de hoje).
+    let gigId = session.context_type === "gig" ? session.context_id : null;
+    if (!gigId) gigId = await resolveStageGigId();
+    if (!gigId) return null;
+    const tasks = await db.select<
+      { id: number; title: string; priority: string | null; due_date: string | null }[]
+    >(
+      `SELECT id, title, priority, due_date FROM tasks
+        WHERE gig_id = $1 AND status NOT IN ('Concluída','Cancelada')
+        ORDER BY (due_date IS NULL), due_date LIMIT 20`,
+      [gigId]
     );
     return { kind: "tasks", tasks };
   }

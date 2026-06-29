@@ -7,9 +7,12 @@ import { enqueueCapture } from "../queue";
 // Tipos alinhados ao desktop (ActivityType) pra estatística e painel baterem.
 const ACTIVITIES = [
   "Tempo de palco",
+  "Preparação",
   "Criação musical",
   "Criação de conteúdo",
   "Gestão",
+  "Comunicação",
+  "Produção de festa",
   "Aulas",
   "Estudo",
   "Outro",
