@@ -42,6 +42,9 @@ export function CircularTimer({
     <button
       type="button"
       onClick={onToggle}
+      // Para o clique não virar arraste quando dentro de um data-tauri-drag-region
+      // (na mini-janela o mousedown do drag-region engolia o clique do botão).
+      onMouseDown={(e) => e.stopPropagation()}
       title={paused ? "Retomar" : "Pausar"}
       className={cn("relative shrink-0", className)}
       style={{ width: size, height: size }}
