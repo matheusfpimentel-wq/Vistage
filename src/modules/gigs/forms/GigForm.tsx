@@ -1414,6 +1414,8 @@ function LineListField({
     const l = split(value);
     return l.length > 0 ? l : [""];
   });
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const [focusIdx, setFocusIdx] = useState<number | null>(null);
 
   // Re-sincroniza se o value EXTERNO mudar (trocar de GIG, carregar rascunho) sem
   // brigar com a digitação: só quando o conteúdo normalizado realmente difere.
@@ -1426,6 +1428,13 @@ function LineListField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
+  // Foca a linha recém-criada — feedback visível de que "Adicionar"/Enter rodou.
+  useEffect(() => {
+    if (focusIdx == null) return;
+    inputsRef.current[focusIdx]?.focus();
+    setFocusIdx(null);
+  }, [focusIdx]);
+
   // Atualiza o estado interno (cru) e propaga o valor normalizado pro pai.
   function update(next: string[]) {
     setRows(next.length > 0 ? next : [""]);
@@ -1433,17 +1442,35 @@ function LineListField({
     onChange(cleaned.length > 0 ? cleaned.join("\n") : null);
   }
 
+  // Insere uma linha vazia editável e foca nela. NÃO normaliza (senão a vazia
+  // sumiria antes de digitar). Padrão: no fim; com índice: logo após a atual.
+  function addRow(at: number = rows.length) {
+    setRows((r) => {
+      const n = [...r];
+      n.splice(at, 0, "");
+      return n;
+    });
+    setFocusIdx(at);
+  }
+
   return (
     <div className="space-y-1.5">
       {rows.map((line, i) => (
         <div key={i} className="flex items-center gap-1.5">
           <Input
+            ref={(el) => { inputsRef.current[i] = el; }}
             value={line}
             placeholder={placeholder}
             onChange={(e) => {
               const next = [...rows];
               next[i] = e.target.value;
               update(next);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addRow(i + 1);
+              }
             }}
           />
           <Button
@@ -1458,13 +1485,13 @@ function LineListField({
           </Button>
         </div>
       ))}
-      {/* Adiciona uma linha vazia editável (NÃO normaliza — senão a vazia some). */}
+      {/* Adiciona uma linha vazia editável e foca nela (Enter na linha faz o mesmo). */}
       <Button
         type="button"
         size="sm"
         variant="outline"
         className="text-xs"
-        onClick={() => setRows((r) => [...r, ""])}
+        onClick={() => addRow()}
       >
         <Plus className="h-3.5 w-3.5" /> Adicionar
       </Button>

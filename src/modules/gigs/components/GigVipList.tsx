@@ -85,6 +85,14 @@ export function GigVipList({ gigId, gigName }: { gigId: number; gigName: string 
   function startRename(list: FanList) {
     setRenamingId(list.id);
     setRenameValue(list.name);
+    // Editar = renomear E gerir pessoas: abre a lista (membros + adicionar/remover)
+    // se ainda não estiver aberta, pra o lápis dar acesso direto a tudo.
+    if (expandedId !== list.id) {
+      setExpandedId(list.id);
+      void listFanListMembers(list.id)
+        .then((rows) => setMembers((prev) => ({ ...prev, [list.id]: rows })))
+        .catch(() => {});
+    }
   }
 
   async function commitRename(id: number) {
@@ -243,7 +251,8 @@ export function GigVipList({ gigId, gigName }: { gigId: number; gigName: string 
                 variant="ghost"
                 className="h-7 w-6"
                 onClick={() => startRename(list)}
-                aria-label="Renomear"
+                aria-label="Editar (renomear e gerir pessoas)"
+                title="Editar: renomear e adicionar/remover pessoas"
               >
                 <Pencil className="h-3.5 w-3.5" />
               </Button>
