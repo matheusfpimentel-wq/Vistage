@@ -29,6 +29,7 @@ import {
   getActiveSession,
   resolveStageGigId,
   startSession,
+  suggestStagePlannedMinutes,
 } from "./api";
 import { closeSessionOverlay, openSessionOverlay } from "./overlay";
 import { DATA_CHANGED } from "@/lib/events";
@@ -224,6 +225,22 @@ export function WorkSessionWidget() {
       active = false;
     };
   }, [activityType]);
+
+  // Palco: pré-preenche o tempo previsto com a duração do PRÓXIMO set não gravado
+  // da GIG (vinculada no picker, ou a próxima/de hoje). Recalcula ao trocar de GIG.
+  useEffect(() => {
+    if (activityType !== "Tempo de palco") return;
+    let active = true;
+    void (async () => {
+      const gigId = startContextId !== "none" ? Number(startContextId) : await resolveStageGigId();
+      if (!gigId) return;
+      const mins = await suggestStagePlannedMinutes(gigId);
+      if (active && mins) setPlannedMinutes(String(mins));
+    })();
+    return () => {
+      active = false;
+    };
+  }, [activityType, startContextId]);
 
   async function handleStart() {
     setSaving(true);
@@ -431,7 +448,7 @@ export function WorkSessionWidget() {
                 <span className="text-sm text-muted-foreground">minutos</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                O anel enche conforme o tempo. Ao vencer, só avisa — nunca encerra sozinho.
+                O anel enche conforme o tempo. Ao vencer, só avisa: nunca encerra sozinho.
               </p>
             </div>
           </div>
