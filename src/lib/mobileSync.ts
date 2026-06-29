@@ -785,7 +785,24 @@ export async function listDiscardedCaptures(): Promise<PendingCapture[]> {
 }
 
 /** Funde: ingere no banco local as capturas dadas e marca como consumidas. */
-export async function ingestCaptures(ids: string[]): Promise<number> {
+export type IngestOpts = { createGigForOrphanStage?: boolean };
+
+/** É um debrief de palco do celular que chegou SEM GIG vinculada? (kind=session,
+ *  atividade "Tempo de palco", com avaliação preenchida, e sem gig_id/contexto).
+ *  Nesse caso o PC pergunta na revisão se quer criar uma GIG já Concluída. */
+export function isOrphanStageDebrief(c: { kind: string; payload: Record<string, unknown> }): boolean {
+  if (c.kind !== "session") return false;
+  const p = c.payload ?? {};
+  if (p.activity_type !== "Tempo de palco") return false;
+  const hasRating = ["rating_repertoire", "rating_technique", "rating_charisma"].some(
+    (k) => typeof p[k] === "number"
+  );
+  if (!hasRating) return false;
+  const linked = p.context_type === "gig" && typeof p.gig_id === "number";
+  return !linked;
+}
+
+export async function ingestCaptures(ids: string[], opts?: IngestOpts): Promise<number> {
   if (!ids.length) return 0;
   const { data, error } = await supabase
     .from("capture_inbox")
@@ -797,7 +814,7 @@ export async function ingestCaptures(ids: string[]): Promise<number> {
   const done: string[] = [];
   for (const c of caps) {
     try {
-      await ingest(db, c.kind, c.payload);
+      await ingest(db, c.kind, c.payload, opts);
       done.push(c.id);
     } catch (e) {
       console.error("Falha ao ingerir captura", c.id, e);
@@ -835,7 +852,7 @@ export async function deleteCaptures(ids: string[]): Promise<void> {
   if (error) throw error;
 }
 
-async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise<void> {
+async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: IngestOpts): Promise<void> {
   const s = (k: string): string | null => (typeof p[k] === "string" ? (p[k] as string) : null);
   const n = (k: string): number | null => (typeof p[k] === "number" ? (p[k] as number) : null);
 
@@ -848,7 +865,26 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     // do set (repertório/técnica/carisma) em vez de energia/foco → vínculo + debrief.
     const gigId = n("gig_id");
     const ctxType = s("context_type");
-    const stageGig = ctxType === "gig" ? gigId : null;
+    let stageGig = ctxType === "gig" ? gigId : null;
+    const isStage = (s("activity_type") ?? "") === "Tempo de palco";
+    const rep = n("rating_repertoire"), tec = n("rating_technique"), car = n("rating_charisma");
+    const hasRating = rep != null || tec != null || car != null;
+
+    // Debrief de palco que chegou SEM GIG: se o usuário pediu na revisão, cria uma
+    // GIG já Concluída com as avaliações preenchidas e linka a sessão + marcadores.
+    // O nome da venue é um marcador ("Palco DD/MM") para o usuário renomear depois.
+    if (stageGig == null && isStage && hasRating && opts?.createGigForOrphanStage) {
+      const date = (s("started_at") ?? now).slice(0, 10); // yyyy-mm-dd
+      const [, mm, dd] = date.split("-");
+      const venuePlaceholder = dd && mm ? `Palco ${dd}/${mm}` : "Palco";
+      const res = await db.execute(
+        `INSERT INTO gigs (date, venue_name, status, rating_repertoire, rating_technique, rating_charisma, debrief_completed_at, debrief_pending)
+         VALUES ($1, $2, 'Concluída', $3, $4, $5, $6, 0)`,
+        [date, venuePlaceholder, rep, tec, car, now]
+      );
+      stageGig = Number(res.lastInsertId);
+    }
+
     await db.execute(
       `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes, focus_session_id, context_type, context_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
@@ -856,14 +892,26 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
     );
     // Avaliações do set vão pro debrief da GIG (COALESCE não apaga nota já preenchida).
     if (stageGig != null) {
-      const rep = n("rating_repertoire"), tec = n("rating_technique"), car = n("rating_charisma");
-      if (rep != null || tec != null || car != null) {
+      if (hasRating) {
         await db.execute(
           `UPDATE gigs SET rating_repertoire = COALESCE($1, rating_repertoire),
                            rating_technique  = COALESCE($2, rating_technique),
                            rating_charisma   = COALESCE($3, rating_charisma)
              WHERE id = $4`,
           [rep, tec, car, stageGig]
+        );
+      }
+      // Marcadores ao vivo (erro→pontos fracos / momento→pontos fortes) que já
+      // chegaram sem GIG herdam a GIG agora resolvida — por focus_session_id.
+      const fsid = s("focus_session_id");
+      if (fsid) {
+        await db.execute(
+          `UPDATE performance_weak_points SET gig_id = $1 WHERE focus_session_id = $2 AND gig_id IS NULL`,
+          [stageGig, fsid]
+        );
+        await db.execute(
+          `UPDATE performance_moments SET gig_id = $1 WHERE focus_session_id = $2 AND gig_id IS NULL`,
+          [stageGig, fsid]
         );
       }
     }
@@ -976,18 +1024,21 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
   } else if (kind === "weak_point") {
     // Ponto fraco marcado AO VIVO no Modo Foco do celular (Técnico/Repertório/
     // Postura/Outra). A descrição fica vazia — preenchida depois no PC. Ligado à
-    // sessão por focus_session_id; gig_id hoje vem null.
+    // sessão por focus_session_id. gig_id pode vir null (palco sem GIG): nesse
+    // caso herda da sessão já ingerida (incl. a GIG órfã criada na revisão).
+    const gid = n("gig_id") ?? (await resolveSessionGig(db, s("focus_session_id")));
     await db.execute(
       `INSERT INTO performance_weak_points (focus_session_id, gig_id, tipo, at_ms, at, descricao)
        VALUES ($1, $2, $3, $4, $5, NULL)`,
-      [s("focus_session_id"), n("gig_id"), s("tipo"), n("at_ms"), s("at")]
+      [s("focus_session_id"), gid, s("tipo"), n("at_ms"), s("at")]
     );
   } else if (kind === "moment") {
     // Momento marcante marcado ao vivo (o "agora!" da apresentação).
+    const gid = n("gig_id") ?? (await resolveSessionGig(db, s("focus_session_id")));
     await db.execute(
       `INSERT INTO performance_moments (focus_session_id, gig_id, at_ms, at, descricao)
        VALUES ($1, $2, $3, $4, NULL)`,
-      [s("focus_session_id"), n("gig_id"), n("at_ms"), s("at")]
+      [s("focus_session_id"), gid, n("at_ms"), s("at")]
     );
   } else if (kind === "focus_idea") {
     // 💡 marcada ao vivo → entra como ideia Embrião/fria pra descrever depois no
@@ -1010,6 +1061,20 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>): Promise
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }
+}
+
+/** Resolve o gig_id de uma sessão de palco já ingerida, pelo focus_session_id —
+ *  para marcadores que chegaram sem GIG herdarem a GIG (inclusive a órfã criada
+ *  na revisão). Retorna null se a sessão ainda não foi ingerida ou não tem GIG. */
+async function resolveSessionGig(db: Db, fsid: string | null): Promise<number | null> {
+  if (!fsid) return null;
+  const rows = await db.select<{ context_id: number }[]>(
+    `SELECT context_id FROM work_sessions
+       WHERE focus_session_id = $1 AND context_type = 'gig' AND context_id IS NOT NULL
+       ORDER BY id DESC LIMIT 1`,
+    [fsid]
+  );
+  return rows.length ? Number(rows[0].context_id) : null;
 }
 
 // ── Orquestração ────────────────────────────────────────────────────────────
