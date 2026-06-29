@@ -416,6 +416,48 @@ export async function resolveStageGigId(): Promise<number | null> {
   return rows[0]?.id ?? null;
 }
 
+/** Minutos entre dois horários HH:MM (vira o dia quando end <= start — set noturno). */
+function slotMinutes(s: StageSlot): number | null {
+  const parse = (t: string): number | null => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const a = parse(s.start);
+  const b = parse(s.end);
+  if (a == null || b == null) return null;
+  let d = b - a;
+  if (d <= 0) d += 24 * 60;
+  return d > 0 ? d : null;
+}
+
+/**
+ * Tempo previsto sugerido (min) pra uma sessão de palco: a duração do PRÓXIMO set
+ * ainda não gravado da GIG. Conta quantas sessões de palco já foram encerradas pra
+ * essa GIG e pega o período seguinte (do 1º em diante). null se não der pra saber.
+ */
+export async function suggestStagePlannedMinutes(gigId: number): Promise<number | null> {
+  const db = getDb();
+  const rows = await db
+    .select<{ time_slots: string | null; start_time: string | null; end_time: string | null }[]>(
+      `SELECT time_slots, start_time, end_time FROM gigs WHERE id = $1`,
+      [gigId]
+    )
+    .catch(() => [] as { time_slots: string | null; start_time: string | null; end_time: string | null }[]);
+  const gig = rows[0];
+  if (!gig) return null;
+  const slots = parseStageSlots(gig.time_slots, gig.start_time, gig.end_time);
+  if (slots.length === 0) return null;
+  const done = await db
+    .select<{ n: number }[]>(
+      `SELECT COUNT(*) AS n FROM work_sessions
+        WHERE activity_type = 'Tempo de palco' AND context_type = 'gig' AND context_id = $1 AND ended_at IS NOT NULL`,
+      [gigId]
+    )
+    .catch(() => [{ n: 0 }]);
+  const idx = Math.min(done[0]?.n ?? 0, slots.length - 1);
+  return slotMinutes(slots[idx]);
+}
+
 export async function updateWeakPointDescription(id: number, descricao: string | null): Promise<void> {
   const db = getDb();
   await db.execute(`UPDATE performance_weak_points SET descricao = $1 WHERE id = $2`, [descricao, id]);
