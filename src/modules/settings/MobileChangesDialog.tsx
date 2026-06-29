@@ -13,6 +13,7 @@ import { toast } from "@/components/ui/toaster";
 import {
   discardCaptures,
   ingestCaptures,
+  isOrphanStageDebrief,
   useMobileChanges,
   type PendingCapture,
 } from "@/lib/mobileSync";
@@ -74,7 +75,20 @@ export function MobileChangesDialog() {
   async function fundir() {
     setBusy(true);
     try {
-      const n = await ingestCaptures(ids);
+      // Debrief de palco sem GIG: o celular subiu as avaliações pra não perder o
+      // debrief. Pergunta se quer criar uma GIG já Concluída com tudo preenchido
+      // (repertório/técnica/carisma + marcadores). Senão entra só como sessão.
+      let createGigForOrphanStage = false;
+      if (pending.some(isOrphanStageDebrief)) {
+        createGigForOrphanStage = await confirmDialog({
+          title: "Debrief de palco sem GIG",
+          description:
+            "Você avaliou um tempo de palco no celular sem vincular a uma GIG. Quer criar uma GIG já Concluída com o debrief (repertório, técnica, carisma e marcadores) preenchido? Dá pra renomear a venue depois.",
+          confirmLabel: "Criar GIG",
+          cancelLabel: "Só a sessão",
+        });
+      }
+      const n = await ingestCaptures(ids, { createGigForOrphanStage });
       toast.success(n > 0 ? `${n} novidade(s) do celular adicionada(s)` : "Nada para adicionar");
       await refresh();
     } catch (e) {

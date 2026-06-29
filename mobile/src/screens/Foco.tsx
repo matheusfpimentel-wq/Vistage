@@ -1099,15 +1099,12 @@ export function Foco() {
         focus_level: isStage ? null : focusLvl,
         notes: notes || null,
         focus_session_id: sessionIdRef.current,
-        ...((isStage || isPrep) && sg
-          ? {
-              context_type: "gig",
-              gig_id: sg.id,
-              ...(isStage
-                ? { rating_repertoire: repertoire, rating_technique: technique, rating_charisma: charisma }
-                : {}),
-            }
+        // Palco manda SEMPRE as avaliações (mesmo sem GIG resolvida) pra não perder
+        // o debrief — sem GIG, o PC pergunta na revisão se quer criar uma Concluída.
+        ...(isStage
+          ? { rating_repertoire: repertoire, rating_technique: technique, rating_charisma: charisma }
           : {}),
+        ...((isStage || isPrep) && sg ? { context_type: "gig", gig_id: sg.id } : {}),
       });
       setMsg(isStage ? "Set salvo! O debrief sobe pro PC." : "Sessão salva! Sobe pro PC sozinha.");
       setPhase("idle");
