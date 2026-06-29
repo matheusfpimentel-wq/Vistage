@@ -741,6 +741,31 @@ function MarkerSummary({ markers }: { markers: Marker[] }) {
   );
 }
 
+/** Avaliação por estrelas (1..5), igual ao PC — mais visual que slider. */
+function StarRating({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="star-row">
+      <span className="label">{label}</span>
+      <div className="stars" role="radiogroup" aria-label={label}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={"star" + (value >= n ? " on" : "")}
+            onClick={() => onChange(n)}
+            aria-label={`${n} estrela${n > 1 ? "s" : ""}`}
+            aria-pressed={value === n}
+          >
+            <svg width="30" height="30" viewBox="0 0 24 24" fill={value >= n ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Tela ─────────────────────────────────────────────────────────────────────
 type Phase = "idle" | "running" | "done";
 
@@ -1117,29 +1142,14 @@ export function Foco() {
               {stageGig && (
                 <p className="muted" style={{ fontSize: "0.8rem" }}>Debrief de palco: {stageGig.title}</p>
               )}
-              <label>
-                Repertório: {repertoire}
-                <input type="range" min={1} max={5} value={repertoire} onChange={(e) => setRepertoire(Number(e.target.value))} />
-              </label>
-              <label>
-                Técnica: {technique}
-                <input type="range" min={1} max={5} value={technique} onChange={(e) => setTechnique(Number(e.target.value))} />
-              </label>
-              <label>
-                Carisma: {charisma}
-                <input type="range" min={1} max={5} value={charisma} onChange={(e) => setCharisma(Number(e.target.value))} />
-              </label>
+              <StarRating label="Repertório" value={repertoire} onChange={setRepertoire} />
+              <StarRating label="Técnica" value={technique} onChange={setTechnique} />
+              <StarRating label="Carisma" value={charisma} onChange={setCharisma} />
             </>
           ) : (
             <>
-              <label>
-                Energia: {energy}
-                <input type="range" min={1} max={5} value={energy} onChange={(e) => setEnergy(Number(e.target.value))} />
-              </label>
-              <label>
-                Foco: {focusLvl}
-                <input type="range" min={1} max={5} value={focusLvl} onChange={(e) => setFocusLvl(Number(e.target.value))} />
-              </label>
+              <StarRating label="Energia" value={energy} onChange={setEnergy} />
+              <StarRating label="Foco" value={focusLvl} onChange={setFocusLvl} />
             </>
           )}
           <label>
