@@ -31,6 +31,8 @@ type StageSlot = { start: string; end: string };
 type GigMeta = {
   date?: string;
   city?: string | null;
+  venue_name?: string | null;
+  address?: string | null;
   cache_amount?: number | null;
   status?: string | null;
   start_time?: string | null;
@@ -419,7 +421,8 @@ function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) 
         : [];
   const tel = telLink(m.day_contact_phone);
   const wapp = waLink(m.day_contact_phone);
-  const map = mapsLink(gig.title, m.city);
+  // Maps no LOCAL: endereço da venue → nome da venue → título; + cidade.
+  const map = mapsLink(m.address || m.venue_name || gig.title, m.city);
   const contactFirst = m.day_contact_name ? m.day_contact_name.split(" ")[0] : null;
 
   return (
