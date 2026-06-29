@@ -185,6 +185,14 @@ function IcCheck({ size = 24 }: { size?: number }) {
     </svg>
   );
 }
+/** STOP — quadrado (encerrar sessão). */
+function IcStop({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="6" width="12" height="12" rx="2.5" />
+    </svg>
+  );
+}
 
 type Persisted = {
   startedAtMs: number;
@@ -625,7 +633,7 @@ function PrepLiveCapture({ gig, done, onTick }: {
   return (
     <section className="live-capture">
       <span className="label">Preparação ao vivo</span>
-      <div className="lc-round-row">
+      <div className="lc-round-row lc-prep">
         <button
           type="button"
           className="glass-round lc-round lc-round-idea"
@@ -644,7 +652,6 @@ function PrepLiveCapture({ gig, done, onTick }: {
           <IcCheck />
         </button>
       </div>
-      <p className="muted lc-hint">Lâmpada: observação. Check: marcar item.</p>
 
       {noteOpen && (
         <div className="lc-fan-overlay" onClick={() => setNoteOpen(false)}>
@@ -866,7 +873,6 @@ function LiveCapture({ markers, onMark }: { markers: Marker[]; onMark: (k: Marke
           {ideas > 0 && <span className="lc-badge">×{ideas}</span>}
         </button>
       </div>
-      <p className="muted lc-hint">Erro/acerto: detalhe no PC. Ideia: anota aqui.</p>
 
       {/* Leque radial: abre DA POSIÇÃO do botão tocado (fanOrigin), com o fundo
           embaçado por trás. Tocar fora fecha; o botão central também alterna. */}
@@ -1403,8 +1409,8 @@ export function Foco() {
               </label>
             </div>
           ) : (
-            <button className="focus-encerrar" onClick={encerrar}>
-              Encerrar
+            <button className="focus-stop" onClick={encerrar} aria-label="Encerrar" title="Encerrar">
+              <IcStop />
             </button>
           )}
 
