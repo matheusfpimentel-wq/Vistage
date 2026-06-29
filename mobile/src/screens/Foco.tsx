@@ -223,32 +223,38 @@ type GigMeta = {
   day_contact_phone?: string | null;
   set_periods?: StageSlot[];
   ideas?: string[];
+  prep_tasks?: { id: number; title: string }[];
 };
 type StageGig = { title: string } & GigMeta;
+/** GIG candidata no Modo Foco (palco/preparação): id + título + meta do espelho. */
+type StageGigOption = { id: number; title: string; meta: GigMeta };
 
-function pickStageGig(rows: { title: string; meta: GigMeta }[]): StageGig | null {
-  const today = todayISO();
-  const upcoming = rows
-    .map((r) => ({ title: r.title, ...(r.meta ?? {}) }))
-    .filter((g) => typeof g.date === "string" && g.date >= today && g.status !== "Cancelada")
-    .sort((a, b) =>
-      a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : (a.start_time ?? "").localeCompare(b.start_time ?? "")
-    );
-  return upcoming[0] ?? null;
-}
+// Palco vincula a GIGs CONFIRMADAS; preparação também aceita PROPOSTAS. ("A
+// Caminho" conta como confirmada — é o status do dia da GIG.) Sempre futuras.
+const STAGE_CONFIRMED = ["Confirmada", "A Caminho"];
 
-/** Mesma escolha do painel, mas carregando o id (source_id) — pra o debrief de
-    palco cair na GIG certa e os marcadores irem pra ela. */
-function pickStageGigId(rows: { source_id: string; title: string; meta: GigMeta }[]): { id: number; title: string } | null {
+/** GIGs futuras elegíveis pro modo, ordenadas pela mais próxima primeiro — viram
+    as opções do picker (o usuário escolhe; o padrão é a primeira/mais próxima). */
+function eligibleStageGigs(
+  rows: { source_id: string; title: string; meta: GigMeta }[],
+  activity: string
+): StageGigOption[] {
   const today = todayISO();
-  const upcoming = rows
-    .map((r) => ({ id: Number(r.source_id), title: r.title, ...(r.meta ?? {}) }))
-    .filter((g) => Number.isFinite(g.id) && typeof g.date === "string" && g.date >= today && g.status !== "Cancelada")
-    .sort((a, b) =>
-      a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : (a.start_time ?? "").localeCompare(b.start_time ?? "")
-    );
-  const g = upcoming[0];
-  return g ? { id: g.id, title: g.title } : null;
+  const allowProposta = activity === "Preparação";
+  return rows
+    .map((r) => ({ id: Number(r.source_id), title: r.title, meta: (r.meta ?? {}) as GigMeta }))
+    .filter((g) => {
+      if (!Number.isFinite(g.id)) return false;
+      const d = g.meta.date;
+      if (typeof d !== "string" || d < today) return false;
+      const st = g.meta.status ?? "";
+      if (STAGE_CONFIRMED.includes(st)) return true;
+      return allowProposta && st === "Proposta";
+    })
+    .sort((a, b) => {
+      const da = a.meta.date ?? "", db = b.meta.date ?? "";
+      return da < db ? -1 : da > db ? 1 : (a.meta.start_time ?? "").localeCompare(b.meta.start_time ?? "");
+    });
 }
 
 function fmtDate(d?: string): string {
@@ -256,28 +262,10 @@ function fmtDate(d?: string): string {
   return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
 }
 
-function StagePanel() {
-  const [gig, setGig] = useState<StageGig | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void supabase
-      .from("catalog_mirror")
-      .select("title, meta")
-      .eq("kind", "gig")
-      .then(({ data }) => {
-        if (!active) return;
-        setGig(pickStageGig((data ?? []) as { title: string; meta: GigMeta }[]));
-        setLoaded(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (!loaded) return null;
-  if (!gig) return <p className="muted center-text">Sem GIG próxima pra puxar contexto de palco.</p>;
+function StagePanel({ option, loading }: { option: StageGigOption | null; loading: boolean }) {
+  if (loading) return <p className="muted center-text">Carregando GIGs…</p>;
+  if (!option) return <p className="muted center-text">Sem GIG confirmada à frente — o debrief vira uma GIG no PC ao revisar.</p>;
+  const gig: StageGig = { title: option.title, ...option.meta };
 
   const periods = gig.set_periods && gig.set_periods.length > 0
     ? gig.set_periods
@@ -506,45 +494,22 @@ function GestaoPanel({ focusTask }: { focusTask: { id: string; title: string } |
 }
 
 // ── Painel: PREPARAÇÃO (checklist da GIG: tarefas abertas, vêm no meta) ───────
-function PreparacaoPanel({ gig }: { gig: { id: number; title: string } | null }) {
-  const [tasks, setTasks] = useState<{ id: number; title: string }[] | null>(null);
+function PreparacaoPanel({ gig, loading }: { gig: StageGigOption | null; loading: boolean }) {
   const [done, setDone] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (!gig) {
-      setTasks(null);
-      return;
-    }
-    let active = true;
-    void supabase
-      .from("catalog_mirror")
-      .select("meta")
-      .eq("kind", "gig")
-      .eq("source_id", String(gig.id))
-      .limit(1)
-      .then(({ data }) => {
-        if (!active) return;
-        const meta = (data?.[0]?.meta ?? {}) as { prep_tasks?: { id: number; title: string }[] };
-        setTasks(meta.prep_tasks ?? []);
-      });
-    return () => {
-      active = false;
-    };
-  }, [gig?.id]);
 
   async function tick(t: { id: number; title: string }) {
     setDone((d) => new Set(d).add(t.id)); // some na hora (otimista)
     await enqueueCapture("task_done", { task_id: t.id, title: t.title });
   }
 
-  if (!gig) return <p className="muted center-text">Sem GIG próxima pra preparar.</p>;
-  const visible = (tasks ?? []).filter((t) => !done.has(t.id));
+  if (loading) return <p className="muted center-text">Carregando GIGs…</p>;
+  if (!gig) return <p className="muted center-text">Sem GIG confirmada ou proposta à frente pra preparar.</p>;
+  const tasks = gig.meta.prep_tasks ?? [];
+  const visible = tasks.filter((t) => !done.has(t.id));
   return (
     <section className="card">
       <span className="label">Preparar: {gig.title}</span>
-      {tasks === null ? (
-        <p className="muted" style={{ marginTop: "0.4rem" }}>Carregando checklist…</p>
-      ) : visible.length === 0 ? (
+      {visible.length === 0 ? (
         <p className="muted" style={{ marginTop: "0.4rem" }}>Sem tarefas de preparação abertas pra esta GIG.</p>
       ) : (
         <ul className="focus-tasks">
@@ -565,12 +530,52 @@ function PreparacaoPanel({ gig }: { gig: { id: number; title: string } | null })
   );
 }
 
-function ContextPanel({ activity, focusTask, stageGig }: { activity: string; focusTask: { id: string; title: string } | null; stageGig: { id: number; title: string } | null }) {
-  if (activity === "Preparação") return <PreparacaoPanel gig={stageGig} />;
-  if (activity === "Tempo de palco") return <StagePanel />;
+function ContextPanel({ activity, focusTask, stageGig, stageLoading }: { activity: string; focusTask: { id: string; title: string } | null; stageGig: StageGigOption | null; stageLoading: boolean }) {
+  if (activity === "Preparação") return <PreparacaoPanel gig={stageGig} loading={stageLoading} />;
+  if (activity === "Tempo de palco") return <StagePanel option={stageGig} loading={stageLoading} />;
   if (activity === "Criação musical") return <MusicPanel />;
   if (activity === "Gestão") return <GestaoPanel focusTask={focusTask} />;
   return null;
+}
+
+/** Picker das GIGs futuras elegíveis (palco: confirmadas; preparação: também
+    propostas). Mostra todas como opção abaixo na tela — o usuário escolhe a qual
+    vincular o palco/preparação; o padrão é a mais próxima. */
+function StageGigPicker({
+  options,
+  selectedId,
+  onSelect,
+  activity,
+  loading,
+}: {
+  options: StageGigOption[];
+  selectedId: number | null;
+  onSelect: (o: StageGigOption) => void;
+  activity: string;
+  loading: boolean;
+}) {
+  if (loading) return null;
+  if (options.length === 0) return null; // a mensagem de "sem GIG" vem do painel
+  return (
+    <div className="gig-picker">
+      <span className="label">{activity === "Preparação" ? "Preparar para" : "Tocar em"}</span>
+      <div className="gig-picker-list">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`gig-opt${o.id === selectedId ? " active" : ""}`}
+            onClick={() => onSelect(o)}
+          >
+            <span className="gig-opt-title">{o.title}</span>
+            <span className="gig-opt-sub">
+              {[fmtDate(o.meta.date), o.meta.status, o.meta.city].filter(Boolean).join(" · ")}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // ── Captura ao vivo (grid eyes-free + ideia/momento) ─────────────────────────
@@ -860,8 +865,10 @@ export function Foco() {
   const [charisma, setCharisma] = useState(3);
   // GIG resolvida quando a atividade é "Tempo de palco" (id + título). Ref pra os
   // marcadores ao vivo carregarem o gig_id sem closure velha.
-  const [stageGig, setStageGig] = useState<{ id: number; title: string } | null>(null);
-  const stageGigRef = useRef<{ id: number; title: string } | null>(null);
+  const [stageGig, setStageGig] = useState<StageGigOption | null>(null);
+  const stageGigRef = useRef<StageGigOption | null>(null);
+  const [gigOptions, setGigOptions] = useState<StageGigOption[]>([]);
+  const [gigsReady, setGigsReady] = useState(true);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -1053,30 +1060,43 @@ export function Foco() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Resolve a GIG (próxima/de hoje) quando a atividade é "Tempo de palco" ou
-  // "Preparação" — pros marcadores/debrief (palco) e o checklist (preparação)
-  // caírem nela. Limpa pras outras atividades.
+  // Carrega as GIGs futuras elegíveis quando a atividade é "Tempo de palco" ou
+  // "Preparação" (palco: confirmadas; preparação: também propostas) e seleciona a
+  // mais próxima por padrão — o usuário troca pelo picker. A escolhida puxa o
+  // contexto/checklist, recebe os marcadores e vira o destino do debrief.
   useEffect(() => {
     if (activity !== "Tempo de palco" && activity !== "Preparação") {
       setStageGig(null);
       stageGigRef.current = null;
+      setGigOptions([]);
+      setGigsReady(true);
       return;
     }
     let active = true;
+    setGigsReady(false);
     void supabase
       .from("catalog_mirror")
       .select("source_id, title, meta")
       .eq("kind", "gig")
       .then(({ data }) => {
         if (!active) return;
-        const picked = pickStageGigId((data ?? []) as { source_id: string; title: string; meta: GigMeta }[]);
-        setStageGig(picked);
-        stageGigRef.current = picked;
+        const opts = eligibleStageGigs((data ?? []) as { source_id: string; title: string; meta: GigMeta }[], activity);
+        setGigOptions(opts);
+        const def = opts[0] ?? null;
+        setStageGig(def);
+        stageGigRef.current = def;
+        setGigsReady(true);
       });
     return () => {
       active = false;
     };
   }, [activity]);
+
+  // Troca manual da GIG no picker — atualiza estado e ref (debrief/marcadores).
+  function selectStageGig(o: StageGigOption) {
+    setStageGig(o);
+    stageGigRef.current = o;
+  }
 
   async function save() {
     if (!doneAt) return;
@@ -1192,7 +1212,16 @@ export function Foco() {
             </button>
           )}
 
-          <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} />
+          {(activity === "Tempo de palco" || activity === "Preparação") && (
+            <StageGigPicker
+              options={gigOptions}
+              selectedId={stageGig?.id ?? null}
+              onSelect={selectStageGig}
+              activity={activity}
+              loading={!gigsReady}
+            />
+          )}
+          <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} stageLoading={!gigsReady} />
         </>
       )}
 
