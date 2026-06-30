@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { toLocalISODate } from "@/lib/format";
-import { getDisabledRuleIds } from "./ruleConfig";
+import { getDisabledRuleIds, getFestaSalesPct, getLoteSoldPct } from "./ruleConfig";
 import { ruleIdForKey, type AlertItem } from "./alerts";
 
 /**
@@ -12,8 +12,6 @@ import { ruleIdForKey, type AlertItem } from "./alerts";
  * Respeitam as regras desligadas no catálogo (Configurações avançadas) — cada um
  * tem uma entrada builtin correspondente, com 🔒 nas de dinheiro/fisco.
  */
-
-const RECEIVABLES_THRESHOLD = 1000; // R$ — acima disso, recebíveis acumulados viram alerta.
 
 const fmt = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -34,22 +32,11 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
   const in7 = addDaysISO(7);
   const in14 = addDaysISO(14);
 
-  // 1) 🔒 Recebíveis acumulados acima do limiar.
-  try {
-    const r = await db.select<{ total: number }[]>(
-      "SELECT COALESCE(SUM(amount),0) as total FROM finance_transactions WHERE kind='income' AND status='Previsto'"
-    );
-    const total = r[0]?.total ?? 0;
-    if (total >= RECEIVABLES_THRESHOLD) {
-      out.push({
-        key: "recebiveis-acumulados",
-        icon: "dollar", to: "/financeiro", critical: true, severidade: "critico",
-        label: `Recebíveis acumulados: ${fmt(total)} previstos ainda não recebidos.`,
-      });
-    }
-  } catch { /* tabela ausente — silencioso */ }
+  // (Removido) O alerta "Recebíveis acumulados acima do limiar" foi retirado —
+  // somar recebíveis previstos virava ruído; o que importa (recebíveis ATRASADOS)
+  // já é coberto por loadOverdueReceivableAlerts.
 
-  // 2) 🔒 Receita realizada do mês abaixo do custo fixo (só após o dia 15, p/ não
+  // 🔒 Receita realizada do mês abaixo do custo fixo (só após o dia 15, p/ não
   //    dar falso positivo no começo do mês).
   try {
     if (new Date().getDate() >= 15) {
@@ -73,8 +60,9 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
     }
   } catch { /* ignore */ }
 
-  // 3) Festa em ≤14 dias com vendas < 40% da meta.
+  // 3) Festa em ≤14 dias com vendas abaixo do limiar da meta (editável; 0 = nunca).
   try {
+    const salesFrac = getFestaSalesPct() / 100;
     const rows = await db.select<{ id: number; title: string; date: string; meta: number; sold: number }[]>(
       `SELECT p.id, p.title, p.date,
               COALESCE(SUM(t.quantity_total),0) as meta,
@@ -83,7 +71,7 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
         WHERE p.status IN ('Confirmada','Planejando') AND p.date IS NOT NULL
           AND p.date >= $1 AND p.date <= $2
         GROUP BY p.id
-       HAVING meta > 0 AND (sold * 1.0 / meta) < 0.4`,
+       HAVING meta > 0 AND (sold * 1.0 / meta) < ${salesFrac}`,
       [today, in14]
     );
     for (const p of rows) {
@@ -165,14 +153,15 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
     }
   } catch { /* ignore */ }
 
-  // 7) Lote esgotando (>80% vendido) — oportunidade de abrir o próximo.
+  // 7) Lote esgotando (acima do limiar vendido, editável) — abrir o próximo.
   try {
+    const loteFrac = getLoteSoldPct() / 100;
     const rows = await db.select<{ id: number; title: string; name: string; sold: number; total: number }[]>(
       `SELECT p.id, p.title, t.name, t.quantity_sold as sold, t.quantity_total as total
          FROM party_tickets t JOIN parties p ON p.id = t.party_id
         WHERE p.date IS NOT NULL AND p.date >= $1
           AND t.quantity_total > 0 AND t.quantity_sold < t.quantity_total
-          AND (t.quantity_sold * 1.0 / t.quantity_total) >= 0.8`,
+          AND (t.quantity_sold * 1.0 / t.quantity_total) >= ${loteFrac}`,
       [today]
     );
     for (const r of rows) {

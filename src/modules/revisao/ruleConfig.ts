@@ -69,3 +69,36 @@ export function setCoolingDays(days: number): void {
   const n = Math.max(1, Math.min(365, Math.round(days)));
   persistDocSetting(COOLING_DAYS_KEY, String(n));
 }
+
+/**
+ * Limiares percentuais editáveis de alguns alertas de festa (mesma família
+ * portátil "vistage.rules."). Lidos do cache local (síncrono) pelos loaders.
+ *  - festa_sales_pct: dispara quando as vendas estão ABAIXO de X% da meta (0 = nunca);
+ *  - lote_sold_pct:   dispara quando o lote passa de X% vendido.
+ */
+export const FESTA_SALES_PCT_KEY = "vistage.rules.festa_sales_pct";
+export const DEFAULT_FESTA_SALES_PCT = 40;
+export const LOTE_SOLD_PCT_KEY = "vistage.rules.lote_sold_pct";
+export const DEFAULT_LOTE_SOLD_PCT = 80;
+
+function getPct(key: string, def: number): number {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n) && n >= 0 && n <= 100) return n;
+    }
+  } catch {
+    /* storage indisponível — usa o padrão */
+  }
+  return def;
+}
+
+function setPct(key: string, value: number): void {
+  persistDocSetting(key, String(Math.max(0, Math.min(100, Math.round(value)))));
+}
+
+export const getFestaSalesPct = (): number => getPct(FESTA_SALES_PCT_KEY, DEFAULT_FESTA_SALES_PCT);
+export const setFestaSalesPct = (v: number): void => setPct(FESTA_SALES_PCT_KEY, v);
+export const getLoteSoldPct = (): number => getPct(LOTE_SOLD_PCT_KEY, DEFAULT_LOTE_SOLD_PCT);
+export const setLoteSoldPct = (v: number): void => setPct(LOTE_SOLD_PCT_KEY, v);

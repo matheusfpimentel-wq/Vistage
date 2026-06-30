@@ -16,8 +16,12 @@ import {
 import {
   getCoolingDays,
   getDisabledRuleIds,
+  getFestaSalesPct,
+  getLoteSoldPct,
   restoreDefaultRules,
   setCoolingDays,
+  setFestaSalesPct,
+  setLoteSoldPct,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
@@ -43,6 +47,8 @@ export function AdvancedRulesSettings() {
     () => new Set(getDisabledRuleIds())
   );
   const [coolingDays, setCoolingDaysState] = useState(() => getCoolingDays());
+  const [festaSalesPct, setFestaSalesPctState] = useState(() => getFestaSalesPct());
+  const [loteSoldPct, setLoteSoldPctState] = useState(() => getLoteSoldPct());
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
@@ -162,6 +168,46 @@ export function AdvancedRulesSettings() {
                               className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
                             />
                             <span>dias</span>
+                          </label>
+                        )}
+                        {r.id === "festa-vendas-baixas-" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Dispara abaixo de:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={festaSalesPct}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setFestaSalesPctState(clamped);
+                                setFestaSalesPct(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>% da meta (0 = nunca)</span>
+                          </label>
+                        )}
+                        {r.id === "lote-esgotando-" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Dispara acima de:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={loteSoldPct}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setLoteSoldPctState(clamped);
+                                setLoteSoldPct(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>% vendido</span>
                           </label>
                         )}
                       </div>
