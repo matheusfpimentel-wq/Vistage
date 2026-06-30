@@ -38,7 +38,7 @@ import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { todayISO, formatCurrency } from "@/lib/format";
+import { todayISO, formatCurrency, formatDate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
@@ -312,26 +312,36 @@ export function GigForm({
   }, [open, gig]);
 
   useEffect(() => {
-    if (!state.promoter_contact_id) {
+    const contactId = state.promoter_contact_id;
+    const manualName = (state.promoter_name_manual ?? "").trim();
+    const gigId = gig?.id ?? 0;
+    // Sem contratante identificado (nem contato, nem nome manual) → sem histórico.
+    if (!contactId && !manualName) {
       setContactHistory(null);
       return;
     }
-    const promoterId = state.promoter_contact_id;
-    const gigId = gig?.id ?? 0;
     void (async () => {
       try {
         const db = getDb();
-        const rows = await db.select<{
-          total: number;
-          avg_rating: number | null;
-          last_date: string | null;
-          paid: number;
-        }[]>(
-          `SELECT COUNT(*) as total, AVG(rating_contractor) as avg_rating, MAX(date) as last_date,
-           SUM(CASE WHEN payment_status = 'Pago integralmente' THEN 1 ELSE 0 END) as paid
-           FROM gigs WHERE promoter_contact_id = $1 AND id != $2`,
-          [promoterId, gigId]
-        );
+        const SELECT = `SELECT COUNT(*) as total, AVG(rating_contractor) as avg_rating, MAX(date) as last_date,
+           SUM(CASE WHEN payment_status = 'Pago integralmente' THEN 1 ELSE 0 END) as paid FROM gigs`;
+        type HistRow = { total: number; avg_rating: number | null; last_date: string | null; paid: number };
+        let rows: HistRow[];
+        if (contactId) {
+          // Contato cadastrado (pessoa recorrente): casa pelo MESMO contato.
+          rows = await db.select<HistRow[]>(
+            `${SELECT} WHERE promoter_contact_id = $1 AND id != $2`,
+            [contactId, gigId]
+          );
+        } else {
+          // Contratante MANUAL (sem cadastro): casa pelo MESMO nome digitado, só
+          // entre GIGs também sem contato — pra não confundir com pessoa recorrente.
+          rows = await db.select<HistRow[]>(
+            `${SELECT} WHERE promoter_contact_id IS NULL
+               AND TRIM(LOWER(COALESCE(promoter_name_manual, ''))) = $1 AND id != $2`,
+            [manualName.toLowerCase(), gigId]
+          );
+        }
         const row = rows[0];
         if (row && row.total > 0) {
           setContactHistory(row);
@@ -342,7 +352,7 @@ export function GigForm({
         setContactHistory(null);
       }
     })();
-  }, [state.promoter_contact_id, gig?.id]);
+  }, [state.promoter_contact_id, state.promoter_name_manual, gig?.id]);
 
   function pickVenue(venueId: number | null) {
     if (venueId === null) {
@@ -779,7 +789,7 @@ export function GigForm({
                     <div>Avaliação média: {contactHistory.avg_rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5</div>
                   )}
                   {contactHistory.last_date && (
-                    <div>Última GIG: {contactHistory.last_date}</div>
+                    <div>Última GIG: {formatDate(contactHistory.last_date, "dd/MM/yyyy")}</div>
                   )}
                   <div>Pagamentos: {contactHistory.paid} de {contactHistory.total} pagas integralmente</div>
                 </div>
