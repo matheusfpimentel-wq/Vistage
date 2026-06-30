@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -584,9 +583,6 @@ export function GigForm({
       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
-          <DialogDescription>
-            Debrief abre automaticamente ao mudar pra Concluída.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1010,10 +1006,7 @@ export function GigForm({
           {state.status === "Proposta" ? (
             <ProposalHint />
           ) : (
-          <Section
-            title="Preparação"
-            description="Marque o que já está pronto. O progresso aparece no Dashboard."
-          >
+          <Section title="Preparação">
             <PrepChecklist
               state={state.prep}
               groupFilter={isSocialCategory(state.event_category) ? ["musical", "logistica"] : undefined}
@@ -1688,10 +1681,7 @@ function GigExpensesSection({ gigId, gigDate }: { gigId: number; gigDate: string
   const total = expenses.reduce((s, e) => s + e.amount, 0);
 
   return (
-    <Section
-      title="Despesas da GIG"
-      description="Cada custo vira uma despesa no Financeiro vinculada a esta GIG."
-    >
+    <Section title="Despesas da GIG">
       {expenses.length > 0 && (
         <ul className="space-y-1.5">
           {expenses.map((e) => (

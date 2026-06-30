@@ -5,7 +5,6 @@ import { confirmDialog } from "@/components/ui/confirm";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -99,10 +98,6 @@ export function CategoryManager({ open, onOpenChange, onChanged }: Props) {
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Categorias financeiras</DialogTitle>
-          <DialogDescription>
-            Renomeie ou exclua categorias. As fixas (DJ, Royalties, Aulas /
-            Mentorias, Publicidade) não podem ser excluídas.
-          </DialogDescription>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TransactionKind)}>

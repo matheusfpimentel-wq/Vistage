@@ -130,7 +130,7 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída há mais de 48h com cachê ainda não recebido" },
   { id: "no-upcoming-gigs", category: "GIGs", severidade: "atencao", message: "Nenhuma GIG marcada à frente", trigger: "Não há nenhuma GIG futura agendada" },
   { id: "ideas-stuck", category: "Produção", severidade: "info", message: "Ideias quentes paradas em Embrião há +15 dias", trigger: "Ideia 'quente' sem evoluir do estágio Embrião por mais de 15 dias" },
-  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Funil de produção vazio", trigger: "Nada em produção E nenhuma faixa nova há +30 dias (funde os dois alertas antigos)" },
+  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Funil de produção vazio", trigger: "Nada em produção E nenhuma faixa nova há +30 dias" },
   { id: "track-standby-overdue-", category: "Produção", severidade: "info", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
   { id: "parties-undated", category: "Festas", severidade: "info", message: "Festas sem data definida", trigger: "Festa cadastrada sem data definida" },
   { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },

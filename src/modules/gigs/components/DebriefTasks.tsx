@@ -47,11 +47,6 @@ export function DebriefTasks({ items, onChange }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Lance aqui as ações que essa GIG abriu — vão virar tarefas com vencimento
-        em <strong>60 dias</strong> por padrão e tag <code>do-debrief</code>.
-      </div>
-
       <div className="rounded-md border p-3 space-y-2">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_180px_auto] sm:items-end">
           <div className="space-y-1">

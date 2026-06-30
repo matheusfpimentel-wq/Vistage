@@ -222,10 +222,6 @@ export function IngressosTab({
             <Plus className="h-3.5 w-3.5" /> Adicionar ingresso
           </Button>
         </div>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Cada ingresso funciona como um <strong>lote</strong> (Lote 1, Last call…) — defina nome,
-          preço e janela de venda; ao esgotar, crie o próximo.
-        </p>
       </div>
 
       <GuestList partyId={partyId} />
