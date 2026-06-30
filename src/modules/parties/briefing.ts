@@ -1,4 +1,5 @@
 import { formatCurrency, formatDate } from "@/lib/format";
+import { savePdfDoc } from "@/lib/savePdf";
 import { computePartyPnL } from "./pnl";
 import type {
   PartyBudgetItem,
@@ -247,5 +248,5 @@ export async function exportBriefingPdf(b: Briefing): Promise<void> {
   }
 
   const safe = b.title.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "briefing";
-  doc.save(`briefing-${safe}.pdf`);
+  await savePdfDoc(doc, `briefing-${safe}`);
 }

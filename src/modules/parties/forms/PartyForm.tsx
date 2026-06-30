@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { onEnterSave } from "@/lib/formEnter";
 import {
   Dialog,
   DialogContent,
@@ -527,7 +528,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-5xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{party ? "Editar festa" : "Nova festa"}</DialogTitle>
         </DialogHeader>

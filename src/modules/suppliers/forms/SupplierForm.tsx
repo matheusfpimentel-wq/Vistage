@@ -29,6 +29,7 @@ import {
 import { SUPPLIER_CATEGORIES } from "../types";
 import type { Supplier } from "../types";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type ServiceRow = {
   id?: number;
@@ -185,7 +186,7 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onKeyDown={onEnterSave(handleSave)}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar fornecedor" : "Novo fornecedor"}</DialogTitle>
         </DialogHeader>

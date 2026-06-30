@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { toLocalISODate } from "@/lib/format";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { emitDataChanged } from "@/lib/events";
-import { getCoolingDays, getDisabledRuleIds } from "./ruleConfig";
+import { getCoolingDays, getCoolingHeat, getDisabledRuleIds } from "./ruleConfig";
 import type { AlertItem } from "./alerts";
 
 /**
@@ -93,6 +93,11 @@ async function safeRows<T>(fn: () => Promise<T[]>): Promise<T[]> {
 export async function loadCoolingAlerts(): Promise<AlertItem[]> {
   // Regra desligada no editor de Configurações avançadas → não calcula nada.
   if (getDisabledRuleIds().includes(COOLING_RULE_ID)) return [];
+
+  // Calor mínimo (só ideias têm calor). 0 = desliga a regra INTEIRA (todas as
+  // entidades), conforme configurado em Configurações avançadas.
+  const heatMin = getCoolingHeat();
+  if (heatMin === 0) return [];
 
   const days = getCoolingDays();
   const cut = new Date();
@@ -218,6 +223,36 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         label: single
           ? `Conteúdo "${single.name}" esfriando — sem movimento há +${days} dias`
           : `${cold.length} conteúdos esfriando — sem movimento há +${days} dias`,
+        coolingRefs: cold.map((c) => c.ref),
+      });
+    }
+  }
+
+  // ── Ideias esfriando — filtradas pelo CALOR mínimo (ideias têm calor 1–3) ────
+  // Só ideias com calor >= o limiar configurado entram; sem movimento além do
+  // tempo de resfriamento. (Ideias não é um módulo ocultável do Perfil.)
+  {
+    const rows = await safeRows<{ id: number; title: string | null; updated_at: string }>(() =>
+      db.select(
+        `SELECT id, title, updated_at FROM ideas
+          WHERE heat >= $1 AND substr(updated_at, 1, 10) < $2`,
+        [heatMin, cutoff]
+      )
+    );
+    const cold = fresh(
+      rows.map((r) => ({ ref: `idea:${r.id}`, id: r.id, name: r.title || "Sem título", lastFed: r.updated_at }))
+    );
+    if (cold.length > 0) {
+      const single = cold.length === 1 ? cold[0] : null;
+      out.push({
+        key: "cooling:ideas",
+        icon: "flame",
+        to: single ? `/ideias?open=${single.id}` : `/ideias?open=${cold[0].id}`,
+        critical: false,
+        severidade: "info",
+        label: single
+          ? `Ideia "${single.name}" esfriando — sem movimento há +${days} dias`
+          : `${cold.length} ideias esfriando — sem movimento há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }

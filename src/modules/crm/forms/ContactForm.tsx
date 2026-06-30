@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { cn } from "@/lib/utils";
 import {
   Select,
@@ -241,7 +242,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{contact ? "Editar pessoa" : "Nova pessoa"}</DialogTitle>
         </DialogHeader>

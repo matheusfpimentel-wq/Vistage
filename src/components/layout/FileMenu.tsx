@@ -70,23 +70,23 @@ export function FileMenu() {
 
   return (
     <div className="relative flex items-center gap-1.5" ref={ref}>
-      {/* Menu "Arquivo" */}
+      {/* O NOME DO ARQUIVO é o próprio botão do menu (no lugar de "Arquivo"):
+          clicar abre Novo / Abrir / Salvar / senha. Mostra cadeado, "não salvo"
+          e a sequência de foco (🔥). */}
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
         className={cn(
-          "flex shrink-0 items-center gap-1 rounded-md border px-2 py-1.5 text-xs transition",
-          "text-muted-foreground hover:bg-accent hover:text-foreground",
-          menuOpen && "bg-accent text-foreground"
+          "flex items-center gap-1 rounded-md border border-primary/30 bg-accent px-2 py-1 text-xs text-foreground transition hover:bg-accent/80",
+          menuOpen && "ring-1 ring-primary/40"
         )}
         title="Arquivo"
       >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-        <span className="hidden md:inline">Arquivo</span>
-      </button>
-
-      {/* Documento atual (nome + streak) */}
-      <div className="flex items-center gap-1 rounded-md border border-primary/30 bg-accent px-2 py-1 text-xs text-foreground">
+        {busy ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+        ) : (
+          <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        )}
         {isProtected && <Lock className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Protegido" />}
         <span className="max-w-[200px] truncate" title={docName}>{docName}</span>
         {dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-label="Não salvo" />}
@@ -99,7 +99,7 @@ export function FileMenu() {
             {streak}
           </span>
         )}
-      </div>
+      </button>
 
       {menuOpen && (
         <div className="absolute left-0 top-full z-50 mt-1 w-52 overflow-hidden rounded-md border bg-popover shadow-md">

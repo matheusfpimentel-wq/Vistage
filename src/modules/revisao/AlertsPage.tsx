@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BellOff, CheckCircle2, ChevronRight, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
 import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
@@ -8,7 +8,7 @@ import { getDisabledRuleIds } from "./ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "./customRules";
 import { loadPartyFinanceAlerts } from "./partyFinanceAlerts";
-import { filterSnoozed, snoozeAlert } from "./snooze";
+import { alertSignature, dismissAlertUntilChange, filterDismissed, filterSnoozed } from "./snooze";
 import { ackCooling, loadCoolingAlerts } from "./cooling";
 import { AlertIcon } from "./alertIcons";
 import { DATA_CHANGED } from "@/lib/events";
@@ -34,12 +34,14 @@ export function AlertsPage() {
           loadCoolingAlerts(),
         ]);
         setAlerts(
-          await filterSnoozed([
-            ...computeAlerts(stats, undefined, getDisabledRuleIds(), getHiddenModules()),
-            ...custom,
-            ...partyFin,
-            ...cooling,
-          ])
+          await filterDismissed(
+            await filterSnoozed([
+              ...computeAlerts(stats, undefined, getDisabledRuleIds(), getHiddenModules()),
+              ...custom,
+              ...partyFin,
+              ...cooling,
+            ])
+          )
         );
       } catch {
         /* silently ignore */
@@ -62,10 +64,11 @@ export function AlertsPage() {
   }, [refresh]);
 
   const dismiss = useCallback((a: AlertItem) => {
-    // "Esfriando" → registra os itens como aceitos (some até tocar de novo).
-    // Demais alertas → snooze por 24h.
+    setAlerts((prev) => prev.filter((x) => x.key !== a.key)); // some na hora
+    // "Esfriando" → registra os itens como aceitos (some até alimentar de novo).
+    // Demais alertas → dispensa até a situação mudar (volta ao disparar de novo).
     if (a.coolingRefs && a.coolingRefs.length > 0) void ackCooling(a.coolingRefs);
-    else void snoozeAlert(a.key);
+    else void dismissAlertUntilChange(a.key, alertSignature(a));
   }, []);
 
   const groups: Record<AlertSeverity, AlertItem[]> = { critico: [], atencao: [], info: [] };
@@ -164,10 +167,10 @@ function AlertSection({
               type="button"
               onClick={() => onDismiss(a)}
               className="flex h-9 w-9 shrink-0 items-center justify-center self-stretch text-muted-foreground/60 transition hover:text-foreground"
-              title={a.coolingRefs ? "Deixar esfriar" : "Dispensar por 24h"}
-              aria-label={a.coolingRefs ? "Deixar esfriar" : "Dispensar alerta por 24 horas"}
+              title={a.coolingRefs ? "Deixar esfriar" : "Dispensar até disparar de novo"}
+              aria-label={a.coolingRefs ? "Deixar esfriar" : "Dispensar alerta até disparar de novo"}
             >
-              <BellOff className="h-4 w-4" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         ))}

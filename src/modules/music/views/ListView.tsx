@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Pencil, PlusSquare, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -15,12 +15,21 @@ import type { ListDensity } from "@/components/shared/ListDensityToggle";
 
 const RELEASED_STAGES = ["Lançamento", "Pós-lançamento"] as const;
 
+/**
+ * Linha da tabela = track + campos derivados só para ordenar colunas que não
+ * mapeiam direto num campo (título de exibição, tempo no stage).
+ */
+type MusicRow = TrackWithProject & {
+  _track: string;
+  _days: number | null;
+};
+
 // Cabeçalho e corpo dirigidos pela mesma ORDEM: "track" (título do projeto,
 // principal) e "actions" travadas; as colunas do meio reordenam ao arrastar.
 type MusicCol = {
   id: string;
   locked?: boolean;
-  sortKey?: keyof TrackWithProject;
+  sortKey?: keyof MusicRow;
   header: string;
   thClassName: string;
   /** classes do <td> — função pra permitir realce por linha (ex.: stalled). */
@@ -41,7 +50,16 @@ export function ListView({
   density?: ListDensity;
 }) {
   const navigate = useNavigate();
-  const { sorted, sortKey, sortDir, handleSort } = useTableSort(tracks);
+  const rows: MusicRow[] = useMemo(
+    () =>
+      tracks.map((t) => ({
+        ...t,
+        _track: trackDisplayName(t),
+        _days: daysInStage(t),
+      })),
+    [tracks]
+  );
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(rows);
   const cols = useResizableColumns("music", [
     { id: "track", width: 220, min: 140 },
     { id: "project", width: 180, min: 100 },
@@ -56,6 +74,7 @@ export function ListView({
     track: {
       id: "track",
       locked: true,
+      sortKey: "_track",
       header: "Track",
       thClassName: "px-3 py-2 text-left",
       tdClassName: () => "px-3 py-2",
@@ -63,7 +82,10 @@ export function ListView({
       cell: (t, edit) => (
         <button
           type="button"
-          onClick={() => edit(t)}
+          onClick={(e) => {
+            e.stopPropagation();
+            edit(t);
+          }}
           className="block max-w-full truncate text-left font-medium hover:text-primary"
         >
           {trackDisplayName(t)}
@@ -104,6 +126,7 @@ export function ListView({
     },
     days: {
       id: "days",
+      sortKey: "_days",
       header: "Tempo no stage",
       thClassName: "px-3 py-2 text-right",
       tdClassName: (t) => {
@@ -124,7 +147,7 @@ export function ListView({
       thClassName: "px-3 py-2",
       tdClassName: () => "px-3 py-2",
       cell: (t, edit, nav) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           {(RELEASED_STAGES as readonly string[]).includes(t.current_stage) && (
             <button
               type="button"
@@ -204,7 +227,12 @@ export function ListView({
         </thead>
         <tbody>
           {sorted.map((t) => (
-            <tr key={t.id} className="border-b last:border-0 hover:bg-accent/40">
+            <tr
+              key={t.id}
+              className="cursor-pointer border-b last:border-0 hover:bg-accent/40"
+              onClick={() => onEdit(t)}
+              title="Clique pra editar"
+            >
               {oc.order.map((id) => {
                 const c = colDefs[id];
                 return (

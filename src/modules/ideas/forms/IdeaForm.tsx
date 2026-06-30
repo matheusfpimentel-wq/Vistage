@@ -50,6 +50,7 @@ import { createContent } from "@/modules/content/api";
 import { createTask } from "@/modules/tasks/api";
 import { getDb } from "@/lib/db";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 // Procedência (source) → rótulo curto pro selo "nasceu de" do formulário.
 const SOURCE_LABEL: Record<string, string> = {
@@ -357,7 +358,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{idea ? "Editar ideia" : "Nova ideia"}</DialogTitle>
         </DialogHeader>

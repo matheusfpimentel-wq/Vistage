@@ -43,9 +43,10 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
     kind: {
       id: "kind",
       locked: true,
+      sortKey: "kind",
       header: "",
       width: 44,
-      thClassName: "px-3 py-2 text-left",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "px-3 py-2",
       cell: (t) =>
         t.kind === "income" ? (
@@ -150,9 +151,10 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
     },
     category: {
       id: "category",
+      sortKey: "category_name",
       header: "Categoria",
       width: 168,
-      thClassName: "px-3 py-2 text-left",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "px-3 py-2 text-muted-foreground truncate",
       cell: (t) => t.category_name ?? "—",
     },
@@ -164,7 +166,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
       thClassName: "px-3 py-2 text-right",
       tdClassName: "px-3 py-2",
       cell: (t, edit, del) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button size="icon" variant="ghost" onClick={() => edit(t)} aria-label="Editar">
             <Pencil className="h-4 w-4" />
           </Button>
@@ -257,7 +259,9 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
                 key={t.id}
                 data-index={vi.index}
                 ref={rowVirtualizer.measureElement}
-                className="border-t transition-colors hover:bg-muted/40"
+                className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                onClick={() => onEdit(t)}
+                title="Clique pra editar"
               >
                 {oc.order.map((id) => {
                   const c = colDefs[id];

@@ -28,6 +28,7 @@ import {
 } from "../api";
 import { loadAuth, pushOkrToCalendar } from "@/lib/gcal";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type Props = {
   open: boolean;
@@ -151,7 +152,7 @@ export function OkrForm({ open, onOpenChange, okr, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSave)}>
         <DialogHeader>
           <DialogTitle>{okr ? "Editar OKR" : "Novo OKR"}</DialogTitle>
         </DialogHeader>

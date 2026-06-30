@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ArrowUpDown, CalendarRange, ListChecks, NotebookPen, Pencil, Plus, ScrollText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -65,11 +65,21 @@ function cacheOverdue(g: Gig): boolean {
 // Definição de uma coluna da tabela desktop: o cabeçalho e o corpo são dirigidos
 // por esta lista, mapeada pela ORDEM do useOrderableColumns — assim header e
 // body nunca dessincronizam ao reordenar.
+/**
+ * Linha da tabela = GIG + campos derivados só para ordenar colunas que não
+ * mapeiam direto num campo (nome de exibição, contratante, avaliação média).
+ */
+type GigRow = Gig & {
+  _name: string;
+  _contractor: string | null;
+  _rating: number | null;
+};
+
 type GigCol = {
   id: string;
   locked?: boolean;
   /** chave de ordenação (useTableSort) — quando ausente, o th não ordena. */
-  sortKey?: keyof Gig;
+  sortKey?: keyof GigRow;
   /** rótulo do cabeçalho. */
   header: string;
   /** classes do <th>. */
@@ -83,7 +93,17 @@ type GigCol = {
 
 export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowSheet, onCreate, density = "full" }: Props) {
   const compact = density === "compact";
-  const { sorted, sortKey, sortDir, handleSort } = useTableSort(gigs);
+  const rows: GigRow[] = useMemo(
+    () =>
+      gigs.map((g) => ({
+        ...g,
+        _name: gigDisplayName(g),
+        _contractor: g.promoter_contact_name ?? null,
+        _rating: averageRating(g),
+      })),
+    [gigs]
+  );
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(rows);
   const cols = useResizableColumns("gigs", [
     { id: "date", width: 110, min: 90 },
     { id: "name", width: 300, min: 160 },
@@ -108,8 +128,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     name: {
       id: "name",
       locked: true,
+      sortKey: "_name",
       header: "Show / Venue",
-      thClassName: "px-3 py-2 text-left",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "px-3 py-2",
       resizable: true,
       cell: (g) => (
@@ -134,8 +155,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     },
     contractor: {
       id: "contractor",
+      sortKey: "_contractor",
       header: "Contratante",
-      thClassName: "px-3 py-2 text-left",
+      thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "truncate px-3 py-2",
       resizable: true,
       cell: (g) =>
@@ -169,8 +191,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     },
     rating: {
       id: "rating",
+      sortKey: "_rating",
       header: "Avaliação",
-      thClassName: "px-3 py-2 text-right",
+      thClassName: "px-3 py-2 text-right hover:text-foreground",
       tdClassName: "px-3 py-2 text-right tabular-nums",
       resizable: true,
       cell: (g) => {
@@ -189,7 +212,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
       thClassName: "px-3 py-2 text-right",
       tdClassName: "px-3 py-2",
       cell: (g) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           {g.status === "Confirmada" && (
             <Button
               size="icon"
@@ -250,10 +273,13 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     );
   }
 
-  const sortCols: { key: keyof Gig; label: string }[] = [
+  const sortCols: { key: keyof GigRow; label: string }[] = [
     { key: "date", label: "Data" },
+    { key: "_name", label: "Show" },
+    { key: "_contractor", label: "Contratante" },
     { key: "status", label: "Status" },
     { key: "cache_amount", label: "Cachê" },
+    { key: "_rating", label: "Avaliação" },
   ];
 
   return (
@@ -283,7 +309,11 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         {sorted.map((g) => {
           const avg = averageRating(g);
           return (
-            <div key={g.id} className="glass-panel rounded-lg p-3 space-y-2">
+            <div
+              key={g.id}
+              className="glass-panel cursor-pointer rounded-lg p-3 space-y-2"
+              onClick={() => onEdit(g)}
+            >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-medium">
@@ -317,7 +347,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                   <span className="text-xs text-amber-500">{formatRating(avg)}</span>
                 )}
               </div>
-              <div className="flex justify-end gap-1 border-t pt-2">
+              <div className="flex justify-end gap-1 border-t pt-2" onClick={(e) => e.stopPropagation()}>
                 {g.status === "Confirmada" && (
                   <Button
                     size="icon"
@@ -396,7 +426,12 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
           </thead>
           <tbody>
             {sorted.map((g) => (
-              <tr key={g.id} className="border-t transition-colors hover:bg-muted/40">
+              <tr
+                key={g.id}
+                className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                onClick={() => onEdit(g)}
+                title="Clique pra editar"
+              >
                 {oc.order.map((id) => {
                   const c = colDefs[id];
                   return (

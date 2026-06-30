@@ -45,6 +45,7 @@ import { QuickStudentForm } from "./QuickStudentForm";
 import { todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { loadAuth, pushClassToCalendar } from "@/lib/gcal";
+import { onEnterSave } from "@/lib/formEnter";
 
 function hoursToMinutes(val: string): number | null {
   const n = parseFloat(val.replace(",", "."));
@@ -255,7 +256,7 @@ export function ClassForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{session ? "Editar aula" : "Nova aula"}</DialogTitle>
           <DialogDescription>

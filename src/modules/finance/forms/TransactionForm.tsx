@@ -46,6 +46,7 @@ import type { Contact } from "@/modules/crm/types";
 import { listClasses, type ClassWithStudent } from "@/modules/classes/api";
 import { formatCurrency, todayISO } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 /** Arredonda para centavos (2 casas) — evita ruído de ponto flutuante no BRL. */
 function round2(n: number): number {
@@ -265,7 +266,7 @@ export function TransactionForm({
   return (
     <>
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>
             {transaction

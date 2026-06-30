@@ -15,6 +15,7 @@ import { toast } from "@/components/ui/toaster";
 import { createContact } from "../api";
 import type { ContactType } from "../types";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type Props = {
   open: boolean;
@@ -77,7 +78,7 @@ export function QuickContactForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" onKeyDown={onEnterSave(handleSave)}>
         <DialogHeader>
           <DialogTitle>Novo contato</DialogTitle>
           <DialogDescription>

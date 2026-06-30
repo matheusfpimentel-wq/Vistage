@@ -265,10 +265,6 @@ export function GoogleSettings() {
         <CardTitle className="text-base flex items-center gap-2">
           Google
           {anyConnected && <ConnectedBadge />}
-          <InfoHint>
-            Agenda (Calendar) e arquivos (Drive) usam a mesma conta e as mesmas
-            credenciais do Google.
-          </InfoHint>
         </CardTitle>
       </CardHeader>
 

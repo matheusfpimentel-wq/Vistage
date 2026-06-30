@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,20 @@ type Props = {
   density?: ListDensity;
 };
 
+/**
+ * Linha da tabela = festa + campo derivado só para ordenar a coluna de receita,
+ * que não mapeia direto num campo (é calculada por estimatedRevenue).
+ */
+type PartyRow = PartyDeserialized & {
+  _revenue: number;
+};
+
 // Cabeçalho e corpo dirigidos pela mesma ORDEM (useOrderableColumns): "title"
 // (principal) e "actions" travadas; as do meio reordenam ao arrastar o cabeçalho.
 type PartyCol = {
   id: string;
   locked?: boolean;
-  sortKey?: keyof PartyDeserialized;
+  sortKey?: keyof PartyRow;
   header: string;
   thClassName: string;
   tdClassName?: string;
@@ -29,7 +37,15 @@ type PartyCol = {
 };
 
 export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props) {
-  const { sorted, sortKey, sortDir, handleSort } = useTableSort(parties);
+  const rows: PartyRow[] = useMemo(
+    () =>
+      parties.map((p) => ({
+        ...p,
+        _revenue: estimatedRevenue(p),
+      })),
+    [parties]
+  );
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(rows);
 
   const colDefs: Record<string, PartyCol> = {
     status: {
@@ -43,6 +59,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
     title: {
       id: "title",
       locked: true,
+      sortKey: "title",
       header: "Título",
       thClassName: "px-3 py-2",
       tdClassName: "px-3 py-2 font-medium",
@@ -74,6 +91,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
     },
     revenue: {
       id: "revenue",
+      sortKey: "_revenue",
       header: "Receita est.",
       thClassName: "px-3 py-2 text-right",
       tdClassName: "px-3 py-2 text-right tabular-nums",
@@ -89,7 +107,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
       thClassName: "px-3 py-2",
       tdClassName: "px-3 py-2",
       cell: (p) => (
-        <div className="flex items-center justify-end gap-1">
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="ghost"
             size="icon"
@@ -161,7 +179,12 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
         </thead>
         <tbody>
           {sorted.map((p) => (
-            <tr key={p.id} className="border-b last:border-0 hover:bg-muted/20">
+            <tr
+              key={p.id}
+              className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/20"
+              onClick={() => onEdit(p)}
+              title="Clique pra editar"
+            >
               {oc.order.map((id) => {
                 const c = colDefs[id];
                 return (

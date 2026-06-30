@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FolderOpen, FolderPlus, Music, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -48,6 +49,7 @@ export function MusicPage() {
   const [defaultProjectId, setDefaultProjectId] = useState<number | null>(null);
   const [projectFormOpen, setProjectFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<MusicProject | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const refresh = useCallback(async () => {
     try {
@@ -69,6 +71,24 @@ export function MusicPage() {
     setTrackFormOpen(true);
   }
   useNewItemShortcut(() => openCreate());
+
+  // Alertas levam pra cá: ?new=1 abre uma faixa em branco; ?open=<id> abre a faixa.
+  useEffect(() => {
+    if (searchParams.get("new")) {
+      openCreate();
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    void getTrack(Number(openId)).then((full) => {
+      if (full) {
+        setEditing(full);
+        setTrackFormOpen(true);
+      }
+    });
+    setSearchParams({}, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openEdit(t: TrackWithProject) {
     const full = await getTrack(t.id);

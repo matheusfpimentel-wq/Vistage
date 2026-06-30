@@ -136,10 +136,9 @@ export const BUILTIN_RULES: BuiltinRule[] = [
   { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas não preparadas em breve", trigger: "Aula próxima ainda sem preparação registrada" },
   { id: "students-low-balance", category: "Aulas", severidade: "atencao", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com 2 ou menos aulas (ou 2h) restantes — hora de renovar" },
   { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: "Contato, fã, faixa ou conteúdo sem movimento por mais que o tempo de resfriamento configurado (padrão 15 dias) — fora itens de criação já concluídos. Dispense com \"Deixar esfriar\".", dynamic: true },
-  { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Nenhum contato do CRM interagido esta semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
+  { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Você não tem interações com contatos essa semana", trigger: "Semana sem nenhuma interação registrada com contatos do CRM" },
   { id: "okrs-lagging", category: "Objetivos", severidade: "atencao", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
   // ── Dinheiro em primeiro plano (loader partyFinanceAlerts) ──────────────────
-  { id: "recebiveis-acumulados", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Recebíveis acumulados acima do limiar", trigger: "Soma dos recebíveis previstos (ainda não recebidos) passa de R$ 1.000" },
   { id: "receita-abaixo-custo-fixo", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Receita do mês abaixo do custo fixo", trigger: "Depois do dia 15, receita realizada do mês menor que o custo fixo mensal (recorrentes)" },
   { id: "festa-vendas-baixas-", category: "Festas", severidade: "critico", message: "Festa em ≤14 dias com vendas < 40% da meta", trigger: "Festa a até 14 dias vendendo menos de 40% da meta de ingressos", dynamic: true },
   { id: "festa-resultado-negativo-", category: "Festas", severidade: "critico", inegociavel: true, message: "Festa com resultado projetado negativo", trigger: "Custo projetado maior que a receita projetada (ingressos + patrocínio) antes do evento", dynamic: true },
@@ -219,7 +218,8 @@ export function computeAlerts(
     alerts.push({
       key: "tasks-overdue",
       icon: "clock",
-      to: "/tarefas",
+      // Abre a tarefa mais atrasada, pronta pra concluir.
+      to: stats.tasksOverdueIds.length > 0 ? `/tarefas?open=${stats.tasksOverdueIds[0]}` : "/tarefas",
       critical: true,
       label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
     });
@@ -227,35 +227,37 @@ export function computeAlerts(
     alerts.push({
       key: "debriefs-pending",
       icon: "star",
-      to: "/gigs",
+      // Abre a GIG concluída há mais tempo sem debrief, pronta pra preencher.
+      to: stats.pendingDebriefIds.length > 0 ? `/gigs?debrief=${stats.pendingDebriefIds[0]}` : "/gigs",
       critical: true,
-      label: `${stats.pendingDebriefs} debrief${plural(stats.pendingDebriefs)} de GIG pendente${plural(stats.pendingDebriefs)}`,
+      label: `Há ${stats.pendingDebriefs} GIG${plural(stats.pendingDebriefs)} com debrief pendente`,
     });
   if (stats.gigsUnprepared > 0)
     alerts.push({
       key: "gigs-unprepared",
       icon: "music",
-      to: "/gigs",
+      // Abre a GIG mais próxima pra completar a preparação musical.
+      to: stats.gigsUnpreparedIds.length > 0 ? `/gigs?open=${stats.gigsUnpreparedIds[0]}` : "/gigs",
       critical: true,
-      label: `${stats.gigsUnprepared} GIG${plural(stats.gigsUnprepared)} em 72h sem prep musical completa`,
+      label: `Há ${stats.gigsUnprepared} GIG${plural(stats.gigsUnprepared)} chegando sem prep musical completa`,
     });
   if (stats.gigsUnpaidAfter48h > 0)
     alerts.push({
       key: "gigs-unpaid",
       icon: "dollar",
-      // Uma só GIG → abre direto nela; várias → cai na lista.
-      to: stats.gigsUnpaidIds.length === 1 ? `/gigs?open=${stats.gigsUnpaidIds[0]}` : "/gigs",
+      // Abre direto na primeira GIG (mesmo quando há várias).
+      to: stats.gigsUnpaidIds.length > 0 ? `/gigs?open=${stats.gigsUnpaidIds[0]}` : "/gigs",
       critical: true,
-      label: `${stats.gigsUnpaidAfter48h} GIG${plural(stats.gigsUnpaidAfter48h)} concluída${plural(stats.gigsUnpaidAfter48h)} com cachê não recebido`,
+      label: `Há ${stats.gigsUnpaidAfter48h} GIG${plural(stats.gigsUnpaidAfter48h)} concluída${plural(stats.gigsUnpaidAfter48h)} com cachê não recebido`,
     });
   if (stats.hotIdeasStuck > 0)
     alerts.push({
       key: "ideas-stuck",
       icon: "flame",
-      // Uma só ideia → abre direto nela; várias → cai na lista.
-      to: stats.hotIdeasStuckIds.length === 1 ? `/ideias?open=${stats.hotIdeasStuckIds[0]}` : "/ideias",
+      // Abre direto na primeira ideia (mesmo quando há várias).
+      to: stats.hotIdeasStuckIds.length > 0 ? `/ideias?open=${stats.hotIdeasStuckIds[0]}` : "/ideias",
       critical: true,
-      label: `${stats.hotIdeasStuck} ideia${plural(stats.hotIdeasStuck)} quente${plural(stats.hotIdeasStuck)} parada${plural(stats.hotIdeasStuck)} em Embrião +15d`,
+      label: `Há ${stats.hotIdeasStuck} ideia${plural(stats.hotIdeasStuck)} quente${plural(stats.hotIdeasStuck)} parada${plural(stats.hotIdeasStuck)} em Embrião +15d`,
     });
   // Estagnação de faixas/conteúdos (e superfãs, abaixo) virou o alerta UNIFICADO
   // "Esfriando" (loadCoolingAlerts em cooling.ts): um só conceito, com tempo de
@@ -266,15 +268,17 @@ export function computeAlerts(
     alerts.push({
       key: "parties-undated",
       icon: "party",
-      to: "/festas",
+      // Abre a primeira festa sem data, pronta pra definir a data.
+      to: stats.undatedPartyIds.length > 0 ? `/festas?open=${stats.undatedPartyIds[0]}` : "/festas",
       critical: false,
-      label: `${stats.undatedParties} festa${plural(stats.undatedParties)} sem data definida`,
+      label: `Há ${stats.undatedParties} festa${plural(stats.undatedParties)} sem data definida`,
     });
   if (stats.noUpcomingGigs)
     alerts.push({
       key: "no-upcoming-gigs",
       icon: "warning",
-      to: "/gigs",
+      // Clicar abre direto um formulário de NOVA GIG em branco.
+      to: "/gigs?new=1",
       critical: false,
       label: "Nenhuma GIG marcada à frente",
     });
@@ -285,7 +289,8 @@ export function computeAlerts(
     alerts.push({
       key: "funil-producao-vazio",
       icon: "warning",
-      to: "/musica",
+      // Clicar abre direto um formulário de NOVA faixa em branco.
+      to: "/musica?new=1",
       critical: false,
       label: "Funil de produção vazio — nada em produção e nenhuma faixa nova há +30 dias",
     });
@@ -293,9 +298,10 @@ export function computeAlerts(
     alerts.push({
       key: "classes-unprepared",
       icon: "book",
-      to: "/aulas",
+      // Abre a aula mais próxima, pronta pra preparar.
+      to: stats.unpreparedClassIds.length > 0 ? `/aulas?open=${stats.unpreparedClassIds[0]}` : "/aulas",
       critical: false,
-      label: `${stats.unpreparedClasses} aula${plural(stats.unpreparedClasses)} não preparada${plural(stats.unpreparedClasses)} em breve`,
+      label: `Há ${stats.unpreparedClasses} aula${plural(stats.unpreparedClasses)} não preparada${plural(stats.unpreparedClasses)} em breve`,
     });
   if ((stats.lowBalanceStudents?.length ?? 0) > 0) {
     const list = stats.lowBalanceStudents;
@@ -307,12 +313,12 @@ export function computeAlerts(
     alerts.push({
       key: "students-low-balance",
       icon: "warning",
-      // Uma só → abre a ficha do aluno (vê o pacote e renova); várias → lista.
-      to: single ? `/aulas?open=${single.studentId}` : "/aulas",
+      // Abre a ficha do (primeiro) aluno — vê o pacote e renova.
+      to: list.length > 0 ? `/aulas?open=${list[0].studentId}` : "/aulas",
       critical: false,
       label: single
         ? `${single.studentName} está com ${remLabel(single)} no pacote — hora de renovar`
-        : `${list.length} alunos com pacote de aulas quase no fim`,
+        : `Há ${list.length} alunos com pacote de aulas quase no fim`,
     });
   }
   // (superfãs sem interação → agora cobertos pelo alerta unificado "Esfriando")
@@ -320,16 +326,16 @@ export function computeAlerts(
     alerts.push({
       key: "okrs-lagging",
       icon: "target",
-      to: "/objetivos",
+      to: stats.okrsLaggingIds.length > 0 ? `/objetivos?open=${stats.okrsLaggingIds[0]}` : "/objetivos",
       critical: false,
-      label: `${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de 20% com menos de 30 dias no quarter`,
+      label: `Há ${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de 20% com menos de 30 dias no quarter`,
     });
 
   for (const t of stats.tracksStandbyOverdue ?? []) {
     alerts.push({
       key: `track-standby-overdue-${t.id}`,
       icon: "music",
-      to: "/musica",
+      to: `/musica?open=${t.id}`,
       critical: false,
       label: `Track "${t.title}" estava em standby e já passou da data de retorno.`,
     });
@@ -346,7 +352,7 @@ export function computeAlerts(
       icon: "heart",
       to: "/pessoas",
       critical: false,
-      label: "Nenhum contato CRM interagido esta semana — que tal manter o relacionamento?",
+      label: "Você não tem interações com contatos essa semana",
     });
   }
 

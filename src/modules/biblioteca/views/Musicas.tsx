@@ -392,7 +392,6 @@ export function Musicas() {
                     </label>
                   );
                 })}
-                <p className="px-2 pt-1 text-[10px] text-muted-foreground">Arraste o cabeçalho pra reordenar. Clique pra ordenar.</p>
               </div>
             </>
           )}

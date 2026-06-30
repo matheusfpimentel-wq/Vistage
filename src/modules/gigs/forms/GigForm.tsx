@@ -38,7 +38,8 @@ import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { todayISO, formatCurrency } from "@/lib/format";
+import { todayISO, formatCurrency, formatDate } from "@/lib/format";
+import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues } from "@/modules/venues/api";
@@ -311,26 +312,36 @@ export function GigForm({
   }, [open, gig]);
 
   useEffect(() => {
-    if (!state.promoter_contact_id) {
+    const contactId = state.promoter_contact_id;
+    const manualName = (state.promoter_name_manual ?? "").trim();
+    const gigId = gig?.id ?? 0;
+    // Sem contratante identificado (nem contato, nem nome manual) → sem histórico.
+    if (!contactId && !manualName) {
       setContactHistory(null);
       return;
     }
-    const promoterId = state.promoter_contact_id;
-    const gigId = gig?.id ?? 0;
     void (async () => {
       try {
         const db = getDb();
-        const rows = await db.select<{
-          total: number;
-          avg_rating: number | null;
-          last_date: string | null;
-          paid: number;
-        }[]>(
-          `SELECT COUNT(*) as total, AVG(rating_contractor) as avg_rating, MAX(date) as last_date,
-           SUM(CASE WHEN payment_status = 'Pago integralmente' THEN 1 ELSE 0 END) as paid
-           FROM gigs WHERE promoter_contact_id = $1 AND id != $2`,
-          [promoterId, gigId]
-        );
+        const SELECT = `SELECT COUNT(*) as total, AVG(rating_contractor) as avg_rating, MAX(date) as last_date,
+           SUM(CASE WHEN payment_status = 'Pago integralmente' THEN 1 ELSE 0 END) as paid FROM gigs`;
+        type HistRow = { total: number; avg_rating: number | null; last_date: string | null; paid: number };
+        let rows: HistRow[];
+        if (contactId) {
+          // Contato cadastrado (pessoa recorrente): casa pelo MESMO contato.
+          rows = await db.select<HistRow[]>(
+            `${SELECT} WHERE promoter_contact_id = $1 AND id != $2`,
+            [contactId, gigId]
+          );
+        } else {
+          // Contratante MANUAL (sem cadastro): casa pelo MESMO nome digitado, só
+          // entre GIGs também sem contato — pra não confundir com pessoa recorrente.
+          rows = await db.select<HistRow[]>(
+            `${SELECT} WHERE promoter_contact_id IS NULL
+               AND TRIM(LOWER(COALESCE(promoter_name_manual, ''))) = $1 AND id != $2`,
+            [manualName.toLowerCase(), gigId]
+          );
+        }
         const row = rows[0];
         if (row && row.total > 0) {
           setContactHistory(row);
@@ -341,7 +352,7 @@ export function GigForm({
         setContactHistory(null);
       }
     })();
-  }, [state.promoter_contact_id, gig?.id]);
+  }, [state.promoter_contact_id, state.promoter_name_manual, gig?.id]);
 
   function pickVenue(venueId: number | null) {
     if (venueId === null) {
@@ -580,7 +591,7 @@ export function GigForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
         </DialogHeader>
@@ -605,7 +616,7 @@ export function GigForm({
                 onChangeRecurring={(v) => set("recurring_event_name", v)}
                 onChangeEventName={(v) => set("event_name", v || null)}
               />
-              <Field label="Categoria" hint="Tipo de evento para filtrar nas GIGs.">
+              <Field label="Categoria">
                 <Select
                   value={state.event_category ?? "none"}
                   onValueChange={(v) => {
@@ -723,7 +734,7 @@ export function GigForm({
               )}
             </Field>
 
-            <Field label="Cidade" hint="Cidade do venue. Preenchida automaticamente ao selecionar um venue.">
+            <Field label="Cidade">
               <Input
                 placeholder="Ex: São Paulo"
                 value={state.venue_city ?? ""}
@@ -778,7 +789,7 @@ export function GigForm({
                     <div>Avaliação média: {contactHistory.avg_rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} / 5</div>
                   )}
                   {contactHistory.last_date && (
-                    <div>Última GIG: {contactHistory.last_date}</div>
+                    <div>Última GIG: {formatDate(contactHistory.last_date, "dd/MM/yyyy")}</div>
                   )}
                   <div>Pagamentos: {contactHistory.paid} de {contactHistory.total} pagas integralmente</div>
                 </div>
@@ -788,7 +799,6 @@ export function GigForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field
                 label="Contato no dia"
-                hint="Quem te recebe na chegada: produção, RP, etc."
               >
                 <Input
                   value={state.day_contact_name ?? ""}
@@ -987,7 +997,6 @@ export function GigForm({
 
             <Field
               label="Oportunidades"
-              hint="Portas que essa GIG pode abrir no curto-médio prazo."
             >
               <Textarea
                 rows={3}
@@ -1026,7 +1035,6 @@ export function GigForm({
 
             <Field
               label="Equipamento da casa"
-              hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
             >
               <Textarea
                 rows={2}
@@ -1104,11 +1112,7 @@ export function GigForm({
                   <Plus className="h-3.5 w-3.5" /> Adicionar flyer
                 </Button>
               </div>
-              {state.extra_flyers.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Adicione mais de uma arte se a GIG tiver variações de flyer.
-                </p>
-              ) : (
+              {state.extra_flyers.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {state.extra_flyers.map((path, i) => (
                     <div key={i} className="space-y-1">
@@ -1195,7 +1199,6 @@ export function GigForm({
             ) : (
               <>
                 <Section title="Pesquisa musical">
-                  <p className="text-xs text-muted-foreground">Músicas que descobriu ou pensou em tocar nessa GIG.</p>
                   <ResearchList
                     value={state.gig_research}
                     onChange={(v) => set("gig_research", v)}
@@ -1204,7 +1207,6 @@ export function GigForm({
 
                 {allTracks.length > 0 && (
                   <Section title="Minhas Tracks">
-                    <p className="text-xs text-muted-foreground">Marque as tracks da sua biblioteca que tocou nessa GIG.</p>
                     <div className="flex flex-wrap gap-1.5">
                       {allTracks.map((t) => {
                         const selected = setListTrackIds.includes(t.id);
