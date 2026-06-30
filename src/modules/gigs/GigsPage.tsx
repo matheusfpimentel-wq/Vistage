@@ -118,6 +118,12 @@ export function GigsPage() {
   }, [refreshKey]);
 
   useEffect(() => {
+    // ?new=1 (vindo de um alerta "Nenhuma GIG à frente") → abre formulário em branco.
+    if (searchParams.get("new")) {
+      openCreate();
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const debriefId = searchParams.get("debrief");
     if (debriefId) {
       const id = Number(debriefId);
