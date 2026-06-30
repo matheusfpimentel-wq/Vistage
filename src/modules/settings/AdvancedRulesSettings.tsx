@@ -15,11 +15,22 @@ import {
 } from "@/modules/revisao/alerts";
 import {
   getCoolingDays,
+  getCoolingHeat,
   getDisabledRuleIds,
+  getFestaSalesPct,
+  getLoteSoldPct,
+  getPackageHoursLeft,
+  getPrepHours,
   restoreDefaultRules,
   setCoolingDays,
+  setCoolingHeat,
+  setFestaSalesPct,
+  setLoteSoldPct,
+  setPackageHoursLeft,
+  setPrepHours,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
+import { COOLING_RULE_ID } from "@/modules/revisao/cooling";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
 
 const CATEGORY_ORDER: RuleCategory[] = [
@@ -43,6 +54,11 @@ export function AdvancedRulesSettings() {
     () => new Set(getDisabledRuleIds())
   );
   const [coolingDays, setCoolingDaysState] = useState(() => getCoolingDays());
+  const [festaSalesPct, setFestaSalesPctState] = useState(() => getFestaSalesPct());
+  const [loteSoldPct, setLoteSoldPctState] = useState(() => getLoteSoldPct());
+  const [coolingHeat, setCoolingHeatState] = useState(() => getCoolingHeat());
+  const [prepHours, setPrepHoursState] = useState(() => getPrepHours());
+  const [packageHours, setPackageHoursState] = useState(() => getPackageHoursLeft());
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
@@ -59,6 +75,15 @@ export function AdvancedRulesSettings() {
     const arr = byCategory.get(r.category) ?? [];
     arr.push(r);
     byCategory.set(r.category, arr);
+  }
+  // "Esfriando" fica num bloco PRÓPRIO no topo (acima dos grupos por categoria);
+  // sai da sua categoria pra não duplicar.
+  const coolingRule = BUILTIN_RULES.find((r) => r.id === COOLING_RULE_ID);
+  const ruleGroups: { label: string; rules: BuiltinRule[] }[] = [];
+  if (coolingRule) ruleGroups.push({ label: "Esfriando", rules: [coolingRule] });
+  for (const cat of CATEGORY_ORDER) {
+    const rules = (byCategory.get(cat) ?? []).filter((r) => r.id !== COOLING_RULE_ID);
+    if (rules.length > 0) ruleGroups.push({ label: cat, rules });
   }
   // Inegociáveis estão sempre ativas; só as demais podem ficar desligadas.
   const activeCount = BUILTIN_RULES.filter(
@@ -100,13 +125,13 @@ export function AdvancedRulesSettings() {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          {CATEGORY_ORDER.filter((c) => byCategory.has(c)).map((cat) => (
-            <div key={cat} className="space-y-2">
+          {ruleGroups.map((group) => (
+            <div key={group.label} className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {cat}
+                {group.label}
               </h4>
               <div className="space-y-1.5">
-                {byCategory.get(cat)!.map((r) => {
+                {group.rules.map((r) => {
                   const locked = !!r.inegociavel;
                   const on = locked || !disabled.has(r.id);
                   return (
@@ -162,6 +187,107 @@ export function AdvancedRulesSettings() {
                               className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
                             />
                             <span>dias</span>
+                          </label>
+                        )}
+                        {r.id === COOLING_RULE_ID && (
+                          <label className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Calor mínimo (ideias):</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={3}
+                              value={coolingHeat}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(3, n));
+                                setCoolingHeatState(clamped);
+                                setCoolingHeat(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>(0 = desliga a regra)</span>
+                          </label>
+                        )}
+                        {r.id === "gigs-unprepared" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Antecedência:</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={720}
+                              value={prepHours}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(1, Math.min(720, n));
+                                setPrepHoursState(clamped);
+                                setPrepHours(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>horas</span>
+                          </label>
+                        )}
+                        {r.id === "students-low-balance" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Avisar com:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              value={packageHours}
+                              onChange={(e) => {
+                                const n = Number(e.target.value);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setPackageHoursState(clamped);
+                                setPackageHoursLeft(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>h ou menos no pacote</span>
+                          </label>
+                        )}
+                        {r.id === "festa-vendas-baixas-" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Dispara abaixo de:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={festaSalesPct}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setFestaSalesPctState(clamped);
+                                setFestaSalesPct(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>% da meta (0 = nunca)</span>
+                          </label>
+                        )}
+                        {r.id === "lote-esgotando-" && (
+                          <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Dispara acima de:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={loteSoldPct}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setLoteSoldPctState(clamped);
+                                setLoteSoldPct(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>% vendido</span>
                           </label>
                         )}
                       </div>

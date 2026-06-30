@@ -48,3 +48,75 @@ export async function filterSnoozed(alerts: AlertItem[]): Promise<AlertItem[]> {
   const snoozed = await loadSnoozed();
   return alerts.filter((a) => !snoozed[a.key] || snoozed[a.key]! <= Date.now());
 }
+
+/**
+ * "Dispensar até disparar de novo": o X de cada alerta esconde-o ENQUANTO a
+ * situação não muda. Guardamos { [alertKey]: assinatura } onde a assinatura é o
+ * próprio texto do alerta (que carrega a contagem / entidades). Assim:
+ *  - mesma assinatura  → segue escondido;
+ *  - assinatura muda (ex.: "Há 2 GIGs…" → "Há 1 GIG…") → reaparece já decrementado;
+ *  - condição zera (o alerta some da lista) → a dispensa é limpa, e ele volta a
+ *    aparecer quando disparar de novo.
+ */
+const DISMISS_DB_KEY = "alerts.dismissed";
+type Dismissed = Record<string, string>;
+
+/** Assinatura de um alerta para fins de dispensa (muda quando a situação muda). */
+export function alertSignature(a: AlertItem): string {
+  return a.label;
+}
+
+async function loadDismissed(): Promise<Dismissed> {
+  try {
+    const rows = await getDb().select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = $1",
+      [DISMISS_DB_KEY]
+    );
+    return rows.length > 0 ? (JSON.parse(rows[0].value) as Dismissed) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveDismissed(map: Dismissed): Promise<void> {
+  await getDb().execute(
+    "INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = $2",
+    [DISMISS_DB_KEY, JSON.stringify(map)]
+  );
+}
+
+/** Dispensa um alerta até que sua assinatura mude (X do alerta). */
+export async function dismissAlertUntilChange(key: string, signature: string): Promise<void> {
+  const map = await loadDismissed();
+  map[key] = signature;
+  await saveDismissed(map);
+  window.dispatchEvent(new Event(DATA_CHANGED));
+}
+
+/**
+ * Aplica as dispensas "até mudar": esconde quem segue idêntico, limpa quem
+ * mudou ou sumiu (pra reaparecer ao disparar de novo). Mantém o storage enxuto.
+ */
+export async function filterDismissed(alerts: AlertItem[]): Promise<AlertItem[]> {
+  const map = await loadDismissed();
+  if (Object.keys(map).length === 0) return alerts;
+  const present = new Set(alerts.map((a) => a.key));
+  let changed = false;
+  // Condição não está mais ativa → limpa a dispensa (volta ao disparar de novo).
+  for (const key of Object.keys(map)) {
+    if (!present.has(key)) {
+      delete map[key];
+      changed = true;
+    }
+  }
+  const out = alerts.filter((a) => {
+    const sig = map[a.key];
+    if (sig === undefined) return true;
+    if (sig === alertSignature(a)) return false; // dispensado e inalterado → some
+    delete map[a.key]; // mudou → reaparece e limpa a dispensa
+    changed = true;
+    return true;
+  });
+  if (changed) await saveDismissed(map).catch(() => {});
+  return out;
+}

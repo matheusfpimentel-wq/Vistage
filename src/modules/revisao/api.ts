@@ -2,12 +2,14 @@ import { getDb } from "@/lib/db";
 import { todayISO, toLocalISODate } from "@/lib/format";
 import { currentQuarter, listOkrs, okrProgress, quarterRange, stageEnteredFromHistory } from "@/modules/objetivos/api";
 import { parsePrepState, PREP_GROUPS } from "@/modules/gigs/prep";
+import { getPackageHoursLeft, getPrepHours } from "./ruleConfig";
 
 export type WeekStats = {
   gigsThisWeek: number;
   tasksCompleted: number;
   tasksPending: number;
   tasksOverdue: number;
+  tasksOverdueIds: number[]; // 1ª = mais atrasada (abre direto pra concluir)
   contentPublished: number;
   contentInProgress: number;
   partiesConfirmed: number;
@@ -15,6 +17,7 @@ export type WeekStats = {
   tracksStalled: number;
   avgGigRating: number | null;
   pendingDebriefs: number;
+  pendingDebriefIds: number[]; // 1ª = GIG concluída há mais tempo sem debrief
   // sinais críticos adicionais (item 13)
   hotIdeasStuck: number; // ideias quentes em "Embrião" há +15 dias
   hotIdeasStuckIds: number[]; // ids p/ link direto à ideia quando houver só uma
@@ -22,12 +25,16 @@ export type WeekStats = {
   stalledParties: number;
   stalledContent: number;
   undatedParties: number; // festas sem data definida
+  undatedPartyIds: number[];
   noUpcomingGigs: boolean;
   noTracksInProduction: boolean;
   unpreparedClasses: number; // aulas em <=48h sem subject
+  unpreparedClassIds: number[]; // 1ª = aula mais próxima
   superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
-  gigsUnprepared: number; // GIGs em <=72h com prep musical incompleta
+  gigsUnprepared: number; // GIGs em <=Xh com prep musical incompleta (X editável)
+  gigsUnpreparedIds: number[]; // 1ª = GIG mais próxima
   okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
+  okrsLaggingIds: number[];
   gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
   gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
@@ -138,8 +145,8 @@ async function computeWeekStats(): Promise<WeekStats> {
       `SELECT COUNT(*) as c FROM tasks WHERE status NOT IN ('Concluída','Cancelada')`,
       []
     ), []),
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM tasks WHERE status NOT IN ('Concluída','Cancelada') AND due_date IS NOT NULL AND due_date != '' AND due_date < $1`,
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM tasks WHERE status NOT IN ('Concluída','Cancelada') AND due_date IS NOT NULL AND due_date != '' AND due_date < $1 ORDER BY due_date ASC`,
       [today]
     ), []),
     safeSelect<CountRow>(() => db.select(
@@ -158,8 +165,8 @@ async function computeWeekStats(): Promise<WeekStats> {
       `SELECT standby, stage_history FROM tracks`,
       []
     ), []),
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM gigs WHERE debrief_pending = 1`,
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM gigs WHERE debrief_pending = 1 ORDER BY date ASC`,
       []
     ), []),
     safeSelect<RatingRow>(() => db.select(
@@ -185,8 +192,8 @@ async function computeWeekStats(): Promise<WeekStats> {
       [cut15]
     ), []),
     // festas sem data (entram no pipeline criativo)
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM parties
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM parties
         WHERE (date IS NULL OR date = '') AND status NOT IN ('Realizada','Cancelada')`,
       []
     ), []),
@@ -204,11 +211,12 @@ async function computeWeekStats(): Promise<WeekStats> {
       []
     ), [{ c: 1 }]),
     // aulas em <= 48h sem matéria preenchida (subject vazio/nulo), status Agendada
-    safeSelect<CountRow>(() => db.select(
-      `SELECT COUNT(*) as c FROM classes
+    safeSelect<{ id: number }>(() => db.select(
+      `SELECT id FROM classes
         WHERE status = 'Agendada'
           AND (subject IS NULL OR subject = '')
-          AND date >= $1 AND date <= $2`,
+          AND date >= $1 AND date <= $2
+        ORDER BY date ASC`,
       [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 2); return d.toISOString().slice(0, 10); })()]
     ), []),
     // superfãs (level = 'Superfã') sem interação nos últimos 30 dias
@@ -218,11 +226,12 @@ async function computeWeekStats(): Promise<WeekStats> {
           AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
       [(() => { const d = new Date(today); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); })()]
     ), []),
-    // GIGs nos próximos 72h (para verificar prep musical em JS)
+    // GIGs nas próximas X horas (janela editável; default 72h) p/ checar prep musical
     safeSelect<{ id: number; prep_state: string | null }>(() => db.select(
       `SELECT id, prep_state FROM gigs
-        WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
-      [today, (() => { const d = new Date(today); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10); })()]
+        WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'
+        ORDER BY date ASC`,
+      [today, (() => { const d = new Date(today); d.setDate(d.getDate() + Math.ceil(getPrepHours() / 24)); return d.toISOString().slice(0, 10); })()]
     ), []),
     // GIGs concluídas com cachê pendente. Sem previsão de pagamento, usa a regra
     // das 48h (data já passou +2 dias). COM previsão (payment_due_date), ignora as
@@ -264,20 +273,25 @@ async function computeWeekStats(): Promise<WeekStats> {
   // GIGs com prep musical incompleta
   const musicalGroup = PREP_GROUPS.find((g) => g.id === "musical");
   const musicalItems = musicalGroup?.items ?? [];
-  const gigsUnprepared = (upcomingGigsPrepRows as { prep_state: string | null }[]).filter((g) => {
+  const gigsUnpreparedRows = (upcomingGigsPrepRows as { id: number; prep_state: string | null }[]).filter((g) => {
     const state = parsePrepState(g.prep_state);
     return musicalItems.some((item) => state[item.id] !== 1);
-  }).length;
+  });
+  const gigsUnprepared = gigsUnpreparedRows.length;
+  const gigsUnpreparedIds = gigsUnpreparedRows.map((g) => g.id);
 
   // OKRs do quarter atual com progresso < 20% e faltando menos de 30 dias
   let okrsLagging = 0;
+  let okrsLaggingIds: number[] = [];
   try {
     const qtr = currentQuarter();
     const [, qEnd] = quarterRange(qtr);
     const daysLeft = Math.round((new Date(qEnd).getTime() - new Date(today).getTime()) / 86_400_000);
     if (daysLeft < 30) {
       const okrs = await listOkrs();
-      okrsLagging = okrs.filter((o) => o.quarter === qtr && okrProgress(o) < 0.2).length;
+      const lagging = okrs.filter((o) => o.quarter === qtr && okrProgress(o) < 0.2);
+      okrsLagging = lagging.length;
+      okrsLaggingIds = lagging.map((o) => o.id);
     }
   } catch {
     // não interrompe
@@ -316,7 +330,7 @@ async function computeWeekStats(): Promise<WeekStats> {
     const hourBased = p.total_hours != null && p.total_hours > 0;
     if (hourBased) {
       const remMin = Math.round(p.total_hours! * 60 - (p.used_minutes ?? 0));
-      if (remMin > 0 && remMin <= 120) {
+      if (remMin > 0 && remMin <= getPackageHoursLeft() * 60) {
         return [{
           packageId: p.id, studentId: p.student_id, studentName: p.student_name,
           remaining: Math.round(remMin / 6) / 10, unit: "h" as const,
@@ -349,26 +363,32 @@ async function computeWeekStats(): Promise<WeekStats> {
     gigsThisWeek: gigsRows[0]?.c ?? 0,
     tasksCompleted: tasksCompletedRows[0]?.c ?? 0,
     tasksPending: tasksPendingRows[0]?.c ?? 0,
-    tasksOverdue: tasksOverdueRows[0]?.c ?? 0,
+    tasksOverdue: (tasksOverdueRows as { id: number }[]).length,
+    tasksOverdueIds: (tasksOverdueRows as { id: number }[]).map((r) => r.id),
     contentPublished: contentPublishedRows[0]?.c ?? 0,
     contentInProgress: contentInProgressRows[0]?.c ?? 0,
     partiesConfirmed: partiesRows[0]?.c ?? 0,
     tracksActive,
     tracksStalled,
     avgGigRating,
-    pendingDebriefs: debriefRows[0]?.c ?? 0,
+    pendingDebriefs: (debriefRows as { id: number }[]).length,
+    pendingDebriefIds: (debriefRows as { id: number }[]).map((r) => r.id),
     hotIdeasStuck: (hotIdeasRows as { id: number }[]).length,
     hotIdeasStuckIds: (hotIdeasRows as { id: number }[]).map((r) => r.id),
     stalledTracks,
     stalledParties: stalledPartiesRows[0]?.c ?? 0,
     stalledContent: stalledContentRows[0]?.c ?? 0,
-    undatedParties: undatedPartiesRows[0]?.c ?? 0,
+    undatedParties: (undatedPartiesRows as { id: number }[]).length,
+    undatedPartyIds: (undatedPartiesRows as { id: number }[]).map((r) => r.id),
     noUpcomingGigs: (upcomingGigsRows[0]?.c ?? 0) === 0,
     noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
-    unpreparedClasses: unpreparedClassesRows[0]?.c ?? 0,
+    unpreparedClasses: (unpreparedClassesRows as { id: number }[]).length,
+    unpreparedClassIds: (unpreparedClassesRows as { id: number }[]).map((r) => r.id),
     superfasSemInteracao: superfasRows[0]?.c ?? 0,
     gigsUnprepared,
+    gigsUnpreparedIds,
     okrsLagging,
+    okrsLaggingIds,
     gigsUnpaidAfter48h: (gigsUnpaidRows as { id: number }[]).length,
     gigsUnpaidIds: (gigsUnpaidRows as { id: number }[]).map((r) => r.id),
     tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],

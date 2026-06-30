@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, BellRing } from "lucide-react";
+import { Bell, BellRing, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toLocalISODate } from "@/lib/format";
@@ -9,7 +9,7 @@ import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
-import { filterSnoozed, snoozeAlert } from "@/modules/revisao/snooze";
+import { alertSignature, dismissAlertUntilChange, filterDismissed, filterSnoozed } from "@/modules/revisao/snooze";
 import { ackCooling, loadCoolingAlerts } from "@/modules/revisao/cooling";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
@@ -198,7 +198,6 @@ export async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
 
 export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
-  const [crmAlerts, setCrmAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const [perm, setPerm] = useState<NotifPermission>("granted");
@@ -213,44 +212,36 @@ export function NotificationBell() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const [stats, extra, custom] = await Promise.all([
+        const [stats, extra, custom, cooling, stale, receivables, partyFin] = await Promise.all([
           loadWeekStats(),
           loadExtraStats(),
-          evaluateCustomRules(),
+          evaluateCustomRules().catch(() => [] as AlertItem[]),
+          loadCoolingAlerts().catch(() => [] as AlertItem[]),
+          loadStaleGigStatusAlerts().catch(() => [] as AlertItem[]),
+          loadOverdueReceivableAlerts().catch(() => [] as AlertItem[]),
+          loadPartyFinanceAlerts().catch(() => [] as AlertItem[]),
         ]);
-        setAlerts(
-          await filterSnoozed([
-            ...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()),
-            ...custom,
-          ])
-        );
+        // Lista única (núcleo + custom + financeiro/festas + esfriando) →
+        // filtra os silenciados (snooze) e os dispensados-até-mudar.
+        const combined = [
+          ...partyFin,
+          ...receivables,
+          ...stale,
+          ...cooling,
+          ...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()),
+          ...custom,
+        ];
+        setAlerts(await filterDismissed(await filterSnoozed(combined)));
       } catch {
         // silently ignore
       }
-      void Promise.all([
-        loadCoolingAlerts(),
-        loadStaleGigStatusAlerts(),
-        loadOverdueReceivableAlerts(),
-        loadPartyFinanceAlerts(),
-      ]).then(([cooling, stale, receivables, partyFin]) =>
-        setCrmAlerts([...partyFin, ...receivables, ...stale, ...cooling])
-      );
     }, 500);
   }, []);
 
-  useEffect(() => {
-    const load = () =>
-      void Promise.all([
-        loadCoolingAlerts(),
-        loadStaleGigStatusAlerts(),
-        loadOverdueReceivableAlerts(),
-        loadPartyFinanceAlerts(),
-      ]).then(([cooling, stale, receivables, partyFin]) =>
-        setCrmAlerts([...partyFin, ...receivables, ...stale, ...cooling])
-      );
-    load();
-    const crmInterval = setInterval(load, 5 * 60_000);
-    return () => clearInterval(crmInterval);
+  /** X do alerta: dispensa até a situação mudar (some agora, volta ao mudar). */
+  const dismiss = useCallback((a: AlertItem) => {
+    setAlerts((prev) => prev.filter((x) => x.key !== a.key)); // some na hora
+    void dismissAlertUntilChange(a.key, alertSignature(a));
   }, []);
 
   useEffect(() => {
@@ -279,7 +270,7 @@ export function NotificationBell() {
 
   // Variedade (não-vistos primeiro) e DEPOIS ordena por severidade — crítico no
   // topo (sort estável preserva a ordem de variedade dentro de cada camada).
-  const allAlerts = mergeAndReorder([alerts, crmAlerts]).sort(
+  const allAlerts = mergeAndReorder([alerts]).sort(
     (a, b) => SEVERITY_ORDER[alertSeverity(a)] - SEVERITY_ORDER[alertSeverity(b)]
   );
   const criticalCount = allAlerts.filter((a) => alertSeverity(a) === "critico").length;
@@ -355,19 +346,30 @@ export function NotificationBell() {
                       sev === "atencao" && "bg-amber-500/5"
                     )}
                   >
-                    <Link
-                      to={a.to}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "flex items-center gap-2.5 transition hover:text-primary",
-                        sev !== "info" && "font-medium"
-                      )}
-                    >
-                      <span className="shrink-0">
-                        <AlertIcon icon={a.icon} critical={sev === "critico"} />
-                      </span>
-                      <span className="flex-1 leading-tight">{a.label}</span>
-                    </Link>
+                    <div className="flex items-start gap-2">
+                      <Link
+                        to={a.to}
+                        onClick={() => setOpen(false)}
+                        className={cn(
+                          "flex flex-1 items-center gap-2.5 transition hover:text-primary",
+                          sev !== "info" && "font-medium"
+                        )}
+                      >
+                        <span className="shrink-0">
+                          <AlertIcon icon={a.icon} critical={sev === "critico"} />
+                        </span>
+                        <span className="flex-1 leading-tight">{a.label}</span>
+                      </Link>
+                      <button
+                        type="button"
+                        aria-label="Dispensar"
+                        title="Dispensar até disparar de novo"
+                        className="-mr-1 mt-0.5 shrink-0 rounded p-0.5 text-muted-foreground opacity-60 transition hover:bg-accent hover:opacity-100"
+                        onClick={() => dismiss(a)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                     {staleGigId && (
                       <div className="mt-1.5 flex gap-1.5 pl-7">
                         <button
@@ -398,20 +400,6 @@ export function NotificationBell() {
                           onClick={() => { navigate(a.to); setOpen(false); }}
                         >
                           Abrir GIG
-                        </button>
-                      </div>
-                    )}
-                    {a.dismissible && (
-                      <div className="mt-1.5 pl-7">
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
-                          onClick={async () => {
-                            await snoozeAlert(a.key, 24 * 365);
-                            setOpen(false);
-                          }}
-                        >
-                          Dispensar
                         </button>
                       </div>
                     )}
