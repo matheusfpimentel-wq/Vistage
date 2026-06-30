@@ -234,9 +234,6 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
       {/* Pendências com a casa */}
       <section className="space-y-1.5">
         <h3 className="text-sm font-semibold">Pendências com a casa</h3>
-        <p className="text-[11px] text-muted-foreground">
-          Alvará, segurança, bar, horário-limite — o pesado a casa resolve; aqui é só o que você precisa confirmar com ela.
-        </p>
         <textarea
           value={housePending}
           onChange={(e) => setHousePending(e.target.value)}

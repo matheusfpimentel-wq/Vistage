@@ -134,9 +134,6 @@ export function StartupSettings() {
             }}
           />
         </label>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Documento com senha não reabre sozinho — abra pelo menu para digitar a senha.
-        </p>
       </CardContent>
     </Card>
   );

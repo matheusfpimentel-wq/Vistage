@@ -547,10 +547,6 @@ export function TrackForm({
           {/* ===== CONCEITO ===== */}
           <TabsContent value="concept" className="space-y-4">
             <Field label="Restrições criativas">
-              <p className="text-xs text-muted-foreground">
-                Definir restrições explícitas aumenta a produção criativa. Ex:
-                "só sintetizadores", "sem sample vocal", "produzir em 7 dias".
-              </p>
               <Textarea
                 rows={3}
                 value={state.constraints ?? ""}

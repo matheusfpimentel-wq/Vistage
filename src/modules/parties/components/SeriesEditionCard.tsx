@@ -147,9 +147,6 @@ export function SeriesEditionCard({
         <div className="flex items-center gap-1.5 text-sm font-medium">
           <Layers className="h-4 w-4" /> Série / Edição
         </div>
-        <p className="text-xs text-muted-foreground">
-          Festa avulsa. Vincule a uma série existente, ou transforme esta festa na 1ª edição de uma nova série (a marca durável — Caramelo, Halloween…).
-        </p>
         <div className="flex flex-wrap items-center gap-2">
           {seriesList.length > 0 && (
             <Select onValueChange={(v) => void linkTo(Number(v))}>

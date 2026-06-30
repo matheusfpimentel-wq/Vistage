@@ -249,11 +249,6 @@ export function WeekTrack() {
         </div>
       </div>
 
-      <p className="px-3 pt-2 text-[11px] text-muted-foreground">
-        Clique numa coluna pra criar · clique no bloco pra editar (nome, cor,
-        classificação, plano) · arraste pra mover · puxe a borda de baixo pra
-        redimensionar.
-      </p>
 
       {conflicts.length > 0 && (
         <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-400">

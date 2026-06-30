@@ -672,12 +672,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
         {/* Embutido no GigForm: sem botões próprios — o "Salvar alterações" do
             GigForm finaliza o debrief (via commit). Avulso: mantém os botões. */}
-        {embedded ? (
-          <p className="pt-1 text-xs text-muted-foreground">
-            As avaliações e tudo daqui são salvos junto com o botão{" "}
-            <strong>Salvar alterações</strong> da GIG.
-          </p>
-        ) : (
+        {embedded ? null : (
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             {required && !complete && (
               <Button variant="outline" onClick={saveAsPending} disabled={saving}>
