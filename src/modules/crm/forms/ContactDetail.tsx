@@ -64,7 +64,6 @@ import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { formatCurrency, formatDate, formatPhoneBR } from "@/lib/format";
 import {
-  RELATION_TAB_LABEL,
   RelationshipTabContent,
   ServicesTabContent,
 } from "@/modules/pessoas/RelationshipTabs";
@@ -205,19 +204,14 @@ export function ContactDetail({
     if (!contact) return;
     const active = relTypes.includes(type);
     if (active) {
-      const data = (relDraft[type] ?? {}) as Record<string, unknown>;
-      const hasData = Object.values(data).some(
-        (v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0)
-      );
-      if (hasData) {
-        const ok = await confirmDialog({
-          title: `Remover relação ${type}`,
-          description: `Isso vai apagar tudo da aba "${RELATION_TAB_LABEL[type]}" desta pessoa. Tem certeza?`,
-          confirmLabel: "Remover",
-          destructive: true,
-        });
-        if (!ok) return;
-      }
+      // SEMPRE avisa (mesmo sem edições na sessão): desmarcar apaga o perfil.
+      const ok = await confirmDialog({
+        title: `Remover relação ${type}`,
+        description: `Isso vai apagar o "Perfil de ${type}" desta pessoa (todos os campos preenchidos). Tem certeza?`,
+        confirmLabel: "Remover",
+        destructive: true,
+      });
+      if (!ok) return;
       // Constrói a partir do RASCUNHO pra não descartar edições não salvas de
       // outras abas; mantém DB e rascunho em sincronia.
       const nextData: RelationshipData = { ...relDraft };
