@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRing, X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toLocalISODate } from "@/lib/format";
 import { loadWeekStats } from "@/modules/revisao/api";
-import { alertSeverity, computeAlerts, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
+import { alertSeverity, computeAlerts, SEVERITY_BUCKET_LABEL, SEVERITY_ORDER, type AlertItem, type ExtraStats } from "@/modules/revisao/alerts";
 import { getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
@@ -333,19 +333,32 @@ export function NotificationBell() {
             </div>
           ) : (
             <div className="max-h-80 overflow-y-auto">
-              {allAlerts.map((a) => {
+              {allAlerts.map((a, i) => {
                 const staleMatch = a.key.match(/^gig-stale-status-(\d+)$/);
                 const staleGigId = staleMatch ? Number(staleMatch[1]) : null;
                 const sev = alertSeverity(a);
+                // Cabeçalho do grupo (por tipo) antes do 1º item de cada severidade.
+                const showHeader = i === 0 || alertSeverity(allAlerts[i - 1]) !== sev;
                 return (
-                  <div
-                    key={a.key}
-                    className={cn(
-                      "border-b px-3 py-2.5 text-sm last:border-0",
-                      sev === "critico" && "bg-red-500/5",
-                      sev === "atencao" && "bg-amber-500/5"
+                  <Fragment key={a.key}>
+                    {showHeader && (
+                      <div className="flex items-center gap-1.5 border-b bg-muted/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <span
+                          className={cn(
+                            "h-1.5 w-1.5 rounded-full",
+                            sev === "critico" ? "bg-red-500" : sev === "atencao" ? "bg-amber-500" : "bg-muted-foreground/40"
+                          )}
+                        />
+                        {SEVERITY_BUCKET_LABEL[sev]}
+                      </div>
                     )}
-                  >
+                    <div
+                      className={cn(
+                        "border-b px-3 py-2.5 text-sm last:border-0",
+                        sev === "critico" && "bg-red-500/5",
+                        sev === "atencao" && "bg-amber-500/5"
+                      )}
+                    >
                     <div className="flex items-start gap-2">
                       <Link
                         to={a.to}
@@ -414,7 +427,8 @@ export function NotificationBell() {
                         </button>
                       </div>
                     )}
-                  </div>
+                    </div>
+                  </Fragment>
                 );
               })}
             </div>

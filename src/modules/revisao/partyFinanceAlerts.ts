@@ -29,7 +29,6 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
   const db = getDb();
   const out: AlertItem[] = [];
   const today = toLocalISODate();
-  const in7 = addDaysISO(7);
   const in14 = addDaysISO(14);
 
   // (Removido) O alerta "Recebíveis acumulados acima do limiar" foi retirado —
@@ -78,7 +77,7 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
       const pct = Math.round((p.sold / p.meta) * 100);
       out.push({
         key: `festa-vendas-baixas-${p.id}`,
-        icon: "party", to: `/festas?open=${p.id}`, critical: true, severidade: "critico",
+        icon: "party", to: `/festas?open=${p.id}`, critical: false, severidade: "atencao",
         label: `Festa "${p.title}" em ${daysUntil(p.date)}d com vendas em ${pct}% da meta — campanha em apuros.`,
       });
     }
@@ -118,42 +117,10 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
     }
   } catch { /* ignore */ }
 
-  // 5) Festa confirmada em ≤14 dias sem venue fechado.
-  try {
-    const rows = await db.select<{ id: number; title: string; date: string }[]>(
-      `SELECT id, title, date FROM parties
-        WHERE status = 'Confirmada' AND date IS NOT NULL AND date >= $1 AND date <= $2
-          AND venue_id IS NULL`,
-      [today, in14]
-    );
-    for (const p of rows) {
-      out.push({
-        key: `festa-sem-venue-${p.id}`,
-        icon: "warning", to: `/festas?open=${p.id}`, critical: true, severidade: "critico",
-        label: `Festa "${p.title}" confirmada em ${daysUntil(p.date)}d sem venue fechado.`,
-      });
-    }
-  } catch { /* ignore */ }
+  // (Removidos) "Festa sem venue" e "Festa sem run-of-show" saíram do catálogo —
+  // ficam fora da lista enxuta de alertas de festa (vendas, resultado, lote).
 
-  // 6) Festa em ≤7 dias sem run-of-show montado.
-  try {
-    const rows = await db.select<{ id: number; title: string; date: string }[]>(
-      `SELECT id, title, date FROM parties p
-        WHERE p.status IN ('Confirmada','Planejando') AND p.date IS NOT NULL
-          AND p.date >= $1 AND p.date <= $2
-          AND NOT EXISTS (SELECT 1 FROM party_runsheet r WHERE r.party_id = p.id)`,
-      [today, in7]
-    );
-    for (const p of rows) {
-      out.push({
-        key: `festa-sem-runsheet-${p.id}`,
-        icon: "warning", to: `/festas?open=${p.id}`, critical: true, severidade: "critico",
-        label: `Festa "${p.title}" em ${daysUntil(p.date)}d sem run-of-show montado.`,
-      });
-    }
-  } catch { /* ignore */ }
-
-  // 7) Lote esgotando (acima do limiar vendido, editável) — abrir o próximo.
+  // Lote esgotando (acima do limiar vendido, editável) — abrir o próximo.
   try {
     const loteFrac = getLoteSoldPct() / 100;
     const rows = await db.select<{ id: number; title: string; name: string; sold: number; total: number }[]>(
@@ -168,7 +135,7 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
       const pct = Math.round((r.sold / r.total) * 100);
       out.push({
         key: `lote-esgotando-${r.id}-${r.name}`,
-        icon: "zap", to: `/festas?open=${r.id}`, critical: false, severidade: "atencao",
+        icon: "zap", to: `/festas?open=${r.id}`, critical: false, severidade: "info",
         label: `Lote "${r.name}" da festa "${r.title}" ${pct}% vendido — hora de abrir o próximo.`,
       });
     }

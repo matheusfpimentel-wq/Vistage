@@ -10,8 +10,9 @@ import {
 import { cn } from "@/lib/utils";
 import {
   BUILTIN_RULES,
+  SEVERITY_BUCKET_LABEL,
+  type AlertSeverity,
   type BuiltinRule,
-  type RuleCategory,
 } from "@/modules/revisao/alerts";
 import {
   getCoolingDays,
@@ -33,21 +34,11 @@ import {
 import { COOLING_RULE_ID } from "@/modules/revisao/cooling";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
 
-const CATEGORY_ORDER: RuleCategory[] = [
-  "Financeiro",
-  "GIGs",
-  "Produção",
-  "Pessoas",
-  "Tarefas",
-  "Festas",
-  "Aulas",
-  "Objetivos",
-];
-
 /**
- * Editor dos ALERTAS padrão: liga/desliga cada regra (com "Restaurar padrão") +
- * cria regras próprias. As regras inegociáveis (cadeado verde — dinheiro/fisco)
- * ficam SEMPRE ligadas: não dá pra desativar nem editar.
+ * Editor dos ALERTAS padrão, organizado POR TIPO (Esfriamento no topo, depois
+ * Alertas graves → Exige ação → Avisos): liga/desliga cada regra (com "Restaurar
+ * padrão") + cria regras próprias. As regras inegociáveis (cadeado verde —
+ * dinheiro/fisco) ficam SEMPRE ligadas: não dá pra desativar nem editar.
  */
 export function AdvancedRulesSettings() {
   const [disabled, setDisabled] = useState<Set<string>>(
@@ -70,20 +61,16 @@ export function AdvancedRulesSettings() {
     setDisabled(new Set());
   }
 
-  const byCategory = new Map<RuleCategory, BuiltinRule[]>();
-  for (const r of BUILTIN_RULES) {
-    const arr = byCategory.get(r.category) ?? [];
-    arr.push(r);
-    byCategory.set(r.category, arr);
-  }
-  // "Esfriando" fica num bloco PRÓPRIO no topo (acima dos grupos por categoria);
-  // sai da sua categoria pra não duplicar.
+  // Catálogo POR TIPO de alerta: "Esfriamento" fixo no topo, depois os 3 grupos
+  // por severidade — Alertas graves (crítico) → Exige ação (atenção) → Avisos (info).
   const coolingRule = BUILTIN_RULES.find((r) => r.id === COOLING_RULE_ID);
   const ruleGroups: { label: string; rules: BuiltinRule[] }[] = [];
-  if (coolingRule) ruleGroups.push({ label: "Esfriando", rules: [coolingRule] });
-  for (const cat of CATEGORY_ORDER) {
-    const rules = (byCategory.get(cat) ?? []).filter((r) => r.id !== COOLING_RULE_ID);
-    if (rules.length > 0) ruleGroups.push({ label: cat, rules });
+  if (coolingRule) ruleGroups.push({ label: "Esfriamento", rules: [coolingRule] });
+  for (const sev of ["critico", "atencao", "info"] as AlertSeverity[]) {
+    const rules = BUILTIN_RULES.filter(
+      (r) => r.id !== COOLING_RULE_ID && r.severidade === sev
+    );
+    if (rules.length > 0) ruleGroups.push({ label: SEVERITY_BUCKET_LABEL[sev], rules });
   }
   // Inegociáveis estão sempre ativas; só as demais podem ficar desligadas.
   const activeCount = BUILTIN_RULES.filter(

@@ -82,8 +82,15 @@ export function ContentPage() {
     void refresh();
   }, [refresh]);
 
-  // Pre-fill form when navigated with ?title=...
+  // Pre-fill form when navigated with ?title=... (ou ?new=1 vindo de um alerta).
   useEffect(() => {
+    // ?new=1 (alerta "Nenhum conteúdo sendo produzido") → abre form em branco.
+    if (searchParams.get("new")) {
+      setEditing(null);
+      setFormOpen(true);
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const prefillTitle = searchParams.get("title");
     const prefillTrackId = searchParams.get("track_id");
     if (prefillTitle || prefillTrackId) {
