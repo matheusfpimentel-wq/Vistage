@@ -43,6 +43,7 @@ import { formatDate } from "@/lib/format";
 import { confirmDialog } from "@/components/ui/confirm";
 import { emitDataChanged } from "@/lib/events";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type Props = {
   open: boolean;
@@ -246,7 +247,7 @@ export function TaskForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{task ? "Editar tarefa" : "Nova tarefa"}</DialogTitle>
         </DialogHeader>

@@ -39,6 +39,7 @@ import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
 import { todayISO, formatCurrency } from "@/lib/format";
+import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues } from "@/modules/venues/api";
@@ -580,7 +581,7 @@ export function GigForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
         </DialogHeader>

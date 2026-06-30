@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { createVenue, updateVenue } from "../api";
 import { VENUE_TYPES } from "../types";
 import type { Venue, VenueCreateInput } from "../types";
@@ -234,7 +235,7 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{venue ? "Editar venue" : "Novo venue"}</DialogTitle>
           <DialogDescription>

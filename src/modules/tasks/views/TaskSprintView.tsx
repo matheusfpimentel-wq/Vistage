@@ -87,15 +87,18 @@ function TaskRow({
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
+        "flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
         overdue && "border-destructive/40 bg-destructive/5",
         done && "opacity-60"
       )}
+      onClick={() => onEdit(task)}
+      title="Clique pra editar"
     >
       <input
         type="checkbox"
         checked={done}
         onChange={() => onToggleDone(task)}
+        onClick={(e) => e.stopPropagation()}
         className="mt-0.5 h-4 w-4 cursor-pointer rounded border-input accent-primary"
         aria-label={done ? "Reabrir" : "Marcar como concluída"}
       />
@@ -104,7 +107,10 @@ function TaskRow({
         <div className="flex items-start justify-between gap-2">
           <button
             type="button"
-            onClick={() => onEdit(task)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(task);
+            }}
             className={cn(
               "text-left text-sm font-medium hover:underline",
               done && "text-muted-foreground line-through"
@@ -152,7 +158,7 @@ function TaskRow({
         </div>
       </div>
 
-      <div className="flex gap-0.5">
+      <div className="flex gap-0.5" onClick={(e) => e.stopPropagation()}>
         <Button
           size="icon"
           variant="ghost"

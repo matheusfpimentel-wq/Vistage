@@ -164,6 +164,17 @@ function countActiveFilters(f: RosterFilters): number {
   );
 }
 
+/**
+ * Linha da tabela = Fã + campos derivados só pra ordenar colunas que não mapeiam
+ * direto num campo do Fan: grupo(s), contato (instagram/email/telefone coalescido)
+ * e contagem de interações.
+ */
+type FanRow = Fan & {
+  _group: string | null;
+  _contact: string | null;
+  _interactions: number;
+};
+
 export function FansPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [fans, setFans] = useState<Fan[]>([]);
@@ -208,7 +219,20 @@ export function FansPage() {
   const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
   const [clubConfigOpen, setClubConfigOpen] = useState(false);
   const [autoRulesOpen, setAutoRulesOpen] = useState(false);
-  const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fans);
+  // Linhas augmentadas com campos derivados pra ordenar Grupo/Contato/Interações
+  // (que não mapeiam direto num campo do Fan). FanRow estende Fan, então o que
+  // consome `sortedFans` como Fan[] (ex.: GroupedFansView) segue funcionando.
+  const fanRows: FanRow[] = useMemo(
+    () =>
+      fans.map((f) => ({
+        ...f,
+        _group: (groupMap.get(f.id) ?? []).map((g) => g.name).join(", ") || null,
+        _contact: f.instagram ?? f.email ?? f.phone ?? null,
+        _interactions: interactionCounts.get(f.id) ?? 0,
+      })),
+    [fans, groupMap, interactionCounts]
+  );
+  const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fanRows);
   const cols = useResizableColumns("fans", [
     { id: "name", width: 240, min: 140 },
     { id: "level", width: 120 },
@@ -568,21 +592,27 @@ export function FansPage() {
             </colgroup>
             <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground">
               <tr>
-                <SortableHeader<Fan> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                <SortableHeader<FanRow> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("name")} />
                 </SortableHeader>
-                <SortableHeader<Fan> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                <SortableHeader<FanRow> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("level")} />
                 </SortableHeader>
-                <SortableHeader<Fan> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                <SortableHeader<FanRow> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("city")} />
                 </SortableHeader>
-                <th className="relative px-3 py-2 text-left">Grupo<ColResizer {...cols.resizer("group")} /></th>
-                <th className="relative px-3 py-2 text-left">Contato<ColResizer {...cols.resizer("contact")} /></th>
-                <SortableHeader<Fan> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                <SortableHeader<FanRow> col="_group" label="Grupo" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("group")} />
+                </SortableHeader>
+                <SortableHeader<FanRow> col="_contact" label="Contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("contact")} />
+                </SortableHeader>
+                <SortableHeader<FanRow> col="last_interaction_at" label="Último contato" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("last")} />
                 </SortableHeader>
-                <th className="relative px-3 py-2 text-left">Interações<ColResizer {...cols.resizer("interactions")} /></th>
+                <SortableHeader<FanRow> col="_interactions" label="Interações" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("interactions")} />
+                </SortableHeader>
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>

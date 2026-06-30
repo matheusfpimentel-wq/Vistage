@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { FanFields } from "./FanFields";
 import { addFanGroupMember, createFan, listFanGroups, updateFan } from "../api";
 import { type Fan, type FanCreateInput, type FanGroup } from "../types";
@@ -115,7 +116,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{fan ? "Editar fã" : "Novo fã"}</DialogTitle>
         </DialogHeader>

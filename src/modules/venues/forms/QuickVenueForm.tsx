@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
 import { createVenue } from "../api";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type Props = {
   open: boolean;
@@ -76,7 +77,7 @@ export function QuickVenueForm({ open, onOpenChange, onCreated }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-sm" onKeyDown={onEnterSave(handleSave)}>
         <DialogHeader>
           <DialogTitle>Novo venue</DialogTitle>
           <DialogDescription>

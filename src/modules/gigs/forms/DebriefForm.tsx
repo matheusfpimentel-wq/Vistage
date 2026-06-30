@@ -38,6 +38,7 @@ import {
   setGigFans,
 } from "@/modules/fans/api";
 import { formatDate, formatRating } from "@/lib/format";
+import { onEnterSave } from "@/lib/formEnter";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -706,6 +707,9 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       <DialogContent
         className="max-w-4xl"
         hideClose={required && !complete}
+        onKeyDown={onEnterSave(() => {
+          if (complete && !saving) void saveAsComplete();
+        })}
         onPointerDownOutside={(e) => {
           if (required && !complete) e.preventDefault();
         }}

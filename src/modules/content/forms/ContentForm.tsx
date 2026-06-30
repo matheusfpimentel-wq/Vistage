@@ -27,6 +27,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { createTask, updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
@@ -342,7 +343,7 @@ export function ContentForm({
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-3xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{content ? "Editar conteúdo" : "Novo conteúdo"}</DialogTitle>
         </DialogHeader>

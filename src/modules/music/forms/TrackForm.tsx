@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
+import { onEnterSave } from "@/lib/formEnter";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { formatDate } from "@/lib/format";
 import {
@@ -330,7 +331,7 @@ export function TrackForm({
       open={open}
       onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}
     >
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {track ? "Editar track" : "Nova track"}

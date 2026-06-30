@@ -102,7 +102,12 @@ export function EquipmentView() {
               {sorted.map((it) => (
                 <tr
                   key={it.id}
-                  className="border-t transition-colors hover:bg-muted/40"
+                  className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                  onClick={() => {
+                    setEditing(it);
+                    setOpen(true);
+                  }}
+                  title="Clique pra editar"
                 >
                   <td className="px-3 py-2">
                     <div className="font-medium">{it.name}</div>
@@ -125,7 +130,7 @@ export function EquipmentView() {
                     {it.location ?? "—"}
                   </td>
                   <td className="px-3 py-2">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <Button
                         size="icon"
                         variant="ghost"
