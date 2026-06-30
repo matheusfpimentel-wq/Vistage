@@ -71,7 +71,7 @@ export const RELATIONSHIP_CATEGORIES: Record<ContactRelationshipType, readonly s
   Contratante: ["Casa/Club", "Produtora", "Festival", "Bar/Restaurante", "Corporativo", "Particular", "Público/Prefeitura", "Outro"],
   Parceiro: ["Selo", "Coletivo", "Produtor", "DJ", "Agência/Booking", "Mídia", "Marca", "Outro"],
   Alvo: ["Casa/Club", "Festival", "Selo", "Booker/Agência", "Marca", "Mídia", "Outro"],
-  "Músico": ["Vocalista", "Instrumentista", "Banda", "Produtor musical", "Beatmaker", "Outro"],
+  "Músico": ["Instrumentista", "Cantor", "DJ", "Produtor"],
 };
 
 /** Mapeia os `types` legados para o tipo de relação, pra contatos antigos já aparecerem com papéis. */

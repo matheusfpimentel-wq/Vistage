@@ -3,7 +3,6 @@ import { CalendarPlus, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -28,6 +27,8 @@ import {
 import { SUPPLIER_CATEGORIES, type SupplierService } from "@/modules/suppliers/types";
 import { listMeetingsForContact } from "@/modules/meetings/api";
 import type { Meeting } from "@/modules/meetings/types";
+import { CURRENCIES } from "@/modules/finance/types";
+import { InfoHint } from "@/components/ui/tooltip";
 import { Link } from "react-router-dom";
 import { formatCurrency, formatDate } from "@/lib/format";
 
@@ -52,7 +53,7 @@ function CategoriaSelect({
     <div className="space-y-1.5">
       <Label>Categoria</Label>
       <Select value={value ?? ""} onValueChange={onChange}>
-        <SelectTrigger className="max-w-xs">
+        <SelectTrigger>
           <SelectValue placeholder="Selecionar…" />
         </SelectTrigger>
         <SelectContent>
@@ -89,7 +90,7 @@ export function RelationshipTabContent({
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
   useEffect(() => {
-    if (type === "Contratante") {
+    if (type === "Contratante" || type === "Parceiro") {
       void listMeetingsForContact(contactId).then(setMeetings).catch(() => setMeetings([]));
     }
   }, [type, contactId]);
@@ -99,72 +100,69 @@ export function RelationshipTabContent({
 
   return (
     <div className="space-y-3 pt-2">
-      <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
-
       {type === "Contratante" && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {onCreateGig && (
-              <Button size="sm" variant="outline" onClick={onCreateGig}>
-                <CalendarPlus className="h-4 w-4" /> Nova GIG com esta pessoa
-              </Button>
-            )}
-            <span className="text-xs text-muted-foreground">
-              GIGs anteriores e faturamento aparecem no topo e na aba GIGs.
-            </span>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Cachê de referência (R$)</Label>
-            <Input
-              type="number"
-              min={0}
-              placeholder="Ex: 2500"
-              value={(data.cacheReferencia as number | undefined) ?? ""}
-              onChange={(e) => set("cacheReferencia", e.target.value ? Number(e.target.value) : null)}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Reuniões</Label>
-              <Link to="/reunioes" className="text-xs text-primary hover:underline">
-                Ir para Reuniões
-              </Link>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
+            <div className="space-y-1.5">
+              <Label>Função</Label>
+              <Input placeholder="Ex: contratante, curador, produtor…" value={str("funcao")} onChange={(e) => set("funcao", e.target.value)} />
             </div>
-            {meetings.length === 0 ? (
-              <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-                Nenhuma reunião vinculada. Em Reuniões, use "+ Vincular pessoa".
-              </p>
-            ) : (
-              <div className="space-y-1.5">
-                {meetings.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                    <span className="truncate">{m.title}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {m.date ? formatDate(m.date) : "sem data"} · {m.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Cachê de referência</Label>
+              <div className="flex gap-2">
+                <Select value={(data.cacheMoeda as string | undefined) ?? "BRL"} onValueChange={(v) => set("cacheMoeda", v)}>
+                  <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CURRENCIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.symbol}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Ex: 2500"
+                  value={(data.cacheReferencia as number | undefined) ?? ""}
+                  onChange={(e) => set("cacheReferencia", e.target.value ? Number(e.target.value) : null)}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tipo de contratação</Label>
+              <Select value={(data.cacheTipo as string | undefined) ?? "Por hora"} onValueChange={(v) => set("cacheTipo", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Por hora">Por hora</SelectItem>
+                  <SelectItem value="Full time">Full time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {onCreateGig && (
+            <Button size="sm" variant="outline" onClick={onCreateGig}>
+              <CalendarPlus className="h-4 w-4" /> Nova GIG com esta pessoa
+            </Button>
+          )}
+          <MeetingsBlock meetings={meetings} />
         </>
       )}
 
       {type === "Músico" && (
         <>
-          <div className="space-y-1.5">
-            <Label>O que faz</Label>
-            <Input placeholder="Ex: DJ/produtor, cantora, baixista…" value={str("oQueFaz")} onChange={(e) => set("oQueFaz", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Onde toca</Label>
-            <Input placeholder="Casas, festivais, circuito…" value={str("ondeToca")} onChange={(e) => set("ondeToca", e.target.value)} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
+            <div className="space-y-1.5">
+              <Label>O que faz</Label>
+              <Input placeholder="Ex: DJ/produtor, cantora, baixista…" value={str("oQueFaz")} onChange={(e) => set("oQueFaz", e.target.value)} />
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Instrumentos</Label>
-              <Input placeholder="Sax, vocal, guitarra…" value={str("instrumentos")} onChange={(e) => set("instrumentos", e.target.value)} />
+              <Label>Onde toca</Label>
+              <Input placeholder="Casas, festivais, circuito…" value={str("ondeToca")} onChange={(e) => set("ondeToca", e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Gêneros</Label>
@@ -176,34 +174,63 @@ export function RelationshipTabContent({
 
       {type === "Parceiro" && (
         <>
-          <div className="space-y-1.5">
-            <Label>Situação</Label>
-            <Select value={str("situacao") || undefined} onValueChange={(v) => set("situacao", v)}>
-              <SelectTrigger className="max-w-xs">
-                <SelectValue placeholder="Selecionar…" />
-              </SelectTrigger>
-              <SelectContent>
-                {PARCERIA_SITUACOES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Vira "Pausada" sozinha quando não há GIG vinculada à pessoa há mais de 60 dias.
-            </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1">
+                Situação
+                <InfoHint>
+                  Vira "Pausada" sozinha quando não há GIG vinculada à pessoa há mais de 60 dias.
+                </InfoHint>
+              </Label>
+              <Select value={str("situacao") || undefined} onValueChange={(v) => set("situacao", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PARCERIA_SITUACOES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Projetos / colaborações</Label>
-            <Textarea rows={2} value={str("projetos")} onChange={(e) => set("projetos", e.target.value)} />
-          </div>
+          {(() => {
+            const list = (data.parceriasAtivas as string[] | undefined) ?? (str("projetos") ? [str("projetos")] : []);
+            const update = (next: string[]) => set("parceriasAtivas", next);
+            return (
+              <div className="space-y-1.5">
+                <Label>Parcerias ativas</Label>
+                <div className="space-y-1.5">
+                  {list.map((p, i) => (
+                    <div key={i} className="flex gap-2">
+                      <Input
+                        placeholder="Ex: EP conjunto, residência, coletivo…"
+                        value={p}
+                        onChange={(e) => update(list.map((x, j) => (j === i ? e.target.value : x)))}
+                      />
+                      <Button type="button" size="icon" variant="ghost" aria-label="Remover" onClick={() => update(list.filter((_, j) => j !== i))}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button type="button" size="sm" variant="outline" onClick={() => update([...list, ""])}>
+                    <Plus className="h-3.5 w-3.5" /> Adicionar parceria
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+          <MeetingsBlock meetings={meetings} />
         </>
       )}
 
       {type === "Alvo" && (
         <>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <CategoriaSelect type={type} value={data.categoria as string | undefined} onChange={(v) => set("categoria", v)} />
             <div className="space-y-1.5">
               <Label>Estágio</Label>
               <Select value={(data.estagio as string | undefined) ?? "Lead"} onValueChange={(v) => set("estagio", v)}>
@@ -219,26 +246,59 @@ export function RelationshipTabContent({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Próximo passo</Label>
+              <Input placeholder="Ex: mandar press kit, marcar call…" value={str("proximoPasso")} onChange={(e) => set("proximoPasso", e.target.value)} />
+            </div>
             <div className="space-y-1.5">
               <Label>Data do próximo passo</Label>
               <Input type="date" value={str("proximoPassoData")} onChange={(e) => set("proximoPassoData", e.target.value || null)} />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Objetivo com esta pessoa</Label>
-            <Input placeholder="Ex: fechar residência, tocar no festival X…" value={str("objetivos")} onChange={(e) => set("objetivos", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Forma de abordagem</Label>
-            <Textarea rows={2} placeholder="Como pretende chegar nessa pessoa" value={str("abordagem")} onChange={(e) => set("abordagem", e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Próximo passo</Label>
-            <Input placeholder="Ex: mandar press kit, marcar call…" value={str("proximoPasso")} onChange={(e) => set("proximoPasso", e.target.value)} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Objetivo</Label>
+              <Input placeholder="Ex: fechar residência, tocar no festival X…" value={str("objetivos")} onChange={(e) => set("objetivos", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Forma de abordagem</Label>
+              <Input placeholder="Como pretende chegar nessa pessoa" value={str("abordagem")} onChange={(e) => set("abordagem", e.target.value)} />
+            </div>
           </div>
         </>
       )}
-      {/* "Observações" removido — já existe "Notas" no perfil inicial da pessoa. */}
+    </div>
+  );
+}
+
+/** Bloco de Reuniões vinculadas (reutilizado em Contratante e Parceiro). */
+function MeetingsBlock({ meetings }: { meetings: Meeting[] }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label>Reuniões</Label>
+        <Link to="/reunioes" className="text-xs text-primary hover:underline">
+          Ir para Reuniões
+        </Link>
+      </div>
+      {meetings.length === 0 ? (
+        <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
+          Nenhuma reunião vinculada. Em Reuniões, use "+ Vincular pessoa".
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {meetings.map((m) => (
+            <div key={m.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+              <span className="truncate">{m.title}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {m.date ? formatDate(m.date) : "sem data"} · {m.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
