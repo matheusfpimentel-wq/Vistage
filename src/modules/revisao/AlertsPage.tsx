@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, ChevronRight, Loader2, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { loadWeekStats } from "./api";
-import { alertSeverity, computeAlerts, SEVERITY_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
+import { alertSeverity, computeAlerts, SEVERITY_BUCKET_LABEL, type AlertItem, type AlertSeverity } from "./alerts";
 import { getDisabledRuleIds } from "./ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "./customRules";
@@ -116,7 +116,7 @@ export function AlertsPage() {
             groups[sev].length > 0 ? (
               <AlertSection
                 key={sev}
-                title={SEVERITY_LABEL[sev] + (sev === "info" ? "" : sev === "critico" ? "s" : "")}
+                title={SEVERITY_BUCKET_LABEL[sev]}
                 severity={sev}
                 items={groups[sev]}
                 onDismiss={dismiss}

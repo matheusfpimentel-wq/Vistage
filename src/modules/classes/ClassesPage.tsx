@@ -132,6 +132,13 @@ export function ClassesPage() {
   }, [refresh]);
 
   useEffect(() => {
+    // ?new=1 (alerta "Nenhuma aula à frente") → abre form de nova aula em branco.
+    if (searchParams.get("new")) {
+      setEditingClass(null);
+      setClassFormOpen(true);
+      setSearchParams({}, { replace: true });
+      return;
+    }
     const openId = searchParams.get("open");
     if (!openId) return;
     const id = Number(openId);

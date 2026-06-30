@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Loader2, PartyPopper, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +37,7 @@ export function PartiesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PartyDeserialized | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +65,23 @@ export function PartiesPage() {
     setEditing(p);
     setFormOpen(true);
   }
+
+  // Alertas de festa abrem aqui: ?new=1 → nova festa em branco; ?open=<id> →
+  // edita a festa que gerou o alerta (resolve da lista já carregada).
+  useEffect(() => {
+    if (searchParams.get("new")) {
+      openCreate();
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    const openId = searchParams.get("open");
+    if (!openId) return;
+    const party = parties.find((p) => p.id === Number(openId));
+    if (party) {
+      openEdit(party);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, parties]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleDelete(p: PartyDeserialized) {
     if (!(await confirmDialog({ title: "Excluir", description: `Excluir a produção "${p.title}"?`, confirmLabel: "Excluir", destructive: true }))) return;

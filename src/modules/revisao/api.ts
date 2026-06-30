@@ -28,6 +28,8 @@ export type WeekStats = {
   undatedPartyIds: number[];
   noUpcomingGigs: boolean;
   noTracksInProduction: boolean;
+  noPartiesInProduction: boolean; // nenhuma festa no pipeline (fora realizadas/canceladas)
+  noUpcomingClasses: boolean; // nenhuma aula futura agendada
   unpreparedClasses: number; // aulas em <=48h sem subject
   unpreparedClassIds: number[]; // 1ª = aula mais próxima
   superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
@@ -35,7 +37,7 @@ export type WeekStats = {
   gigsUnpreparedIds: number[]; // 1ª = GIG mais próxima
   okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
   okrsLaggingIds: number[];
-  gigsUnpaidAfter48h: number; // GIGs concluídas há +48h com pagamento pendente
+  gigsUnpaidAfter48h: number; // GIGs concluídas com pagamento pendente (previsão vencida ou +72h)
   gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
   // Pacotes de aulas ativos quase no fim (≤2 aulas ou ≤2h restantes) — renovar/cobrar
@@ -132,6 +134,8 @@ async function computeWeekStats(): Promise<WeekStats> {
     gigsUnpaidRows,
     standbyOverdueRows,
     activePackagesRows,
+    partiesInProductionRows,
+    upcomingClassesRows,
   ] = await Promise.all([
     safeSelect<CountRow>(() => db.select(
       `SELECT COUNT(*) as c FROM gigs WHERE date >= $1 AND date <= $2 AND status != 'Cancelada'`,
@@ -234,8 +238,8 @@ async function computeWeekStats(): Promise<WeekStats> {
       [today, (() => { const d = new Date(today); d.setDate(d.getDate() + Math.ceil(getPrepHours() / 24)); return d.toISOString().slice(0, 10); })()]
     ), []),
     // GIGs concluídas com cachê pendente. Sem previsão de pagamento, usa a regra
-    // das 48h (data já passou +2 dias). COM previsão (payment_due_date), ignora as
-    // 48h e só alerta se a previsão já venceu — assim uma GIG com pagamento
+    // das 72h (data já passou +3 dias). COM previsão (payment_due_date), ignora as
+    // 72h e só alerta se a previsão já venceu — assim uma GIG com pagamento
     // agendado pra frente não vira alerta antes da hora.
     safeSelect<{ id: number }>(() => db.select(
       `SELECT id FROM gigs
@@ -246,7 +250,7 @@ async function computeWeekStats(): Promise<WeekStats> {
             (payment_due_date IS NULL AND date < $1)
             OR (payment_due_date IS NOT NULL AND payment_due_date < $2)
           )`,
-      [(() => { const d = new Date(today); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); })(), today]
+      [(() => { const d = new Date(today); d.setDate(d.getDate() - 3); return d.toISOString().slice(0, 10); })(), today]
     ), []),
     // tracks em standby com data de retorno já vencida
     safeSelect<{ id: number; title: string }>(() => db.select(
@@ -268,6 +272,17 @@ async function computeWeekStats(): Promise<WeekStats> {
         WHERE sp.status = 'Ativo'`,
       []
     ), []),
+    // festas no pipeline (fora realizadas/canceladas). Fallback [{c:1}]: erro NÃO
+    // dispara o aviso "nenhuma festa sendo produzida".
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM parties WHERE status NOT IN ('Realizada','Cancelada')`,
+      []
+    ), [{ c: 1 }]),
+    // aulas futuras agendadas. Fallback [{c:1}]: erro NÃO dispara "nenhuma aula à frente".
+    safeSelect<CountRow>(() => db.select(
+      `SELECT COUNT(*) as c FROM classes WHERE status = 'Agendada' AND date >= $1`,
+      [today]
+    ), [{ c: 1 }]),
   ]);
 
   // GIGs com prep musical incompleta
@@ -382,6 +397,8 @@ async function computeWeekStats(): Promise<WeekStats> {
     undatedPartyIds: (undatedPartiesRows as { id: number }[]).map((r) => r.id),
     noUpcomingGigs: (upcomingGigsRows[0]?.c ?? 0) === 0,
     noTracksInProduction: (tracksInProductionRows[0]?.c ?? 0) === 0,
+    noPartiesInProduction: (partiesInProductionRows[0]?.c ?? 0) === 0,
+    noUpcomingClasses: (upcomingClassesRows[0]?.c ?? 0) === 0,
     unpreparedClasses: (unpreparedClassesRows as { id: number }[]).length,
     unpreparedClassIds: (unpreparedClassesRows as { id: number }[]).map((r) => r.id),
     superfasSemInteracao: superfasRows[0]?.c ?? 0,
