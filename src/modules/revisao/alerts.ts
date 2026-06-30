@@ -218,7 +218,8 @@ export function computeAlerts(
     alerts.push({
       key: "tasks-overdue",
       icon: "clock",
-      to: "/tarefas",
+      // Abre a tarefa mais atrasada, pronta pra concluir.
+      to: stats.tasksOverdueIds.length > 0 ? `/tarefas?open=${stats.tasksOverdueIds[0]}` : "/tarefas",
       critical: true,
       label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
     });
@@ -226,7 +227,8 @@ export function computeAlerts(
     alerts.push({
       key: "debriefs-pending",
       icon: "star",
-      to: "/gigs",
+      // Abre a GIG concluída há mais tempo sem debrief, pronta pra preencher.
+      to: stats.pendingDebriefIds.length > 0 ? `/gigs?debrief=${stats.pendingDebriefIds[0]}` : "/gigs",
       critical: true,
       label: `Há ${stats.pendingDebriefs} GIG${plural(stats.pendingDebriefs)} com debrief pendente`,
     });
@@ -234,9 +236,10 @@ export function computeAlerts(
     alerts.push({
       key: "gigs-unprepared",
       icon: "music",
-      to: "/gigs",
+      // Abre a GIG mais próxima pra completar a preparação musical.
+      to: stats.gigsUnpreparedIds.length > 0 ? `/gigs?open=${stats.gigsUnpreparedIds[0]}` : "/gigs",
       critical: true,
-      label: `Há ${stats.gigsUnprepared} GIG${plural(stats.gigsUnprepared)} em 72h sem prep musical completa`,
+      label: `Há ${stats.gigsUnprepared} GIG${plural(stats.gigsUnprepared)} chegando sem prep musical completa`,
     });
   if (stats.gigsUnpaidAfter48h > 0)
     alerts.push({
@@ -265,7 +268,8 @@ export function computeAlerts(
     alerts.push({
       key: "parties-undated",
       icon: "party",
-      to: "/festas",
+      // Abre a primeira festa sem data, pronta pra definir a data.
+      to: stats.undatedPartyIds.length > 0 ? `/festas?open=${stats.undatedPartyIds[0]}` : "/festas",
       critical: false,
       label: `Há ${stats.undatedParties} festa${plural(stats.undatedParties)} sem data definida`,
     });
@@ -273,7 +277,8 @@ export function computeAlerts(
     alerts.push({
       key: "no-upcoming-gigs",
       icon: "warning",
-      to: "/gigs",
+      // Clicar abre direto um formulário de NOVA GIG em branco.
+      to: "/gigs?new=1",
       critical: false,
       label: "Nenhuma GIG marcada à frente",
     });
@@ -284,7 +289,8 @@ export function computeAlerts(
     alerts.push({
       key: "funil-producao-vazio",
       icon: "warning",
-      to: "/musica",
+      // Clicar abre direto um formulário de NOVA faixa em branco.
+      to: "/musica?new=1",
       critical: false,
       label: "Funil de produção vazio — nada em produção e nenhuma faixa nova há +30 dias",
     });
@@ -292,7 +298,8 @@ export function computeAlerts(
     alerts.push({
       key: "classes-unprepared",
       icon: "book",
-      to: "/aulas",
+      // Abre a aula mais próxima, pronta pra preparar.
+      to: stats.unpreparedClassIds.length > 0 ? `/aulas?open=${stats.unpreparedClassIds[0]}` : "/aulas",
       critical: false,
       label: `Há ${stats.unpreparedClasses} aula${plural(stats.unpreparedClasses)} não preparada${plural(stats.unpreparedClasses)} em breve`,
     });
@@ -319,7 +326,7 @@ export function computeAlerts(
     alerts.push({
       key: "okrs-lagging",
       icon: "target",
-      to: "/objetivos",
+      to: stats.okrsLaggingIds.length > 0 ? `/objetivos?open=${stats.okrsLaggingIds[0]}` : "/objetivos",
       critical: false,
       label: `Há ${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de 20% com menos de 30 dias no quarter`,
     });
