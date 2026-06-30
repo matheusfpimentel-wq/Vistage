@@ -377,6 +377,33 @@ export async function createNotesDatabase(token: string): Promise<string> {
   return res.id;
 }
 
+/** Título da página-pai atual (pra mostrar "indo para qual página"). */
+export async function getNotionPageTitle(token: string, pageId: string): Promise<string | null> {
+  try {
+    const page = await notionApi<NotionPage>(token, "GET", `/pages/${pageId}`);
+    return pageTitle(page);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Troca a página-pai do Notion: recria os databases (Ideias e Notas) sob a
+ * página escolhida e zera os vínculos (notion_page_id) pra que a próxima
+ * sincronização recrie tudo lá. As páginas antigas ficam onde estavam.
+ */
+export async function repointNotionParent(token: string, parentPageId: string): Promise<void> {
+  await createIdeasDatabase(token, parentPageId);
+  try {
+    await createNotesDatabase(token);
+  } catch {
+    /* database de Notas é opcional */
+  }
+  const db = getDb();
+  await db.execute("UPDATE ideas SET notion_page_id = NULL").catch(() => {});
+  await db.execute("UPDATE notes SET notion_page_id = NULL").catch(() => {});
+}
+
 /** HTML do corpo da nota → texto puro (o Notion recebe rich_text simples). */
 function htmlToPlain(html: string): string {
   if (!/<[a-z][\s\S]*>/i.test(html)) return html;

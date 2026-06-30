@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 /**
  * Padrão visual ÚNICO dos cards de Integração. Conectado → mesmos 4 itens em
  * toda integração: selo "Conectado" (V circulado) ao lado do nome, carimbo de
- * tempo, botão Sincronizar e botão Desconectar. Só o TEXTO do carimbo muda
- * ("Última sincronização: …" vs "Último envio: …").
+ * tempo ("Última sincronização: …"), botão Sincronizar e botão Desconectar.
  */
 
 /** Selo "Conectado" com V circulado — vai ao lado do nome no título do card. */

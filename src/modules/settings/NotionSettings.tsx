@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, Loader2, RefreshCw, Unplug } from "lucide-react";
+import { Check, ExternalLink, Loader2, Pencil, RefreshCw, Unplug } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -26,8 +26,10 @@ import {
   createNotesDatabase,
   getNotesNotionConfig,
   getNotionConfig,
+  getNotionPageTitle,
   listNotionPages,
   notionErrorMessage,
+  repointNotionParent,
   saveNotionToken,
   syncNotesNotion,
   syncNotion,
@@ -42,29 +44,44 @@ export function NotionSettings() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [pages, setPages] = useState<{ id: string; title: string }[]>([]);
   const [parentPage, setParentPage] = useState("");
+  const [parentPageId, setParentPageId] = useState<string | null>(null);
+  const [parentTitle, setParentTitle] = useState<string | null>(null);
+  const [changingPage, setChangingPage] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [syncing, setSyncing] = useState(false);
   // Notas (database própria, separada das ideias)
   const [notesDbId, setNotesDbId] = useState<string | null>(null);
   const [notesLastSync, setNotesLastSync] = useState<string | null>(null);
-  const [creatingNotes, setCreatingNotes] = useState(false);
-  const [syncingNotes, setSyncingNotes] = useState(false);
 
   async function refresh() {
     const c = await getNotionConfig();
     setSavedToken(c.token);
     setDatabaseId(c.databaseId);
     setLastSync(c.lastSync);
+    setParentPageId(c.parentPageId);
     const nc = await getNotesNotionConfig();
     setNotesDbId(nc.databaseId);
     setNotesLastSync(nc.lastSync);
+    if (c.token && c.parentPageId && c.databaseId) {
+      void getNotionPageTitle(c.token, c.parentPageId).then(setParentTitle).catch(() => {});
+    }
     if (c.token && !c.databaseId) {
       try {
         setPages(await listNotionPages(c.token));
       } catch {
         /* falha ao listar — usuário pode recarregar */
       }
+    }
+  }
+
+  /** Carrega/recarrega a lista de páginas (pra escolher onde sincronizar). */
+  async function loadPages() {
+    if (!savedToken) return;
+    try {
+      setPages(await listNotionPages(savedToken));
+    } catch {
+      /* falha ao listar */
     }
   }
   useEffect(() => {
@@ -87,13 +104,31 @@ export function NotionSettings() {
     }
   }
 
-  async function handleSync() {
+  /** Um único botão sincroniza TUDO: ideias + notas (cria a base de notas se faltar). */
+  async function handleSyncAll() {
     setSyncing(true);
     try {
-      const r = await syncNotion();
+      if (savedToken && !notesDbId) {
+        try {
+          await createNotesDatabase(savedToken);
+          await refresh();
+        } catch {
+          /* segue só com ideias se a base de notas falhar */
+        }
+      }
+      const ideas = await syncNotion();
+      let notes = { created: 0, updated: 0, failed: 0 };
+      try {
+        notes = await syncNotesNotion();
+      } catch {
+        /* sem notas configuradas — ok */
+      }
+      const created = ideas.created + notes.created;
+      const updated = ideas.updated + notes.updated;
+      const failed = ideas.failed + notes.failed;
       toast.success(
-        `Notion: ${r.created} criada(s), ${r.updated} atualizada(s)` +
-          (r.failed ? `, ${r.failed} falha(s)` : "")
+        `Notion sincronizado: ${created} criada(s), ${updated} atualizada(s)` +
+          (failed ? `, ${failed} falha(s)` : "")
       );
       await refresh();
     } catch (e) {
@@ -109,9 +144,9 @@ export function NotionSettings() {
     try {
       // parentPage é só uma dica; o Vistage resolve/conserta a página-pai sozinho.
       await createIdeasDatabase(savedToken, parentPage || undefined);
-      toast.success("Database de ideias criado no Notion");
+      toast.success("Database criado no Notion");
       await refresh();
-      void handleSync();
+      void handleSyncAll();
     } catch (e) {
       toast.error(notionErrorMessage(e));
     } finally {
@@ -127,40 +162,34 @@ export function NotionSettings() {
     await refresh();
   }
 
-  async function handleCreateNotesDb() {
-    if (!savedToken) return;
-    setCreatingNotes(true);
+  /** Troca a página do Noton: recria os databases na página escolhida e re-sincroniza. */
+  async function handleMovePage() {
+    if (!savedToken || !parentPage) return;
+    setCreating(true);
     try {
-      // Sem pedir página: o Vistage cria/desarquiva/recria a página-pai sozinho.
-      await createNotesDatabase(savedToken);
-      toast.success("Database de Notas criado no Notion");
+      await repointNotionParent(savedToken, parentPage);
+      toast.success("Página trocada — recriando e sincronizando no Notion");
+      setChangingPage(false);
+      setParentPage("");
       await refresh();
-      void handleSyncNotes();
+      void handleSyncAll();
     } catch (e) {
       toast.error(notionErrorMessage(e));
     } finally {
-      setCreatingNotes(false);
-    }
-  }
-
-  async function handleSyncNotes() {
-    setSyncingNotes(true);
-    try {
-      const r = await syncNotesNotion();
-      toast.success(
-        `Notas: ${r.created} criada(s), ${r.updated} atualizada(s)` +
-          (r.failed ? `, ${r.failed} falha(s)` : "")
-      );
-      await refresh();
-    } catch (e) {
-      toast.error(`Erro ao sincronizar notas: ${String(e)}`);
-    } finally {
-      setSyncingNotes(false);
+      setCreating(false);
     }
   }
 
   const connected = !!savedToken;
   const ready = connected && !!databaseId;
+  // Carimbo "Última sincronização": o envio mais recente entre ideias e notas.
+  const lastSyncAt = [lastSync, notesLastSync]
+    .filter((s): s is string => !!s)
+    .sort()
+    .at(-1);
+  const notionPageUrl = parentPageId
+    ? `https://www.notion.so/${parentPageId.replace(/-/g, "")}`
+    : null;
 
   return (
     <Card>
@@ -169,8 +198,8 @@ export function NotionSettings() {
           Notion
           {ready && <ConnectedBadge />}
           <InfoHint>
-            Envia suas ideias (1 via) para um database criado no Notion. Elas
-            continuam vivendo no Vistage; o Notion vira um depósito/vitrine.
+            Envia suas ideias e notas (1 via) para databases criados no Notion.
+            Elas continuam vivendo no Vistage; o Notion vira um depósito/vitrine.
           </InfoHint>
         </CardTitle>
       </CardHeader>
@@ -255,35 +284,75 @@ export function NotionSettings() {
         ) : (
           <IntegrationActions
             timestampLabel={
-              lastSync ? `Ideias · último envio: ${new Date(lastSync).toLocaleString("pt-BR")}` : null
+              lastSyncAt
+                ? `Última sincronização: ${new Date(lastSyncAt).toLocaleString("pt-BR")}`
+                : null
             }
-            onSync={() => void handleSync()}
+            onSync={() => void handleSyncAll()}
             syncing={syncing}
-            syncLabel="Enviar ideias"
+            syncLabel="Sincronizar"
             onDisconnect={() => void handleDisconnect()}
           >
-            {/* Notas — database própria, separada das ideias */}
-            <div className="space-y-2 rounded-md border p-3">
-              <p className="text-xs font-medium">Notas (Conhecimento)</p>
-              {notesDbId ? (
-                <>
-                  {notesLastSync && (
-                    <p className="text-xs text-muted-foreground">
-                      Último envio: {new Date(notesLastSync).toLocaleString("pt-BR")}
-                    </p>
-                  )}
-                  <Button size="sm" variant="outline" onClick={() => void handleSyncNotes()} disabled={syncingNotes}>
-                    {syncingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Enviar notas
+            {/* Página declarada — pra onde ideias e notas vão; pode trocar. */}
+            <div className="space-y-2 rounded-md border p-3 text-xs">
+              <p className="font-medium">Página no Notion</p>
+              <p className="text-muted-foreground">
+                Ideias e notas vão para
+                {parentTitle ? (
+                  <> a página <span className="font-medium text-foreground">“{parentTitle}”</span>.</>
+                ) : (
+                  <> uma página no seu Notion.</>
+                )}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {notionPageUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => openShell(notionPageUrl).catch(() => {})}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Abrir no Notion
                   </Button>
-                </>
-              ) : (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => void handleCreateNotesDb()} disabled={creatingNotes}>
-                    {creatingNotes ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Criar database de Notas
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setChangingPage((v) => !v);
+                    if (!changingPage) void loadPages();
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Trocar página
+                </Button>
+              </div>
+              {changingPage && (
+                <div className="space-y-2 border-t pt-2">
+                  <div className="flex gap-2">
+                    <Select value={parentPage} onValueChange={setParentPage}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Escolha uma página…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pages.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" onClick={() => void loadPages()} aria-label="Recarregar páginas">
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button size="sm" onClick={() => void handleMovePage()} disabled={creating || !parentPage}>
+                    {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Mover para esta página
                   </Button>
-                </>
+                  <p className="text-[11px] text-muted-foreground">
+                    Cria novos databases na página escolhida e re-sincroniza tudo lá. As páginas
+                    antigas continuam onde estavam.
+                  </p>
+                </div>
               )}
             </div>
           </IntegrationActions>
