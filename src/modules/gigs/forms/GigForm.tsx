@@ -616,7 +616,7 @@ export function GigForm({
                 onChangeRecurring={(v) => set("recurring_event_name", v)}
                 onChangeEventName={(v) => set("event_name", v || null)}
               />
-              <Field label="Categoria" hint="Tipo de evento para filtrar nas GIGs.">
+              <Field label="Categoria">
                 <Select
                   value={state.event_category ?? "none"}
                   onValueChange={(v) => {
@@ -734,7 +734,7 @@ export function GigForm({
               )}
             </Field>
 
-            <Field label="Cidade" hint="Cidade do venue. Preenchida automaticamente ao selecionar um venue.">
+            <Field label="Cidade">
               <Input
                 placeholder="Ex: São Paulo"
                 value={state.venue_city ?? ""}
@@ -799,7 +799,6 @@ export function GigForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field
                 label="Contato no dia"
-                hint="Quem te recebe na chegada: produção, RP, etc."
               >
                 <Input
                   value={state.day_contact_name ?? ""}
@@ -998,7 +997,6 @@ export function GigForm({
 
             <Field
               label="Oportunidades"
-              hint="Portas que essa GIG pode abrir no curto-médio prazo."
             >
               <Textarea
                 rows={3}
@@ -1037,7 +1035,6 @@ export function GigForm({
 
             <Field
               label="Equipamento da casa"
-              hint="O que estará disponível no venue (CDJs, mixer, monitores…)."
             >
               <Textarea
                 rows={2}
@@ -1115,11 +1112,7 @@ export function GigForm({
                   <Plus className="h-3.5 w-3.5" /> Adicionar flyer
                 </Button>
               </div>
-              {state.extra_flyers.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Adicione mais de uma arte se a GIG tiver variações de flyer.
-                </p>
-              ) : (
+              {state.extra_flyers.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {state.extra_flyers.map((path, i) => (
                     <div key={i} className="space-y-1">
@@ -1206,7 +1199,6 @@ export function GigForm({
             ) : (
               <>
                 <Section title="Pesquisa musical">
-                  <p className="text-xs text-muted-foreground">Músicas que descobriu ou pensou em tocar nessa GIG.</p>
                   <ResearchList
                     value={state.gig_research}
                     onChange={(v) => set("gig_research", v)}
@@ -1215,7 +1207,6 @@ export function GigForm({
 
                 {allTracks.length > 0 && (
                   <Section title="Minhas Tracks">
-                    <p className="text-xs text-muted-foreground">Marque as tracks da sua biblioteca que tocou nessa GIG.</p>
                     <div className="flex flex-wrap gap-1.5">
                       {allTracks.map((t) => {
                         const selected = setListTrackIds.includes(t.id);
