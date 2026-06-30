@@ -4,9 +4,13 @@ import { cn } from "@/lib/utils";
 
 export type SortDir = "asc" | "desc" | null;
 
-export function useTableSort<T>(rows: T[]) {
-  const [sortKey, setSortKey] = useState<keyof T | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>(null);
+export function useTableSort<T>(
+  rows: T[],
+  initialKey: keyof T | null = null,
+  initialDir: SortDir = null
+) {
+  const [sortKey, setSortKey] = useState<keyof T | null>(initialKey);
+  const [sortDir, setSortDir] = useState<SortDir>(initialDir);
 
   function handleSort(key: keyof T) {
     if (sortKey === key) {

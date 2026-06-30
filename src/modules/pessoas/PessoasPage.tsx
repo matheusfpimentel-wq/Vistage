@@ -81,6 +81,8 @@ type Person = {
   instagram: string | null;
   roles: Role[];
   priority: ContactPriority | null;
+  /** Rank numérico p/ ordenar por prioridade (rating 1–5; 0 = sem nota). */
+  priorityRank: number;
 };
 
 export function PessoasPage() {
@@ -143,6 +145,7 @@ export function PessoasPage() {
             ...(supId != null ? (["Fornecedor"] as Role[]) : []),
           ],
           priority: ratingToPriority(c.rating),
+          priorityRank: c.rating ?? 0,
         });
       }
       for (const s of suppliers) {
@@ -159,6 +162,7 @@ export function PessoasPage() {
           instagram: s.instagram,
           roles: ["Fornecedor"],
           priority: ratingToPriority(s.rating),
+          priorityRank: s.rating ?? 0,
         });
       }
       list.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
@@ -206,7 +210,8 @@ export function PessoasPage() {
     });
   }, [persons, roleFilter, city, search]);
 
-  const { sorted, sortKey, sortDir, handleSort } = useTableSort(filtered);
+  // Padrão: ordena por PRIORIDADE (rank do rating), maior primeiro.
+  const { sorted, sortKey, sortDir, handleSort } = useTableSort(filtered, "priorityRank", "desc");
 
   function newContact() {
     setEditingContact(null);
@@ -633,7 +638,9 @@ function PersonTable({
               <ColResizer {...cols.resizer("name")} />
             </SortableHeader>
             <th className="relative px-3 py-2 text-left">Papéis<ColResizer {...cols.resizer("roles")} /></th>
-            <th className="relative px-3 py-2 text-left">Prioridade<ColResizer {...cols.resizer("priority")} /></th>
+            <SortableHeader<Person> col="priorityRank" label="Prioridade" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="px-3 py-2 text-left">
+              <ColResizer {...cols.resizer("priority")} />
+            </SortableHeader>
             <SortableHeader<Person> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="px-3 py-2 text-left">
               <ColResizer {...cols.resizer("city")} />
             </SortableHeader>

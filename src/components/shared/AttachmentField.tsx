@@ -27,6 +27,8 @@ type Props = {
   variant?: Variant;
   /** Acentua visualmente o campo (útil quando obrigatório ou destaque). */
   emphasized?: boolean;
+  /** Miniatura QUADRADA compacta (ex.: foto de perfil ao lado do nome). */
+  square?: boolean;
 };
 
 export function AttachmentField({
@@ -36,6 +38,7 @@ export function AttachmentField({
   subdir,
   variant = "image",
   emphasized,
+  square,
 }: Props) {
   const preview = useImageUrl(variant === "image" ? value : null);
   const [working, setWorking] = useState(false);
@@ -93,24 +96,26 @@ export function AttachmentField({
               <img
                 src={preview}
                 alt={label}
-                className="h-40 w-full object-cover"
+                className={cn("w-full object-cover object-top", square ? "aspect-square" : "h-40")}
               />
             ) : (
-              <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+              <div className={cn("flex items-center justify-center text-sm text-muted-foreground", square ? "aspect-square" : "h-40")}>
                 <ImageIcon className="mr-2 h-4 w-4" />
-                Carregando…
+                {!square && "Carregando…"}
               </div>
             )}
-            <div className="absolute right-2 top-2 flex gap-1">
+            <div className={cn("absolute flex gap-1", square ? "right-1 top-1" : "right-2 top-2")}>
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
+                size={square ? "icon" : "sm"}
+                className={square ? "h-7 w-7" : undefined}
                 onClick={handlePick}
                 disabled={working}
+                aria-label="Trocar"
               >
                 <Upload className="h-3.5 w-3.5" />
-                Trocar
+                {!square && "Trocar"}
               </Button>
               <Button
                 type="button"
@@ -129,15 +134,14 @@ export function AttachmentField({
             onClick={handlePick}
             disabled={working}
             className={cn(
-              "flex h-32 w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed text-sm text-muted-foreground transition hover:border-primary hover:text-primary",
+              "flex w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed text-sm text-muted-foreground transition hover:border-primary hover:text-primary",
+              square ? "aspect-square" : "h-32",
               emphasized && "border-primary/40"
             )}
           >
             <ImageIcon className="h-6 w-6" />
-            <span>Clique pra adicionar imagem</span>
-            <span className="text-xs opacity-70">
-              JPG, PNG, WebP, GIF
-            </span>
+            {!square && <span>Clique pra adicionar imagem</span>}
+            {!square && <span className="text-xs opacity-70">JPG, PNG, WebP, GIF</span>}
           </button>
         )}
       </div>

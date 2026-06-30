@@ -40,6 +40,21 @@ export function formatRating(n: number | null | undefined): string {
   return n.toFixed(1).replace(".", ",");
 }
 
+/**
+ * Telefone BR para exibição: (00) 90000-0000 (celular) ou (00) 0000-0000 (fixo).
+ * Só reformata quando a entrada é "basicamente um número" (dígitos + ()/-/espaço)
+ * — assim uma anotação livre ("ligar no comercial") é devolvida intacta. Entradas
+ * com 10/11 dígitos são mascaradas; outras quantidades voltam como vieram.
+ */
+export function formatPhoneBR(raw: string | null | undefined): string {
+  if (!raw) return "";
+  if (!/^[\d()\s+-]+$/.test(raw.trim())) return raw;
+  const d = raw.replace(/\D/g, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+}
+
 /** YYYY-MM-DD no fuso LOCAL (não UTC). Sem argumento, retorna hoje. */
 export function toLocalISODate(d: Date = new Date()): string {
   const y = d.getFullYear();

@@ -62,7 +62,7 @@ import {
 import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, formatPhoneBR } from "@/lib/format";
 import {
   RELATION_TAB_LABEL,
   RelationshipTabContent,
@@ -107,6 +107,16 @@ function toBaseForm(c: Contact): BaseForm {
   };
 }
 
+/** Perfis temáticos da pessoa: relações + Fornecedor. Nomes diretos no submenu. */
+type ProfileKey = ContactRelationshipType | "Fornecedor";
+const PROFILE_LABEL: Record<ProfileKey, string> = {
+  Contratante: "Perfil de Contratante",
+  Parceiro: "Perfil de Parceiro",
+  Alvo: "Perfil de Alvo",
+  Músico: "Perfil de Músico",
+  Fornecedor: "Perfil de Fornecedor",
+};
+
 export function ContactDetail({
   open,
   onOpenChange,
@@ -122,6 +132,7 @@ export function ContactDetail({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("info");
+  const [profileSel, setProfileSel] = useState<ProfileKey | null>(null);
 
   // edição inline dos campos base (aba Informações) + rascunho das abas de relação
   const [form, setForm] = useState<BaseForm | null>(null);
@@ -170,6 +181,13 @@ export function ContactDetail({
   if (!contactId) return null;
 
   const relTypes = contact?.relationship_types ?? [];
+  // Perfis ativos (submenu da aba "Perfil"): relações + Fornecedor.
+  const profiles: ProfileKey[] = [
+    ...relTypes,
+    ...(supplierId != null ? (["Fornecedor"] as ProfileKey[]) : []),
+  ];
+  const activeProfile: ProfileKey | null =
+    profileSel && profiles.includes(profileSel) ? profileSel : (profiles[0] ?? null);
 
   const setF = (patch: Partial<BaseForm>) => {
     setForm((f) => (f ? { ...f, ...patch } : f));
@@ -210,7 +228,9 @@ export function ContactDetail({
         relationship_types: relTypes.filter((t) => t !== type),
         relationship_data: nextData,
       });
-      if (tab === `rel-${type}`) setTab("info");
+      if (profileSel === type) setProfileSel(null);
+      const hasOtherProfile = relTypes.some((t) => t !== type) || supplierId != null;
+      if (!hasOtherProfile) setTab("info");
       await refresh();
     } else {
       await updateContact({
@@ -218,7 +238,8 @@ export function ContactDetail({
         relationship_types: [...relTypes, type],
       });
       await refresh();
-      setTab(`rel-${type}`);
+      setProfileSel(type);
+      setTab("perfil");
     }
   }
 
@@ -227,7 +248,8 @@ export function ContactDetail({
     if (supplierId == null) {
       await upsertSupplierMirror(contact);
       await refresh();
-      setTab("servicos");
+      setProfileSel("Fornecedor");
+      setTab("perfil");
       toast.success("Fornecedor adicionado");
     } else {
       const ok = await confirmDialog({
@@ -243,7 +265,8 @@ export function ContactDetail({
         toast.error(res.reason ?? "Não foi possível remover o papel de fornecedor");
         return;
       }
-      if (tab === "servicos") setTab("info");
+      if (profileSel === "Fornecedor") setProfileSel(null);
+      if (relTypes.length === 0) setTab("info");
       await refresh();
     }
   }
@@ -402,13 +425,8 @@ export function ContactDetail({
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="flex-wrap">
                 <TabsTrigger value="info">Informações</TabsTrigger>
-                {relTypes.map((t) => (
-                  <TabsTrigger key={t} value={`rel-${t}`}>
-                    {RELATION_TAB_LABEL[t]}
-                  </TabsTrigger>
-                ))}
-                {supplierId != null && (
-                  <TabsTrigger value="servicos">Serviços</TabsTrigger>
+                {profiles.length > 0 && (
+                  <TabsTrigger value="perfil">Perfil</TabsTrigger>
                 )}
                 <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
@@ -416,32 +434,38 @@ export function ContactDetail({
 
               {/* ── Informações (editável) ── */}
               <TabsContent value="info" className="space-y-4 pt-2">
-                <AttachmentField
-                  label="Foto"
-                  value={form.photo_path}
-                  onChange={(v) => setF({ photo_path: v })}
-                  subdir="contacts"
-                  variant="image"
-                />
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>
-                      Nome <span className="text-destructive">*</span>
-                    </Label>
-                    <Input value={form.name} onChange={(e) => setF({ name: e.target.value })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Empresa</Label>
-                    <Input
-                      placeholder="Nome da empresa / produtora…"
-                      value={form.company ?? ""}
-                      onChange={(e) => setF({ company: e.target.value || null })}
+                {/* Cabeçalho: foto pequena/quadrada à esquerda + Nome/Empresa à direita */}
+                <div className="flex items-start gap-3">
+                  <div className="w-24 shrink-0 sm:w-28">
+                    <AttachmentField
+                      label="Foto"
+                      value={form.photo_path}
+                      onChange={(v) => setF({ photo_path: v })}
+                      subdir="contacts"
+                      variant="image"
+                      square
                     />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-3">
+                    <div className="space-y-1.5">
+                      <Label>
+                        Nome <span className="text-destructive">*</span>
+                      </Label>
+                      <Input value={form.name} onChange={(e) => setF({ name: e.target.value })} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Empresa</Label>
+                      <Input
+                        placeholder="Nome da empresa / produtora…"
+                        value={form.company ?? ""}
+                        onChange={(e) => setF({ company: e.target.value || null })}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Relação — seleção cria a aba; remoção avisa antes de apagar */}
+                {/* Relação — seleção cria a aba; remoção avisa antes de apagar.
+                    Fã/Aluno CRIAM um perfil novo → ícone + e aviso abaixo. */}
                 <div className="space-y-1.5">
                   <Label>Relação</Label>
                   <div className="flex flex-wrap gap-1.5">
@@ -459,49 +483,29 @@ export function ContactDetail({
                       onClick={() => void toggleSupplier()}
                     />
                     <RelButton
+                      label="Fã"
+                      active={mirror.fan}
+                      disabled={linking}
+                      icon={mirror.fan ? undefined : <Plus className="h-3 w-3" />}
+                      title={mirror.fan ? "Já é um fã — abrir" : "Cria um novo perfil de fã vinculado a esta pessoa"}
+                      onClick={() => void handleMakeFan()}
+                    />
+                    <RelButton
                       label="Aluno"
                       active={mirror.student}
+                      icon={mirror.student ? undefined : <Plus className="h-3 w-3" />}
+                      title={mirror.student ? "Perfil de aluno vinculado" : "Cria um novo perfil de aluno vinculado a esta pessoa"}
                       onClick={() => void toggleStudentMirror()}
                     />
                   </div>
-                  {/* Fã↔Pessoa é conversão MANUAL (§14): um clone pontual, sem sync.
-                      Substitui o antigo chip-espelho destrutivo. */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button variant="outline" size="sm" disabled={linking} onClick={() => void handleMakeFan()}>
-                      {mirror.fan ? "Já é um fã — abrir" : "Tornar também um fã"}
-                    </Button>
-                    {mirror.fan && (
-                      <span className="text-xs text-muted-foreground">Perfil de fã vinculado a esta pessoa.</span>
-                    )}
-                  </div>
-                  {mirror.student && (
-                    <p className="text-xs text-muted-foreground">
-                      Perfil paralelo de aluno criado — editável no módulo correspondente.
-                    </p>
-                  )}
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Plus className="h-3 w-3 shrink-0" />
+                    Fã e Aluno criam um perfil novo, vinculado a esta pessoa.
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label>Telefone</Label>
-                    <Input value={form.phone ?? ""} onChange={(e) => setF({ phone: e.target.value || null })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email</Label>
-                    <Input type="email" value={form.email ?? ""} onChange={(e) => setF({ email: e.target.value || null })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Redes sociais</Label>
-                    <Input placeholder="@usuario" value={form.instagram ?? ""} onChange={(e) => setF({ instagram: e.target.value || null })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Cidade</Label>
-                    <Input value={form.city ?? ""} onChange={(e) => setF({ city: e.target.value || null })} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Aniversário</Label>
-                    <Input type="date" value={form.birthday ?? ""} onChange={(e) => setF({ birthday: e.target.value || null })} />
-                  </div>
+                {/* Campos curtos: prioridade · aniversário · cidade · tags (4 colunas) */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="space-y-1.5">
                     <Label>Prioridade</Label>
                     <Select
@@ -523,28 +527,18 @@ export function ContactDetail({
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label>Tags</Label>
-                  <div className="flex flex-wrap gap-1">
-                    {form.tags.map((t) => (
-                      <Badge key={t} variant="outline" className="gap-1 pr-1">
-                        {t}
-                        <button
-                          type="button"
-                          onClick={() => setF({ tags: form.tags.filter((x) => x !== t) })}
-                          className="rounded p-0.5 hover:bg-accent"
-                          aria-label="Remover tag"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                  <div className="space-y-1.5">
+                    <Label>Aniversário</Label>
+                    <Input type="date" value={form.birthday ?? ""} onChange={(e) => setF({ birthday: e.target.value || null })} />
                   </div>
-                  <div className="flex gap-2">
+                  <div className="space-y-1.5">
+                    <Label>Cidade</Label>
+                    <Input value={form.city ?? ""} onChange={(e) => setF({ city: e.target.value || null })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Tags</Label>
                     <Input
-                      placeholder="Nova tag (Enter para adicionar)"
+                      placeholder="Tag + Enter"
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -554,9 +548,48 @@ export function ContactDetail({
                         }
                       }}
                     />
-                    <Button type="button" variant="outline" onClick={addTag}>
-                      Adicionar
-                    </Button>
+                    {form.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {form.tags.map((t) => (
+                          <Badge key={t} variant="outline" className="gap-1 pr-1">
+                            {t}
+                            <button
+                              type="button"
+                              onClick={() => setF({ tags: form.tags.filter((x) => x !== t) })}
+                              className="rounded p-0.5 hover:bg-accent"
+                              aria-label="Remover tag"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contatos: telefone (máscara), redes (curto), email (largo) */}
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Telefone</Label>
+                    <Input
+                      className="w-44"
+                      placeholder="(00) 90000-0000"
+                      value={form.phone ?? ""}
+                      onChange={(e) => setF({ phone: e.target.value || null })}
+                      onBlur={() => {
+                        const f = formatPhoneBR(form.phone);
+                        if (f && f !== form.phone) setF({ phone: f });
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Redes sociais</Label>
+                    <Input className="w-40" placeholder="@usuario" value={form.instagram ?? ""} onChange={(e) => setF({ instagram: e.target.value || null })} />
+                  </div>
+                  <div className="min-w-[15rem] flex-1 space-y-1.5">
+                    <Label>Email</Label>
+                    <Input type="email" value={form.email ?? ""} onChange={(e) => setF({ email: e.target.value || null })} />
                   </div>
                 </div>
 
@@ -566,21 +599,41 @@ export function ContactDetail({
                 </div>
               </TabsContent>
 
-              {/* ── Abas por relação ── */}
-              {relTypes.map((t) => (
-                <TabsContent key={t} value={`rel-${t}`}>
-                  <RelationshipTabContent
-                    type={t}
-                    contactId={contact.id}
-                    data={(relDraft[t] ?? {}) as Record<string, unknown>}
-                    onChange={(d) => setRelField(t, d)}
-                    onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
-                  />
-                </TabsContent>
-              ))}
-              {supplierId != null && (
-                <TabsContent value="servicos">
-                  <ServicesTabContent supplierId={supplierId} />
+              {/* ── Perfil: submenu lateral + perfil selecionado ── */}
+              {profiles.length > 0 && (
+                <TabsContent value="perfil">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex shrink-0 gap-0.5 overflow-x-auto sm:w-44 sm:flex-col">
+                      {profiles.map((pk) => (
+                        <button
+                          key={pk}
+                          type="button"
+                          onClick={() => setProfileSel(pk)}
+                          className={cn(
+                            "whitespace-nowrap rounded-md px-2.5 py-1.5 text-left text-sm transition",
+                            activeProfile === pk
+                              ? "bg-primary/10 font-medium text-primary"
+                              : "text-muted-foreground hover:bg-accent"
+                          )}
+                        >
+                          {PROFILE_LABEL[pk]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {activeProfile === "Fornecedor" && supplierId != null ? (
+                        <ServicesTabContent supplierId={supplierId} />
+                      ) : activeProfile && activeProfile !== "Fornecedor" ? (
+                        <RelationshipTabContent
+                          type={activeProfile}
+                          contactId={contact.id}
+                          data={(relDraft[activeProfile] ?? {}) as Record<string, unknown>}
+                          onChange={(d) => setRelField(activeProfile, d)}
+                          onCreateGig={activeProfile === "Contratante" ? () => onCreateGig(contact) : undefined}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
                 </TabsContent>
               )}
 
@@ -667,22 +720,32 @@ function RelButton({
   label,
   active,
   onClick,
+  icon,
+  title,
+  disabled,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  /** Ícone à esquerda (ex.: + para botões que CRIAM um perfil novo). */
+  icon?: React.ReactNode;
+  title?: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={title}
+      disabled={disabled}
       className={cn(
-        "rounded-md border px-2.5 py-1 text-xs transition",
+        "inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs transition disabled:opacity-50",
         active
           ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
           : "border-input bg-background hover:bg-accent"
       )}
     >
+      {icon}
       {label}
     </button>
   );
