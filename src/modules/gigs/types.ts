@@ -174,7 +174,8 @@ export function averageRating(g: Pick<
   const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire, g.rating_contractor]
     .filter((r): r is number => typeof r === "number");
   if (ratings.length === 0 && !g.is_special) return null;
-  const allRatings = g.is_special ? [...ratings, 5] : ratings;
+  const special = g.is_special ? 5 : 3;
+  const allRatings = [...ratings, special];
   return allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
 }
 
