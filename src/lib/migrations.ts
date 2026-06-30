@@ -2262,6 +2262,12 @@ const MIGRATIONS: Migration[] = [
       "GIG — gigs.prep_notes: observações livres da aba Preparação (separadas do checklist prep_state). A lâmpada de insight do Modo Foco → Preparação no celular acrescenta aqui. Aditiva/idempotente.",
     sql: `ALTER TABLE gigs ADD COLUMN prep_notes TEXT;`,
   },
+  {
+    version: 157,
+    description:
+      "Fornecedor — supplier_services.category: categoria POR SERVIÇO (antes era única por fornecedor). Aditiva/idempotente.",
+    sql: `ALTER TABLE supplier_services ADD COLUMN category TEXT;`,
+  },
 ];
 
 

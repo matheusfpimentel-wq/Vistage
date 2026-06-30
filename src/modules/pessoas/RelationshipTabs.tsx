@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "@/components/ui/toaster";
 import {
   ALVO_ESTAGIOS,
   PARCERIA_SITUACOES,
@@ -20,8 +19,8 @@ import {
 import {
   createService,
   deleteService,
-  getSupplier,
   listServices,
+  updateService,
   updateSupplier,
 } from "@/modules/suppliers/api";
 import { SUPPLIER_CATEGORIES, type SupplierService } from "@/modules/suppliers/types";
@@ -30,7 +29,7 @@ import type { Meeting } from "@/modules/meetings/types";
 import { CURRENCIES } from "@/modules/finance/types";
 import { InfoHint } from "@/components/ui/tooltip";
 import { Link } from "react-router-dom";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
 
 /** Rótulo da aba de cada tipo de relação. */
 export const RELATION_TAB_LABEL: Record<ContactRelationshipType, string> = {
@@ -306,122 +305,124 @@ function MeetingsBlock({ meetings }: { meetings: Meeting[] }) {
 /** Aba Serviços do Fornecedor: categoria + tabela de preços (esvaziar libera tirar o papel). */
 export function ServicesTabContent({ supplierId }: { supplierId: number }) {
   const [services, setServices] = useState<SupplierService[]>([]);
-  const [category, setCategory] = useState<string>("");
-  const [description, setDescription] = useState("");
-  const [unit, setUnit] = useState("");
-  const [price, setPrice] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [svcs, sup] = await Promise.all([listServices(supplierId), getSupplier(supplierId)]);
-    setServices(svcs);
-    setCategory(sup?.category ?? "");
+    setServices(await listServices(supplierId));
   }
   useEffect(() => {
     void refresh();
   }, [supplierId]);
 
-  async function saveCategory(v: string) {
-    setCategory(v);
-    await updateSupplier({ id: supplierId, category: v as never });
+  // Edita localmente (responsivo); persiste ao sair do campo (onBlur).
+  function editLocal(id: number, patch: Partial<SupplierService>) {
+    setServices((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
   }
 
-  async function add() {
-    if (!description.trim()) {
-      toast.error("Descreva o serviço");
-      return;
-    }
-    setSaving(true);
+  // Categoria do fornecedor passa a ser DERIVADA da 1ª linha com categoria.
+  async function syncSupplierCategory(list: SupplierService[]) {
+    const first = list.find((x) => x.category)?.category ?? null;
+    await updateSupplier({ id: supplierId, category: (first as never) ?? null });
+  }
+
+  async function commit(s: SupplierService) {
+    await updateService(s.id, {
+      category: s.category ?? null,
+      description: s.description ?? "",
+      unit: s.unit ?? null,
+      price: s.price ?? null,
+    });
+    await syncSupplierCategory(services);
+  }
+
+  async function addRow() {
+    setBusy(true);
     try {
-      await createService(supplierId, {
-        description: description.trim(),
-        unit: unit.trim() || null,
-        price: price ? Number(price) : null,
-      });
-      setDescription("");
-      setUnit("");
-      setPrice("");
+      await createService(supplierId, { description: "", category: null, unit: null, price: null });
       await refresh();
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
 
   async function remove(id: number) {
     await deleteService(id);
-    await refresh();
+    const next = services.filter((s) => s.id !== id);
+    setServices(next);
+    await syncSupplierCategory(next);
   }
+
+  // Sugestões pesquisáveis (datalist) para Categoria e Serviço.
+  const descSuggestions = Array.from(new Set(services.map((s) => s.description).filter(Boolean)));
 
   return (
     <div className="space-y-3 pt-2">
-      <div className="space-y-1.5">
-        <Label>Categoria</Label>
-        <Select value={category} onValueChange={saveCategory}>
-          <SelectTrigger className="max-w-xs">
-            <SelectValue placeholder="Selecionar…" />
-          </SelectTrigger>
-          <SelectContent>
-            {SUPPLIER_CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       <p className="text-xs text-muted-foreground">
-        Tabela de preços. Esvazie a lista para poder tirar o papel de Fornecedor.
+        Serviços e preços — uma linha por serviço, com sua própria categoria.
+        Esvazie a lista para poder tirar o papel de Fornecedor.
       </p>
 
+      <datalist id="svc-cat-list">
+        {SUPPLIER_CATEGORIES.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+      <datalist id="svc-desc-list">
+        {descSuggestions.map((d) => (
+          <option key={d} value={d} />
+        ))}
+      </datalist>
+
       {services.length > 0 && (
-        <div className="overflow-hidden rounded-md border">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-xs text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left">Descrição</th>
-                <th className="px-3 py-2 text-left">Unidade</th>
-                <th className="px-3 py-2 text-right">Preço</th>
-                <th className="px-2 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.map((s) => (
-                <tr key={s.id} className="border-t">
-                  <td className="px-3 py-2">{s.description}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{s.unit ?? "—"}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {s.price != null ? formatCurrency(s.price) : "—"}
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Remover serviço" onClick={() => void remove(s.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="hidden gap-2 px-1 text-xs text-muted-foreground sm:grid sm:grid-cols-[1fr_1fr_90px_110px_auto]">
+          <span>Categoria</span>
+          <span>Serviço</span>
+          <span>Unidade</span>
+          <span>Preço</span>
+          <span />
         </div>
       )}
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_120px_auto] sm:items-end">
-        <div className="space-y-1">
-          <Label className="text-xs">Serviço</Label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ex: Locação de CDJ" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Unidade</Label>
-          <Input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="diária, hora…" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Preço (R$)</Label>
-          <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
-        </div>
-        <Button size="sm" onClick={add} disabled={saving}>
-          <Plus className="h-4 w-4" /> Adicionar
-        </Button>
+      <div className="space-y-2">
+        {services.map((s) => (
+          <div key={s.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_90px_110px_auto] sm:items-center">
+            <Input
+              list="svc-cat-list"
+              placeholder="Categoria"
+              value={s.category ?? ""}
+              onChange={(e) => editLocal(s.id, { category: e.target.value || null })}
+              onBlur={() => void commit(s)}
+            />
+            <Input
+              list="svc-desc-list"
+              placeholder="Ex: Locação de CDJ"
+              value={s.description}
+              onChange={(e) => editLocal(s.id, { description: e.target.value })}
+              onBlur={() => void commit(s)}
+            />
+            <Input
+              placeholder="diária…"
+              value={s.unit ?? ""}
+              onChange={(e) => editLocal(s.id, { unit: e.target.value || null })}
+              onBlur={() => void commit(s)}
+            />
+            <Input
+              type="number"
+              min={0}
+              placeholder="R$"
+              value={s.price ?? ""}
+              onChange={(e) => editLocal(s.id, { price: e.target.value ? Number(e.target.value) : null })}
+              onBlur={() => void commit(s)}
+            />
+            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Remover serviço" onClick={() => void remove(s.id)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        ))}
       </div>
+
+      <Button size="sm" variant="outline" onClick={() => void addRow()} disabled={busy}>
+        <Plus className="h-4 w-4" /> Adicionar serviço
+      </Button>
     </div>
   );
 }

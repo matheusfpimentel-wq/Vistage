@@ -269,25 +269,25 @@ export async function listServices(supplierId: number): Promise<SupplierService[
 
 export async function createService(
   supplierId: number,
-  data: { description: string; unit?: string | null; price?: number | null; notes?: string | null }
+  data: { description: string; category?: string | null; unit?: string | null; price?: number | null; notes?: string | null }
 ): Promise<number> {
   const db = getDb();
   const result = await db.execute(
-    `INSERT INTO supplier_services (supplier_id, description, unit, price, notes)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [supplierId, data.description, data.unit ?? null, data.price ?? null, data.notes ?? null]
+    `INSERT INTO supplier_services (supplier_id, category, description, unit, price, notes)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [supplierId, data.category ?? null, data.description, data.unit ?? null, data.price ?? null, data.notes ?? null]
   );
   return result.lastInsertId as number;
 }
 
 export async function updateService(
   id: number,
-  data: { description: string; unit?: string | null; price?: number | null; notes?: string | null }
+  data: { description: string; category?: string | null; unit?: string | null; price?: number | null; notes?: string | null }
 ): Promise<void> {
   const db = getDb();
   await db.execute(
-    `UPDATE supplier_services SET description = $1, unit = $2, price = $3, notes = $4 WHERE id = $5`,
-    [data.description, data.unit ?? null, data.price ?? null, data.notes ?? null, id]
+    `UPDATE supplier_services SET category = $1, description = $2, unit = $3, price = $4, notes = $5 WHERE id = $6`,
+    [data.category ?? null, data.description, data.unit ?? null, data.price ?? null, data.notes ?? null, id]
   );
 }
 

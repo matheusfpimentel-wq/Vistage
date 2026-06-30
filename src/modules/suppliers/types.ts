@@ -30,6 +30,8 @@ export type Supplier = {
 export type SupplierService = {
   id: number;
   supplier_id: number;
+  /** Categoria do serviço (por linha — antes era única por fornecedor). */
+  category: string | null;
   description: string;
   unit: string | null;
   price: number | null;
