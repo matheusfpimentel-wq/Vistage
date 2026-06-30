@@ -30,15 +30,6 @@ export const MODULE_LABELS: Record<CriacaoModuleId, string> = {
   "/conteudo": "Conteúdo",
 };
 
-/** Presets de perfil: ligam/desligam um conjunto dos módulos de CRIAÇÃO de uma vez. */
-export const PROFILE_PRESETS: { id: string; label: string; hidden: CriacaoModuleId[] }[] = [
-  { id: "tudo", label: "Tudo", hidden: [] },
-  { id: "so-toco", label: "Só toco", hidden: ["/musica", "/festas", "/aulas"] },
-  { id: "toco-produzo", label: "Toco e produzo", hidden: ["/festas", "/aulas"] },
-  { id: "toco-aula", label: "Toco e dou aula", hidden: ["/musica", "/festas"] },
-  { id: "so-produzo", label: "Só produzo", hidden: ["/gigs", "/festas", "/aulas"] },
-];
-
 const KEY = "vistage.profile.hiddenModules";
 const VIS_EVENT = "vistage:visibility-changed";
 
@@ -73,22 +64,7 @@ export function setModuleHidden(moduleId: CriacaoModuleId, hidden: boolean): voi
   persistHidden(set);
 }
 
-/** Aplica um preset (substitui o conjunto oculto). */
-export function applyProfilePreset(presetId: string): void {
-  const preset = PROFILE_PRESETS.find((p) => p.id === presetId);
-  if (!preset) return;
-  persistHidden(new Set(preset.hidden));
-}
-
-/** Qual preset corresponde ao conjunto oculto atual (ou null se for custom). */
-export function matchPreset(hidden: Set<string>): string | null {
-  for (const p of PROFILE_PRESETS) {
-    if (p.hidden.length === hidden.size && p.hidden.every((id) => hidden.has(id))) return p.id;
-  }
-  return null;
-}
-
-/** Hook reativo: re-renderiza quando a visibilidade muda (toggle/preset/hidratação). */
+/** Hook reativo: re-renderiza quando a visibilidade muda (toggle/hidratação). */
 export function useHiddenModules(): Set<string> {
   const [hidden, setHidden] = useState<Set<string>>(getHiddenModules);
   useEffect(() => {

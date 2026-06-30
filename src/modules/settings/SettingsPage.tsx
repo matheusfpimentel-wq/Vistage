@@ -12,9 +12,6 @@ import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import {
   CRIACAO_MODULE_IDS,
   MODULE_LABELS,
-  PROFILE_PRESETS,
-  applyProfilePreset,
-  matchPreset,
   setModuleHidden,
   useHiddenModules,
 } from "@/lib/moduleVisibility";
@@ -229,60 +226,32 @@ export function SettingsPage() {
 }
 
 /**
- * Perfil & Módulos: presets de perfil (Tudo / Só toco / …) + toggle por módulo de
- * CRIAÇÃO. Ocultar é filtro de superfície — não apaga nada; religar restaura.
+ * Módulos: liga/desliga cada módulo de CRIAÇÃO. Ocultar é filtro de superfície
+ * (menu, "+", busca, alertas, Dashboard) — não apaga nada; religar restaura.
  */
 function ProfileModulesCard() {
   const hidden = useHiddenModules();
-  const activePreset = matchPreset(hidden);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Perfil & Módulos</CardTitle>
-        <CardDescription>
-          Ocultar um módulo o some do menu, do "+", da busca, dos alertas e do
-          Dashboard — sem apagar nada; religar restaura.
-        </CardDescription>
+        <CardTitle className="text-base">Módulos</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Presets — ligam/desligam um conjunto de módulos de uma vez. */}
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Perfil</p>
-          <div className="flex flex-wrap gap-2">
-            {PROFILE_PRESETS.map((p) => (
-              <Button
-                key={p.id}
-                variant={activePreset === p.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => applyProfilePreset(p.id)}
-              >
-                {p.label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        {/* Toggle por módulo (ligado = visível). */}
-        <div className="space-y-1.5">
-          <p className="text-sm font-medium">Módulos</p>
-          <div className="space-y-1.5">
-            {CRIACAO_MODULE_IDS.map((id) => {
-              const visible = !hidden.has(id);
-              return (
-                <div
-                  key={id}
-                  className="flex items-center justify-between gap-3 rounded-md border p-2.5"
-                >
-                  <span className={cn("text-sm", !visible && "text-muted-foreground")}>
-                    {MODULE_LABELS[id]}
-                  </span>
-                  <Toggle on={visible} onClick={() => setModuleHidden(id, visible)} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <CardContent className="space-y-1.5">
+        {CRIACAO_MODULE_IDS.map((id) => {
+          const visible = !hidden.has(id);
+          return (
+            <div
+              key={id}
+              className="flex items-center justify-between gap-3 rounded-md border p-2.5"
+            >
+              <span className={cn("text-sm", !visible && "text-muted-foreground")}>
+                {MODULE_LABELS[id]}
+              </span>
+              <Toggle on={visible} onClick={() => setModuleHidden(id, visible)} />
+            </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
