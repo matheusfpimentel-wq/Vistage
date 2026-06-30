@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Bell, BellRing, X } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { toLocalISODate } from "@/lib/format";
 import { loadWeekStats } from "@/modules/revisao/api";
@@ -14,9 +14,8 @@ import { ackCooling, loadCoolingAlerts } from "@/modules/revisao/cooling";
 import { AlertIcon } from "@/modules/revisao/alertIcons";
 import { checkNotificationPermission, enableNotifications, sendTestNotification, type NotifPermission } from "@/lib/notify";
 import { toast } from "@/components/ui/toaster";
-import { DATA_CHANGED, emitDataChanged } from "@/lib/events";
+import { DATA_CHANGED } from "@/lib/events";
 import { getDb } from "@/lib/db";
-import { updateGig } from "@/modules/gigs/api";
 
 const SESSION_SEEN_KEY = "notification_bell_seen_keys";
 
@@ -137,69 +136,9 @@ export async function loadExtraStats(): Promise<ExtraStats> {
   }
 }
 
-/** GIGs cuja data já passou mas continuam como Confirmada/Proposta. */
-export async function loadStaleGigStatusAlerts(): Promise<AlertItem[]> {
-  try {
-    const db = getDb();
-    const today = toLocalISODate();
-    const rows = await db.select<
-      { id: number; date: string; status: string; event_name: string | null; venue_name: string }[]
-    >(
-      `SELECT id, date, status, event_name, venue_name FROM gigs
-        WHERE date < $1 AND status IN ('Confirmada', 'Proposta')
-        ORDER BY date DESC LIMIT 5`,
-      [today]
-    );
-    return rows.map((g) => {
-      const name = g.event_name?.trim() || g.venue_name;
-      return {
-        key: `gig-stale-status-${g.id}`,
-        label: `GIG em ${name} (${g.date}) já passou e ainda está como ${g.status} — atualize o status.`,
-        to: `/gigs?open=${g.id}`,
-        critical: true,
-        icon: "warning" as const,
-      };
-    });
-  } catch {
-    return [];
-  }
-}
-
-/** Recebíveis previstos cuja data já passou e ainda não foram marcados como recebidos. */
-export async function loadOverdueReceivableAlerts(): Promise<AlertItem[]> {
-  try {
-    const db = getDb();
-    const today = toLocalISODate();
-    const rows = await db.select<
-      { id: number; date: string; amount: number; description: string | null }[]
-    >(
-      `SELECT id, date, amount, description FROM finance_transactions
-        WHERE kind = 'income' AND status = 'Previsto' AND date < $1
-        ORDER BY date ASC LIMIT 5`,
-      [today]
-    );
-    return rows.map((t) => {
-      const [y, m, d] = t.date.slice(0, 10).split("-");
-      const dateBR = `${d}/${m}/${y}`;
-      const valor = t.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-      const what = t.description?.trim() || "Recebível";
-      return {
-        key: `receivable-overdue-${t.id}`,
-        label: `Recebível previsto venceu em ${dateBR}: ${what} (${valor}) — ainda não recebido.`,
-        to: `/financeiro`,
-        critical: true,
-        icon: "dollar" as const,
-      };
-    });
-  } catch {
-    return [];
-  }
-}
-
 export function NotificationBell() {
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
   const [perm, setPerm] = useState<NotifPermission>("granted");
   useEffect(() => {
     void checkNotificationPermission().then(setPerm);
@@ -212,21 +151,17 @@ export function NotificationBell() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       try {
-        const [stats, extra, custom, cooling, stale, receivables, partyFin] = await Promise.all([
+        const [stats, extra, custom, cooling, partyFin] = await Promise.all([
           loadWeekStats(),
           loadExtraStats(),
           evaluateCustomRules().catch(() => [] as AlertItem[]),
           loadCoolingAlerts().catch(() => [] as AlertItem[]),
-          loadStaleGigStatusAlerts().catch(() => [] as AlertItem[]),
-          loadOverdueReceivableAlerts().catch(() => [] as AlertItem[]),
           loadPartyFinanceAlerts().catch(() => [] as AlertItem[]),
         ]);
         // Lista única (núcleo + custom + financeiro/festas + esfriando) →
         // filtra os silenciados (snooze) e os dispensados-até-mudar.
         const combined = [
           ...partyFin,
-          ...receivables,
-          ...stale,
           ...cooling,
           ...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()),
           ...custom,
@@ -334,8 +269,6 @@ export function NotificationBell() {
           ) : (
             <div className="max-h-80 overflow-y-auto">
               {allAlerts.map((a, i) => {
-                const staleMatch = a.key.match(/^gig-stale-status-(\d+)$/);
-                const staleGigId = staleMatch ? Number(staleMatch[1]) : null;
                 const sev = alertSeverity(a);
                 // Cabeçalho do grupo (por tipo) antes do 1º item de cada severidade.
                 const showHeader = i === 0 || alertSeverity(allAlerts[i - 1]) !== sev;
@@ -383,39 +316,6 @@ export function NotificationBell() {
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    {staleGigId && (
-                      <div className="mt-1.5 flex gap-1.5 pl-7">
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
-                          onClick={async () => {
-                            await updateGig({ id: staleGigId, status: "Concluída" });
-                            emitDataChanged();
-                            setOpen(false);
-                          }}
-                        >
-                          Marcar Concluída
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
-                          onClick={async () => {
-                            await updateGig({ id: staleGigId, status: "Cancelada" });
-                            emitDataChanged();
-                            setOpen(false);
-                          }}
-                        >
-                          Marcar Cancelada
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border px-2 py-0.5 text-xs hover:bg-accent"
-                          onClick={() => { navigate(a.to); setOpen(false); }}
-                        >
-                          Abrir GIG
-                        </button>
-                      </div>
-                    )}
                     {a.coolingRefs && a.coolingRefs.length > 0 && (
                       <div className="mt-1.5 pl-7">
                         <button

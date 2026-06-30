@@ -31,9 +31,9 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
   const today = toLocalISODate();
   const in14 = addDaysISO(14);
 
-  // (Removido) O alerta "Recebíveis acumulados acima do limiar" foi retirado —
-  // somar recebíveis previstos virava ruído; o que importa (recebíveis ATRASADOS)
-  // já é coberto por loadOverdueReceivableAlerts.
+  // (Removidos) "Recebíveis acumulados acima do limiar" e "Recebível previsto
+  // venceu" saíram dos alertas — somar/atrasar recebíveis virava ruído fora da
+  // lista declarada.
 
   // 🔒 Receita realizada do mês abaixo do custo fixo (só após o dia 15, p/ não
   //    dar falso positivo no começo do mês).
