@@ -422,7 +422,6 @@ export function ContactDetail({
                 {profiles.length > 0 && (
                   <TabsTrigger value="perfil">Perfil</TabsTrigger>
                 )}
-                <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
               </TabsList>
 
@@ -618,53 +617,56 @@ export function ContactDetail({
                       {activeProfile === "Fornecedor" && supplierId != null ? (
                         <ServicesTabContent supplierId={supplierId} />
                       ) : activeProfile && activeProfile !== "Fornecedor" ? (
-                        <RelationshipTabContent
-                          type={activeProfile}
-                          contactId={contact.id}
-                          data={(relDraft[activeProfile] ?? {}) as Record<string, unknown>}
-                          onChange={(d) => setRelField(activeProfile, d)}
-                          onCreateGig={activeProfile === "Contratante" ? () => onCreateGig(contact) : undefined}
-                        />
+                        <div className="space-y-3">
+                          <RelationshipTabContent
+                            type={activeProfile}
+                            contactId={contact.id}
+                            data={(relDraft[activeProfile] ?? {}) as Record<string, unknown>}
+                            onChange={(d) => setRelField(activeProfile, d)}
+                            onCreateGig={activeProfile === "Contratante" ? () => onCreateGig(contact) : undefined}
+                          />
+                          {/* GIGs do contratante: fundidas aqui (retrátil), sem aba própria. */}
+                          {activeProfile === "Contratante" && (
+                            <details open className="rounded-md border">
+                              <summary className="cursor-pointer select-none px-3 py-2 text-sm font-medium">
+                                GIGs ({gigs.length})
+                              </summary>
+                              <div className="space-y-1.5 border-t p-2">
+                                {gigs.length === 0 ? (
+                                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+                                    Nenhuma GIG vinculada ainda.
+                                  </div>
+                                ) : (
+                                  gigs.map((g) => (
+                                    <div key={g.id} className="flex items-center justify-between rounded-md border p-2.5 text-sm">
+                                      <div>
+                                        <div className="font-medium">
+                                          <Link to={`/gigs?open=${g.id}`} className="text-primary hover:underline">
+                                            {gigDisplayName(g)}
+                                          </Link>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {g.venue_name} · {formatDate(g.date)}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <span className="tabular-nums text-muted-foreground">
+                                          {formatCurrency(g.cache_amount)}
+                                        </span>
+                                        <StatusBadge status={g.status} />
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </details>
+                          )}
+                        </div>
                       ) : null}
                     </div>
                   </div>
                 </TabsContent>
               )}
-
-              {/* ── GIGs ── */}
-              <TabsContent value="gigs">
-                {gigs.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Nenhuma GIG vinculada ainda.
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    {gigs.map((g) => (
-                      <div
-                        key={g.id}
-                        className="flex items-center justify-between rounded-md border p-2.5 text-sm"
-                      >
-                        <div>
-                          <div className="font-medium">
-                            <Link to={`/gigs?open=${g.id}`} className="text-primary hover:underline">
-                              {gigDisplayName(g)}
-                            </Link>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {g.venue_name} · {formatDate(g.date)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="tabular-nums text-muted-foreground">
-                            {formatCurrency(g.cache_amount)}
-                          </span>
-                          <StatusBadge status={g.status} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </TabsContent>
 
               {/* ── Interações ── */}
               <TabsContent value="interactions">
