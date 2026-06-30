@@ -29,14 +29,19 @@ export function ContentList({ items, onEdit, onDelete, density = "full" }: Props
         <div
           key={c.id}
           className={cn(
-            "flex items-start gap-3 rounded-md border transition-colors hover:bg-muted/40",
+            "flex cursor-pointer items-start gap-3 rounded-md border transition-colors hover:bg-muted/40",
             compact ? "p-2" : "p-3"
           )}
+          onClick={() => onEdit(c)}
+          title="Clique pra editar"
         >
           <div className={cn("flex-1", compact ? "min-w-0" : "space-y-1.5")}>
             <div className="flex items-start justify-between gap-2">
               <button
-                onClick={() => onEdit(c)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(c);
+                }}
                 className="text-left text-sm font-medium hover:underline"
               >
                 {c.title}
@@ -82,9 +87,10 @@ export function ContentList({ items, onEdit, onDelete, density = "full" }: Props
               )}
               {c.post_url && (
                 <button
-                  onClick={() =>
-                    openExternal(c.post_url!).catch(() => {})
-                  }
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openExternal(c.post_url!).catch(() => {});
+                  }}
                   className="inline-flex items-center gap-1 text-primary hover:underline"
                 >
                   link <ExternalLink className="h-3 w-3" />
@@ -103,7 +109,7 @@ export function ContentList({ items, onEdit, onDelete, density = "full" }: Props
             )}
           </div>
 
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5" onClick={(e) => e.stopPropagation()}>
             <Button
               size="icon"
               variant="ghost"

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toaster";
 import { updateGig } from "../api";
 import { GIG_STATUSES, PAYMENT_STATUSES, type Gig } from "../types";
@@ -62,6 +62,44 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
   // Pilha de desfazer (Ctrl+Z): cada alteração guarda o valor anterior por célula
   // (em lote para Delete/colar-limpar, que mexem em várias de uma vez).
   const undoStack = useRef<{ gigId: number; key: keyof Gig; before: string }[][]>([]);
+
+  // Arrastar para rolar ("grab to pan"): pressionar num espaço vazio (fora de
+  // célula/cabeçalho/controle) e arrastar move a visualização nos dois eixos.
+  const panRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+
+  function onContainerMouseDown(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (target.closest("td") || target.closest("th") || target.closest("button") || target.closest("input") || target.closest("select")) {
+      return;
+    }
+    const el = containerRef.current;
+    if (!el) return;
+    panRef.current = { x: e.clientX, y: e.clientY, left: el.scrollLeft, top: el.scrollTop };
+    setPanning(true);
+    e.preventDefault();
+  }
+
+  useEffect(() => {
+    if (!panning) return;
+    function onMove(e: MouseEvent) {
+      const el = containerRef.current;
+      const p = panRef.current;
+      if (!el || !p) return;
+      el.scrollLeft = p.left - (e.clientX - p.x);
+      el.scrollTop = p.top - (e.clientY - p.y);
+    }
+    function onUp() {
+      setPanning(false);
+      panRef.current = null;
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [panning]);
 
   // Sorting
   const [sortCol, setSortCol] = useState<keyof Gig | null>(null);
@@ -401,7 +439,9 @@ export function SpreadsheetView({ gigs, onRefresh }: Props) {
       <div
         ref={containerRef}
         className="overflow-auto rounded-md border"
+        style={{ cursor: panning ? "grabbing" : undefined }}
         tabIndex={0}
+        onMouseDown={onContainerMouseDown}
         onCopy={handleCopy}
         onPaste={handlePaste}
         onKeyDown={handleContainerKeyDown}

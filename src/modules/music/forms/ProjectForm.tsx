@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { createProject, updateProject } from "../api";
 import type { MusicProject } from "../types";
 
@@ -81,7 +82,7 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
       open={open}
       onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{project ? "Editar projeto" : "Novo projeto"}</DialogTitle>
           <DialogDescription>

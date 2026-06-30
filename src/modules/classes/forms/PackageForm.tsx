@@ -39,6 +39,7 @@ import type {
   SyllabusItem,
 } from "../types";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 
 type Props = {
   open: boolean;
@@ -294,7 +295,7 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{pkg ? "Editar pacote" : "Novo pacote"}</DialogTitle>
         </DialogHeader>

@@ -27,6 +27,7 @@ import {
 } from "../types";
 import { createStudent, updateStudent } from "../api";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 
@@ -114,7 +115,7 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{student ? "Editar aluno" : "Novo aluno"}</DialogTitle>
         </DialogHeader>

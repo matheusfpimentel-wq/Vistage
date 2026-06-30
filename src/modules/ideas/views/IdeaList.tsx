@@ -27,12 +27,17 @@ export function IdeaList({ items, onEdit, onDelete, onConvertToTrack }: Props) {
       {items.map((i) => (
         <div
           key={i.id}
-          className="flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40"
+          className="flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40"
+          onClick={() => onEdit(i)}
+          title="Clique pra editar"
         >
           <div className="flex-1 space-y-1.5">
             <div className="flex items-start justify-between gap-2">
               <button
-                onClick={() => onEdit(i)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(i);
+                }}
                 className="text-left text-sm font-medium hover:underline"
               >
                 {i.title}
@@ -68,7 +73,7 @@ export function IdeaList({ items, onEdit, onDelete, onConvertToTrack }: Props) {
               <span className="ml-auto tabular-nums">{formatDate(i.updated_at.slice(0, 10))}</span>
             </div>
           </div>
-          <div className="flex gap-0.5">
+          <div className="flex gap-0.5" onClick={(e) => e.stopPropagation()}>
             {onConvertToTrack && i.maturation !== "Arquivada" && (
               <Button
                 size="icon"

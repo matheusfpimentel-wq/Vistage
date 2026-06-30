@@ -26,6 +26,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { formatDate } from "@/lib/format";
 import { useUnsavedConfirm } from "@/lib/dirty";
+import { onEnterSave } from "@/lib/formEnter";
 import { createMeeting, updateMeeting } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import { printAta } from "../ataPrint";
@@ -171,7 +172,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onKeyDown={onEnterSave(handleSave)}>
         <DialogHeader>
           <DialogTitle>{isEdit ? "Editar reunião" : "Nova reunião"}</DialogTitle>
         </DialogHeader>

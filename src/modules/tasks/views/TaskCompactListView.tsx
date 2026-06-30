@@ -53,21 +53,27 @@ export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: P
           <div
             key={t.id}
             className={cn(
-              "flex items-center gap-2 px-2.5 py-1 text-sm transition-colors hover:bg-muted/40",
+              "flex cursor-pointer items-center gap-2 px-2.5 py-1 text-sm transition-colors hover:bg-muted/40",
               i > 0 && "border-t",
               overdue && "bg-destructive/5"
             )}
+            onClick={() => onEdit(t)}
+            title="Clique pra editar"
           >
             <input
               type="checkbox"
               checked={done}
               onChange={() => onToggleDone(t)}
+              onClick={(e) => e.stopPropagation()}
               className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-input accent-primary"
               aria-label={done ? "Reabrir" : "Marcar como concluída"}
             />
             <button
               type="button"
-              onClick={() => onEdit(t)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(t);
+              }}
               className={cn(
                 "flex-1 truncate text-left hover:underline",
                 done && "text-muted-foreground line-through"

@@ -152,10 +152,12 @@ export function TaskListView({
           <div
             key={t.id}
             className={cn(
-              "group flex items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
+              "group flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
               overdue && "border-destructive/40 bg-destructive/5",
               isSel && "bg-primary/5 ring-1 ring-primary/40"
             )}
+            onClick={() => onEdit(t)}
+            title="Clique pra editar"
           >
             {/* Caixa de SELEÇÃO — revelada no hover (ou sempre, com algo selecionado) */}
             {bulkEnabled && (
@@ -163,6 +165,7 @@ export function TaskListView({
                 type="checkbox"
                 checked={isSel}
                 onChange={() => toggle(t.id)}
+                onClick={(e) => e.stopPropagation()}
                 className={cn(
                   "mt-0.5 h-4 w-4 cursor-pointer rounded border-input accent-primary transition-opacity",
                   !isSel && !hasSelection && "opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -176,6 +179,7 @@ export function TaskListView({
               type="checkbox"
               checked={done}
               onChange={() => onToggleDone(t)}
+              onClick={(e) => e.stopPropagation()}
               className="mt-0.5 h-4 w-4 cursor-pointer rounded border-input accent-primary"
               aria-label={done ? "Reabrir" : "Marcar como concluída"}
             />
@@ -184,7 +188,10 @@ export function TaskListView({
               <div className="flex items-start justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => onEdit(t)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(t);
+                  }}
                   className={cn(
                     "text-left text-sm font-medium hover:underline",
                     done && "text-muted-foreground line-through"
@@ -232,7 +239,7 @@ export function TaskListView({
               </div>
             </div>
 
-            <div className="flex gap-0.5">
+            <div className="flex gap-0.5" onClick={(e) => e.stopPropagation()}>
               <Button
                 size="icon"
                 variant="ghost"

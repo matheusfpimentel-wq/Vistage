@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PersistentTextarea } from "@/components/ui/persistent-textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -273,7 +274,8 @@ export function IdentityPage() {
 
               <div className="space-y-1.5">
                 <Label>Briefing completo</Label>
-                <Textarea
+                <PersistentTextarea
+                  storageKey="identity-briefing"
                   rows={6}
                   value={identity.bio_long ?? ""}
                   onChange={(e) => set("bio_long", e.target.value || null)}
