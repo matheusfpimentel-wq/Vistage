@@ -1,7 +1,6 @@
-import { Star } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
+import { StarRating } from "@/components/ui/star-rating";
 
 type Props = {
   label: string;
@@ -36,29 +35,7 @@ export function RatingSlider({
         </span>
       </div>
 
-      <div className="flex items-center gap-1" role="radiogroup">
-        {[1, 2, 3, 4, 5].map((n) => {
-          const filled = value !== null && n <= value;
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => onChange(value === n ? null : n)}
-              className="rounded p-1 transition hover:scale-110"
-              aria-label={`${n} estrelas`}
-            >
-              <Star
-                className={cn(
-                  "h-7 w-7 transition-colors",
-                  filled
-                    ? "fill-amber-500 text-amber-500"
-                    : "text-muted-foreground"
-                )}
-              />
-            </button>
-          );
-        })}
-      </div>
+      <StarRating value={value} onChange={onChange} />
 
       <Textarea
         placeholder="(opcional) por que essa nota?"
