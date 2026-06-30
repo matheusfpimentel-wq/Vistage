@@ -238,11 +238,7 @@ export function RelationshipTabContent({
           </div>
         </>
       )}
-
-      <div className="space-y-1.5">
-        <Label>Observações</Label>
-        <Textarea rows={3} value={str("notas")} onChange={(e) => set("notas", e.target.value)} />
-      </div>
+      {/* "Observações" removido — já existe "Notas" no perfil inicial da pessoa. */}
     </div>
   );
 }

@@ -107,6 +107,16 @@ function toBaseForm(c: Contact): BaseForm {
   };
 }
 
+/** Perfis temáticos da pessoa: relações + Fornecedor. Nomes diretos no submenu. */
+type ProfileKey = ContactRelationshipType | "Fornecedor";
+const PROFILE_LABEL: Record<ProfileKey, string> = {
+  Contratante: "Perfil de Contratante",
+  Parceiro: "Perfil de Parceiro",
+  Alvo: "Perfil de Alvo",
+  Músico: "Perfil de Músico",
+  Fornecedor: "Perfil de Fornecedor",
+};
+
 export function ContactDetail({
   open,
   onOpenChange,
@@ -122,6 +132,7 @@ export function ContactDetail({
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("info");
+  const [profileSel, setProfileSel] = useState<ProfileKey | null>(null);
 
   // edição inline dos campos base (aba Informações) + rascunho das abas de relação
   const [form, setForm] = useState<BaseForm | null>(null);
@@ -170,6 +181,13 @@ export function ContactDetail({
   if (!contactId) return null;
 
   const relTypes = contact?.relationship_types ?? [];
+  // Perfis ativos (submenu da aba "Perfil"): relações + Fornecedor.
+  const profiles: ProfileKey[] = [
+    ...relTypes,
+    ...(supplierId != null ? (["Fornecedor"] as ProfileKey[]) : []),
+  ];
+  const activeProfile: ProfileKey | null =
+    profileSel && profiles.includes(profileSel) ? profileSel : (profiles[0] ?? null);
 
   const setF = (patch: Partial<BaseForm>) => {
     setForm((f) => (f ? { ...f, ...patch } : f));
@@ -210,7 +228,9 @@ export function ContactDetail({
         relationship_types: relTypes.filter((t) => t !== type),
         relationship_data: nextData,
       });
-      if (tab === `rel-${type}`) setTab("info");
+      if (profileSel === type) setProfileSel(null);
+      const hasOtherProfile = relTypes.some((t) => t !== type) || supplierId != null;
+      if (!hasOtherProfile) setTab("info");
       await refresh();
     } else {
       await updateContact({
@@ -218,7 +238,8 @@ export function ContactDetail({
         relationship_types: [...relTypes, type],
       });
       await refresh();
-      setTab(`rel-${type}`);
+      setProfileSel(type);
+      setTab("perfil");
     }
   }
 
@@ -227,7 +248,8 @@ export function ContactDetail({
     if (supplierId == null) {
       await upsertSupplierMirror(contact);
       await refresh();
-      setTab("servicos");
+      setProfileSel("Fornecedor");
+      setTab("perfil");
       toast.success("Fornecedor adicionado");
     } else {
       const ok = await confirmDialog({
@@ -243,7 +265,8 @@ export function ContactDetail({
         toast.error(res.reason ?? "Não foi possível remover o papel de fornecedor");
         return;
       }
-      if (tab === "servicos") setTab("info");
+      if (profileSel === "Fornecedor") setProfileSel(null);
+      if (relTypes.length === 0) setTab("info");
       await refresh();
     }
   }
@@ -402,13 +425,8 @@ export function ContactDetail({
             <Tabs value={tab} onValueChange={setTab}>
               <TabsList className="flex-wrap">
                 <TabsTrigger value="info">Informações</TabsTrigger>
-                {relTypes.map((t) => (
-                  <TabsTrigger key={t} value={`rel-${t}`}>
-                    {RELATION_TAB_LABEL[t]}
-                  </TabsTrigger>
-                ))}
-                {supplierId != null && (
-                  <TabsTrigger value="servicos">Serviços</TabsTrigger>
+                {profiles.length > 0 && (
+                  <TabsTrigger value="perfil">Perfil</TabsTrigger>
                 )}
                 <TabsTrigger value="gigs">GIGs ({gigs.length})</TabsTrigger>
                 <TabsTrigger value="interactions">Interações</TabsTrigger>
@@ -581,21 +599,41 @@ export function ContactDetail({
                 </div>
               </TabsContent>
 
-              {/* ── Abas por relação ── */}
-              {relTypes.map((t) => (
-                <TabsContent key={t} value={`rel-${t}`}>
-                  <RelationshipTabContent
-                    type={t}
-                    contactId={contact.id}
-                    data={(relDraft[t] ?? {}) as Record<string, unknown>}
-                    onChange={(d) => setRelField(t, d)}
-                    onCreateGig={t === "Contratante" ? () => onCreateGig(contact) : undefined}
-                  />
-                </TabsContent>
-              ))}
-              {supplierId != null && (
-                <TabsContent value="servicos">
-                  <ServicesTabContent supplierId={supplierId} />
+              {/* ── Perfil: submenu lateral + perfil selecionado ── */}
+              {profiles.length > 0 && (
+                <TabsContent value="perfil">
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex shrink-0 gap-0.5 overflow-x-auto sm:w-44 sm:flex-col">
+                      {profiles.map((pk) => (
+                        <button
+                          key={pk}
+                          type="button"
+                          onClick={() => setProfileSel(pk)}
+                          className={cn(
+                            "whitespace-nowrap rounded-md px-2.5 py-1.5 text-left text-sm transition",
+                            activeProfile === pk
+                              ? "bg-primary/10 font-medium text-primary"
+                              : "text-muted-foreground hover:bg-accent"
+                          )}
+                        >
+                          {PROFILE_LABEL[pk]}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      {activeProfile === "Fornecedor" && supplierId != null ? (
+                        <ServicesTabContent supplierId={supplierId} />
+                      ) : activeProfile && activeProfile !== "Fornecedor" ? (
+                        <RelationshipTabContent
+                          type={activeProfile}
+                          contactId={contact.id}
+                          data={(relDraft[activeProfile] ?? {}) as Record<string, unknown>}
+                          onChange={(d) => setRelField(activeProfile, d)}
+                          onCreateGig={activeProfile === "Contratante" ? () => onCreateGig(contact) : undefined}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
                 </TabsContent>
               )}
 
