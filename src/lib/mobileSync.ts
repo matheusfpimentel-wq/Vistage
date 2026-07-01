@@ -174,12 +174,15 @@ type CoolingRow = {
 
 /**
  * Espelho do "Esfriando" pro mobile: tudo que o artista ALIMENTA (contatos, fãs,
- * faixas, conteúdos) sem movimento além do tempo de resfriamento configurável
- * (mesmo `getCoolingDays()` dos alertas do desktop) — fora criação já concluída
- * (faixa em Pós-lançamento, conteúdo Publicado/Arquivado). O tipo viaja no
- * prefixo do `source_id` ("contact:" / "fan:" / "track:" / "content:"), então o
- * celular sabe o ícone sem precisar de coluna nova. Cada tipo é limitado (visão
- * de relance); os alertas do desktop cobrem o conjunto completo.
+ * faixas, conteúdos, ideias e tarefas) sem movimento além do tempo de
+ * resfriamento configurável (mesmo `getCoolingDays()` dos alertas do desktop) —
+ * fora criação já concluída (faixa em Pós-lançamento, conteúdo Publicado/
+ * Arquivado, ideia Arquivada, tarefa Concluída/Cancelada). O tipo viaja no
+ * prefixo do `source_id` ("contact:" / "fan:" / "track:" / "content:" / "idea:" /
+ * "task:"), então o celular sabe o ícone sem coluna nova. Para não-contatos o
+ * `handle` carrega a ATIVIDADE do Modo Foco a abrir (ex.: faixa → "Criação
+ * musical"); para contato/fã, `handle` segue sendo o telefone (WhatsApp/ligar).
+ * Cada tipo é limitado (visão de relance); os alertas do desktop cobrem o todo.
  */
 async function buildCooling(uid: string): Promise<CoolingRow[]> {
   const db = getDb();
@@ -233,7 +236,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     out.push({
       user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
       reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
-      handle: null, due_date: today,
+      handle: "Criação musical", due_date: today,
     });
   }
 
@@ -249,7 +252,46 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     out.push({
       user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
       reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
-      handle: null, due_date: today,
+      handle: "Criação de conteúdo", due_date: today,
+    });
+  }
+
+  // Ideias paradas (exclui Arquivadas). O relógio é o `last_touched_at` (mesmo do
+  // decaimento de calor no PC), com fallback pro updated_at. A atividade de Foco
+  // depende da categoria da ideia.
+  const ideaFocus = (cat: string | null): string =>
+    cat === "Música" ? "Criação musical"
+    : cat === "Conteúdo" ? "Criação de conteúdo"
+    : cat === "Aulas" ? "Aulas"
+    : cat === "GIG" ? "Produção de festa"
+    : "Gestão";
+  const ideas = await db.select<{ id: number; title: string; category: string | null; touched: string }[]>(
+    `SELECT id, title, category, COALESCE(last_touched_at, updated_at) AS touched FROM ideas
+      WHERE maturation != 'Arquivada' AND substr(COALESCE(last_touched_at, updated_at), 1, 10) < $1
+      ORDER BY touched ASC LIMIT 3`,
+    [cutoff]
+  );
+  for (const i of ideas) {
+    out.push({
+      user_id: uid, source_id: `idea:${i.id}`, name: i.title,
+      reason: `Ideia parada há ${daysSince(i.touched)} dias`,
+      handle: ideaFocus(i.category), due_date: today,
+    });
+  }
+
+  // Tarefas abertas paradas (não Concluída/Cancelada, sem toque no período).
+  const coldTasks = await db.select<{ id: number; title: string; updated_at: string }[]>(
+    `SELECT id, title, updated_at FROM tasks
+      WHERE status NOT IN ('Concluída','Cancelada')
+        AND substr(updated_at, 1, 10) < $1
+      ORDER BY updated_at ASC LIMIT 3`,
+    [cutoff]
+  );
+  for (const t of coldTasks) {
+    out.push({
+      user_id: uid, source_id: `task:${t.id}`, name: t.title,
+      reason: `Tarefa parada há ${daysSince(t.updated_at)} dias`,
+      handle: "Gestão", due_date: today,
     });
   }
 
@@ -421,10 +463,10 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
   const tracks = await db.select<{
     id: number; title_working: string; title_final: string | null; current_stage: string;
     bpm: number | null; key: string | null; genre_primary: string | null; project: string | null;
-    concept_narrative: string | null;
+    concept_narrative: string | null; deadline: string | null;
   }[]>(
     `SELECT t.id, t.title_working, t.title_final, t.current_stage, t.bpm, t.key,
-            t.genre_primary, mp.title AS project, t.concept_narrative
+            t.genre_primary, mp.title AS project, t.concept_narrative, t.deadline
        FROM tracks t
        LEFT JOIN music_projects mp ON mp.id = t.project_id
       ORDER BY t.updated_at DESC LIMIT 800`,
@@ -438,7 +480,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       subtitle: [t.current_stage, t.project].filter(Boolean).join(" · "),
       search_text: lc(title, t.project, t.current_stage, t.genre_primary, t.key),
       // concept: conceito da faixa pro modo foco/música no celular.
-      meta: { stage: t.current_stage, bpm: t.bpm, key: t.key, genre: t.genre_primary, project: t.project, concept: t.concept_narrative },
+      // deadline: data de conclusão (alimenta o "O que vem" da Home).
+      meta: { stage: t.current_stage, bpm: t.bpm, key: t.key, genre: t.genre_primary, project: t.project, concept: t.concept_narrative, deadline: t.deadline },
     });
   }
 
