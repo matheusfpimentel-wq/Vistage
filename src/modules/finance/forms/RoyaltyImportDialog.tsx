@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import {
   buildRoyaltyPlan,
   decodeReportBuffer,
@@ -297,10 +297,10 @@ export function RoyaltyImportDialog({ open, onOpenChange, onImported }: Props) {
                           {it.currency} {it.amountSrc.toFixed(2)}
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums text-muted-foreground">
-                          {it.rate != null ? it.rate.toFixed(4) : "—"}
+                          {it.rate != null ? it.rate.toFixed(4) : EMPTY_VALUE}
                         </td>
                         <td className="px-2 py-1.5 text-right tabular-nums">
-                          {it.amountBrl != null ? formatCurrency(it.amountBrl) : "—"}
+                          {it.amountBrl != null ? formatCurrency(it.amountBrl) : EMPTY_VALUE}
                         </td>
                       </tr>
                     );

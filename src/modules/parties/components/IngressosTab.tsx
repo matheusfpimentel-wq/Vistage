@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { formatDate, formatCurrency, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, formatCurrency, toLocalISODate } from "@/lib/format";
 import {
   GUEST_REASONS,
   GUEST_STATUSES,
@@ -170,8 +170,8 @@ export function IngressosTab({
               </div>
               {(t.sale_start_date || t.sale_end_date) && (
                 <div className="text-xs text-muted-foreground">
-                  {t.sale_start_date ? formatDate(t.sale_start_date) : "—"} →{" "}
-                  {t.sale_end_date ? formatDate(t.sale_end_date) : "—"}
+                  {t.sale_start_date ? formatDate(t.sale_start_date) : EMPTY_VALUE} →{" "}
+                  {t.sale_end_date ? formatDate(t.sale_end_date) : EMPTY_VALUE}
                 </div>
               )}
               <div className="flex justify-end">

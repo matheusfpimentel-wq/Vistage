@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
 import {
   DEFAULT_MARKETING_ASSETS,
   MARKETING_ASSET_STATUSES,
@@ -319,7 +319,7 @@ export function MarketingStagePanel({
             <div className="rounded-md border bg-muted/20 p-2.5">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">CAC</div>
               <div className="mt-0.5 text-base font-semibold tabular-nums">
-                {cac != null ? formatCurrency(cac) : "—"}
+                {cac != null ? formatCurrency(cac) : EMPTY_VALUE}
               </div>
               <div className="text-[10px] text-muted-foreground">
                 {mktActual <= 0 ? "sem gasto de marketing registrado" : soldTotal <= 0 ? "sem vendas ainda" : `${formatCurrency(mktActual)} / ${soldTotal} compradores`}

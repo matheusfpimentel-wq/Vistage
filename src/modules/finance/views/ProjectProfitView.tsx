@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { loadProjectProfit, type ProjectProfit } from "../api";
@@ -117,13 +117,13 @@ function ProfitTable({ data }: { data: ProjectProfit[] }) {
                     <Badge variant={KIND_VARIANT[it.kind]}>{KIND_LABEL[it.kind]}</Badge>
                   </td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {it.date ? formatDate(it.date) : "—"}
+                    {it.date ? formatDate(it.date) : EMPTY_VALUE}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-500">
                     {formatCurrency(it.income)}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                    {isStudent ? "—" : formatCurrency(it.expense)}
+                    {isStudent ? EMPTY_VALUE : formatCurrency(it.expense)}
                   </td>
                   <td
                     className={cn(
@@ -131,10 +131,10 @@ function ProfitTable({ data }: { data: ProjectProfit[] }) {
                       it.profit >= 0 ? "text-emerald-500" : "text-destructive"
                     )}
                   >
-                    {isStudent ? "—" : formatCurrency(it.profit)}
+                    {isStudent ? EMPTY_VALUE : formatCurrency(it.profit)}
                   </td>
                   <td className="px-3 py-2 text-right text-xs tabular-nums text-muted-foreground">
-                    {isStudent || it.margin === null ? "—" : `${it.margin}%`}
+                    {isStudent || it.margin === null ? EMPTY_VALUE : `${it.margin}%`}
                   </td>
                 </tr>
               );

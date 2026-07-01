@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate, formatMoney } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatMoney } from "@/lib/format";
 import type { FinanceTransactionWithCategory } from "../types";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -77,7 +77,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
         return (
           <>
             <div className={cn("break-words", t.description ? "" : "text-muted-foreground")}>
-              {t.description ?? "—"}
+              {t.description ?? EMPTY_VALUE}
             </div>
             {(hasLinks || t.expense_type === "Fixa" || t.tax_relevant === 1) && (
               <div className="mt-0.5 flex flex-wrap gap-1">
@@ -156,7 +156,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
       width: 168,
       thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "px-3 py-2 text-muted-foreground truncate",
-      cell: (t) => t.category_name ?? "—",
+      cell: (t) => t.category_name ?? EMPTY_VALUE,
     },
     actions: {
       id: "actions",

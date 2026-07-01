@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PartySeries } from "../types";
 import {
@@ -191,17 +191,17 @@ export function SeriesEditionCard({
             placeholder="Vol. 2"
           />
         </div>
-        <div className="pb-1.5 text-xs text-muted-foreground">nº {editNum ?? "—"}</div>
+        <div className="pb-1.5 text-xs text-muted-foreground">nº {editNum ?? EMPTY_VALUE}</div>
       </div>
 
       {rollup && rollup.editionsCount > 0 && (
         <div className="space-y-1.5">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Edições" value={String(rollup.editionsCount)} />
-            <Stat label="Público médio" value={rollup.avgAttendance ? String(rollup.avgAttendance) : "—"} />
+            <Stat label="Público médio" value={rollup.avgAttendance ? String(rollup.avgAttendance) : EMPTY_VALUE} />
             <Stat
               label="Retenção"
-              value={rollup.avgRetentionPct != null ? `${rollup.avgRetentionPct}%` : "—"}
+              value={rollup.avgRetentionPct != null ? `${rollup.avgRetentionPct}%` : EMPTY_VALUE}
             />
             <Stat label="Lucro total" value={formatCurrency(rollup.totalNet)} />
           </div>
@@ -218,7 +218,7 @@ export function SeriesEditionCard({
                   {e.number ? `#${e.number} · ` : ""}{e.title}
                 </span>
                 <span className="shrink-0 text-muted-foreground">
-                  {e.attendance != null ? `${e.attendance} pess.` : "—"}
+                  {e.attendance != null ? `${e.attendance} pess.` : EMPTY_VALUE}
                 </span>
                 {e.attendanceRetentionPct != null && (
                   <span

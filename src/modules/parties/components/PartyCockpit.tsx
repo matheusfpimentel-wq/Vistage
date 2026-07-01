@@ -1,4 +1,4 @@
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { PartyBudgetItem, PartyGuest, PartyTicket } from "../types";
 import { computePartyPnL } from "../pnl";
@@ -51,17 +51,17 @@ export function PartyCockpit({
       />
       <Kpi
         label="Público"
-        value={actualAttendance != null ? String(actualAttendance) : "—"}
+        value={actualAttendance != null ? String(actualAttendance) : EMPTY_VALUE}
         sub={expectedCapacity ? `cap. ${expectedCapacity}` : "a confirmar"}
       />
       <Kpi
         label="R$/cabeça"
-        value={pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
+        value={pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : EMPTY_VALUE}
         sub={pnl.netPerHead != null ? `lucro ${formatCurrency(pnl.netPerHead)}` : "faturamento"}
       />
       <Kpi
         label="CAC"
-        value={cac != null ? formatCurrency(cac) : "—"}
+        value={cac != null ? formatCurrency(cac) : EMPTY_VALUE}
         sub={targetCac != null && targetCac > 0 ? `alvo ${formatCurrency(targetCac)}` : "mkt / comprador"}
         tone={cac != null && targetCac != null && targetCac > 0 ? (cac <= targetCac ? "good" : "bad") : undefined}
       />

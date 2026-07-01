@@ -13,7 +13,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
 import { urgencyOf, urgencyClass } from "@/lib/urgency";
 import {
   COMPLIANCE_RESPONSAVEIS,
@@ -259,7 +259,7 @@ export function ExecucaoStagePanel({
     const status = (m.status ?? "pendente") as ConfirmStatus;
     return {
       key: `team-${i}`,
-      name: m.name || sup?.name || "—",
+      name: m.name || sup?.name || EMPTY_VALUE,
       detail: m.role || "Produção",
       status,
       confirmBy: m.confirm_by ?? null,
@@ -275,7 +275,7 @@ export function ExecucaoStagePanel({
     const status = (s.status ?? "pendente") as ConfirmStatus;
     return {
       key: `sp-${i}`,
-      name: s.name || "—",
+      name: s.name || EMPTY_VALUE,
       detail: s.amount_cents ? formatCurrency(s.amount_cents / 100) : "Patrocinador",
       status,
       confirmBy: s.confirm_by ?? null,
@@ -326,7 +326,7 @@ export function ExecucaoStagePanel({
           Prontidão da Execução
           <InfoHint>Proporção simples de confirmações + formalidades aplicáveis + itens do checklist que já estão resolvidos.</InfoHint>
         </span>
-        <span className="text-sm font-semibold tabular-nums">{prontidao != null ? `${prontidao}%` : "—"}</span>
+        <span className="text-sm font-semibold tabular-nums">{prontidao != null ? `${prontidao}%` : EMPTY_VALUE}</span>
       </div>
 
       {/* ===== CONFIRMAÇÕES ===== */}

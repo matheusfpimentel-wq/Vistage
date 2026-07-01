@@ -61,7 +61,7 @@ import {
   type ClassStatus,
   type Student,
 } from "./types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
@@ -317,7 +317,7 @@ export function ClassesPage() {
                       className="border-t transition-colors hover:bg-muted/40"
                     >
                       <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
-                        {classNumbers[c.id] ?? "—"}
+                        {classNumbers[c.id] ?? EMPTY_VALUE}
                       </td>
                       <td className="px-3 py-2 tabular-nums">
                         {formatDate(c.date)}
@@ -329,7 +329,7 @@ export function ClassesPage() {
                       </td>
                       <td className="px-3 py-2 font-medium">{c.student_name}</td>
                       <td className="px-3 py-2">
-                        <div className="font-medium">{c.title ?? c.subject ?? "—"}</div>
+                        <div className="font-medium">{c.title ?? c.subject ?? EMPTY_VALUE}</div>
                         {c.title && c.subject && (
                           <div className="max-w-[220px] truncate text-xs text-muted-foreground">
                             {c.subject}
@@ -430,13 +430,13 @@ export function ClassesPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {s.acquisition ?? "—"}
+                        {s.acquisition ?? EMPTY_VALUE}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {s.city ?? "—"}
+                        {s.city ?? EMPTY_VALUE}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground">
-                        {s.instagram ?? s.email ?? s.phone ?? "—"}
+                        {s.instagram ?? s.email ?? s.phone ?? EMPTY_VALUE}
                       </td>
                       <td
                         className="px-3 py-2"
@@ -496,7 +496,7 @@ export function ClassesPage() {
                       <div>
                         <CardTitle className="text-base">{p.name}</CardTitle>
                         <CardDescription>
-                          {p.total_hours != null ? fmtItemLoad(p.total_hours) : "—"}
+                          {p.total_hours != null ? fmtItemLoad(p.total_hours) : EMPTY_VALUE}
                           {p.price ? ` · ${formatCurrency(p.price)}` : ""}
                         </CardDescription>
                       </div>

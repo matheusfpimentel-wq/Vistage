@@ -22,7 +22,7 @@ import { getVenue, getVenueStats, listGigsByVenue } from "../api";
 import type { Venue, VenueStats } from "../types";
 import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
-import { formatCurrency, formatDate, formatRating } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatRating } from "@/lib/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useImageUrl } from "@/lib/uploads";
 import { VenuePriorityBadge } from "../components/VenueStar";
@@ -105,17 +105,17 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
               <Stat
                 icon={<DollarSign className="h-4 w-4" />}
                 label="Já gerou"
-                value={stats ? formatCurrency(stats.totalRevenue ?? 0) : "—"}
+                value={stats ? formatCurrency(stats.totalRevenue ?? 0) : EMPTY_VALUE}
               />
               <Stat
                 icon={<Star className="h-4 w-4 text-amber-500" />}
                 label="Avaliação média"
-                value={stats?.avgRating ? formatRating(stats.avgRating) : "—"}
+                value={stats?.avgRating ? formatRating(stats.avgRating) : EMPTY_VALUE}
               />
               <Stat
                 icon={<CalendarRange className="h-4 w-4" />}
                 label="Última GIG"
-                value={stats?.lastGigDate ? formatDate(stats.lastGigDate) : "—"}
+                value={stats?.lastGigDate ? formatDate(stats.lastGigDate) : EMPTY_VALUE}
               />
             </div>
 

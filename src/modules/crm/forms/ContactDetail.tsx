@@ -62,7 +62,7 @@ import {
 import type { Gig } from "@/modules/gigs/types";
 import { StatusBadge } from "@/modules/gigs/components/StatusBadge";
 import { gigDisplayName } from "@/modules/gigs/displayName";
-import { formatCurrency, formatDate, formatPhoneBR } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatPhoneBR } from "@/lib/format";
 import {
   RelationshipTabContent,
   ServicesTabContent,
@@ -407,12 +407,12 @@ export function ContactDetail({
               <Stat
                 icon={<DollarSign className="h-4 w-4" />}
                 label="Já gerou"
-                value={stats ? formatCurrency(stats.totalRevenue ?? 0) : "—"}
+                value={stats ? formatCurrency(stats.totalRevenue ?? 0) : EMPTY_VALUE}
               />
               <Stat
                 icon={<CalendarRange className="h-4 w-4" />}
                 label="Última GIG"
-                value={stats?.lastGigDate ? formatDate(stats.lastGigDate) : "—"}
+                value={stats?.lastGigDate ? formatDate(stats.lastGigDate) : EMPTY_VALUE}
               />
             </div>
 

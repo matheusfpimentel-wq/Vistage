@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
-import { formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate } from "@/lib/format";
 import {
   acceptDriftFromGoogle,
   keepMineOverGoogle,
@@ -63,7 +63,7 @@ export function CalendarDriftDialog({
   }
 
   function fmt(date: string | null, time: string | null): string {
-    const d = date ? formatDate(date) : "—";
+    const d = date ? formatDate(date) : EMPTY_VALUE;
     return time ? `${d} · ${time}` : d;
   }
 

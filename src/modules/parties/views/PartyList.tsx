@@ -3,7 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatDate, formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, formatCurrency } from "@/lib/format";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
 import { useTableSort } from "@/lib/useTableSort";
 import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
@@ -71,7 +71,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
       header: "Data",
       thClassName: "px-3 py-2",
       tdClassName: "px-3 py-2 text-muted-foreground",
-      cell: (p) => (p.date ? formatDate(p.date) : "—"),
+      cell: (p) => (p.date ? formatDate(p.date) : EMPTY_VALUE),
     },
     venue: {
       id: "venue",
@@ -79,7 +79,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
       header: "Venue",
       thClassName: "px-3 py-2",
       tdClassName: "px-3 py-2 text-muted-foreground",
-      cell: (p) => p.venue_name ?? "—",
+      cell: (p) => p.venue_name ?? EMPTY_VALUE,
     },
     capacity: {
       id: "capacity",
@@ -87,7 +87,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
       header: "Capacidade",
       thClassName: "px-3 py-2 text-right",
       tdClassName: "px-3 py-2 text-right tabular-nums text-muted-foreground",
-      cell: (p) => p.expected_capacity ?? "—",
+      cell: (p) => p.expected_capacity ?? EMPTY_VALUE,
     },
     revenue: {
       id: "revenue",
@@ -97,7 +97,7 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
       tdClassName: "px-3 py-2 text-right tabular-nums",
       cell: (p) => {
         const rev = estimatedRevenue(p);
-        return rev > 0 ? formatCurrency(rev) : "—";
+        return rev > 0 ? formatCurrency(rev) : EMPTY_VALUE;
       },
     },
     actions: {

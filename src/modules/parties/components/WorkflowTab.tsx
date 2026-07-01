@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { formatDate, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, toLocalISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_STAGE_NAMES,
@@ -748,7 +748,7 @@ function CostsField({
             >
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.category}</span>
               <span className="flex-1 truncate text-muted-foreground">
-                {r.description || "—"}
+                {r.description || EMPTY_VALUE}
               </span>
               <span className="shrink-0 font-medium tabular-nums">
                 {fmtCurrency(r.amount)}

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
 import { Building2, LayoutGrid, List, Loader2, Map, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -282,9 +283,9 @@ export function VenuesPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{v.venue_type ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">{v.venue_type ?? EMPTY_VALUE}</td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
+                    {[v.city, v.state].filter(Boolean).join(" / ") || EMPTY_VALUE}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {v.capacity ? (
@@ -294,7 +295,7 @@ export function VenuesPage() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {v.owner_name ?? "—"}
+                    {v.owner_name ?? EMPTY_VALUE}
                   </td>
                   <td
                     className="px-3 py-2"
@@ -430,7 +431,7 @@ function VenueCard({
           <PendingTasksBadge entityType="venue" entityId={v.id} className="ml-auto" />
         </div>
         <div className="text-xs text-muted-foreground">
-          {[v.city, v.state].filter(Boolean).join(" / ") || "—"}
+          {[v.city, v.state].filter(Boolean).join(" / ") || EMPTY_VALUE}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {v.capacity && (

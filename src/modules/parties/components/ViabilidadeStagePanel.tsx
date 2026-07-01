@@ -13,7 +13,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
 import {
   VENUE_DEAL_TYPES,
   VIABILITY_COST_CATEGORIES,
@@ -346,7 +346,7 @@ export function ViabilidadeStagePanel({
     : "sem venue";
   const premissasSummary =
     publicoEsperado || precoMedio
-      ? `público ${num(publicoEsperado) || "—"} · preço ${precoMedio ? formatCurrency(num(precoMedio)) : "—"}`
+      ? `público ${num(publicoEsperado) || EMPTY_VALUE} · preço ${precoMedio ? formatCurrency(num(precoMedio)) : EMPTY_VALUE}`
       : "definir premissas";
   const veredictoSummary =
     verdict.breakEvenPeople != null
@@ -382,7 +382,7 @@ export function ViabilidadeStagePanel({
                       >
                         <Star className={cn("h-3.5 w-3.5", c.is_leader && "fill-amber-400")} />
                       </button>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.venue_name || "—"}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.venue_name || EMPTY_VALUE}</span>
                       {isConfirmed ? (
                         <Badge className="shrink-0 bg-emerald-500/20 text-[10px] text-emerald-400">confirmado</Badge>
                       ) : (
@@ -586,7 +586,7 @@ export function ViabilidadeStagePanel({
               {topCosts.map((b) => (
                 <li key={b.id} className="flex items-center gap-2 rounded-md border px-2 py-1 text-xs">
                   <span className="rounded bg-muted px-1.5 py-0.5">{b.category}</span>
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{b.description || "—"}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{b.description || EMPTY_VALUE}</span>
                   <span className="shrink-0 font-medium tabular-nums">{formatCurrency(b.projected_amount || 0)}</span>
                 </li>
               ))}
@@ -614,13 +614,13 @@ export function ViabilidadeStagePanel({
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <Kpi label="Pessoas p/ empatar" value={verdict.breakEvenPeople != null ? String(verdict.breakEvenPeople) : "—"} hint={verdict.exceedsCapacity ? "Acima da capacidade — não empata nem lotando." : undefined} danger={verdict.exceedsCapacity} />
+            <Kpi label="Pessoas p/ empatar" value={verdict.breakEvenPeople != null ? String(verdict.breakEvenPeople) : EMPTY_VALUE} hint={verdict.exceedsCapacity ? "Acima da capacidade — não empata nem lotando." : undefined} danger={verdict.exceedsCapacity} />
             <Kpi
               label="Resultado projetado"
-              value={num(publicoEsperado) > 0 ? formatCurrency(verdict.resultado) : "—"}
+              value={num(publicoEsperado) > 0 ? formatCurrency(verdict.resultado) : EMPTY_VALUE}
               danger={verdict.resultado < 0 && num(publicoEsperado) > 0}
             />
-            <Kpi label="Margem" value={verdict.margem != null && num(publicoEsperado) > 0 ? `${Math.round(verdict.margem * 100)}%` : "—"} />
+            <Kpi label="Margem" value={verdict.margem != null && num(publicoEsperado) > 0 ? `${Math.round(verdict.margem * 100)}%` : EMPTY_VALUE} />
           </div>
           {verdict.revPerPerson <= 0 && (
             <p className="text-[11px] text-amber-400">Informe o preço médio (e o % do acordo, se houver) para calcular.</p>

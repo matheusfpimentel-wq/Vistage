@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { appDataDir } from "@tauri-apps/api/path";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDb } from "@/lib/db";
@@ -58,7 +59,7 @@ export function DiagnosticsSettings() {
         <CardTitle className="text-base">Diagnóstico</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        <Row label="Versão do schema" value={d ? (d.schemaVersion != null ? `v${d.schemaVersion}` : "—") : "…"} />
+        <Row label="Versão do schema" value={d ? (d.schemaVersion != null ? `v${d.schemaVersion}` : EMPTY_VALUE) : "…"} />
         <Row label="Banco local (réplica)" value={d?.replica || "…"} mono />
         <div>
           <div className="mb-1 text-xs font-medium text-muted-foreground">Erros de migração</div>
