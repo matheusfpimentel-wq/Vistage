@@ -2406,6 +2406,16 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE party_venue_candidates ADD COLUMN is_leader INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 169,
+    description:
+      "Festas/Execução — party_compliance ganha responsavel (casa/você) e valor: as Formalidades pré-dia (ECAD, alvará/CLCB, som, segurança) viram bloco estruturado da Execução. parties.lineup_status: mapa de confirmação por DJ (contact_id → status/prazo) sem mexer no formato do lineup. Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE party_compliance ADD COLUMN responsavel TEXT;
+      ALTER TABLE party_compliance ADD COLUMN valor REAL;
+      ALTER TABLE parties ADD COLUMN lineup_status TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
 ];
 
 

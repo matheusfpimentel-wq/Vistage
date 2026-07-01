@@ -42,12 +42,14 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
     { key:"estrategia", label:"Estratégia", type:"text" },
     { key:"arte_status", label:"Status das artes", type:"text" },
   ],
-  "Execução": [
-    { key:"equipe", label:"Equipe confirmada", type:"text" },
-    { key:"rider_tecnico", label:"Rider técnico", type:"rider" },
-    { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
-    { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
-  ],
+  // A Execução é renderizada por um painel próprio (ExecucaoStagePanel): acordeão
+  // Confirmações (view da Equipe) · Formalidades (party_compliance) · Rider ·
+  // Checklist · Notas. Os campos antigos "Equipe confirmada" e "Fornecedores
+  // fechados" (texto solto) saíram — viram confirmações na própria Equipe (fonte
+  // única). Defs vazio → o render genérico não desenha nada; rider/checklist são
+  // renderizados pelo painel a partir de stage.fields; o backfill lê os campos
+  // legados direto de stage.fields.
+  "Execução": [],
   // De-dup (slice 3b): "Público real" e "Receita total" saíram daqui — são
   // COMPUTADOS (público real = ingressos vendidos; receita = ingressos +
   // patrocínio do Orçamento), exibidos no cockpit/briefing, não redigitados.
@@ -132,25 +134,62 @@ export type PartyRunsheetItem = {
 export const COMPLIANCE_CATEGORIES = ["ECAD", "Alvará", "Bombeiros", "SMMA", "Segurança", "Sanitária", "Outro"] as const;
 export const COMPLIANCE_STATUSES = ["pendente", "em_andamento", "ok", "na"] as const;
 export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
+/** Quem responde pela formalidade (default por item). */
+export const COMPLIANCE_RESPONSAVEIS = ["voce", "casa"] as const;
+export function complianceResponsavelLabel(r: string | null | undefined): string {
+  return r === "casa" ? "Casa" : r === "voce" ? "Você" : "—";
+}
 
 export type PartyComplianceItem = {
   id: number; party_id: number; category: string; title: string;
   status: ComplianceStatus; protocol: string | null; due_date: string | null;
   notes: string | null; position: number; created_at: string;
+  /** Responsável pela formalidade: 'voce' | 'casa' (Execução/Formalidades). */
+  responsavel?: string | null;
+  /** Valor associado (ex.: boleto ECAD), opcional. */
+  valor?: number | null;
 };
 
-/** Itens padrão de compliance de uma festa de nightlife (semente do checklist). */
-export const DEFAULT_COMPLIANCE_ITEMS: { category: string; title: string }[] = [
-  { category: "ECAD", title: "Recolhimento ECAD (direitos autorais musicais)" },
-  { category: "Alvará", title: "Alvará de funcionamento / autorização do evento" },
-  { category: "Bombeiros", title: "Vistoria / AVCB do Corpo de Bombeiros" },
-  { category: "SMMA", title: "Licença ambiental / controle de ruído (SMMA)" },
-  { category: "Segurança", title: "Plano de segurança e seguranças credenciados" },
-  { category: "Sanitária", title: "Vigilância sanitária (bar / alimentos)" },
+/**
+ * Itens padrão de compliance/formalidades de uma festa de nightlife. Cada um traz
+ * o responsável e o status default, e a explicação inteira fica no "?" (nada de
+ * juridiquês na tela). Semente do checklist de Formalidades.
+ */
+export const DEFAULT_COMPLIANCE_ITEMS: {
+  category: string; title: string; responsavel: string; status: ComplianceStatus; explain: string;
+}[] = [
+  {
+    category: "ECAD", title: "ECAD (direitos autorais musicais)",
+    responsavel: "voce", status: "pendente",
+    explain:
+      "Execução pública de música gera pagamento prévio ao evento, só por boleto. Evento gratuito não isenta (STJ, 2023). Em festa de casa noturna, confirme se a casa já recolhe.",
+  },
+  {
+    category: "Alvará", title: "Alvará / CLCB do venue",
+    responsavel: "casa", status: "pendente",
+    explain:
+      "Verifique a validade do certificado do corpo de bombeiros (CLCB/AVCB) e do alvará — é pré-requisito de funcionamento do venue.",
+  },
+  {
+    category: "SMMA", title: "Licença de som / ambiental",
+    responsavel: "casa", status: "na",
+    explain: "Exigível conforme o município e o tipo de evento. Marque N/A se não se aplica ao seu caso.",
+  },
+  {
+    category: "Segurança", title: "Segurança",
+    responsavel: "casa", status: "pendente",
+    explain:
+      "A empresa de segurança deve ser autorizada pela Polícia Federal. Não há ratio legal federal de seguranças por público — dimensione pelo risco e pela casa.",
+  },
 ];
 
 export function complianceStatusLabel(s: ComplianceStatus): string {
   return s === "ok" ? "OK" : s === "em_andamento" ? "Em andamento" : s === "na" ? "N/A" : "Pendente";
+}
+
+/** Explicação ("?") de um item de formalidade, por categoria (defaults). */
+export function complianceExplain(category: string): string | null {
+  return DEFAULT_COMPLIANCE_ITEMS.find((d) => d.category === category)?.explain ?? null;
 }
 
 // ===== MARKETING (Artes + Canais) =====
@@ -211,12 +250,37 @@ export type PartyTask = {
   created_at: string; updated_at: string;
 };
 
+/** Status de confirmação de um registro da Equipe (fonte única, na própria linha). */
+export const CONFIRM_STATUSES = ["pendente", "confirmado", "cancelado"] as const;
+export type ConfirmStatus = (typeof CONFIRM_STATUSES)[number];
+export function confirmStatusLabel(s: string | null | undefined): string {
+  return s === "confirmado" ? "Confirmado" : s === "cancelado" ? "Cancelado" : "Pendente";
+}
+
 export type PartyTeamMember = {
   name: string;
   role: string;
   amount_cents: number;
   supplier_id: number | null;
+  /** Confirmação (Execução): pendente → confirmado. Fonte única, na própria linha. */
+  status?: ConfirmStatus | null;
+  /** Prazo "confirmar até" (planejamento reverso). */
+  confirm_by?: string | null;
+  /** Contato p/ WhatsApp/telefone quando o membro não é fornecedor. */
+  contact_id?: number | null;
 };
+
+/** Patrocinador da festa (JSON em parties.sponsors). */
+export type PartySponsor = {
+  name: string;
+  amount_cents: number;
+  status?: ConfirmStatus | null;
+  confirm_by?: string | null;
+  contact_id?: number | null;
+};
+
+/** Mapa de confirmação do lineup (DJs): contact_id → status/prazo (parties.lineup_status). */
+export type LineupStatus = Record<string, { status?: ConfirmStatus; confirm_by?: string | null }>;
 
 /** Série = a marca durável (Caramelo); cada festa é uma edição dela. */
 export type PartySeries = {
@@ -246,6 +310,8 @@ export type Party = {
   /** CAC-alvo: custo de aquisição por comprador que você aceita pagar (meta). */
   target_cac: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
+  /** Confirmação do lineup por DJ (JSON: contact_id → status/prazo). */
+  lineup_status?: string|null;
   notes: string|null; stage_current: number|null; financial_synced: number;
   gig_id: number|null;
   series_id: number|null; edition_label: string|null; edition_number: number|null;
@@ -253,12 +319,13 @@ export type Party = {
   created_at: string; updated_at: string;
 };
 
-export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
-  lineup: number[]; sponsors: { name: string; amount_cents: number }[];
+export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"|"lineup_status"> & {
+  lineup: number[]; sponsors: PartySponsor[];
   team: PartyTeamMember[];
+  lineup_status: LineupStatus;
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"target_cac"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"target_cac"|"lineup"|"sponsors"|"team"|"lineup_status"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
   status_override?: number;
   ticket_price_regular?: number|null;
@@ -266,8 +333,9 @@ export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_
   bar_revenue?: number|null;
   target_cac?: number|null;
   lineup?: number[]|string|null;
-  sponsors?: { name: string; amount_cents: number }[]|string|null;
+  sponsors?: PartySponsor[]|string|null;
   team?: PartyTeamMember[]|string|null;
+  lineup_status?: LineupStatus|string|null;
   series_id?: number|null;
   edition_label?: string|null;
   edition_number?: number|null;

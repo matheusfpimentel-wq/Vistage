@@ -34,7 +34,13 @@ import {
 } from "../types";
 import { MarketingStagePanel } from "./MarketingStagePanel";
 import { ViabilidadeStagePanel } from "./ViabilidadeStagePanel";
+import { ExecucaoStagePanel } from "./ExecucaoStagePanel";
 import type { Venue } from "@/modules/venues/types";
+import type {
+  PartyTeamMember,
+  PartySponsor,
+  LineupStatus,
+} from "../types";
 
 const fmtCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -74,8 +80,18 @@ export function WorkflowTab({
   confirmedVenueId,
   confirmedVenueName,
   expectedCapacity,
+  partyTitle,
+  partyDate,
+  team,
+  sponsors,
+  lineup,
+  lineupStatus,
   onPatchParty,
+  onPatchTeam,
+  onPatchSponsors,
+  onPatchLineupStatus,
   onGoOrcamento,
+  onOpenEquipe,
   onReload,
 }: {
   partyId: number;
@@ -93,10 +109,24 @@ export function WorkflowTab({
   /** Público estimado canônico (Info) — usado no break-even, no lugar do antigo
    * campo "capacidade" da etapa de Viabilidade, removido na de-dup (slice 3b). */
   expectedCapacity: number | null;
+  /** Título/data da festa — export do rider + prazo default das confirmações. */
+  partyTitle: string;
+  partyDate: string | null;
+  /** Equipe (fonte única) — a Execução mostra confirmações destes registros. */
+  team: PartyTeamMember[];
+  sponsors: PartySponsor[];
+  lineup: number[];
+  lineupStatus: LineupStatus;
   /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
   onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
+  /** Persiste alterações de confirmação na Equipe (fonte única). */
+  onPatchTeam: (team: PartyTeamMember[]) => Promise<void>;
+  onPatchSponsors: (sponsors: PartySponsor[]) => Promise<void>;
+  onPatchLineupStatus: (map: LineupStatus) => Promise<void>;
   /** Leva o usuário para a aba Orçamento (link "editar no Orçamento"). */
   onGoOrcamento: () => void;
+  /** Leva o usuário para a aba Equipe (add pessoa/fornecedor na fonte única). */
+  onOpenEquipe: () => void;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -311,6 +341,24 @@ export function WorkflowTab({
                 expectedCapacity={expectedCapacity}
                 onPatchParty={onPatchParty}
                 onGoOrcamento={onGoOrcamento}
+                onReload={onReload}
+              />
+            ) : stage.name === "Execução" ? (
+              <ExecucaoStagePanel
+                partyId={partyId}
+                stage={stage}
+                partyTitle={partyTitle}
+                partyDate={partyDate}
+                team={team}
+                sponsors={sponsors}
+                lineup={lineup}
+                lineupStatus={lineupStatus}
+                contacts={contacts}
+                suppliers={suppliers}
+                onPatchTeam={onPatchTeam}
+                onPatchSponsors={onPatchSponsors}
+                onPatchLineupStatus={onPatchLineupStatus}
+                onOpenEquipe={onOpenEquipe}
                 onReload={onReload}
               />
             ) : (
@@ -572,7 +620,7 @@ export function WorkflowTab({
             {/* Marketing e Viabilidade salvam sozinhos (o painel persiste cada
                 mudança); as demais etapas usam este Salvar pra gravar campos +
                 notas de uma vez. */}
-            {stage.name !== "Marketing" && stage.name !== "Viabilidade" && (
+            {stage.name !== "Marketing" && stage.name !== "Viabilidade" && stage.name !== "Execução" && (
               <div className="flex justify-end">
                 <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
@@ -732,14 +780,17 @@ function CostsField({
 }
 
 /** Checklist operacional: itens marcáveis com adição/remoção de linhas. */
-function ChecklistField({
+export function ChecklistField({
   label,
   value,
   onChange,
+  suggestions,
 }: {
   label: string;
   value: string;
   onChange: (v: string | null) => void;
+  /** Chips de sugestão de itens comuns (um toque cria). */
+  suggestions?: string[];
 }) {
   let items: ChecklistItem[] = [];
   try {
@@ -810,6 +861,23 @@ function ChecklistField({
         </div>
       )}
 
+      {suggestions && suggestions.filter((s) => !items.some((it) => it.text.trim().toLowerCase() === s.toLowerCase())).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions
+            .filter((s) => !items.some((it) => it.text.trim().toLowerCase() === s.toLowerCase()))
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => save([...items, { text: s, done: false }])}
+                className="flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+              >
+                <Plus className="h-3 w-3" /> {s}
+              </button>
+            ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Input
           className="h-8 flex-1 text-xs"
@@ -828,7 +896,7 @@ function ChecklistField({
 
 /** Rider técnico estruturado + reutilizável: equipamentos (categoria, item, qtd,
  *  quem fornece) marcáveis, salváveis como modelo e recarregáveis entre festas. */
-function RiderField({
+export function RiderField({
   label,
   value,
   onChange,

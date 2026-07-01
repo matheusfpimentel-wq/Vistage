@@ -5,6 +5,8 @@ import type {
   Party,
   PartyDeserialized,
   PartyTeamMember,
+  PartySponsor,
+  LineupStatus,
   PartyCreateInput,
   PartyUpdateInput,
   PartyStage,
@@ -56,8 +58,9 @@ function rowToParty(r: Party): PartyDeserialized {
   return {
     ...r,
     lineup: parseJsonArray<number>(r.lineup),
-    sponsors: parseJsonArray<{ name: string; amount_cents: number }>(r.sponsors),
+    sponsors: parseJsonArray<PartySponsor>(r.sponsors),
     team: parseJsonArray<PartyTeamMember>(r.team),
+    lineup_status: parseJsonObject(r.lineup_status ?? null) as LineupStatus,
   };
 }
 
@@ -70,7 +73,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "status_override", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "notes", "gig_id",
+  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "lineup_status", "notes", "gig_id",
   "series_id", "edition_label", "edition_number",
 ];
 
@@ -99,6 +102,9 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     sponsors: JSON.stringify(Array.isArray(input.sponsors) ? input.sponsors : []),
     team: JSON.stringify(Array.isArray(input.team) ? input.team : []),
   };
+  if (payload.lineup_status && typeof payload.lineup_status === "object") {
+    payload.lineup_status = JSON.stringify(payload.lineup_status);
+  }
   const cols = PARTY_COLS.filter((c) => payload[c] !== undefined);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
   const values = cols.map((c) => payload[c] ?? null);
@@ -141,6 +147,9 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
   if (Array.isArray(payload.lineup)) payload.lineup = JSON.stringify(payload.lineup);
   if (Array.isArray(payload.sponsors)) payload.sponsors = JSON.stringify(payload.sponsors);
   if (Array.isArray(payload.team)) payload.team = JSON.stringify(payload.team);
+  if (payload.lineup_status && typeof payload.lineup_status === "object") {
+    payload.lineup_status = JSON.stringify(payload.lineup_status);
+  }
   const cols = Object.keys(payload);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
@@ -1176,11 +1185,12 @@ export async function createPartyComplianceItem(
   item: Omit<PartyComplianceItem, "id" | "created_at">
 ): Promise<number> {
   const res = await getDb().execute(
-    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position, responsavel, valor)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       item.party_id, item.category, item.title, item.status,
       item.protocol ?? null, item.due_date ?? null, item.notes ?? null, item.position,
+      item.responsavel ?? null, item.valor ?? null,
     ]
   );
   return Number(res.lastInsertId);
@@ -1308,7 +1318,8 @@ export async function seedDefaultCompliance(partyId: number): Promise<number> {
     if (have.has(`${d.category}|${d.title}`.toLowerCase())) continue;
     await createPartyComplianceItem({
       party_id: partyId, category: d.category, title: d.title,
-      status: "pendente", protocol: null, due_date: null, notes: null, position: pos++,
+      status: d.status, protocol: null, due_date: null, notes: null, position: pos++,
+      responsavel: d.responsavel, valor: null,
     });
     created += 1;
   }

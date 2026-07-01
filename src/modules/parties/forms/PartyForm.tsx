@@ -46,6 +46,8 @@ import {
   type PartyDeserialized,
   type PartyStatus,
   type PartyTeamMember,
+  type PartySponsor,
+  type LineupStatus,
   type PartyStage,
   type PartyBudgetItem,
   type PartyTicket,
@@ -115,8 +117,10 @@ type FormState = {
   bar_revenue: number | null;
   target_cac: number | null;
   lineup: number[];
-  sponsors: { name: string; amount_cents: number }[];
+  sponsors: PartySponsor[];
   team: PartyTeamMember[];
+  /** Confirmação do lineup por DJ (contact_id → status/prazo). */
+  lineup_status: LineupStatus;
   notes: string | null;
   gig_id: number | null;
 };
@@ -136,6 +140,7 @@ const EMPTY: FormState = {
   lineup: [],
   sponsors: [],
   team: [],
+  lineup_status: {},
   notes: null,
   gig_id: null,
 };
@@ -253,6 +258,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         lineup: party.lineup,
         sponsors: party.sponsors,
         team: party.team,
+        lineup_status: party.lineup_status ?? {},
         notes: party.notes,
         gig_id: party.gig_id,
       });
@@ -279,7 +285,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   // confirma o venue / edita a capacidade). Atualiza o buffer do form E persiste
   // na hora — mantém cockpit/orçamento em sincronia sem depender do Salvar.
   const patchPartyLive = useCallback(
-    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity">>) => {
+    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity" | "team" | "sponsors" | "lineup_status">>) => {
       setState((s) => ({ ...s, ...updates }));
       if (!party) return;
       try {
@@ -469,6 +475,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         lineup: state.lineup,
         sponsors: state.sponsors,
         team: state.team,
+        lineup_status: state.lineup_status,
         notes: state.notes,
         gig_id: state.gig_id,
       };
@@ -941,8 +948,18 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 confirmedVenueId={state.venue_id}
                 confirmedVenueName={state.venue_name}
                 expectedCapacity={state.expected_capacity}
+                partyTitle={state.title}
+                partyDate={state.date}
+                team={state.team}
+                sponsors={state.sponsors}
+                lineup={state.lineup}
+                lineupStatus={state.lineup_status}
                 onPatchParty={patchPartyLive}
+                onPatchTeam={(team) => patchPartyLive({ team })}
+                onPatchSponsors={(sponsors) => patchPartyLive({ sponsors })}
+                onPatchLineupStatus={(map) => patchPartyLive({ lineup_status: map })}
                 onGoOrcamento={() => setTab("orcamento")}
+                onOpenEquipe={() => setTab("lineup")}
                 onReload={loadSubTabs}
               />
             </TabsContent>
