@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, toLocalISODate } from "@/lib/format";
@@ -285,7 +285,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   // confirma o venue / edita a capacidade). Atualiza o buffer do form E persiste
   // na hora — mantém cockpit/orçamento em sincronia sem depender do Salvar.
   const patchPartyLive = useCallback(
-    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity" | "team" | "sponsors" | "lineup_status">>) => {
+    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity">>) => {
       setState((s) => ({ ...s, ...updates }));
       if (!party) return;
       try {
@@ -294,6 +294,34 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         toast.error(`Não consegui salvar: ${String(e)}`);
       }
     },
+    [party]
+  );
+
+  // Espelho síncrono do state: as confirmações da Equipe (team/sponsors/lineup)
+  // são alternadas por linha e podem disparar dois cliques antes do re-render.
+  // Para não perder um deles, os patches recebem um MAPPER e o aplicam sobre o
+  // valor mais fresco (stateRef, avançado na hora), não sobre um prop defasado.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  function persistParty<K extends "team" | "sponsors" | "lineup_status">(key: K, next: FormState[K]) {
+    stateRef.current = { ...stateRef.current, [key]: next };
+    setState((s) => ({ ...s, [key]: next }));
+    if (party) void updateParty({ id: party.id, [key]: next }).catch((e) => toast.error(`Não consegui salvar: ${String(e)}`));
+  }
+  const patchTeamLive = useCallback(
+    (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => persistParty("team", mapper(stateRef.current.team)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party]
+  );
+  const patchSponsorsLive = useCallback(
+    (mapper: (prev: PartySponsor[]) => PartySponsor[]) => persistParty("sponsors", mapper(stateRef.current.sponsors)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party]
+  );
+  const patchLineupStatusLive = useCallback(
+    (mapper: (prev: LineupStatus) => LineupStatus) => persistParty("lineup_status", mapper(stateRef.current.lineup_status)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [party]
   );
 
@@ -955,9 +983,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 lineup={state.lineup}
                 lineupStatus={state.lineup_status}
                 onPatchParty={patchPartyLive}
-                onPatchTeam={(team) => patchPartyLive({ team })}
-                onPatchSponsors={(sponsors) => patchPartyLive({ sponsors })}
-                onPatchLineupStatus={(map) => patchPartyLive({ lineup_status: map })}
+                onPatchTeam={patchTeamLive}
+                onPatchSponsors={patchSponsorsLive}
+                onPatchLineupStatus={patchLineupStatusLive}
                 onGoOrcamento={() => setTab("orcamento")}
                 onOpenEquipe={() => setTab("lineup")}
                 onReload={loadSubTabs}

@@ -70,7 +70,7 @@ function dueUrgency(dateStr: string | null | undefined, resolved: boolean): "ven
   if (d < today) return "vencido";
   const in7 = new Date(today + "T00:00:00");
   in7.setDate(in7.getDate() + 7);
-  const in7s = in7.toISOString().slice(0, 10);
+  const in7s = toLocalISODate(in7);
   return d <= in7s ? "proximo" : null;
 }
 function urgencyClass(u: "vencido" | "proximo" | null): string {
@@ -82,7 +82,7 @@ function defaultConfirmBy(partyDate: string | null): string | null {
   if (!partyDate) return null;
   const d = new Date(partyDate.slice(0, 10) + "T00:00:00");
   d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return toLocalISODate(d);
 }
 
 type ConfirmRow = {
@@ -130,9 +130,9 @@ export function ExecucaoStagePanel({
   lineupStatus: LineupStatus;
   contacts: Contact[];
   suppliers: Supplier[];
-  onPatchTeam: (team: PartyTeamMember[]) => Promise<void>;
-  onPatchSponsors: (sponsors: PartySponsor[]) => Promise<void>;
-  onPatchLineupStatus: (map: LineupStatus) => Promise<void>;
+  onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
+  onPatchSponsors: (mapper: (prev: PartySponsor[]) => PartySponsor[]) => void;
+  onPatchLineupStatus: (mapper: (prev: LineupStatus) => LineupStatus) => void;
   onOpenEquipe: () => void;
   onReload: () => Promise<void>;
 }) {
@@ -228,7 +228,7 @@ export function ExecucaoStagePanel({
       const nextNotes = [stage.notes ?? "", preserved].filter(Boolean).join("\n\n") || null;
       await updatePartyStage(stage.id, { notes: nextNotes, fields: { ...f, _exec_migrated: "1" } });
 
-      if (JSON.stringify(nextTeam) !== JSON.stringify(team)) await onPatchTeam(nextTeam);
+      if (JSON.stringify(nextTeam) !== JSON.stringify(team)) onPatchTeam(() => nextTeam);
 
       // Formalidades: semeia defaults só se ainda não há nenhum item.
       const current = await listPartyCompliance(partyId);
@@ -257,14 +257,13 @@ export function ExecucaoStagePanel({
       status,
       confirmBy: st.confirm_by ?? null,
       phone: c?.phone ?? null,
-      onCycle: () => {
-        const next = { ...lineupStatus, [String(cid)]: { status: cycleStatus(status), confirm_by: st.confirm_by ?? dueDefault } };
-        void onPatchLineupStatus(next);
-      },
-      onDate: (v) => {
-        const next = { ...lineupStatus, [String(cid)]: { status, confirm_by: v } };
-        void onPatchLineupStatus(next);
-      },
+      onCycle: () => onPatchLineupStatus((prev) => {
+        const cur = prev[String(cid)]?.status ?? "pendente";
+        return { ...prev, [String(cid)]: { status: cycleStatus(cur), confirm_by: prev[String(cid)]?.confirm_by ?? dueDefault } };
+      }),
+      onDate: (v) => onPatchLineupStatus((prev) => ({
+        ...prev, [String(cid)]: { status: prev[String(cid)]?.status ?? "pendente", confirm_by: v },
+      })),
     };
   });
 
@@ -279,14 +278,9 @@ export function ExecucaoStagePanel({
       status,
       confirmBy: m.confirm_by ?? null,
       phone: sup?.phone ?? c?.phone ?? null,
-      onCycle: () => {
-        const next = team.map((x, j) => (j === i ? { ...x, status: cycleStatus(status), confirm_by: x.confirm_by ?? dueDefault } : x));
-        void onPatchTeam(next);
-      },
-      onDate: (v) => {
-        const next = team.map((x, j) => (j === i ? { ...x, confirm_by: v } : x));
-        void onPatchTeam(next);
-      },
+      onCycle: () => onPatchTeam((prev) =>
+        prev.map((x, j) => (j === i ? { ...x, status: cycleStatus(x.status ?? "pendente"), confirm_by: x.confirm_by ?? dueDefault } : x))),
+      onDate: (v) => onPatchTeam((prev) => prev.map((x, j) => (j === i ? { ...x, confirm_by: v } : x))),
     };
   });
 
@@ -300,14 +294,9 @@ export function ExecucaoStagePanel({
       status,
       confirmBy: s.confirm_by ?? null,
       phone: c?.phone ?? null,
-      onCycle: () => {
-        const next = sponsors.map((x, j) => (j === i ? { ...x, status: cycleStatus(status), confirm_by: x.confirm_by ?? dueDefault } : x));
-        void onPatchSponsors(next);
-      },
-      onDate: (v) => {
-        const next = sponsors.map((x, j) => (j === i ? { ...x, confirm_by: v } : x));
-        void onPatchSponsors(next);
-      },
+      onCycle: () => onPatchSponsors((prev) =>
+        prev.map((x, j) => (j === i ? { ...x, status: cycleStatus(x.status ?? "pendente"), confirm_by: x.confirm_by ?? dueDefault } : x))),
+      onDate: (v) => onPatchSponsors((prev) => prev.map((x, j) => (j === i ? { ...x, confirm_by: v } : x))),
     };
   });
 

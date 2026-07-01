@@ -119,10 +119,11 @@ export function WorkflowTab({
   lineupStatus: LineupStatus;
   /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
   onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
-  /** Persiste alterações de confirmação na Equipe (fonte única). */
-  onPatchTeam: (team: PartyTeamMember[]) => Promise<void>;
-  onPatchSponsors: (sponsors: PartySponsor[]) => Promise<void>;
-  onPatchLineupStatus: (map: LineupStatus) => Promise<void>;
+  /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
+   * fresco — evita que dois toggles rápidos se sobrescrevam. */
+  onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
+  onPatchSponsors: (mapper: (prev: PartySponsor[]) => PartySponsor[]) => void;
+  onPatchLineupStatus: (mapper: (prev: LineupStatus) => LineupStatus) => void;
   /** Leva o usuário para a aba Orçamento (link "editar no Orçamento"). */
   onGoOrcamento: () => void;
   /** Leva o usuário para a aba Equipe (add pessoa/fornecedor na fonte única). */
