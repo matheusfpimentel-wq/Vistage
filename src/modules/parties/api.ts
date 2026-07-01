@@ -740,8 +740,12 @@ export type SeriesRollup = {
   editions: {
     id: number; title: string; date: string | null; number: number | null;
     attendance: number | null; capacity: number | null; net: number; sold: number;
+    /** Retenção de público vs edição anterior (público_N / público_{N-1} × 100); null se faltar dado. */
+    attendanceRetentionPct: number | null;
   }[];
   totalAttendance: number; avgAttendance: number; totalNet: number; editionsCount: number;
+  /** Média das retenções entre edições consecutivas (cresce >100% / esfria <100%); null se <2 edições com público. */
+  avgRetentionPct: number | null;
 };
 
 export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
@@ -769,17 +773,41 @@ export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
       id: e.id, title: e.title, date: e.date, number: e.edition_number,
       attendance: e.actual_attendance, capacity: e.expected_capacity,
       net: pnl.netReal, sold: pnl.sold,
+      attendanceRetentionPct: null,
     });
   }
   const withAtt = rows.filter((e) => e.attendance != null);
   const totalAttendance = withAtt.reduce((s, e) => s + (e.attendance ?? 0), 0);
   const totalNet = rows.reduce((s, e) => s + e.net, 0);
+
+  // Ordena cronologicamente (nº, depois data) e calcula a retenção de público de
+  // cada edição vs a anterior — mostra se a franquia cresce (>100%) ou esfria.
+  const ordered = [...rows].sort((a, b) => {
+    const na = a.number ?? 0, nb = b.number ?? 0;
+    if (na !== nb) return na - nb;
+    return (a.date ?? "").localeCompare(b.date ?? "");
+  });
+  const retentions: number[] = [];
+  let prevAtt: number | null = null;
+  for (const e of ordered) {
+    if (e.attendance != null && prevAtt != null && prevAtt > 0) {
+      const pct = Math.round((e.attendance / prevAtt) * 100);
+      e.attendanceRetentionPct = pct;
+      retentions.push(pct);
+    }
+    if (e.attendance != null) prevAtt = e.attendance;
+  }
+  const avgRetentionPct = retentions.length
+    ? Math.round(retentions.reduce((s, x) => s + x, 0) / retentions.length)
+    : null;
+
   return {
-    editions: rows,
+    editions: ordered,
     totalAttendance,
     avgAttendance: withAtt.length ? Math.round(totalAttendance / withAtt.length) : 0,
     totalNet,
     editionsCount: rows.length,
+    avgRetentionPct,
   };
 }
 
