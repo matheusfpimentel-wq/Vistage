@@ -59,7 +59,7 @@ import { gateAfter } from "@/modules/music/gates";
 import { StageBadge } from "@/modules/music/components/StageBadge";
 import { listClasses } from "@/modules/classes/api";
 import type { ClassSession } from "@/modules/classes/types";
-import { formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
 import { useHiddenModules } from "@/lib/moduleVisibility";
 import type { ChartPeriod } from "@/modules/dashboard/charts";
 
@@ -587,7 +587,7 @@ function GigsCard({ data }: { data: DashData }) {
             Média últimas 5
           </span>
           <span className="font-semibold text-amber-500">
-            {last5Avg !== null ? formatRating(last5Avg) : "—"}
+            {last5Avg !== null ? formatRating(last5Avg) : EMPTY_VALUE}
           </span>
         </div>
 
@@ -742,7 +742,7 @@ function ContentCard({ data }: { data: DashData }) {
             <div>
               <div className="font-medium">{nextScheduled.title}</div>
               <div className="text-xs text-muted-foreground">
-                {nextScheduled.networks.join(", ") || "—"}
+                {nextScheduled.networks.join(", ") || EMPTY_VALUE}
                 {nextScheduled.format && ` · ${nextScheduled.format}`}
               </div>
             </div>
