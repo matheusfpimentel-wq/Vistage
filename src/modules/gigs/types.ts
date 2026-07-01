@@ -93,6 +93,8 @@ export type Gig = {
   is_special: number;
   debrief_completed_at: string | null;
   debrief_pending: number; // 0 ou 1
+  /** % da Preparação congelado no momento em que o debrief foi finalizado (0-100). */
+  prep_pct_at_debrief: number | null;
 
   gcal_event_id: string | null;
   /** Quando o app gravou o evento por último (ISO). Edição no Google depois disso = drift. */

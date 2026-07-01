@@ -2434,6 +2434,14 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN rating_floor_note TEXT;
     `,
   },
+  {
+    version: 172,
+    description:
+      "GIGs/Debrief — gigs.prep_pct_at_debrief congela o % da Preparação no momento em que o debrief é finalizado (0-100). Alimenta o chip do cabeçalho e a leitura 'avaliação × faixa de preparação' nos Insights. Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN prep_pct_at_debrief INTEGER;
+    `,
+  },
 ];
 
 

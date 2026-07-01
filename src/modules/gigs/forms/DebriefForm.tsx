@@ -23,6 +23,7 @@ import { RatingSlider } from "../components/RatingSlider";
 import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
 import { FansPresentPicker } from "../components/FansPresentPicker";
 import { averageRating, type Gig } from "../types";
+import { parsePrepState, prepProgress } from "../prep";
 import {
   clearDebriefDraft,
   loadDebriefDraft,
@@ -309,6 +310,12 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
   const complete = useMemo(() => isComplete(state), [state]);
   const avg = useMemo(() => averageRating(state), [state]);
+  /** % de Preparação: congelado no debrief (prep_pct_at_debrief) ou ao vivo do checklist. */
+  const prepPct = useMemo(() => {
+    if (gig.prep_pct_at_debrief != null) return gig.prep_pct_at_debrief;
+    const { done, total } = prepProgress(parsePrepState(gig.prep_state));
+    return total > 0 ? Math.round((done / total) * 100) : null;
+  }, [gig.prep_pct_at_debrief, gig.prep_state]);
 
   /** Registra (silenciosamente) a presença dos fãs marcados — dedup por fã+GIG. */
   async function registerFansPresence() {
@@ -343,12 +350,21 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
   async function persistDebrief(finalize: boolean): Promise<number> {
     const firstFinalize = finalize && !gig.debrief_completed_at && !insightsFlushed.current;
     const completedAt = finalize ? (gig.debrief_completed_at ?? new Date().toISOString()) : null;
+    // Congela o % da Preparação na 1ª finalização (leitura prep×nota nos
+    // Insights não deve mudar se o checklist for editado depois).
+    const prepFreeze = (() => {
+      if (!firstFinalize || gig.prep_pct_at_debrief != null) return {};
+      const { done, total } = prepProgress(parsePrepState(gig.prep_state));
+      if (total === 0) return {};
+      return { prep_pct_at_debrief: Math.round((done / total) * 100) };
+    })();
     await updateGig({
       id: gig.id,
       ...state,
       fans_present: fansPresent.length > 0 ? JSON.stringify(fansPresent) : null,
       debrief_pending: finalize ? 0 : 1,
       ...(finalize ? { debrief_completed_at: completedAt } : {}),
+      ...prepFreeze,
     });
     if (finalize) await clearDebriefDraft(gig.id);
     await flushDebriefTasks();
@@ -428,14 +444,26 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
   const body = (
     <>
-      <p className="text-sm text-muted-foreground">
-        Rascunho salvo automaticamente.
-        {lastSavedAt && (
-          <span className="ml-2 text-xs">
-            · salvo às {lastSavedAt.toLocaleTimeString("pt-BR")}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-muted-foreground">
+          Rascunho salvo automaticamente.
+          {lastSavedAt && (
+            <span className="ml-2 text-xs">
+              · salvo às {lastSavedAt.toLocaleTimeString("pt-BR")}
+            </span>
+          )}
+        </p>
+        {prepPct !== null && (
+          <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+            Preparação: {prepPct}%
+            <InfoHint>
+              {gig.prep_pct_at_debrief != null
+                ? "Congelado no momento em que o debrief foi finalizado."
+                : "% do checklist de Preparação (congela ao finalizar o debrief)."}
+            </InfoHint>
           </span>
         )}
-      </p>
+      </div>
 
       <Tabs defaultValue="learn" className="w-full">
           <TabsList>

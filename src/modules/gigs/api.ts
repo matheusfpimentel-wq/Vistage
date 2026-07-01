@@ -3,6 +3,7 @@ import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
 import { averageRating } from "./types";
+import { parsePrepState, prepProgress } from "./prep";
 
 const GIG_COLUMNS = [
   "id",
@@ -60,6 +61,7 @@ const GIG_COLUMNS = [
   "rating_repertoire_note",
   "debrief_completed_at",
   "debrief_pending",
+  "prep_pct_at_debrief",
   "gcal_event_id",
   "gcal_synced_at",
   "main_goal",
@@ -555,6 +557,11 @@ export type GigInsights = {
   byStatus: Record<GigStatus, number>;
   byMonth: { month: string; count: number; revenue: number; avgRating: number | null }[];
   topVenues: { venue_name: string; gigs: number; avg_rating: number | null }[];
+  /**
+   * Avaliação média por faixa de preparação (leitura, não causa). Amostra por
+   * faixa; o consumidor só mostra faixas com sample >= 3.
+   */
+  ratingByPrepBand: { band: "low" | "mid" | "full"; sample: number; avgRating: number | null }[];
 };
 
 export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promise<GigInsights> {
@@ -577,6 +584,9 @@ export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promis
     { count: number; revenue: number; ratings: number[] }
   >();
   const venueBuckets = new Map<string, { gigs: number; ratings: number[] }>();
+  // Faixas de preparação (leitura prep×nota): usa o % congelado no debrief ou,
+  // na falta, o % ao vivo do checklist. Só entram GIGs com avaliação e prep.
+  const prepBands: Record<"low" | "mid" | "full", number[]> = { low: [], mid: [], full: [] };
 
   for (const g of all) {
     byStatus[g.status] = (byStatus[g.status] ?? 0) + 1;
@@ -589,6 +599,19 @@ export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promis
     // Média por GIG = fonte única averageRating (eixos preenchidos, sem o termo
     // fantasma de is_special) — mesma conta da lista/detalhe.
     const avgGig = averageRating(g);
+    if (avgGig !== null) {
+      const prepPct =
+        g.prep_pct_at_debrief != null
+          ? g.prep_pct_at_debrief
+          : (() => {
+              const { done, total } = prepProgress(parsePrepState(g.prep_state));
+              return total > 0 ? Math.round((done / total) * 100) : null;
+            })();
+      if (prepPct !== null) {
+        const band = prepPct < 50 ? "low" : prepPct < 100 ? "mid" : "full";
+        prepBands[band].push(avgGig);
+      }
+    }
     if (avgGig !== null) ratings.push(avgGig);
 
     if (g.debrief_pending === 1) pendingDebriefs += 1;
@@ -648,6 +671,14 @@ export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promis
     byStatus,
     byMonth,
     topVenues,
+    ratingByPrepBand: (["low", "mid", "full"] as const).map((band) => {
+      const arr = prepBands[band];
+      return {
+        band,
+        sample: arr.length,
+        avgRating: arr.length > 0 ? arr.reduce((s, r) => s + r, 0) / arr.length : null,
+      };
+    }),
   };
 }
 

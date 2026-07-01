@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoHint } from "@/components/ui/tooltip";
 import { loadInsights, type GigInsights } from "../api";
 import { formatCurrency, formatRating } from "@/lib/format";
 import { format, parse } from "date-fns";
@@ -215,6 +216,59 @@ export function InsightsView({ refreshKey }: Props) {
               })}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Avaliação por faixa de preparação
+            <InfoHint>
+              Leitura, não causa: mais preparo costuma andar junto de nota mais
+              alta, mas correlação não é causalidade. Faixa aparece só com ≥3
+              GIGs avaliadas.
+            </InfoHint>
+          </CardTitle>
+          <CardDescription>
+            Compara a nota média das GIGs por quanto da Preparação estava pronto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const shown = insights.ratingByPrepBand.filter((b) => b.sample >= 3);
+            if (shown.length === 0) {
+              return (
+                <div className="text-sm text-muted-foreground">
+                  Ainda sem amostra suficiente (mínimo 3 GIGs avaliadas por faixa).
+                </div>
+              );
+            }
+            const label: Record<"low" | "mid" | "full", string> = {
+              low: "< 50%",
+              mid: "50–99%",
+              full: "100%",
+            };
+            return (
+              <div className="space-y-2">
+                {shown.map((b) => (
+                  <div
+                    key={b.band}
+                    className="flex items-center justify-between rounded-md border p-2 text-sm"
+                  >
+                    <span className="font-medium">Preparação {label[b.band]}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {b.sample} GIG{b.sample > 1 ? "s" : ""}
+                      </span>
+                      <span className="tabular-nums text-amber-500">
+                        {b.avgRating !== null ? `★ ${formatRating(b.avgRating)}` : "—"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

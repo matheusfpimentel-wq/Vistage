@@ -143,6 +143,7 @@ const EMPTY: FormState = {
   rating_floor: null,
   rating_floor_note: null,
   is_special: 0,
+  prep_pct_at_debrief: null,
   gcal_event_id: null,
   main_goal: null,
   prep_state: null,
@@ -425,6 +426,7 @@ export function GigForm({
         "debrief_promoter_feedback", "debrief_technical_notes", "debrief_media_content",
         "rating_charisma", "rating_charisma_note", "rating_technique", "rating_technique_note",
         "rating_repertoire", "rating_repertoire_note", "rating_contractor", "is_special",
+        "rating_floor", "rating_floor_note", "prep_pct_at_debrief",
         "debrief_pending", "debrief_completed_at", "fans_present",
       ];
       for (const f of DEBRIEF_FIELDS) {
