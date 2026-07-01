@@ -14,13 +14,15 @@ permite **baixar** o resultado. Feita para ser incorporada no Google Sites.
   - enquanto arrasta, a parte que fica **fora da janela** aparece esmaecida (ajuda a enquadrar).
 - Campos **Nome** e **Lotação** — o texto aparece nas duas barras escuras (nome em cima,
   lotação embaixo), com **MAIÚSCULAS** opcional e ajuste automático de tamanho.
-- **Salvar** (foto → PNG 1489×2013; vídeo → `.mp4`/`.webm` com áudio) e **Copiar** imagem
+- Seletor **Vínculo: Estagiário / Residente** — a palavra escolhida aparece no **selo azul**
+  do canto da moldura.
+- **Salvar** (foto → PNG ~1072×1906; vídeo → `.mp4`/`.webm` com áudio) e **Copiar** imagem
   (desktop). O arquivo sai nomeado com o nome digitado (ex.: `moldura-mppr-ana.png`).
 - Os botões seguem a identidade da moldura: formato pílula, fonte **Futura** e a paleta
   do card (laranja do selo, verde, turquesa-escuro).
 - Fotos são corrigidas de **orientação (EXIF)** e **reduzidas** se forem muito grandes,
   para não travar em celulares.
-- A moldura é a **imagem oficial** (`moldura.png`), embutida em base64. Nada é redesenhado
+- A moldura é a **imagem oficial** (`moldura-estagiario.webp`), embutida em base64. Nada é redesenhado
   e tudo roda no navegador do usuário (nada vai para servidor).
 
 ## Como publicar no Google Sites
@@ -28,7 +30,7 @@ permite **baixar** o resultado. Feita para ser incorporada no Google Sites.
 **Opção A — colar o código:** Inserir → Incorporar → **Código incorporado** → cole o
 `index.html` → Inserir.
 
-> O arquivo tem ~113 KB (moldura + fonte embutidas). Se o Sites reclamar do tamanho, use a Opção B.
+> O arquivo tem ~120 KB (moldura + fontes embutidas). Se o Sites reclamar do tamanho, use a Opção B.
 
 **Opção B — incorporar por URL:** hospede o `index.html` em algo público (GitHub Pages,
 Netlify…) e use Inserir → Incorporar → **Por URL**.
@@ -36,9 +38,10 @@ Netlify…) e use Inserir → Incorporar → **Por URL**.
 ## Ajustes (no início do `<script>`)
 
 ```js
-var WIN      = { x:67, y:53, w:1062, h:1610 };  // janela da foto/vídeo
-var BAR_NOME = { x:66, y:1685, w:1076, h:191 };  // barra do Nome
-var BAR_LOT  = { x:66, y:1893, w:927,  h:90  };  // barra da Lotação
+var WIN      = { x:79, y:210, w:296, h:424 };  // janela da foto/vídeo
+var BAR_NOME = { x:79, y:640, w:300, h:54 };   // barra do Nome
+var BAR_LOT  = { x:79, y:698, w:258, h:25 };   // barra da Lotação
+var BAR_ROLE = { x:342, y:698, w:115, h:25 };  // selo azul (Estagiário/Residente)
 ```
 
 ## Observações
@@ -51,5 +54,6 @@ var BAR_LOT  = { x:66, y:1893, w:927,  h:90  };  // barra da Lotação
   traz os **acentos** (á, ã, ç, é…), então esses caracteres usam como reserva a *Outfit*
   (também geométrica); na prática quase não se nota. Se você tiver uma Futura com acentos,
   dá para trocar e dispensar a reserva.
-- `moldura.png` é a arte oficial (PNG 1489×2013 com janela central transparente). Para
-  trocar a moldura, basta embutir o novo PNG em base64 no lugar de `FRAME_SRC`.
+- `moldura-estagiario.webp` é a arte oficial (WebP 536×953 com janela central transparente).
+  Para trocar a moldura, embuta a nova imagem em base64 no lugar de `FRAME_SRC` e reajuste
+  as medidas acima. Uma arte em resolução maior (ex.: 1080×1920) deixa o resultado mais nítido.
