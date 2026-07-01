@@ -790,12 +790,13 @@ export async function createPartyBudgetItem(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid, premissa, nota_variancia)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       item.party_id, item.category, item.subcategory ?? null, item.description ?? null,
       item.projected_amount, item.actual_amount ?? null, item.supplier_note ?? null,
       item.supplier_id ?? null, item.status, item.date_paid ?? null,
+      item.premissa ?? null, item.nota_variancia ?? null,
     ]
   );
   try {
@@ -885,6 +886,8 @@ export async function syncTeamBudgetItems(
       supplier_id: m.supplier_id ?? null,
       status: "projetado",
       date_paid: null,
+      premissa: null,
+      nota_variancia: null,
     });
     existingKeys.add(description.trim().toLowerCase());
     created.push(m.name);
@@ -1082,11 +1085,12 @@ export async function createPartyTask(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_tasks (party_id, stage_id, title, status, priority, due_date, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO party_tasks (party_id, stage_id, title, status, priority, due_date, notes, responsavel_contact_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       task.party_id, task.stage_id ?? null, task.title,
       task.status, task.priority, task.due_date ?? null, task.notes ?? null,
+      task.responsavel_contact_id ?? null,
     ]
   );
   return Number(res.lastInsertId);

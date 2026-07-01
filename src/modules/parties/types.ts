@@ -79,6 +79,10 @@ export type PartyBudgetItem = {
   id: number; party_id: number; category: string; subcategory: string|null;
   description: string|null; projected_amount: number; actual_amount: number|null;
   supplier_note: string|null; supplier_id: number|null; status: BudgetItemStatus; date_paid: string|null;
+  /** Premissa/assunção da linha (por que deste valor). */
+  premissa: string|null;
+  /** Causa-raiz do desvio projetado×real (preenchida no fechamento). */
+  nota_variancia: string|null;
   created_at: string; updated_at: string;
 };
 
@@ -116,6 +120,8 @@ export type PartyTask = {
   id: number; party_id: number; stage_id: number|null; title: string;
   status: PartyTaskStatus; priority: string; due_date: string|null; notes: string|null;
   global_task_id?: number | null;
+  /** Dono da tarefa (FK contacts) — a etapa vira cronograma com responsável. */
+  responsavel_contact_id?: number | null;
   created_at: string; updated_at: string;
 };
 
