@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Check, ChevronDown, ChevronUp, Loader2, Plus, RotateCcw, Trash2, X,
+  Check, ChevronDown, ChevronUp, Loader2, Plus, RotateCcw, Trash2, User, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,9 @@ import {
 
 const fmtCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+// Radix Select não aceita "" como value — sentinela p/ "sem responsável".
+const NO_RESPONSAVEL = "_none";
 import {
   createPartyStage,
   createPartyTask,
@@ -37,6 +40,8 @@ import {
 } from "../api";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
+import { listContacts } from "@/modules/crm/api";
+import type { Contact } from "@/modules/crm/types";
 
 function stageStatusColor(s: StageStatus) {
   return s === "concluida"
@@ -72,10 +77,19 @@ export function WorkflowTab({
   const [newStageName, setNewStageName] = useState("");
   const [addingStage, setAddingStage] = useState(false);
   const [restoringDefaults, setRestoringDefaults] = useState(false);
-  const [inlineTask, setInlineTask] = useState<Record<number, { title: string; due_date: string }>>({});
+  const [inlineTask, setInlineTask] = useState<
+    Record<number, { title: string; due_date: string; responsavel_contact_id: number | null }>
+  >({});
   const [addingTask, setAddingTask] = useState<number | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   useEffect(() => { void listSuppliers().then(setSuppliers); }, []);
+  useEffect(() => { void listContacts().then(setContacts); }, []);
+  const contactName = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of contacts) m.set(c.id, c.name);
+    return m;
+  }, [contacts]);
 
   function openStage(stage: PartyStage) {
     setExpandedId(stage.id);
@@ -155,8 +169,12 @@ export function WorkflowTab({
         priority: "Normal",
         due_date: t.due_date || null,
         notes: null,
+        responsavel_contact_id: t.responsavel_contact_id ?? null,
       });
-      setInlineTask((prev) => ({ ...prev, [stageId]: { title: "", due_date: "" } }));
+      setInlineTask((prev) => ({
+        ...prev,
+        [stageId]: { title: "", due_date: "", responsavel_contact_id: null },
+      }));
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -392,6 +410,12 @@ export function WorkflowTab({
                       )}>
                         {task.title}
                       </span>
+                      {task.responsavel_contact_id != null && contactName.has(task.responsavel_contact_id) && (
+                        <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          {contactName.get(task.responsavel_contact_id)}
+                        </span>
+                      )}
                       {task.due_date && (
                         <span className="shrink-0 text-xs text-muted-foreground">{formatDate(task.due_date)}</span>
                       )}
@@ -399,21 +423,52 @@ export function WorkflowTab({
                   ))}
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Input
-                  className="flex-1 h-8 text-xs"
+                  className="min-w-[10rem] flex-1 h-8 text-xs"
                   placeholder="Nova tarefa…"
                   value={inlineTask[stage.id]?.title ?? ""}
                   onChange={(e) =>
                     setInlineTask((p) => ({
                       ...p,
-                      [stage.id]: { ...p[stage.id], title: e.target.value, due_date: p[stage.id]?.due_date ?? "" },
+                      [stage.id]: {
+                        title: e.target.value,
+                        due_date: p[stage.id]?.due_date ?? "",
+                        responsavel_contact_id: p[stage.id]?.responsavel_contact_id ?? null,
+                      },
                     }))
                   }
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void handleAddTaskToStage(stage.id);
                   }}
                 />
+                <Select
+                  value={
+                    inlineTask[stage.id]?.responsavel_contact_id != null
+                      ? String(inlineTask[stage.id]?.responsavel_contact_id)
+                      : NO_RESPONSAVEL
+                  }
+                  onValueChange={(v) =>
+                    setInlineTask((p) => ({
+                      ...p,
+                      [stage.id]: {
+                        title: p[stage.id]?.title ?? "",
+                        due_date: p[stage.id]?.due_date ?? "",
+                        responsavel_contact_id: v === NO_RESPONSAVEL ? null : Number(v),
+                      },
+                    }))
+                  }
+                >
+                  <SelectTrigger className="h-8 w-40 text-xs">
+                    <SelectValue placeholder="Responsável" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_RESPONSAVEL}>Sem responsável</SelectItem>
+                    {contacts.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Input
                   type="date"
                   className="w-36 h-8 text-xs"
@@ -421,7 +476,11 @@ export function WorkflowTab({
                   onChange={(e) =>
                     setInlineTask((p) => ({
                       ...p,
-                      [stage.id]: { ...p[stage.id], due_date: e.target.value, title: p[stage.id]?.title ?? "" },
+                      [stage.id]: {
+                        title: p[stage.id]?.title ?? "",
+                        due_date: e.target.value,
+                        responsavel_contact_id: p[stage.id]?.responsavel_contact_id ?? null,
+                      },
                     }))
                   }
                 />

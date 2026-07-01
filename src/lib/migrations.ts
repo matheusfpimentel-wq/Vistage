@@ -2277,6 +2277,12 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE party_budget_items ADD COLUMN nota_variancia TEXT;
     `,
   },
+  {
+    version: 159,
+    description:
+      "Festas/Workflow — party_tasks.responsavel_contact_id: responsável pela tarefa (FK contacts), pra a tarefa de etapa virar cronograma com dono. Aditiva/idempotente.",
+    sql: `ALTER TABLE party_tasks ADD COLUMN responsavel_contact_id INTEGER;`,
+  },
 ];
 
 

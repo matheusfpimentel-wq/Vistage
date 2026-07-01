@@ -1085,11 +1085,12 @@ export async function createPartyTask(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_tasks (party_id, stage_id, title, status, priority, due_date, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO party_tasks (party_id, stage_id, title, status, priority, due_date, notes, responsavel_contact_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       task.party_id, task.stage_id ?? null, task.title,
       task.status, task.priority, task.due_date ?? null, task.notes ?? null,
+      task.responsavel_contact_id ?? null,
     ]
   );
   return Number(res.lastInsertId);
