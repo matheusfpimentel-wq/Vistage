@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import {
   Dialog,
@@ -43,6 +43,8 @@ import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
   PARTY_STATUSES,
+  confirmStatusLabel,
+  type ConfirmStatus,
   type PartyDeserialized,
   type PartyStatus,
   type PartyTeamMember,
@@ -103,6 +105,38 @@ type Props = {
   party?: PartyDeserialized | null;
   onSaved: () => void;
 };
+
+/** Próximo estado do ciclo de confirmação (pendente ↔ confirmado). */
+function cycleConfirm(s: ConfirmStatus | null | undefined): ConfirmStatus {
+  return s === "confirmado" ? "pendente" : "confirmado";
+}
+
+/** Chip de um clique pra confirmar equipe/patrocínio na própria linha (fonte única). */
+function ConfirmChip({
+  status,
+  onCycle,
+}: {
+  status: ConfirmStatus | null | undefined;
+  onCycle: () => void;
+}) {
+  const confirmed = status === "confirmado";
+  return (
+    <button
+      type="button"
+      onClick={onCycle}
+      title="Confirmar / marcar pendente"
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition",
+        confirmed
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      )}
+    >
+      {confirmed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+      {confirmStatusLabel(status)}
+    </button>
+  );
+}
 
 type FormState = {
   title: string;
@@ -1044,14 +1078,22 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       key={i}
                       className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
                     >
-                      <span className="font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+                      <span className="shrink-0 text-muted-foreground">
                         {formatCurrency(s.amount_cents / 100)}
                       </span>
+                      <ConfirmChip
+                        status={s.status}
+                        onCycle={() =>
+                          patchSponsorsLive((prev) =>
+                            prev.map((sp, idx) => (idx === i ? { ...sp, status: cycleConfirm(sp.status) } : sp))
+                          )
+                        }
+                      />
                       <button
                         type="button"
                         onClick={() => removeSponsor(i)}
-                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label="Remover patrocinador"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1091,15 +1133,23 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       key={i}
                       className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
                     >
-                      <span className="font-medium">{m.name}</span>
-                      <span className="text-muted-foreground">{m.role}</span>
-                      <span className="text-muted-foreground">
-                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : "—"}
+                      <span className="min-w-0 flex-1 truncate font-medium">{m.name}</span>
+                      <span className="shrink-0 text-muted-foreground">{m.role}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : EMPTY_VALUE}
                       </span>
+                      <ConfirmChip
+                        status={m.status}
+                        onCycle={() =>
+                          patchTeamLive((prev) =>
+                            prev.map((tm, idx) => (idx === i ? { ...tm, status: cycleConfirm(tm.status) } : tm))
+                          )
+                        }
+                      />
                       <button
                         type="button"
                         onClick={() => removeTeamMember(i)}
-                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label="Remover membro"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
