@@ -79,6 +79,10 @@ export function OrcamentoTab({
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   // Limiar de materialidade (%): destaca só desvios acima disso (foco na atenção).
   const [materiality, setMateriality] = useState(10);
+  // Rascunhos controlados de premissa/nota — o valor reflete na hora (o realce da
+  // nota some ao digitar) e sobrevive a um reload sem precisar recarregar a lista.
+  const [premissaDraft, setPremissaDraft] = useState<Record<number, string>>({});
+  const [notaDraft, setNotaDraft] = useState<Record<number, string>>({});
 
   useEffect(() => {
     void listSuppliers()
@@ -285,7 +289,10 @@ export function OrcamentoTab({
               .flatMap(([, catItems]) =>
                 (catItems as PartyBudgetItem[]).map((item) => {
                   const v = lineVariance(item.projected_amount, item.actual_amount);
-                  const material = v != null && Math.abs(v.pct) >= materiality;
+                  // Só é "material" um desvio DIFERENTE de zero (com limiar 0, uma
+                  // linha em cima do orçamento — 0% — não é desvio material).
+                  const material = v != null && v.pct !== 0 && Math.abs(v.pct) >= materiality;
+                  const notaVal = notaDraft[item.id] ?? item.nota_variancia ?? "";
                   const varTone = v == null ? "text-muted-foreground" : v.abs > 0 ? "text-red-400" : v.abs < 0 ? "text-emerald-500" : "text-muted-foreground";
                   return (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
@@ -294,7 +301,8 @@ export function OrcamentoTab({
                       <td className="px-3 py-2 align-top">
                         <div>{item.description ?? "—"}</div>
                         <Input
-                          defaultValue={item.premissa ?? ""}
+                          value={premissaDraft[item.id] ?? item.premissa ?? ""}
+                          onChange={(e) => setPremissaDraft((d) => ({ ...d, [item.id]: e.target.value }))}
                           onBlur={(e) => void handleFieldSave(item.id, "premissa", e.target.value)}
                           placeholder="Premissa (por quê deste valor)"
                           className="mt-1 h-7 text-xs"
@@ -314,10 +322,11 @@ export function OrcamentoTab({
                               {varianceLabel(v)}
                             </div>
                             <Input
-                              defaultValue={item.nota_variancia ?? ""}
+                              value={notaVal}
+                              onChange={(e) => setNotaDraft((d) => ({ ...d, [item.id]: e.target.value }))}
                               onBlur={(e) => void handleFieldSave(item.id, "nota_variancia", e.target.value)}
                               placeholder="Causa do desvio"
-                              className={cn("mt-1 h-7 text-left text-xs", material && !item.nota_variancia && "ring-1 ring-amber-500/50")}
+                              className={cn("mt-1 h-7 text-left text-xs", material && !notaVal && "ring-1 ring-amber-500/50")}
                             />
                           </>
                         )}
