@@ -81,6 +81,7 @@ const TABLES = [
   "gigs",                    // venue_id → venues, promoter_contact_id → contacts
   "classes",                 // student_id → students
   "party_tasks",             // party_id → parties, stage_id → party_stages
+  "party_ticket_sales",      // party_id → parties (NOT NULL, CASCADE)
   "track_collaborators",     // track_id → tracks
   "track_flow_sessions",     // track_id → tracks
   "track_media_targets",     // track_id → tracks

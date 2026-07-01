@@ -2295,6 +2295,23 @@ const MIGRATIONS: Migration[] = [
       "Festas/P&L — parties.bar_revenue: receita de bar atribuída à festa (a parte que fica com o produtor). Entra na receita do P&L e alimenta o faturamento por cabeça. Aditiva/idempotente.",
     sql: `ALTER TABLE parties ADD COLUMN bar_revenue REAL;`,
   },
+  {
+    version: 162,
+    description:
+      "Festas/Ingressos — party_ticket_sales: pontos datados da curva de venda (quantos ingressos vendidos até cada data). Mostra o ritmo de venda (front-loaded x last-minute) e o sell-through. Tabela nova, idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_ticket_sales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        sale_date TEXT NOT NULL,
+        cumulative_sold INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_ticket_sales_party ON party_ticket_sales(party_id, sale_date);
+    `,
+  },
 ];
 
 

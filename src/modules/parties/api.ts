@@ -14,6 +14,7 @@ import type {
   PartyVenueCandidate,
   PartyRunsheetItem,
   PartyGuest,
+  PartyTicketSale,
   PartySeries,
   PartySeriesCreateInput,
   PartySeriesUpdateInput,
@@ -1074,6 +1075,30 @@ export async function updatePartyGuest(
 
 export async function deletePartyGuest(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_guests WHERE id = $1", [id]);
+}
+
+// ===== PARTY TICKET SALES (curva de venda) =====
+
+export async function listPartyTicketSales(partyId: number): Promise<PartyTicketSale[]> {
+  return getDb().select<PartyTicketSale[]>(
+    "SELECT * FROM party_ticket_sales WHERE party_id = $1 ORDER BY sale_date ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyTicketSale(
+  sale: Omit<PartyTicketSale, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_ticket_sales (party_id, sale_date, cumulative_sold, note)
+     VALUES ($1, $2, $3, $4)`,
+    [sale.party_id, sale.sale_date, sale.cumulative_sold, sale.note ?? null]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function deletePartyTicketSale(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_ticket_sales WHERE id = $1", [id]);
 }
 
 // ===== PARTY TASKS =====

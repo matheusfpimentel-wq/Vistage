@@ -1074,6 +1074,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               <IngressosTab
                 partyId={party.id}
                 tickets={tickets}
+                eventDate={state.date}
                 onReload={loadSubTabs}
               />
             </TabsContent>

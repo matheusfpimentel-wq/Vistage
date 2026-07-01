@@ -95,6 +95,12 @@ export type PartyTicket = {
   sale_start_date: string|null; sale_end_date: string|null; position: number; created_at: string;
 };
 
+/** Ponto datado da curva de venda de ingressos — quantos vendidos ATÉ essa data. */
+export type PartyTicketSale = {
+  id: number; party_id: number; sale_date: string;
+  cumulative_sold: number; note: string | null; created_at: string;
+};
+
 /** Linha do run-of-show (cronograma do Dia D) — aba Operação. */
 export type PartyRunsheetItem = {
   id: number; party_id: number; position: number;
