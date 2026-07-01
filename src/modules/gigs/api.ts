@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
+import { averageRating } from "./types";
 
 const GIG_COLUMNS = [
   "id",
@@ -70,6 +71,8 @@ const GIG_COLUMNS = [
   "event_category",
   "recurring_event_name",
   "rating_contractor",
+  "rating_floor",
+  "rating_floor_note",
   "is_special",
   "created_at",
   "updated_at",
@@ -221,14 +224,16 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     // Marca debrief como pendente se as avaliações não estiverem todas preenchidas
     // (a menos que o debrief já tenha sido finalizado).
     try {
-      const rrows = await db.select<{ rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null; rating_contractor: number | null; debrief_completed_at: string | null }[]>(
-        "SELECT rating_charisma, rating_technique, rating_repertoire, rating_contractor, debrief_completed_at FROM gigs WHERE id = $1", [id]
+      const rrows = await db.select<{ rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null; rating_floor: number | null; debrief_completed_at: string | null }[]>(
+        "SELECT rating_charisma, rating_technique, rating_repertoire, rating_floor, debrief_completed_at FROM gigs WHERE id = $1", [id]
       );
       const r = rrows[0];
       if (r && !r.debrief_completed_at) {
+        // Eixos obrigatórios do debrief: carisma/técnica/repertório/pista
+        // (contratante é opcional). Espelha isComplete() no DebriefForm.
         const ratingsComplete =
           r.rating_charisma != null && r.rating_technique != null &&
-          r.rating_repertoire != null && r.rating_contractor != null;
+          r.rating_repertoire != null && r.rating_floor != null;
         await db.execute("UPDATE gigs SET debrief_pending = $1 WHERE id = $2", [ratingsComplete ? 0 : 1, id]);
       }
     } catch { /* não interrompe */ }
@@ -575,12 +580,9 @@ export async function loadInsights(): Promise<GigInsights> {
       cacheCount += 1;
     }
 
-    const gigRatings = [g.rating_charisma, g.rating_technique, g.rating_repertoire]
-      .filter((r): r is number => typeof r === "number");
-    const avgGig =
-      gigRatings.length > 0
-        ? gigRatings.reduce((s, r) => s + r, 0) / gigRatings.length
-        : null;
+    // Média por GIG = fonte única averageRating (eixos preenchidos, sem o termo
+    // fantasma de is_special) — mesma conta da lista/detalhe.
+    const avgGig = averageRating(g);
     if (avgGig !== null) ratings.push(avgGig);
 
     if (g.debrief_pending === 1) pendingDebriefs += 1;

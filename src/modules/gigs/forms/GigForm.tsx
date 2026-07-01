@@ -140,6 +140,8 @@ const EMPTY: FormState = {
   rating_repertoire: null,
   rating_repertoire_note: null,
   rating_contractor: null,
+  rating_floor: null,
+  rating_floor_note: null,
   is_special: 0,
   gcal_event_id: null,
   main_goal: null,

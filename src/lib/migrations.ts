@@ -2425,6 +2425,15 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE party_budget_items ADD COLUMN contact_id INTEGER;
     `,
   },
+  {
+    version: 171,
+    description:
+      "GIGs/Debrief — gigs ganha rating_floor (eixo Pista: lotação/retenção/resposta) + rating_floor_note. Entra na média (média simples dos eixos preenchidos); GIGs antigas sem o eixo degradam sem erro. Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN rating_floor INTEGER;
+      ALTER TABLE gigs ADD COLUMN rating_floor_note TEXT;
+    `,
+  },
 ];
 
 

@@ -85,7 +85,9 @@ export async function loadExtraStats(): Promise<ExtraStats> {
       db.select<{ n: number }[]>(
         `SELECT COUNT(*) as n FROM gigs
          WHERE date >= $1 AND date <= $2 AND status = 'Concluída'
-           AND (rating_contractor IS NULL)`,
+           AND rating_charisma IS NULL AND rating_technique IS NULL
+           AND rating_repertoire IS NULL AND rating_floor IS NULL
+           AND rating_contractor IS NULL`,
         [weekStartStr, today]
       ),
       db.select<{ created_at: string }[]>(

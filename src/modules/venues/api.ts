@@ -104,6 +104,7 @@ export async function getVenueStats(venueId: number): Promise<VenueStats> {
       avg_c: number | null;
       avg_t: number | null;
       avg_r: number | null;
+      avg_f: number | null;
     }[]
   >(
     `SELECT COUNT(*) as n,
@@ -111,12 +112,13 @@ export async function getVenueStats(venueId: number): Promise<VenueStats> {
             MAX(date) as last,
             AVG(rating_charisma) as avg_c,
             AVG(rating_technique) as avg_t,
-            AVG(rating_repertoire) as avg_r
+            AVG(rating_repertoire) as avg_r,
+            AVG(rating_floor) as avg_f
        FROM gigs WHERE venue_id = $1`,
     [venueId]
   );
   const r = rows[0];
-  const ratings = [r.avg_c, r.avg_t, r.avg_r].filter(
+  const ratings = [r.avg_c, r.avg_t, r.avg_r, r.avg_f].filter(
     (v): v is number => typeof v === "number"
   );
   return {

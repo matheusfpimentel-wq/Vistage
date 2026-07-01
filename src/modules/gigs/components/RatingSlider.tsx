@@ -1,6 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { StarRating } from "@/components/ui/star-rating";
+import { InfoHint } from "@/components/ui/tooltip";
 
 type Props = {
   label: string;
@@ -9,6 +10,8 @@ type Props = {
   onChange: (value: number | null) => void;
   onNoteChange: (note: string | null) => void;
   required?: boolean;
+  /** Âncoras/explicação da nota, reveladas num ícone "?" ao lado do rótulo. */
+  hint?: string;
 };
 
 /**
@@ -22,13 +25,15 @@ export function RatingSlider({
   onChange,
   onNoteChange,
   required,
+  hint,
 }: Props) {
   return (
     <div className="space-y-2">
       <div className="flex items-end justify-between gap-3">
-        <Label>
+        <Label className="flex items-center gap-1">
           {label}{" "}
           {required && <span className="text-destructive">*</span>}
+          {hint && <InfoHint>{hint}</InfoHint>}
         </Label>
         <span className="text-xs text-muted-foreground tabular-nums">
           {value === null ? "sem nota" : `${value} / 5`}

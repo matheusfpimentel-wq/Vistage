@@ -17,6 +17,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
+import { InfoHint } from "@/components/ui/tooltip";
 import { confirmDialog } from "@/components/ui/confirm";
 import { RatingSlider } from "../components/RatingSlider";
 import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
@@ -68,6 +69,8 @@ type DebriefState = Pick<
   | "rating_technique_note"
   | "rating_repertoire"
   | "rating_repertoire_note"
+  | "rating_floor"
+  | "rating_floor_note"
   | "rating_contractor"
   | "is_special"
 >;
@@ -88,18 +91,21 @@ function gigToDebrief(gig: Gig): DebriefState {
     rating_technique_note: gig.rating_technique_note,
     rating_repertoire: gig.rating_repertoire,
     rating_repertoire_note: gig.rating_repertoire_note,
+    rating_floor: gig.rating_floor ?? null,
+    rating_floor_note: gig.rating_floor_note ?? null,
     rating_contractor: gig.rating_contractor ?? null,
     is_special: gig.is_special ?? 0,
   };
 }
 
 function isComplete(state: DebriefState): boolean {
-  // Pontos fortes/fracos/insights deixaram de ser obrigatórios — basta as
-  // três avaliações pra considerar o debrief completo.
+  // Pontos fortes/fracos/insights deixaram de ser obrigatórios — bastam os
+  // quatro eixos de palco (carisma/técnica/repertório/pista) pra completar.
   return (
     state.rating_charisma !== null &&
     state.rating_technique !== null &&
-    state.rating_repertoire !== null
+    state.rating_repertoire !== null &&
+    state.rating_floor !== null
   );
 }
 
@@ -163,6 +169,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
           "rating_charisma",
           "rating_technique",
           "rating_repertoire",
+          "rating_floor",
           "rating_contractor",
         ] as const) {
           if (merged[k] == null && base[k] != null) merged[k] = base[k];
@@ -545,6 +552,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <RatingSlider
               label="Carisma: presença de palco, conexão com o público"
               required
+              hint="5 = dominou o palco e a plateia o tempo todo; 4 = forte presença com poucas quedas; 3 = presença mediana; 2 = pouca conexão; 1 = ausente/apagado."
               value={state.rating_charisma}
               note={state.rating_charisma_note}
               onChange={(v) => set("rating_charisma", v)}
@@ -553,6 +561,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <RatingSlider
               label="Técnica: mixagem, transições, leitura de pista"
               required
+              hint="5 = execução impecável; 4 = boa com deslizes mínimos; 3 = ok com erros perceptíveis; 2 = vários erros; 1 = técnica comprometeu o set."
               value={state.rating_technique}
               note={state.rating_technique_note}
               onChange={(v) => set("rating_technique", v)}
@@ -561,13 +570,24 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <RatingSlider
               label="Repertório: escolhas musicais, curadoria do set"
               required
+              hint="5 = curadoria certeira do início ao fim; 4 = boa com um ou outro furo; 3 = mediana; 2 = desencaixada em trechos; 1 = repertório não funcionou."
               value={state.rating_repertoire}
               note={state.rating_repertoire_note}
               onChange={(v) => set("rating_repertoire", v)}
               onNoteChange={(n) => set("rating_repertoire_note", n)}
             />
             <RatingSlider
+              label="Pista: lotação, retenção, resposta"
+              required
+              hint="5 = pista cheia e retida até o fim; 4 = cheia com oscilação breve; 3 = oscilou / meia casa; 2 = esvaziou em trechos; 1 = esvaziou."
+              value={state.rating_floor}
+              note={state.rating_floor_note}
+              onChange={(v) => set("rating_floor", v)}
+              onNoteChange={(n) => set("rating_floor_note", n)}
+            />
+            <RatingSlider
               label="Avaliação do Contratante (opcional)"
+              hint="Nota que o contratante/casa deu ao seu show, se houver retorno."
               value={state.rating_contractor}
               note={null}
               onChange={(v) => set("rating_contractor", v)}
@@ -575,8 +595,10 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             />
             <div className="flex items-center justify-between rounded-md border px-3 py-2.5">
               <div>
-                <span className="text-sm">GIG Especial ⭐</span>
-                <p className="text-xs text-muted-foreground">Conta como bônus na média de avaliação</p>
+                <span className="flex items-center gap-1 text-sm">
+                  GIG Especial ⭐
+                  <InfoHint>Marca shows de destaque na carreira — não altera a média de avaliação.</InfoHint>
+                </span>
               </div>
               <div className="inline-flex rounded-md border overflow-hidden text-xs">
                 <button
