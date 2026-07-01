@@ -20,6 +20,7 @@ import { computeAlerts } from "@/modules/revisao/alerts";
 import { getCoolingDays, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
+import { filterDismissed, filterSnoozed } from "@/modules/revisao/snooze";
 import { loadExtraStats } from "@/components/shared/NotificationBell";
 import { EVERGREEN, generateRaw } from "@/modules/ideas/provocations";
 
@@ -101,7 +102,7 @@ type AgendaRow = {
 async function buildAgenda(uid: string): Promise<AgendaRow[]> {
   const db = getDb();
   const today = todayISO();
-  const [gigs, classes, tasks] = await Promise.all([
+  const [gigs, classes, tasks, meetings] = await Promise.all([
     db.select<{ id: number; date: string; start_time: string | null; end_time: string | null; venue_name: string; event_name: string | null; recurring_event_name: string | null; venue_city: string | null; status: string }[]>(
       `SELECT id, date, start_time, end_time, venue_name, event_name, recurring_event_name, venue_city, status FROM gigs
         WHERE date >= $1 AND status != 'Cancelada' ORDER BY date LIMIT 100`,
@@ -118,6 +119,11 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
         ORDER BY due_date LIMIT 100`,
       [today]
     ),
+    db.select<{ id: number; title: string; date: string; time: string | null; location: string | null; status: string }[]>(
+      `SELECT id, title, date, time, location, status FROM meetings
+        WHERE date IS NOT NULL AND date >= $1 AND status = 'Agendada' ORDER BY date, time LIMIT 100`,
+      [today]
+    ),
   ]);
 
   const rows: AgendaRow[] = [];
@@ -127,6 +133,8 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
     rows.push({ user_id: uid, source: "class", source_id: String(c.id), title: c.subject ?? "Aula", start_at: startAt(c.date, c.start_time), end_at: null, location: null, meta: {} });
   for (const t of tasks)
     rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date ? startAt(t.due_date, null) : null, end_at: null, location: null, meta: { priority: t.priority } });
+  for (const m of meetings)
+    rows.push({ user_id: uid, source: "meeting", source_id: String(m.id), title: m.title, start_at: startAt(m.date, m.time), end_at: null, location: m.location, meta: { status: m.status } });
   return rows;
 }
 
@@ -692,7 +700,10 @@ async function buildAlerts(uid: string): Promise<
 > {
   try {
     const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
-    const items = [...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()), ...(await evaluateCustomRules())];
+    const all = [...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()), ...(await evaluateCustomRules())];
+    // Respeita as dispensas do PC: o que foi dispensado (X "até mudar") ou adiado
+    // (snooze) no desktop também some do sininho do celular.
+    const items = await filterDismissed(await filterSnoozed(all));
     const seen = new Set<string>();
     const out: { user_id: string; key: string; label: string; route: string | null; critical: boolean; icon: string }[] = [];
     for (const a of items) {
