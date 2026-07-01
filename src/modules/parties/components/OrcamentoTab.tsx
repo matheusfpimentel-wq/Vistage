@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/format";
 import {
   BUDGET_CATEGORIES,
-  budgetSummary,
   type BudgetItemStatus,
   type PartyBudgetItem,
   type PartyDeserialized,
+  type PartyGuest,
   type PartyTicket,
 } from "../types";
 import {
@@ -49,19 +49,21 @@ export function OrcamentoTab({
   party,
   items,
   tickets,
+  guests = [],
   onReload,
 }: {
   party: PartyDeserialized;
   items: PartyBudgetItem[];
   tickets: PartyTicket[];
+  guests?: PartyGuest[];
   onReload: () => Promise<void>;
 }) {
   const navigate = useNavigate();
-  const summary = budgetSummary(items);
   // P&L da festa: o Orçamento é a verdade financeira — receita (ingressos
-  // vendidos + patrocínio) menos custo real = resultado líquido. Cálculo único
-  // em computePartyPnL (antes duplicado em 4 lugares com bases divergentes).
-  const pnl = computePartyPnL(tickets, items, party.sponsors);
+  // vendidos + patrocínio) menos custo real (orçamento + custo variável das
+  // cortesias) = resultado líquido. Cálculo único em computePartyPnL (antes
+  // duplicado em 4 lugares com bases divergentes).
+  const pnl = computePartyPnL(tickets, items, party.sponsors, guests);
   const ticketRevenue = pnl.ticketRevenueReal;
   const sponsorRevenue = pnl.sponsorRevenue;
   const revenue = pnl.revenueReal;
@@ -205,8 +207,11 @@ export function OrcamentoTab({
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Custo</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums text-red-400">{formatCurrency(summary.actual)}</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">Projetado {formatCurrency(summary.projected)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-red-400">{formatCurrency(pnl.costActual)}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            Projetado {formatCurrency(pnl.costProjected)}
+            {pnl.compVariableCost > 0 && ` · Cortesias ${formatCurrency(pnl.compVariableCost)}`}
+          </div>
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Resultado líquido</div>

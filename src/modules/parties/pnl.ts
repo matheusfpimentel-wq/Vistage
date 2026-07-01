@@ -1,4 +1,4 @@
-import type { PartyBudgetItem, PartyTicket } from "./types";
+import type { PartyBudgetItem, PartyGuest, PartyTicket } from "./types";
 
 /**
  * P&L da festa — fonte ÚNICA da verdade financeira de uma festa.
@@ -8,7 +8,10 @@ import type { PartyBudgetItem, PartyTicket } from "./types";
  * `quantity_sold` cru (sem `|| 0`), o que vira `NaN` se a quantidade vier
  * nula. Aqui tudo é coagido a número, então o resultado nunca "explode".
  *
- * Receita = ingressos vendidos + patrocínio. Custo = itens do orçamento.
+ * Receita = ingressos vendidos + patrocínio. Custo = itens do orçamento +
+ * custo variável das cortesias (qtd × custo/cabeça: welcome drink, pulseira,
+ * kit). A receita renunciada da cortesia é informativa e NÃO entra no líquido
+ * (não sai do caixa) — só o custo variável entra.
  * "Real" usa vendidos/realizado; "Meta/Projetado" usa total/projetado.
  */
 
@@ -33,6 +36,10 @@ export type PartyPnL = {
   costActual: number;
   /** Custo realizado só da categoria Marketing (base do CAC). */
   marketingActual: number;
+  /** Custo variável real das cortesias (qtd × custo/cabeça) — já embutido em costProjected/costActual. */
+  compVariableCost: number;
+  /** Receita renunciada em cortesias (qtd × preço de ref.) — informativo, NÃO entra no líquido. */
+  compForgoneRevenue: number;
   /** Resultado líquido real = receita real − custo realizado. */
   netReal: number;
   /** Resultado líquido projetado = receita-meta − custo projetado. */
@@ -45,6 +52,7 @@ export function computePartyPnL(
   tickets: Pick<PartyTicket, "price" | "quantity_sold" | "quantity_total">[],
   items: Pick<PartyBudgetItem, "category" | "projected_amount" | "actual_amount">[],
   sponsors: { amount_cents: number }[],
+  guests: Pick<PartyGuest, "quantity" | "unit_cost" | "ref_price">[] = [],
 ): PartyPnL {
   let sold = 0;
   let capacity = 0;
@@ -71,6 +79,18 @@ export function computePartyPnL(
     if (i.category === MARKETING_CATEGORY) marketingActual += actual;
   }
 
+  let compVariableCost = 0;
+  let compForgoneRevenue = 0;
+  for (const g of guests) {
+    const q = g.quantity || 0;
+    compVariableCost += q * (g.unit_cost || 0);
+    compForgoneRevenue += q * (g.ref_price || 0);
+  }
+  // O custo variável da cortesia é caixa real: entra tanto no projetado quanto
+  // no realizado (você já planejou e vai gastar o drink/pulseira por cabeça).
+  const costProjectedTotal = costProjected + compVariableCost;
+  const costActualTotal = costActual + compVariableCost;
+
   const revenueReal = ticketRevenueReal + sponsorRevenue;
   return {
     sold,
@@ -79,11 +99,13 @@ export function computePartyPnL(
     ticketRevenueMeta,
     sponsorRevenue,
     revenueReal,
-    costProjected,
-    costActual,
+    costProjected: costProjectedTotal,
+    costActual: costActualTotal,
     marketingActual,
-    netReal: revenueReal - costActual,
-    netProjected: ticketRevenueMeta + sponsorRevenue - costProjected,
+    compVariableCost,
+    compForgoneRevenue,
+    netReal: revenueReal - costActualTotal,
+    netProjected: ticketRevenueMeta + sponsorRevenue - costProjectedTotal,
     cac: sold > 0 ? marketingActual / sold : null,
   };
 }

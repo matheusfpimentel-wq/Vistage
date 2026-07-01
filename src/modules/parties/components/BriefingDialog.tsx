@@ -19,11 +19,12 @@ import { DEFAULT_STAGE_NAMES } from "../types";
 import type {
   PartyBudgetItem,
   PartyDeserialized,
+  PartyGuest,
   PartyRunsheetItem,
   PartyStage,
   PartyTicket,
 } from "../types";
-import { getPartySeries, listPartyRunsheet } from "../api";
+import { getPartySeries, listPartyGuests, listPartyRunsheet } from "../api";
 import {
   BRIEFING_AUDIENCES,
   briefingToMarkdown,
@@ -56,11 +57,13 @@ export function BriefingDialog({
   const [stageName, setStageName] = useState<string>(DEFAULT_STAGE_NAMES[0]);
   const [audience, setAudience] = useState<BriefingAudience>("interno");
   const [runsheet, setRunsheet] = useState<PartyRunsheetItem[]>([]);
+  const [guests, setGuests] = useState<PartyGuest[]>([]);
   const [seriesName, setSeriesName] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
     setRunsheet(await listPartyRunsheet(party.id).catch(() => []));
+    setGuests(await listPartyGuests(party.id).catch(() => []));
     if (party.series_id) {
       const s = await getPartySeries(party.series_id).catch(() => null);
       setSeriesName(s?.name ?? null);
@@ -79,11 +82,12 @@ export function BriefingDialog({
         stages,
         tickets,
         budget,
+        guests,
         runsheet,
         lineupNames,
         seriesName,
       }),
-    [stageName, audience, party, stages, tickets, budget, runsheet, lineupNames, seriesName]
+    [stageName, audience, party, stages, tickets, budget, guests, runsheet, lineupNames, seriesName]
   );
 
   async function copyMarkdown() {

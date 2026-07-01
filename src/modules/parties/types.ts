@@ -108,10 +108,15 @@ export const GUEST_REASONS = ["Influencer", "Imprensa", "VIP", "Permuta", "Equip
 export const GUEST_STATUSES = ["Confirmado", "Pendente", "Compareceu", "Faltou"] as const;
 export type GuestStatus = (typeof GUEST_STATUSES)[number];
 
-/** Cortesia / guest list — o custo é RECEITA RENUNCIADA (qtd × preço de ref.), não despesa. */
+/** Cortesia / guest list — tem DOIS custos: receita renunciada (qtd × preço de
+ * ref., informativo, não sai do caixa) E custo variável real (qtd × unit_cost:
+ * welcome drink, pulseira, kit). Só o custo variável entra no líquido do P&L. */
 export type PartyGuest = {
   id: number; party_id: number; name: string; reason: string | null;
-  quantity: number; ref_price: number; status: GuestStatus; created_at: string;
+  quantity: number; ref_price: number;
+  /** Custo variável real por cabeça (drink/pulseira/kit) — entra no líquido. */
+  unit_cost: number;
+  status: GuestStatus; created_at: string;
 };
 
 type PartyTaskStatus = "pendente"|"em_andamento"|"concluida";
