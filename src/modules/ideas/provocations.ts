@@ -6,6 +6,7 @@ import { listOkrs, okrProgress } from "@/modules/objetivos/api";
 import { listTasks } from "@/modules/tasks/api";
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
+import { parseDebriefItems } from "@/modules/gigs/debriefItems";
 import { loadSwot } from "@/modules/dashboard/methodologies";
 import { listIdeas } from "./api";
 
@@ -155,9 +156,8 @@ export async function generateRaw(): Promise<RawInsight[]> {
         .slice(0, 12);
       for (const g of recent) {
         const where = gigDisplayName(g);
-        for (const [idx, line] of (g.debrief_weaknesses ?? "")
-          .split("\n").map((l) => l.trim()).filter(Boolean).entries()) {
-          add(`gig-weak:${g.id}:${idx}`, `Dificuldade em ${where}: ${line} — como evitar na próxima?`, true);
+        for (const [idx, item] of parseDebriefItems(g.debrief_weaknesses).entries()) {
+          add(`gig-weak:${g.id}:${idx}`, `Dificuldade em ${where}: ${item.text}. Como evitar na próxima?`, true);
         }
         const learn = (g.debrief_learnings ?? "").trim();
         if (learn) add(`gig-learn:${g.id}`, `Aprendizado de ${where}: ${learn}. Como aplicar de novo?`, true);

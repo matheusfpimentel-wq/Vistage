@@ -21,9 +21,11 @@ import { InfoHint } from "@/components/ui/tooltip";
 import { confirmDialog } from "@/components/ui/confirm";
 import { RatingSlider } from "../components/RatingSlider";
 import { DebriefTasks, type PendingDebriefTask } from "../components/DebriefTasks";
+import { DebriefItemList } from "../components/DebriefItemList";
 import { FansPresentPicker } from "../components/FansPresentPicker";
 import { averageRating, type Gig } from "../types";
 import { parsePrepState, prepProgress } from "../prep";
+import { parseDebriefItems, serializeDebriefItems } from "../debriefItems";
 import {
   clearDebriefDraft,
   loadDebriefDraft,
@@ -33,6 +35,7 @@ import {
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
 import { addVenueTechNote } from "@/modules/venues/api";
+import { listContacts } from "@/modules/crm/api";
 import { clearGigMarkers, loadGigMarkers, STRONG_TIPO_LABEL, WEAK_TIPO_LABEL, type SessionMarkers } from "@/modules/foco/api";
 import {
   addFanInteraction,
@@ -78,11 +81,20 @@ type DebriefState = Pick<
 >;
 
 function gigToDebrief(gig: Gig): DebriefState {
+  // Backfill: "Oportunidades aproveitadas" foi removido do formulário e vira
+  // itens de Pontos fortes. Preserva o texto original; ao salvar, a coluna
+  // antiga é zerada (persistDebrief) — leitura idempotente.
+  const strengths = parseDebriefItems(gig.debrief_strengths);
+  const usedOpps = parseDebriefItems(gig.debrief_opportunities_used);
+  const mergedStrengths =
+    usedOpps.length > 0
+      ? serializeDebriefItems([...strengths, ...usedOpps])
+      : gig.debrief_strengths;
   return {
-    debrief_strengths: gig.debrief_strengths,
+    debrief_strengths: mergedStrengths,
     debrief_weaknesses: gig.debrief_weaknesses,
     debrief_learnings: gig.debrief_learnings,
-    debrief_opportunities_used: gig.debrief_opportunities_used,
+    debrief_opportunities_used: null,
     debrief_future_opportunities: gig.debrief_future_opportunities,
     debrief_promoter_feedback: gig.debrief_promoter_feedback,
     debrief_technical_notes: gig.debrief_technical_notes,
@@ -143,6 +155,8 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
   const skipNextSave = useRef(true);
   // Marcadores ao vivo do Modo Foco ligados a esta GIG (erro→fracos, momento→fortes).
   const [liveMarkers, setLiveMarkers] = useState<SessionMarkers | null>(null);
+  // Contatos p/ vincular pessoa a oportunidades futuras.
+  const [contacts, setContacts] = useState<{ id: number; name: string }[]>([]);
 
   // hidrata do rascunho ao abrir (se houver) — rascunho tem prioridade sobre o banco
   // já que representa edição mais recente não-confirmada.
@@ -159,6 +173,15 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       setFansPresent([]);
     }
     void loadGigMarkers(gig.id).then(setLiveMarkers).catch(() => setLiveMarkers(null));
+    void listContacts()
+      .then((cs) =>
+        setContacts(
+          [...cs]
+            .map((c) => ({ id: c.id, name: c.name }))
+            .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+        )
+      )
+      .catch(() => setContacts([]));
     (async () => {
       const draft = await loadDebriefDraft(gig.id);
       const base = gigToDebrief(gig);
@@ -209,11 +232,11 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     setState((s) => ({ ...s, [key]: value }));
   }
 
-  /** Joga um resumo dos marcadores ao vivo no fim de um campo (sem apagar o texto). */
+  /** Acrescenta o resumo dos marcadores ao vivo como um item da lista. */
   function appendTo(key: "debrief_strengths" | "debrief_weaknesses", line: string) {
     setState((s) => {
-      const cur = (s[key] ?? "").trim();
-      return { ...s, [key]: cur ? `${cur}\n${line}` : line };
+      const items = parseDebriefItems(s[key]);
+      return { ...s, [key]: serializeDebriefItems([...items, { text: line }]) };
     });
   }
 
@@ -287,24 +310,8 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       }
     }
 
-    // Future opportunities
-    if (state.debrief_future_opportunities && state.debrief_future_opportunities.trim()) {
-      try {
-        await createIdea({
-          title: `Oportunidade: ${state.debrief_future_opportunities.slice(0, 60)}`,
-          body: state.debrief_future_opportunities,
-          category: "GIG",
-          maturation: "Embrião",
-          heat: 3,
-          tags: ["debrief", "oportunidade"],
-          converted_to: null,
-          converted_id: null,
-        });
-        count++;
-      } catch {
-        /* não interrompe */
-      }
-    }
+    // Oportunidades futuras deixaram de virar ideia automaticamente: agora são
+    // itens acionáveis (virar tarefa / vincular pessoa), convertidos sob demanda.
 
     return count;
   }
@@ -317,6 +324,53 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     const { done, total } = prepProgress(parsePrepState(gig.prep_state));
     return total > 0 ? Math.round((done / total) * 100) : null;
   }, [gig.prep_pct_at_debrief, gig.prep_state]);
+
+  /** Cria uma tarefa (vinculada à GIG) a partir de um item do debrief. */
+  async function makeTaskFromItem(text: string): Promise<number | null> {
+    const clean = text.trim();
+    if (!clean) return null;
+    try {
+      const id = await createTask({
+        title: clean,
+        description: `Originada no debrief de ${gig.venue_name}.`,
+        category: "GIG",
+        gig_id: gig.id,
+        contact_id: gig.promoter_contact_id,
+        priority: "Média",
+        status: "A fazer",
+        due_date: null,
+        tags: ["do-debrief"],
+      });
+      toast.success("Tarefa criada.");
+      return id;
+    } catch {
+      toast.error("Não foi possível criar a tarefa.");
+      return null;
+    }
+  }
+
+  /** Cria uma ideia a partir de um item do debrief. */
+  async function makeIdeaFromItem(text: string): Promise<number | null> {
+    const clean = text.trim();
+    if (!clean) return null;
+    try {
+      const id = await createIdea({
+        title: clean.slice(0, 80),
+        body: clean,
+        category: "GIG",
+        maturation: "Embrião",
+        heat: 2,
+        tags: ["debrief"],
+        converted_to: null,
+        converted_id: null,
+      });
+      toast.success("Ideia criada.");
+      return id;
+    } catch {
+      toast.error("Não foi possível criar a ideia.");
+      return null;
+    }
+  }
 
   /** Salva a observação técnica atual no venue (conhecimento reutilizável). */
   async function saveTechNoteToVenue() {
@@ -568,21 +622,27 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                 )}
               </div>
             )}
-            <DebriefField
+            <DebriefItemList
               label="Pontos fortes da apresentação"
-              compact
-              value={state.debrief_strengths}
-              onChange={(v) => set("debrief_strengths", v)}
+              hint="O que funcionou — 1 por linha. Vira base pra repetir no próximo show."
+              items={parseDebriefItems(state.debrief_strengths)}
+              onChange={(items) => set("debrief_strengths", serializeDebriefItems(items))}
+              placeholder="ponto forte…"
             />
-            <DebriefField
+            <DebriefItemList
               label="Pontos fracos da apresentação"
-              compact
-              value={state.debrief_weaknesses}
-              onChange={(v) => set("debrief_weaknesses", v)}
+              hint="O que melhorar — cada item pode virar tarefa ou ideia."
+              items={parseDebriefItems(state.debrief_weaknesses)}
+              onChange={(items) => set("debrief_weaknesses", serializeDebriefItems(items))}
+              placeholder="ponto a melhorar…"
+              actions={["task", "idea"]}
+              onMakeTask={makeTaskFromItem}
+              onMakeIdea={makeIdeaFromItem}
             />
             <DebriefField
               label="Insights"
               compact
+              hint="Lição generalizável (não só desta GIG) — vira ideia no banco ao finalizar."
               value={state.debrief_learnings}
               onChange={(v) => set("debrief_learnings", v)}
             />
@@ -681,15 +741,15 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
           {/* ============ OUTROS ============ */}
           <TabsContent value="more" className="space-y-4">
-            <DebriefField
-              label="Oportunidades aproveitadas durante a GIG"
-              value={state.debrief_opportunities_used}
-              onChange={(v) => set("debrief_opportunities_used", v)}
-            />
-            <DebriefField
+            <DebriefItemList
               label="Oportunidades futuras (o que essa GIG abriu)"
-              value={state.debrief_future_opportunities}
-              onChange={(v) => set("debrief_future_opportunities", v)}
+              hint="Portas que a GIG abriu — vire tarefa pra dar sequência ou vincule a pessoa-chave."
+              items={parseDebriefItems(state.debrief_future_opportunities)}
+              onChange={(items) => set("debrief_future_opportunities", serializeDebriefItems(items))}
+              placeholder="oportunidade…"
+              actions={["task", "person"]}
+              onMakeTask={makeTaskFromItem}
+              contacts={contacts}
             />
             <div className="space-y-1">
               <DebriefField
@@ -822,18 +882,21 @@ function DebriefField({
   value,
   required,
   compact,
+  hint,
   onChange,
 }: {
   label: string;
   value: string | null;
   required?: boolean;
   compact?: boolean;
+  hint?: string;
   onChange: (value: string | null) => void;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>
+      <Label className="flex items-center gap-1">
         {label} {required && <span className="text-destructive">*</span>}
+        {hint && <InfoHint>{hint}</InfoHint>}
       </Label>
       <Textarea
         rows={compact ? 2 : 4}
