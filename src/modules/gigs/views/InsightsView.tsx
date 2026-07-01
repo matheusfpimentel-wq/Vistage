@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { InfoHint } from "@/components/ui/tooltip";
 import { loadInsights, type GigInsights } from "../api";
-import { formatCurrency, formatRating } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatRating } from "@/lib/format";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { GIG_STATUSES } from "../types";
@@ -51,7 +51,7 @@ export function InsightsView({ refreshKey }: Props) {
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           {specialOnly
             ? "Nenhuma GIG marcada como especial ainda."
-            : "Sem dados ainda — crie algumas GIGs e volte aqui pra ver os insights."}
+            : "Ainda sem dados. Crie GIGs e volte aqui pros insights."}
         </div>
       </div>
     );
@@ -77,7 +77,7 @@ export function InsightsView({ refreshKey }: Props) {
           value={
             insights.averageRating !== null
               ? formatRating(insights.averageRating)
-              : "—"
+              : EMPTY_VALUE
           }
         />
         <Stat
@@ -152,7 +152,7 @@ export function InsightsView({ refreshKey }: Props) {
                       </span>
                     </div>
                     <span className="tabular-nums text-amber-500">
-                      {v.avg_rating !== null ? formatRating(v.avg_rating) : "—"}
+                      {v.avg_rating !== null ? formatRating(v.avg_rating) : EMPTY_VALUE}
                     </span>
                   </div>
                 ))}
@@ -261,7 +261,7 @@ export function InsightsView({ refreshKey }: Props) {
                         {b.sample} GIG{b.sample > 1 ? "s" : ""}
                       </span>
                       <span className="tabular-nums text-amber-500">
-                        {b.avgRating !== null ? `★ ${formatRating(b.avgRating)}` : "—"}
+                        {b.avgRating !== null ? `★ ${formatRating(b.avgRating)}` : EMPTY_VALUE}
                       </span>
                     </div>
                   </div>

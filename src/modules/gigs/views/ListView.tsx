@@ -7,7 +7,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { parsePrepState, prepProgress } from "../prep";
-import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 import { useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
@@ -167,7 +167,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         g.promoter_contact_name ? (
           <span className="truncate">{g.promoter_contact_name}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          EMPTY_VALUE
         ),
     },
     status: {
@@ -204,7 +204,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         return avg !== null ? (
           <span className="text-amber-500">{formatRating(avg)}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          EMPTY_VALUE
         );
       },
     },
