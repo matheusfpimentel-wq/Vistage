@@ -38,7 +38,7 @@ Netlify…) e use Inserir → Incorporar → **Por URL**.
 ## Ajustes (no início do `<script>`)
 
 ```js
-var WIN      = { x:79, y:210, w:296, h:424 };  // janela da foto/vídeo
+var WIN      = { x:79, y:185, w:297, h:450 };  // janela da foto/vídeo
 var BAR_NOME = { x:79, y:640, w:300, h:54 };   // barra do Nome
 var BAR_LOT  = { x:79, y:698, w:258, h:25 };   // barra da Lotação
 var BAR_ROLE = { x:342, y:698, w:115, h:25 };  // selo azul (Estagiário/Residente)
@@ -49,6 +49,9 @@ var BAR_ROLE = { x:342, y:698, w:115, h:25 };  // selo azul (Estagiário/Residen
 - **Áudio do vídeo** é capturado via Web Audio (`createMediaElementSource` →
   `MediaStreamDestination`) — funciona em Chrome/Firefox (desktop) e Chrome (Android).
   No iPhone/Safari a captura é bloqueada; nesse caso o vídeo é salvo sem som.
+- **Formato do vídeo:** grava em **MP4** quando o navegador suporta (Chrome no PC/Android,
+  Safari) — formato aceito pelos Stories. Onde só há WebM (ex.: Firefox), o app avisa, pois
+  os Stories não aceitam WEBM.
 - A fonte do **Nome/Lotação** é a **Futura** (Bold no nome, Medium na lotação) — a fonte
   da identidade do MPPR —, embutida como subconjunto. O arquivo de Futura fornecido não
   traz os **acentos** (á, ã, ç, é…), então esses caracteres usam como reserva a *Outfit*
