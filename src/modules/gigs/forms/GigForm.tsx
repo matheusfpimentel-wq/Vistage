@@ -38,7 +38,7 @@ import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { todayISO, formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, todayISO, formatCurrency, formatDate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
@@ -1414,7 +1414,7 @@ function ResearchList({
               <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="text-sm font-medium leading-none">
-                  {item.title || "—"}
+                  {item.title || EMPTY_VALUE}
                   {item.artist && <span className="ml-1.5 text-xs text-muted-foreground">· {item.artist}</span>}
                 </div>
                 <Input

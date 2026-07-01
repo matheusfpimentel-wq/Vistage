@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
+import { InfoHint } from "@/components/ui/tooltip";
 import {
   BUDGET_CATEGORIES,
   type BudgetItemStatus,
@@ -315,13 +316,13 @@ export function OrcamentoTab({
           <span className="text-muted-foreground">
             Faturamento/cabeça{" "}
             <strong className="tabular-nums text-foreground">
-              {pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
+              {pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : EMPTY_VALUE}
             </strong>
           </span>
           <span className="text-muted-foreground">
             Lucro/cabeça{" "}
             <strong className={cn("tabular-nums", (pnl.netPerHead ?? 0) >= 0 ? "text-emerald-500" : "text-red-400")}>
-              {pnl.netPerHead != null ? formatCurrency(pnl.netPerHead) : "—"}
+              {pnl.netPerHead != null ? formatCurrency(pnl.netPerHead) : EMPTY_VALUE}
             </strong>
           </span>
           <span className="text-muted-foreground">
@@ -408,7 +409,7 @@ export function OrcamentoTab({
 
       {/* Limiar de materialidade — destaca só os desvios que merecem atenção. */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>Materialidade:</span>
+        <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Variância.</InfoHint></span>
         <Input
           type="number"
           min={0}
@@ -417,7 +418,7 @@ export function OrcamentoTab({
           onChange={(e) => setMateriality(Math.max(0, Number(e.target.value) || 0))}
           className="h-7 w-16 tabular-nums"
         />
-        <span>% — desvios acima disso ficam destacados na coluna Variância.</span>
+        <span>%</span>
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -456,9 +457,9 @@ export function OrcamentoTab({
                   return (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.category}</td>
-                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.subcategory ?? "—"}</td>
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.subcategory ?? EMPTY_VALUE}</td>
                       <td className="px-3 py-2 align-top">
-                        <div>{item.description ?? "—"}</div>
+                        <div>{item.description ?? EMPTY_VALUE}</div>
                         <Input
                           value={premissaDraft[item.id] ?? item.premissa ?? ""}
                           onChange={(e) => setPremissaDraft((d) => ({ ...d, [item.id]: e.target.value }))}
@@ -469,11 +470,11 @@ export function OrcamentoTab({
                       </td>
                       <td className="px-3 py-2 text-right align-top tabular-nums">{formatCurrency(item.projected_amount)}</td>
                       <td className="px-3 py-2 text-right align-top tabular-nums">
-                        {item.actual_amount != null ? formatCurrency(item.actual_amount) : "—"}
+                        {item.actual_amount != null ? formatCurrency(item.actual_amount) : EMPTY_VALUE}
                       </td>
                       <td className="px-3 py-2 text-right align-top tabular-nums">
                         {v == null ? (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">{EMPTY_VALUE}</span>
                         ) : (
                           <>
                             <div className={cn("inline-flex items-center justify-end gap-1", varTone, material && "font-semibold")}>
