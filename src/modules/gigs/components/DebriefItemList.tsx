@@ -185,6 +185,9 @@ export function DebriefItemList({
               addFromDraft();
             }
           }}
+          // Commita o texto pendente ao sair do campo (ex.: clicar em Finalizar
+          // sem apertar Enter) pra não perder o item digitado.
+          onBlur={addFromDraft}
           placeholder={placeholder}
           className="h-8 flex-1"
         />

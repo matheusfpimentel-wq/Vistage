@@ -46,7 +46,11 @@ export function parseDebriefItems(raw: string | null | undefined): DebriefItem[]
     try {
       const arr = JSON.parse(t) as unknown;
       if (Array.isArray(arr)) {
-        return arr.map(normalize).filter((x): x is DebriefItem => x !== null);
+        const items = arr.map(normalize).filter((x): x is DebriefItem => x !== null);
+        // Só aceita o parse JSON se ele de fato rendeu itens. Um texto legado que
+        // por acaso é um array JSON sem itens válidos (ex.: "[1, 2, 3]") NÃO pode
+        // ser silenciosamente descartado — cai no fallback de texto abaixo.
+        if (items.length > 0) return items;
       }
     } catch {
       /* cai no fallback de texto legado */

@@ -80,21 +80,33 @@ type DebriefState = Pick<
   | "is_special"
 >;
 
-function gigToDebrief(gig: Gig): DebriefState {
-  // Backfill: "Oportunidades aproveitadas" foi removido do formulário e vira
-  // itens de Pontos fortes. Preserva o texto original; ao salvar, a coluna
-  // antiga é zerada (persistDebrief) — leitura idempotente.
-  const strengths = parseDebriefItems(gig.debrief_strengths);
-  const usedOpps = parseDebriefItems(gig.debrief_opportunities_used);
-  const mergedStrengths =
-    usedOpps.length > 0
-      ? serializeDebriefItems([...strengths, ...usedOpps])
-      : gig.debrief_strengths;
+/**
+ * Backfill: "Oportunidades aproveitadas" saiu do formulário e vira itens de
+ * Pontos fortes. Move o texto (preservando-o) e zera a coluna antiga. É
+ * idempotente — roda tanto no estado do banco quanto no rascunho hidratado,
+ * cobrindo rascunhos criados na versão anterior (que ainda trazem a coluna).
+ */
+function backfillUsedOpps(state: DebriefState): DebriefState {
+  const usedOpps = parseDebriefItems(state.debrief_opportunities_used);
+  if (usedOpps.length === 0) {
+    return state.debrief_opportunities_used == null
+      ? state
+      : { ...state, debrief_opportunities_used: null };
+  }
+  const strengths = parseDebriefItems(state.debrief_strengths);
   return {
-    debrief_strengths: mergedStrengths,
+    ...state,
+    debrief_strengths: serializeDebriefItems([...strengths, ...usedOpps]),
+    debrief_opportunities_used: null,
+  };
+}
+
+function gigToDebrief(gig: Gig): DebriefState {
+  return backfillUsedOpps({
+    debrief_strengths: gig.debrief_strengths,
     debrief_weaknesses: gig.debrief_weaknesses,
     debrief_learnings: gig.debrief_learnings,
-    debrief_opportunities_used: null,
+    debrief_opportunities_used: gig.debrief_opportunities_used,
     debrief_future_opportunities: gig.debrief_future_opportunities,
     debrief_promoter_feedback: gig.debrief_promoter_feedback,
     debrief_technical_notes: gig.debrief_technical_notes,
@@ -109,7 +121,7 @@ function gigToDebrief(gig: Gig): DebriefState {
     rating_floor_note: gig.rating_floor_note ?? null,
     rating_contractor: gig.rating_contractor ?? null,
     is_special: gig.is_special ?? 0,
-  };
+  });
 }
 
 function isComplete(state: DebriefState): boolean {
@@ -186,7 +198,9 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       const draft = await loadDebriefDraft(gig.id);
       const base = gigToDebrief(gig);
       if (draft) {
-        const merged = { ...base, ...(draft as DebriefState) };
+        // Rascunho da versão anterior pode reintroduzir debrief_opportunities_used;
+        // roda o backfill de novo no merge pra o campo removido não ficar preso.
+        const merged = backfillUsedOpps({ ...base, ...(draft as DebriefState) });
         // Avaliações vindas do sync do celular (gravadas NA GIG) não podem ser
         // apagadas por um rascunho antigo que ainda estava sem nota: se o rascunho
         // está null e a GIG tem nota, a da GIG vence (senão a estrela "some").
@@ -459,7 +473,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
 
   async function saveAsComplete() {
     if (!complete) {
-      toast.error("Preencha as três avaliações para concluir o debrief.");
+      toast.error("Preencha as quatro avaliações para concluir o debrief.");
       return;
     }
     setSaving(true);
@@ -805,8 +819,8 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               Esta GIG foi marcada como <strong>Concluída</strong>. Preencha as
-              três avaliações (carisma, técnica, repertório) ou salve como
-              pendente para terminar depois.
+              quatro avaliações (carisma, técnica, repertório, pista) ou salve
+              como pendente para terminar depois.
             </div>
           </div>
         )}
