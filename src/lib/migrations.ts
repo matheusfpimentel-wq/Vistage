@@ -2339,6 +2339,12 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_party_compliance_party ON party_compliance(party_id, position);
     `,
   },
+  {
+    version: 165,
+    description:
+      "Festas/Operação — party_runsheet.duration_min: duração (min) de cada item do run-of-show, pra montar o cronograma REVERSO (recalcula os horários de trás pra frente a partir de uma âncora). Aditiva/idempotente.",
+    sql: `ALTER TABLE party_runsheet ADD COLUMN duration_min INTEGER;`,
+  },
 ];
 
 

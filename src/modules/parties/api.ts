@@ -726,8 +726,8 @@ export async function createEdition(
       );
       for (const r of rs) {
         await db.execute(
-          "INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-          [newId, r.position, r.time, r.end_time, r.title, r.performer_contact_id, r.notes]
+          "INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes, duration_min) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+          [newId, r.position, r.time, r.end_time, r.title, r.performer_contact_id, r.notes, r.duration_min]
         );
       }
     }
@@ -1017,11 +1017,12 @@ export async function createPartyRunsheetItem(
   item: Omit<PartyRunsheetItem, "id" | "created_at">
 ): Promise<number> {
   const res = await getDb().execute(
-    `INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes, duration_min)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       item.party_id, item.position, item.time ?? null, item.end_time ?? null,
       item.title, item.performer_contact_id ?? null, item.notes ?? null,
+      item.duration_min ?? null,
     ]
   );
   return Number(res.lastInsertId);

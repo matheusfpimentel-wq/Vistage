@@ -110,6 +110,8 @@ export type PartyRunsheetItem = {
   id: number; party_id: number; position: number;
   time: string | null; end_time: string | null;
   title: string; performer_contact_id: number | null; notes: string | null;
+  /** Duração em minutos — base do cronograma reverso (recalcula horários a partir de uma âncora). */
+  duration_min: number | null;
   created_at: string;
 };
 

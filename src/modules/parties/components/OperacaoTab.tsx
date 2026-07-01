@@ -44,10 +44,56 @@ type RowPatch = Partial<Omit<PartyRunsheetItem, "id" | "party_id" | "created_at"
  * line-up. Mais um campo único de "pendências com a casa" (a casa resolve o
  * pesado na sua escala; aqui é só o que você precisa confirmar com ela).
  */
+
+/** "HH:MM" → minutos desde a meia-noite; null se inválido. */
+function parseHHMM(s: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** Minutos → "HH:MM" no relógio de 24h (envolve a meia-noite pra trás). */
+function fmtHHMM(min: number): string {
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 export function OperacaoTab({ partyId, performers }: { partyId: number; performers: Performer[] }) {
   const [rows, setRows] = useState<PartyRunsheetItem[]>([]);
   const [housePending, setHousePending] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [anchorTime, setAnchorTime] = useState("");
+
+  // Cronograma reverso: recalcula os horários de trás pra frente pela duração de
+  // cada item, pra tudo TERMINAR na hora-âncora (ex.: portas às 23h). O último
+  // item acaba na âncora; cada anterior termina onde o próximo começa.
+  async function reverseSchedule() {
+    const anchor = parseHHMM(anchorTime);
+    if (anchor == null) {
+      toast.error("Informe a hora-âncora (ex.: 23:00)");
+      return;
+    }
+    let cursor = anchor;
+    const updates: { id: number; time: string; end_time: string }[] = [];
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const dur = rows[i].duration_min ?? 0;
+      const end = cursor;
+      const start = cursor - dur;
+      updates.push({ id: rows[i].id, time: fmtHHMM(start), end_time: fmtHHMM(end) });
+      cursor = start;
+    }
+    try {
+      for (const u of updates) {
+        await updatePartyRunsheetItem(u.id, { time: u.time, end_time: u.end_time });
+      }
+      await reload();
+      toast.success("Cronograma recalculado de trás pra frente.");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
 
   const reload = useCallback(async () => {
     const [r, hp] = await Promise.all([listPartyRunsheet(partyId), getPartyHousePending(partyId)]);
@@ -70,6 +116,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
         title: "",
         performer_contact_id: null,
         notes: null,
+        duration_min: null,
       });
       void reload();
     } catch (e) {
@@ -96,6 +143,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           title: `Set — ${p.name}`,
           performer_contact_id: p.id,
           notes: null,
+          duration_min: null,
         });
         added++;
       }
@@ -218,6 +266,16 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                   title="Fim"
                 />
                 <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={r.duration_min ?? ""}
+                  placeholder="min"
+                  onChange={(e) => void patch(r.id, { duration_min: e.target.value ? Number(e.target.value) : null })}
+                  className="h-8 w-[56px] rounded border bg-background px-1.5 text-xs"
+                  title="Duração (min) — base do cronograma reverso"
+                />
+                <input
                   value={r.title}
                   placeholder="O que acontece"
                   onChange={(e) => void patch(r.id, { title: e.target.value })}
@@ -252,6 +310,26 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           </ul>
         )}
       </section>
+
+      {/* Cronograma reverso — recalcula os horários pra trás a partir da âncora */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-2">
+          <span className="text-xs font-medium">Cronograma reverso</span>
+          <input
+            type="time"
+            value={anchorTime}
+            onChange={(e) => setAnchorTime(e.target.value)}
+            className="h-8 w-[92px] rounded border bg-background px-1.5 text-xs"
+            title="Tudo pronto até esta hora (âncora)"
+          />
+          <Button size="sm" variant="outline" className="h-8" onClick={() => void reverseSchedule()}>
+            Recalcular ao contrário
+          </Button>
+          <span className="text-[11px] text-muted-foreground">
+            Preencha a duração (min) de cada item; isto reescreve os horários pra tudo terminar na hora-âncora.
+          </span>
+        </div>
+      )}
 
       {/* Pendências com a casa */}
       <section className="space-y-1.5">
