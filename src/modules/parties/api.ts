@@ -868,13 +868,14 @@ export async function createPartyBudgetItem(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid, premissa, nota_variancia)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid, premissa, nota_variancia, kind, contact_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       item.party_id, item.category, item.subcategory ?? null, item.description ?? null,
       item.projected_amount, item.actual_amount ?? null, item.supplier_note ?? null,
       item.supplier_id ?? null, item.status, item.date_paid ?? null,
       item.premissa ?? null, item.nota_variancia ?? null,
+      item.kind ?? "custo", item.contact_id ?? null,
     ]
   );
   try {

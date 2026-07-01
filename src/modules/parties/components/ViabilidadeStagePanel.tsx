@@ -135,9 +135,9 @@ export function ViabilidadeStagePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refCand?.id]);
 
-  const custosProjetados = budgetItems.reduce((s, b) => s + (b.projected_amount || 0), 0);
+  const custosProjetados = budgetItems.filter((b) => b.kind !== "receita").reduce((s, b) => s + (b.projected_amount || 0), 0);
   const topCosts = useMemo(
-    () => [...budgetItems].sort((a, b) => (b.projected_amount || 0) - (a.projected_amount || 0)).slice(0, 5),
+    () => budgetItems.filter((b) => b.kind !== "receita").sort((a, b) => (b.projected_amount || 0) - (a.projected_amount || 0)).slice(0, 5),
     [budgetItems]
   );
 

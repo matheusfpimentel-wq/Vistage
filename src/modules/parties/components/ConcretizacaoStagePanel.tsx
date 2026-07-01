@@ -78,7 +78,7 @@ export function ConcretizacaoStagePanel({
     () => computePartyPnL(tickets, budgetItems, sponsors.map((s) => ({ amount_cents: s.amount_cents })), guests, { barRevenue, attendance: actualAttendance }),
     [tickets, budgetItems, sponsors, guests, barRevenue, actualAttendance]
   );
-  const custosProjetados = budgetItems.reduce((s, b) => s + (b.projected_amount || 0), 0);
+  const custosProjetados = budgetItems.filter((b) => b.kind !== "receita").reduce((s, b) => s + (b.projected_amount || 0), 0);
   const premissas = useMemo(() => readViabilityPremissas(viabFields), [viabFields]);
   const verdict = useMemo(
     () => computeVerdict(premissas, custosProjetados, expectedCapacity),

@@ -2416,6 +2416,15 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE parties ADD COLUMN lineup_status TEXT NOT NULL DEFAULT '{}';
     `,
   },
+  {
+    version: 170,
+    description:
+      "Festas/Equipe — party_budget_items ganha kind ('custo'|'receita') e contact_id: os valores da Equipe (patrocínio=receita, produção/cachê de DJ=custo) passam a viver no Orçamento (fonte única). kind default 'custo' preserva itens antigos como custo. contact_id liga a linha de cachê ao DJ (contacts). Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE party_budget_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'custo';
+      ALTER TABLE party_budget_items ADD COLUMN contact_id INTEGER;
+    `,
+  },
 ];
 
 

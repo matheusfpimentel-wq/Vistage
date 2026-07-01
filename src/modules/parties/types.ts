@@ -97,6 +97,9 @@ export const BUDGET_CATEGORIES: Record<string, string[]> = {
 };
 
 export type BudgetItemStatus = "projetado"|"confirmado"|"pago";
+/** Natureza do item de Orçamento: custo (sai) ou receita (entra). Fonte única de dinheiro. */
+export const BUDGET_ITEM_KINDS = ["custo", "receita"] as const;
+export type BudgetItemKind = (typeof BUDGET_ITEM_KINDS)[number];
 
 export type PartyBudgetItem = {
   id: number; party_id: number; category: string; subcategory: string|null;
@@ -106,6 +109,10 @@ export type PartyBudgetItem = {
   premissa: string|null;
   /** Causa-raiz do desvio projetado×real (preenchida no fechamento). */
   nota_variancia: string|null;
+  /** custo (default) ou receita — a receita entra no P&L em vez de sair. */
+  kind?: BudgetItemKind;
+  /** Liga a linha a um contato (ex.: cachê de DJ do line-up). */
+  contact_id?: number|null;
   created_at: string; updated_at: string;
 };
 

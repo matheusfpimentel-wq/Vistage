@@ -260,14 +260,17 @@ export function OrcamentoTab({
     }
   }
 
+  // A tabela de custos lista só itens de custo; os de receita (ex.: patrocínio
+  // gerido na aba Equipe) entram no P&L como receita, não como custo.
+  const costItems = items.filter((i) => i.kind !== "receita");
   const grouped = Object.keys(BUDGET_CATEGORIES).reduce<Record<string, PartyBudgetItem[]>>(
     (acc, cat) => {
-      acc[cat] = items.filter((i) => i.category === cat);
+      acc[cat] = costItems.filter((i) => i.category === cat);
       return acc;
     },
     {}
   );
-  const uncategorized = items.filter(
+  const uncategorized = costItems.filter(
     (i) => !Object.keys(BUDGET_CATEGORIES).includes(i.category)
   );
 
