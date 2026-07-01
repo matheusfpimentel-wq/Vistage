@@ -756,7 +756,11 @@ export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
       "SELECT * FROM party_budget_items WHERE party_id = $1",
       [e.id]
     );
-    const pnl = computePartyPnL(tickets, items, e.sponsors);
+    const guests = await db.select<PartyGuest[]>(
+      "SELECT * FROM party_guests WHERE party_id = $1",
+      [e.id]
+    );
+    const pnl = computePartyPnL(tickets, items, e.sponsors, guests);
     rows.push({
       id: e.id, title: e.title, date: e.date, number: e.edition_number,
       attendance: e.actual_attendance, capacity: e.expected_capacity,
@@ -1046,9 +1050,9 @@ export async function createPartyGuest(
   guest: Omit<PartyGuest, "id" | "created_at">
 ): Promise<number> {
   const res = await getDb().execute(
-    `INSERT INTO party_guests (party_id, name, reason, quantity, ref_price, status)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [guest.party_id, guest.name, guest.reason ?? null, guest.quantity, guest.ref_price, guest.status]
+    `INSERT INTO party_guests (party_id, name, reason, quantity, ref_price, unit_cost, status)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [guest.party_id, guest.name, guest.reason ?? null, guest.quantity, guest.ref_price, guest.unit_cost ?? 0, guest.status]
   );
   return Number(res.lastInsertId);
 }

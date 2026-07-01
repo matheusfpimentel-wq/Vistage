@@ -50,6 +50,7 @@ import {
   type PartyBudgetItem,
   type PartyTicket,
   type PartyTask,
+  type PartyGuest,
 } from "../types";
 import {
   createParty,
@@ -63,6 +64,7 @@ import {
   listPartyBudgetItems,
   listPartyTickets,
   listPartyTasks,
+  listPartyGuests,
   syncTeamBudgetItems,
   addPartyGuestsToFans,
 } from "../api";
@@ -163,6 +165,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [stages, setStages] = useState<PartyStage[]>([]);
   const [budgetItems, setBudgetItems] = useState<PartyBudgetItem[]>([]);
   const [tickets, setTickets] = useState<PartyTicket[]>([]);
+  const [guests, setGuests] = useState<PartyGuest[]>([]);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [tasks, setTasks] = useState<PartyTask[]>([]);
 
@@ -193,16 +196,18 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const loadSubTabs = useCallback(async () => {
     if (!party) return;
     await initDefaultStages(party.id);
-    const [s, b, t, tk] = await Promise.all([
+    const [s, b, t, tk, g] = await Promise.all([
       listPartyStages(party.id),
       listPartyBudgetItems(party.id),
       listPartyTickets(party.id),
       listPartyTasks(party.id),
+      listPartyGuests(party.id),
     ]);
     setStages(s);
     setBudgetItems(b);
     setTickets(t);
     setTasks(tk);
+    setGuests(g);
   }, [party]);
 
   const reloadLinkedContent = useCallback(async (title: string) => {
@@ -255,6 +260,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       setBudgetItems([]);
       setTickets([]);
       setTasks([]);
+      setGuests([]);
     }
   }, [open, party, loadCandidates, loadSubTabs]);
 
@@ -552,6 +558,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 tickets={tickets}
                 items={budgetItems}
                 sponsors={state.sponsors}
+                guests={guests}
                 expectedCapacity={state.expected_capacity}
                 actualAttendance={state.actual_attendance}
               />
@@ -1030,6 +1037,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 party={party}
                 items={budgetItems}
                 tickets={tickets}
+                guests={guests}
                 onReload={loadSubTabs}
               />
             </TabsContent>

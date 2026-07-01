@@ -4,6 +4,7 @@ import { computePartyPnL } from "./pnl";
 import type {
   PartyBudgetItem,
   PartyDeserialized,
+  PartyGuest,
   PartyRunsheetItem,
   PartyStage,
   PartyTicket,
@@ -38,6 +39,7 @@ export type BriefingData = {
   stages: PartyStage[];
   tickets: PartyTicket[];
   budget: PartyBudgetItem[];
+  guests: PartyGuest[];
   runsheet: PartyRunsheetItem[];
   lineupNames: string[];
   seriesName: string | null;
@@ -71,7 +73,7 @@ export function buildBriefing(
   audience: BriefingAudience,
   data: BriefingData
 ): Briefing {
-  const { party, stages, tickets, budget, runsheet, lineupNames, seriesName } = data;
+  const { party, stages, tickets, budget, guests, runsheet, lineupNames, seriesName } = data;
   const stage = stages.find((s) => s.name === stageName);
   const f = stage?.fields ?? {};
   const sections: BriefingSection[] = [];
@@ -82,7 +84,7 @@ export function buildBriefing(
 
   // P&L via fonte única (computePartyPnL) — antes era um 4º cálculo divergente
   // que somava quantity_sold cru (sem || 0) e podia virar NaN.
-  const pnl = computePartyPnL(tickets, budget, party.sponsors);
+  const pnl = computePartyPnL(tickets, budget, party.sponsors, guests);
   const soldTotal = pnl.sold;
   const revenue = pnl.revenueReal;
   const projectedCost = pnl.costProjected;

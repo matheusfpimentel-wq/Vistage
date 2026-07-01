@@ -224,18 +224,21 @@ export function IngressosTab({
         </div>
       </div>
 
-      <GuestList partyId={partyId} />
+      <GuestList partyId={partyId} onReload={onReload} />
     </div>
   );
 }
 
-/** Cortesias / guest list — custo = receita renunciada (qtd × preço de ref.). */
-function GuestList({ partyId }: { partyId: number }) {
+/** Cortesias / guest list — receita renunciada (qtd × preço de ref., informativo)
+ *  E custo variável real (qtd × custo/cabeça: drink, pulseira, kit). Só o custo
+ *  variável entra no líquido do P&L. */
+function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Promise<void> }) {
   const [guests, setGuests] = useState<PartyGuest[]>([]);
   const [name, setName] = useState("");
   const [reason, setReason] = useState<string>(GUEST_REASONS[0]);
   const [qty, setQty] = useState("1");
   const [price, setPrice] = useState("");
+  const [cost, setCost] = useState("");
 
   const reload = useCallback(() => {
     void listPartyGuests(partyId).then(setGuests);
@@ -245,6 +248,7 @@ function GuestList({ partyId }: { partyId: number }) {
   }, [reload]);
 
   const renounced = guests.reduce((s, g) => s + g.quantity * g.ref_price, 0);
+  const compCost = guests.reduce((s, g) => s + g.quantity * (g.unit_cost || 0), 0);
   const totalGuests = guests.reduce((s, g) => s + g.quantity, 0);
 
   async function add() {
@@ -260,12 +264,15 @@ function GuestList({ partyId }: { partyId: number }) {
         reason,
         quantity: Math.max(1, parseInt(qty, 10) || 1),
         ref_price: parseFloat(price) || 0,
+        unit_cost: parseFloat(cost) || 0,
         status: "Confirmado",
       });
       setName("");
       setQty("1");
       setPrice("");
+      setCost("");
       reload();
+      void onReload();
     } catch (e) {
       toast.error(`Não consegui adicionar a cortesia: ${String(e)}`);
     }
@@ -277,8 +284,14 @@ function GuestList({ partyId }: { partyId: number }) {
         <div className="text-xs font-medium text-muted-foreground">Cortesias / Guest list</div>
         {guests.length > 0 && (
           <div className="text-xs text-muted-foreground">
-            {totalGuests} cortesia(s) · receita renunciada{" "}
+            {totalGuests} cortesia(s) · renunciada{" "}
             <strong className="text-amber-500">{formatCurrency(renounced)}</strong>
+            {compCost > 0 && (
+              <>
+                {" · custo real "}
+                <strong className="text-red-400">{formatCurrency(compCost)}</strong>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -290,15 +303,22 @@ function GuestList({ partyId }: { partyId: number }) {
               <span className="min-w-0 flex-1 truncate">{g.name}</span>
               {g.reason && <Badge variant="outline" className="shrink-0 text-[10px]">{g.reason}</Badge>}
               <span className="shrink-0 text-xs text-muted-foreground">×{g.quantity}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">{formatCurrency(g.quantity * g.ref_price)}</span>
+              <span className="shrink-0 text-xs text-amber-500/80" title="Receita renunciada">{formatCurrency(g.quantity * g.ref_price)}</span>
+              {g.unit_cost > 0 && (
+                <span className="shrink-0 text-xs text-red-400" title="Custo variável real (drink/pulseira/kit)">
+                  −{formatCurrency(g.quantity * g.unit_cost)}
+                </span>
+              )}
               <select
                 value={g.status}
                 onChange={(e) => {
                   const status = e.target.value as GuestStatus;
-                  void updatePartyGuest(g.id, { status }).catch((err) => {
-                    toast.error(`Não consegui atualizar o status: ${String(err)}`);
-                    reload();
-                  });
+                  void updatePartyGuest(g.id, { status })
+                    .then(() => onReload())
+                    .catch((err) => {
+                      toast.error(`Não consegui atualizar o status: ${String(err)}`);
+                      reload();
+                    });
                   setGuests((gs) => gs.map((x) => (x.id === g.id ? { ...x, status } : x)));
                 }}
                 className="h-6 shrink-0 rounded border bg-background px-1 text-[11px]"
@@ -313,6 +333,7 @@ function GuestList({ partyId }: { partyId: number }) {
                   try {
                     await deletePartyGuest(g.id);
                     reload();
+                    void onReload();
                   } catch (e) {
                     toast.error(`Não consegui remover a cortesia: ${String(e)}`);
                   }
@@ -327,7 +348,7 @@ function GuestList({ partyId }: { partyId: number }) {
         </ul>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-5">
         <Input className="h-8 text-sm" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
         <Select value={reason} onValueChange={setReason}>
           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -338,15 +359,18 @@ function GuestList({ partyId }: { partyId: number }) {
           </SelectContent>
         </Select>
         <Input className="h-8 text-sm" type="number" min={1} placeholder="Qtd" value={qty} onChange={(e) => setQty(e.target.value)} />
+        <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Preço ref." value={price} onChange={(e) => setPrice(e.target.value)} />
         <div className="flex gap-1.5">
-          <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Preço ref." value={price} onChange={(e) => setPrice(e.target.value)} />
+          <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Custo/cabeça" value={cost} onChange={(e) => setCost(e.target.value)} />
           <Button size="sm" className="h-8 shrink-0" onClick={() => void add()}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Cortesia não é despesa — é receita que você abriu mão (qtd × preço de referência).
+        Cortesia tem dois números: a <span className="text-amber-500">receita renunciada</span> (qtd × preço de
+        ref., não sai do caixa) e o <span className="text-red-400">custo variável real</span> (qtd × custo/cabeça:
+        drink, pulseira, kit). Só o custo variável entra no líquido do P&amp;L.
       </p>
     </div>
   );

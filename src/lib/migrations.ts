@@ -2283,6 +2283,12 @@ const MIGRATIONS: Migration[] = [
       "Festas/Workflow — party_tasks.responsavel_contact_id: responsável pela tarefa (FK contacts), pra a tarefa de etapa virar cronograma com dono. Aditiva/idempotente.",
     sql: `ALTER TABLE party_tasks ADD COLUMN responsavel_contact_id INTEGER;`,
   },
+  {
+    version: 160,
+    description:
+      "Festas/Cortesias — party_guests.unit_cost: custo variável real por cabeça da cortesia (welcome drink, pulseira, kit). Cortesia tem receita renunciada E custo de caixa; só o custo variável entra no líquido. Aditiva/idempotente.",
+    sql: `ALTER TABLE party_guests ADD COLUMN unit_cost REAL NOT NULL DEFAULT 0;`,
+  },
 ];
 
 

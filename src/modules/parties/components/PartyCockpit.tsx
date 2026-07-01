@@ -1,6 +1,6 @@
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { PartyBudgetItem, PartyTicket } from "../types";
+import type { PartyBudgetItem, PartyGuest, PartyTicket } from "../types";
 import { computePartyPnL } from "../pnl";
 
 /**
@@ -12,16 +12,18 @@ export function PartyCockpit({
   tickets,
   items,
   sponsors,
+  guests = [],
   expectedCapacity,
   actualAttendance,
 }: {
   tickets: PartyTicket[];
   items: PartyBudgetItem[];
   sponsors: { name: string; amount_cents: number }[];
+  guests?: PartyGuest[];
   expectedCapacity: number | null;
   actualAttendance: number | null;
 }) {
-  const pnl = computePartyPnL(tickets, items, sponsors);
+  const pnl = computePartyPnL(tickets, items, sponsors, guests);
   const { sold, cac } = pnl;
   const meta = pnl.capacity;
   const lucroReal = pnl.netReal;
