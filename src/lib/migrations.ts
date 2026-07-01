@@ -2318,6 +2318,27 @@ const MIGRATIONS: Migration[] = [
       "Festas/CAC — parties.target_cac: custo de aquisição por comprador ALVO (meta). O cockpit compara o CAC real com essa meta pra saber se o marketing está eficiente. Aditiva/idempotente.",
     sql: `ALTER TABLE parties ADD COLUMN target_cac REAL;`,
   },
+  {
+    version: 164,
+    description:
+      "Festas/Compliance — party_compliance: checklist estruturado de licenças/obrigações (ECAD, alvará, bombeiros, SMMA, segurança, sanitária) com status, protocolo, prazo e nota. Tira o compliance do 'na cabeça' e vira responsabilidade rastreável. Tabela nova, idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_compliance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        category TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pendente',
+        protocol TEXT,
+        due_date TEXT,
+        notes TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_compliance_party ON party_compliance(party_id, position);
+    `,
+  },
 ];
 
 

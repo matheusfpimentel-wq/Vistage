@@ -15,11 +15,12 @@ import type {
   PartyRunsheetItem,
   PartyGuest,
   PartyTicketSale,
+  PartyComplianceItem,
   PartySeries,
   PartySeriesCreateInput,
   PartySeriesUpdateInput,
 } from "./types";
-import { DEFAULT_STAGE_NAMES } from "./types";
+import { DEFAULT_STAGE_NAMES, DEFAULT_COMPLIANCE_ITEMS } from "./types";
 import { computePartyPnL } from "./pnl";
 
 function nowISO(): string {
@@ -1127,6 +1128,62 @@ export async function createPartyTicketSale(
 
 export async function deletePartyTicketSale(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_ticket_sales WHERE id = $1", [id]);
+}
+
+// ===== PARTY COMPLIANCE (licenças / obrigações) =====
+
+export async function listPartyCompliance(partyId: number): Promise<PartyComplianceItem[]> {
+  return getDb().select<PartyComplianceItem[]>(
+    "SELECT * FROM party_compliance WHERE party_id = $1 ORDER BY position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyComplianceItem(
+  item: Omit<PartyComplianceItem, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      item.party_id, item.category, item.title, item.status,
+      item.protocol ?? null, item.due_date ?? null, item.notes ?? null, item.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyComplianceItem(
+  id: number,
+  updates: Partial<Omit<PartyComplianceItem, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_compliance SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyComplianceItem(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+}
+
+/** Semeia os itens padrão de compliance que ainda não existem (por categoria+título). */
+export async function seedDefaultCompliance(partyId: number): Promise<number> {
+  const existing = await listPartyCompliance(partyId);
+  const have = new Set(existing.map((i) => `${i.category}|${i.title}`.toLowerCase()));
+  let pos = existing.reduce((m, i) => Math.max(m, i.position), -1) + 1;
+  let created = 0;
+  for (const d of DEFAULT_COMPLIANCE_ITEMS) {
+    if (have.has(`${d.category}|${d.title}`.toLowerCase())) continue;
+    await createPartyComplianceItem({
+      party_id: partyId, category: d.category, title: d.title,
+      status: "pendente", protocol: null, due_date: null, notes: null, position: pos++,
+    });
+    created += 1;
+  }
+  return created;
 }
 
 // ===== PARTY TASKS =====

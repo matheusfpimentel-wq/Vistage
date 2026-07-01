@@ -113,6 +113,31 @@ export type PartyRunsheetItem = {
   created_at: string;
 };
 
+/** Compliance / licenças da festa — tira as obrigações legais do "na cabeça". */
+export const COMPLIANCE_CATEGORIES = ["ECAD", "Alvará", "Bombeiros", "SMMA", "Segurança", "Sanitária", "Outro"] as const;
+export const COMPLIANCE_STATUSES = ["pendente", "em_andamento", "ok", "na"] as const;
+export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
+
+export type PartyComplianceItem = {
+  id: number; party_id: number; category: string; title: string;
+  status: ComplianceStatus; protocol: string | null; due_date: string | null;
+  notes: string | null; position: number; created_at: string;
+};
+
+/** Itens padrão de compliance de uma festa de nightlife (semente do checklist). */
+export const DEFAULT_COMPLIANCE_ITEMS: { category: string; title: string }[] = [
+  { category: "ECAD", title: "Recolhimento ECAD (direitos autorais musicais)" },
+  { category: "Alvará", title: "Alvará de funcionamento / autorização do evento" },
+  { category: "Bombeiros", title: "Vistoria / AVCB do Corpo de Bombeiros" },
+  { category: "SMMA", title: "Licença ambiental / controle de ruído (SMMA)" },
+  { category: "Segurança", title: "Plano de segurança e seguranças credenciados" },
+  { category: "Sanitária", title: "Vigilância sanitária (bar / alimentos)" },
+];
+
+export function complianceStatusLabel(s: ComplianceStatus): string {
+  return s === "ok" ? "OK" : s === "em_andamento" ? "Em andamento" : s === "na" ? "N/A" : "Pendente";
+}
+
 /** Motivos comuns de cortesia (guest list). */
 export const GUEST_REASONS = ["Influencer", "Imprensa", "VIP", "Permuta", "Equipe", "Outro"] as const;
 export const GUEST_STATUSES = ["Confirmado", "Pendente", "Compareceu", "Faltou"] as const;
