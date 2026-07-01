@@ -354,7 +354,7 @@ async function buildTasks(uid: string) {
 // ── Catálogo pesquisável (consulta no celular) ──────────────────────────────
 type CatalogRow = {
   user_id: string;
-  kind: string; // 'gig' | 'track' | 'contact' | 'venue' | 'task' | 'idea' | 'class' | 'party'
+  kind: string; // 'gig' | 'track' | 'contact' | 'venue' | 'task' | 'idea' | 'class' | 'party' | 'meeting'
   source_id: string;
   title: string;
   subtitle: string | null;
@@ -599,6 +599,21 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       subtitle: [p.date, p.venue_name, p.status].filter(Boolean).join(" · ") || null,
       search_text: lc(p.title, p.venue_name, p.status, p.date),
       meta: { status: p.status, date: p.date, venue_name: p.venue_name },
+    });
+
+  // Reuniões — fonte do picker de "Comunicação" no Modo Foco (recentes + futuras)
+  // e pesquisáveis. Encaminhamentos de uma sessão vinculada voltam pra ata.
+  const cmeetings = await db.select<{ id: number; title: string; date: string | null; time: string | null; location: string | null; status: string }[]>(
+    `SELECT id, title, date, time, location, status FROM meetings ORDER BY date IS NULL, date DESC LIMIT 300`,
+    []
+  );
+  for (const mt of cmeetings)
+    rows.push({
+      user_id: uid, kind: "meeting", source_id: String(mt.id),
+      title: mt.title,
+      subtitle: [mt.date, mt.status, mt.location].filter(Boolean).join(" · ") || null,
+      search_text: lc(mt.title, mt.location, mt.status, mt.date),
+      meta: { date: mt.date, time: mt.time, location: mt.location, status: mt.status },
     });
 
   return rows;
@@ -928,9 +943,11 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
     // Sessão de PALCO: o celular manda context_type='gig' + gig_id, e as avaliações
     // do set (repertório/técnica/carisma) em vez de energia/foco → vínculo + debrief.
     const gigId = n("gig_id");
-    const ctxType = s("context_type");
+    const ctxType = s("context_type");   // "gig" | "track" | "party" | "meeting" | null
+    const ctxId = n("context_id");       // id do vínculo (não-palco)
     let stageGig = ctxType === "gig" ? gigId : null;
-    const isStage = (s("activity_type") ?? "") === "Tempo de palco";
+    const activity = s("activity_type") ?? "Outro";
+    const isStage = activity === "Tempo de palco";
     const rep = n("rating_repertoire"), tec = n("rating_technique"), car = n("rating_charisma");
     const hasRating = rep != null || tec != null || car != null;
 
@@ -949,10 +966,13 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
       stageGig = Number(res.lastInsertId);
     }
 
+    // Contexto final: palco (GIG, incl. órfã resolvida) OU track/party/meeting.
+    const linkType = stageGig != null ? "gig" : ctxType && ctxId != null ? ctxType : null;
+    const linkId = stageGig != null ? stageGig : ctxType && ctxId != null ? ctxId : null;
     await db.execute(
       `INSERT INTO work_sessions (started_at, ended_at, activity_type, energy_level, focus_level, notes, planned_minutes, focus_session_id, context_type, context_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-      [s("started_at") ?? now, s("ended_at") ?? now, s("activity_type") ?? "Outro", n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes"), s("focus_session_id"), stageGig != null ? "gig" : null, stageGig]
+      [s("started_at") ?? now, s("ended_at") ?? now, activity, n("energy_level"), n("focus_level"), s("notes"), n("planned_minutes"), s("focus_session_id"), linkType, linkId]
     );
     // Avaliações do set vão pro debrief da GIG (COALESCE não apaga nota já preenchida).
     if (stageGig != null) {
@@ -977,6 +997,31 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
           `UPDATE performance_moments SET gig_id = $1 WHERE focus_session_id = $2 AND gig_id IS NULL`,
           [stageGig, fsid]
         );
+      }
+    }
+
+    // Trabalhar no Foco "alimenta" a criação vinculada (reseta o esfriamento).
+    if (linkType === "track" && linkId != null)
+      await db.execute(`UPDATE tracks SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [linkId]);
+    else if (linkType === "party" && linkId != null)
+      await db.execute(`UPDATE parties SET updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [linkId]);
+
+    // Comunicação: com reunião → encaminhamentos na ata; sem reunião → vira ideia.
+    if (activity === "Comunicação") {
+      const cnotes = (s("notes") ?? "").trim();
+      if (linkType === "meeting" && linkId != null) {
+        if (cnotes)
+          await db.execute(
+            `UPDATE meetings SET outcomes = TRIM(COALESCE(outcomes || char(10), '') || $1), updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+            [cnotes, linkId]
+          );
+      } else if (cnotes) {
+        const { createIdea } = await import("@/modules/ideas/api");
+        await createIdea({
+          title: cnotes.length > 80 ? cnotes.slice(0, 77) + "…" : cnotes,
+          body: cnotes, category: null, tags: [], heat: 1, maturation: "Embrião",
+          converted_to: null, converted_id: null, source: "modo_foco", source_ref_id: null,
+        });
       }
     }
   } else if (kind === "highlight" || kind === "note") {

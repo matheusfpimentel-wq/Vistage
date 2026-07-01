@@ -5,18 +5,31 @@ import { haptic } from "../native";
 import { enqueueCapture } from "../queue";
 
 // Tipos alinhados ao desktop (ActivityType) pra estatística e painel baterem.
-const ACTIVITIES = [
+// Ordem do menu com dois separadores (— ) entre os grupos. Os valores seguem os
+// do desktop ("Aulas"/"Outro") pra não forkar as estatísticas.
+const SEP = "__sep__";
+const MODE_LAYOUT = [
   "Tempo de palco",
-  "Preparação",
   "Criação musical",
-  "Criação de conteúdo",
-  "Gestão",
-  "Comunicação",
   "Produção de festa",
+  "Criação de conteúdo",
   "Aulas",
+  SEP,
+  "Gestão",
+  "Preparação",
   "Estudo",
+  "Comunicação",
+  SEP,
   "Outro",
 ];
+const ACTIVITIES = MODE_LAYOUT.filter((m) => m !== SEP);
+
+// Atividades que podem se vincular a uma entidade existente (ou não).
+const CTX_KIND: Record<string, "track" | "party" | "meeting"> = {
+  "Criação musical": "track",
+  "Produção de festa": "party",
+  Comunicação: "meeting",
+};
 
 function fmtClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -804,6 +817,44 @@ function StageGigPicker({
   );
 }
 
+// ── Vínculo opcional (track/festa/reunião) do Modo Foco ──────────────────────
+type CtxOption = { id: number; title: string; sub: string };
+
+/** Subtítulo do item vinculável, conforme o tipo. */
+function ctxSub(kind: "track" | "party" | "meeting", meta: Record<string, unknown>): string {
+  const g = (k: string): string => (typeof meta[k] === "string" ? (meta[k] as string) : "");
+  if (kind === "track") return [g("stage"), g("project")].filter(Boolean).join(" · ");
+  return [fmtDate(g("date")), g("status"), g("location")].filter(Boolean).join(" · ");
+}
+
+/** Picker de vínculo: "Sem vínculo" + as entidades do catálogo (recentes primeiro). */
+function ContextPicker({ label, noneLabel, options, selectedId, onSelect, loading }: {
+  label: string;
+  noneLabel: string;
+  options: CtxOption[];
+  selectedId: number | null;
+  onSelect: (o: CtxOption | null) => void;
+  loading: boolean;
+}) {
+  if (loading) return null;
+  return (
+    <div className="gig-picker">
+      <span className="label">{label}</span>
+      <div className="gig-picker-list">
+        <button type="button" className={`gig-opt${selectedId == null ? " active" : ""}`} onClick={() => onSelect(null)}>
+          <span className="gig-opt-title">{noneLabel}</span>
+        </button>
+        {options.map((o) => (
+          <button key={o.id} type="button" className={`gig-opt${o.id === selectedId ? " active" : ""}`} onClick={() => onSelect(o)}>
+            <span className="gig-opt-title">{o.title}</span>
+            {o.sub && <span className="gig-opt-sub">{o.sub}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Captura ao vivo (grid eyes-free + ideia/momento) ─────────────────────────
 /** mm:ss do instante DENTRO da sessão (pra mostrar quando no set marcou). */
 function fmtAt(ms: number): string {
@@ -1100,6 +1151,12 @@ export function Foco() {
   const stageGigRef = useRef<StageGigOption | null>(null);
   const [gigOptions, setGigOptions] = useState<StageGigOption[]>([]);
   const [gigsReady, setGigsReady] = useState(true);
+  // Vínculo opcional (Criação musical→faixa, Produção de festa→festa, Comunicação
+  // →reunião). Padrão: sem vínculo. O ref alimenta o save() sem closure velha.
+  const [ctxOptions, setCtxOptions] = useState<CtxOption[]>([]);
+  const [ctxSel, setCtxSel] = useState<CtxOption | null>(null);
+  const ctxSelRef = useRef<CtxOption | null>(null);
+  const [ctxReady, setCtxReady] = useState(true);
   // Checklist de Preparação marcado (otimista) da GIG escolhida — semeado pelo
   // meta.prep_done e alterado pelo painel/Check do Modo Foco (manda prep_check).
   const [prepDone, setPrepDone] = useState<Set<string>>(new Set());
@@ -1326,6 +1383,47 @@ export function Foco() {
     };
   }, [activity]);
 
+  // Carrega as opções de vínculo (faixa/festa/reunião) quando a atividade permite.
+  // Padrão: sem vínculo (o usuário escolhe). Faixa: em produção; festa: em aberto;
+  // reunião: recentes + futuras. Não força — "OU NÃO relacionar".
+  useEffect(() => {
+    const kind = CTX_KIND[activity];
+    setCtxSel(null);
+    ctxSelRef.current = null;
+    if (!kind) {
+      setCtxOptions([]);
+      setCtxReady(true);
+      return;
+    }
+    let active = true;
+    setCtxReady(false);
+    void supabase
+      .from("catalog_mirror")
+      .select("source_id, title, meta")
+      .eq("kind", kind)
+      .then(({ data }) => {
+        if (!active) return;
+        const rows = (data ?? []) as { source_id: string; title: string; meta: Record<string, unknown> }[];
+        const g = (m: Record<string, unknown>, k: string): string => (typeof m[k] === "string" ? (m[k] as string) : "");
+        const filtered = rows.filter((r) => {
+          if (kind === "track") return g(r.meta, "stage") !== "Pós-lançamento";
+          if (kind === "party") return !["Realizada", "Cancelada"].includes(g(r.meta, "status"));
+          return true; // reuniões: todas
+        });
+        if (kind === "meeting" || kind === "party") {
+          filtered.sort((a, b) => {
+            const da = g(a.meta, "date"), db2 = g(b.meta, "date");
+            return da < db2 ? 1 : da > db2 ? -1 : 0; // mais recentes primeiro
+          });
+        }
+        setCtxOptions(filtered.slice(0, 40).map((r) => ({ id: Number(r.source_id), title: r.title, sub: ctxSub(kind, r.meta) })));
+        setCtxReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [activity]);
+
   // Troca manual da GIG no picker — atualiza estado e ref (debrief/marcadores).
   function selectStageGig(o: StageGigOption) {
     setStageGig(o);
@@ -1379,6 +1477,10 @@ export function Foco() {
           ? { rating_repertoire: repertoire, rating_technique: technique, rating_charisma: charisma }
           : {}),
         ...((isStage || isPrep) && sg ? { context_type: "gig", gig_id: sg.id } : {}),
+        // Vínculo opcional (Criação musical→faixa, Produção de festa→festa,
+        // Comunicação→reunião). Comunicação sem reunião: o PC transforma as notas
+        // em ideia; com reunião, vira encaminhamento na ata.
+        ...(CTX_KIND[activity] && ctxSelRef.current ? { context_type: CTX_KIND[activity], context_id: ctxSelRef.current.id } : {}),
       });
       setMsg(isStage ? "Set salvo! O debrief sobe pro PC." : "Sessão salva! Sobe pro PC sozinha.");
       setPhase("idle");
@@ -1389,6 +1491,8 @@ export function Foco() {
       setMarkers([]);
       markersRef.current = [];
       sessionIdRef.current = null;
+      setCtxSel(null);
+      ctxSelRef.current = null;
       setRepertoire(3);
       setTechnique(3);
       setCharisma(3);
@@ -1443,11 +1547,15 @@ export function Foco() {
               <label>
                 Tipo de foco
                 <select value={activity} onChange={(e) => setActivity(e.target.value)}>
-                  {ACTIVITIES.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
+                  {MODE_LAYOUT.map((a, i) =>
+                    a === SEP ? (
+                      <option key={"sep" + i} disabled>──────────</option>
+                    ) : (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    )
+                  )}
                 </select>
               </label>
               <label>
@@ -1477,6 +1585,16 @@ export function Foco() {
               loading={!gigsReady}
             />
           )}
+          {CTX_KIND[activity] && (
+            <ContextPicker
+              label={activity === "Criação musical" ? "Vincular à faixa" : activity === "Produção de festa" ? "Vincular à festa" : "Vincular à reunião"}
+              noneLabel={activity === "Comunicação" ? "Sem reunião (vira ideia)" : "Sem vínculo"}
+              options={ctxOptions}
+              selectedId={ctxSel?.id ?? null}
+              onSelect={(o) => { setCtxSel(o); ctxSelRef.current = o; }}
+              loading={!ctxReady}
+            />
+          )}
           <ContextPanel activity={activity} focusTask={focusTask} stageGig={stageGig} stageLoading={!gigsReady} prepDone={prepDone} onTickPrep={tickPrep} />
         </>
       )}
@@ -1502,9 +1620,14 @@ export function Foco() {
             </>
           )}
           <label>
-            Notas
+            {activity === "Comunicação" ? "Encaminhamentos / notas" : "Notas"}
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Opcional" />
           </label>
+          {activity === "Comunicação" && (
+            <p className="muted" style={{ fontSize: "0.75rem", marginTop: "-0.2rem" }}>
+              {ctxSel ? `Vão como encaminhamentos na ata de "${ctxSel.title}".` : "Sem reunião: as notas viram uma ideia no PC."}
+            </p>
+          )}
           <button className="primary" disabled={busy} onClick={() => void save()}>
             {busy ? "Enviando…" : activity === "Tempo de palco" ? "Salvar set" : "Salvar sessão"}
           </button>
