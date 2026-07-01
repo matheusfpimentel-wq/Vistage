@@ -98,12 +98,6 @@ export function App() {
             <span className="identity-chip-mono">{(header.artistName || "V").slice(0, 1).toUpperCase()}</span>
           )}
           <span className="identity-chip-name">{header.artistName || "Sua identidade"}</span>
-          {header.streak > 0 && (
-            <span className="streak-chip" title={`${header.streak} dias de foco seguidos`}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
-              {header.streak}
-            </span>
-          )}
         </button>
         <div className="topbar-actions">
           <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Capturar" title="Capturar">
@@ -126,7 +120,7 @@ export function App() {
       </header>
 
       <main className="content">
-        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} />}
+        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
         {tab === "foco" && <Foco />}
         {tab === "brainstorm" && <Brainstorming />}
         {tab === "buscar" && <Buscar />}

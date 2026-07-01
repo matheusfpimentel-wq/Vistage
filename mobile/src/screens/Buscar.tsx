@@ -5,7 +5,7 @@ import { sendCapture } from "../capture";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 
-type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class";
+type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class" | "party";
 type Row = {
   kind: string;
   source_id: string;
@@ -26,6 +26,7 @@ const CATEGORIES: { id: Kind; label: string; icon: ReactNode }[] = [
   { id: "contact", label: "Pessoas", icon: <IcUser /> },
   { id: "venue", label: "Venues", icon: <IcPin /> },
   { id: "class", label: "Aulas", icon: <IcClass /> },
+  { id: "party", label: "Festas", icon: <IcParty /> },
 ];
 const CAT_LABEL: Record<Kind, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c.label])
@@ -39,6 +40,7 @@ const KIND_LABEL: Record<string, string> = {
   contact: "Pessoa",
   venue: "Venue",
   class: "Aula",
+  party: "Festa",
 };
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -285,6 +287,10 @@ function Detail({ r }: { r: Row }) {
     if (str(m.student_name)) out.push(["Aluno", str(m.student_name)]);
     if (str(m.date)) out.push(["Data", str(m.date)]);
     if (str(m.status)) out.push(["Status", str(m.status)]);
+  } else if (r.kind === "party") {
+    if (str(m.status)) out.push(["Status", str(m.status)]);
+    if (str(m.date)) out.push(["Data", str(m.date)]);
+    if (str(m.venue_name)) out.push(["Local", str(m.venue_name)]);
   }
 
   return (
@@ -359,6 +365,7 @@ function IcNote() { return <svg {...IP}><circle cx="6" cy="18" r="3" /><circle c
 function IcUser() { return <svg {...IP}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" /></svg>; }
 function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>; }
 function IcClass() { return <svg {...IP}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>; }
+function IcParty() { return <svg {...IP}><path d="M2 22l5-15 10 10z" /><path d="M14 7a3 3 0 0 0-3-3M17 4a6 6 0 0 0-6-2" /></svg>; }
 
 /** Ícone por tipo de resultado (no lugar do rótulo de texto). */
 function kindIcon(kind: string) {
@@ -370,6 +377,7 @@ function kindIcon(kind: string) {
     case "contact": return <IcUser />;
     case "venue": return <IcPin />;
     case "class": return <IcClass />;
+    case "party": return <IcParty />;
     default: return <IcLayers />;
   }
 }
