@@ -17,13 +17,11 @@ export type PartyStage = {
 export const DEFAULT_STAGE_NAMES = ["Ideação","Viabilidade","Marketing","Execução","Concretização"] as const;
 
 export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist"|"rider" }[]> = {
-  "Ideação": [
-    { key:"conceito", label:"Conceito da festa", type:"text" },
-    { key:"tema", label:"Tema", type:"text" },
-    { key:"publico_alvo", label:"Público-alvo", type:"text" },
-    { key:"referencias", label:"Referências e inspirações", type:"text" },
-    { key:"motivacao", label:"Motivação / por que fazer", type:"text" },
-  ],
+  // A Ideação é renderizada por um painel próprio (IdeacaoStagePanel): 4 campos
+  // enxutos (Conceito · Objetivo · Público-alvo · Referências) em inputs de 1
+  // linha com auto-grow, + bloco "Da edição anterior" (Delta/Plus da série).
+  // "Tema" foi absorvido pelo Conceito e "Motivação" virou "Objetivo" (backfill).
+  "Ideação": [],
   // De-dup (slice 3b): "Data pretendida" e "Público estimado" saíram daqui — a
   // data canônica é a da Info (parties.date) e o público estimado é
   // expected_capacity. O break-even lê a capacidade da Info, não mais um campo
@@ -55,13 +53,19 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   // patrocínio do Orçamento), exibidos no cockpit/briefing, não redigitados.
   // Debrief Plus/Delta: o que reforçar (Plus) x o que ajustar (Delta) — a
   // retrospectiva enxuta que vira ação na próxima edição.
-  "Concretização": [
-    { key:"plus", label:"O que manteria (Plus)", type:"text" },
-    { key:"delta", label:"O que mudaria (Delta)", type:"text" },
-    { key:"aprendizados", label:"Aprendizados", type:"text" },
-    { key:"proximos_passos", label:"Próximos passos", type:"text" },
-  ],
+  // A Concretização é renderizada por um painel próprio (ConcretizacaoStagePanel):
+  // bloco RESULTADO (projetado vs realizado, calculado) + Plus/Delta como listas
+  // de itens + check do Objetivo. "Aprendizados" e "Próximos passos" saíram
+  // (viram Notas / Tarefas no backfill).
+  "Concretização": [],
 };
+
+/** Check do Objetivo (Ideação) na Concretização: atingiu o critério de sucesso? */
+export const OBJETIVO_STATUSES = ["atingido", "parcial", "nao"] as const;
+export type ObjetivoStatus = (typeof OBJETIVO_STATUSES)[number];
+export function objetivoStatusLabel(s: string | null | undefined): string {
+  return s === "atingido" ? "Atingido" : s === "parcial" ? "Parcial" : s === "nao" ? "Não" : "—";
+}
 
 /** Categorias para os custos necessários da etapa de Viabilidade. */
 export const VIABILITY_COST_CATEGORIES = [

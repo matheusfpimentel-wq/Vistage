@@ -1326,6 +1326,62 @@ export async function seedDefaultCompliance(partyId: number): Promise<number> {
   return created;
 }
 
+// ===== SÉRIE — DEBRIEF DA EDIÇÃO ANTERIOR =====
+
+/** Lê itens de uma lista (JSON array preferido; senão, texto quebrado por linha). */
+function readDebriefItems(itemsJson: unknown, legacyText: unknown): string[] {
+  if (typeof itemsJson === "string" && itemsJson.trim()) {
+    try {
+      const p = JSON.parse(itemsJson);
+      if (Array.isArray(p)) return p.map((x) => String(x).trim()).filter(Boolean);
+    } catch { /* ignora */ }
+  }
+  if (typeof legacyText === "string" && legacyText.trim()) {
+    return legacyText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Plus/Delta da edição ANTERIOR da mesma série — alimenta o bloco "Da edição
+ * anterior" da Ideação. Escolhe a edição imediatamente antes (por número; senão
+ * por data). Retorna null se a festa não é de série ou não há anterior.
+ */
+export async function getPreviousEditionDebrief(
+  partyId: number
+): Promise<{ editionLabel: string | null; plus: string[]; delta: string[] } | null> {
+  const db = getDb();
+  const rows = await db.select<{ id: number; series_id: number | null; edition_number: number | null; edition_label: string | null; date: string | null }[]>(
+    "SELECT id, series_id, edition_number, edition_label, date FROM parties"
+  );
+  const cur = rows.find((r) => r.id === partyId);
+  if (!cur?.series_id) return null;
+  const siblings = rows.filter((r) => r.series_id === cur.series_id && r.id !== partyId);
+  if (siblings.length === 0) return null;
+
+  let prev: (typeof siblings)[number] | undefined;
+  if (cur.edition_number != null) {
+    prev = siblings
+      .filter((s) => s.edition_number != null && s.edition_number < cur.edition_number!)
+      .sort((a, b) => b.edition_number! - a.edition_number!)[0];
+  }
+  if (!prev) {
+    prev = siblings
+      .filter((s) => s.date && (!cur.date || s.date < cur.date))
+      .sort((a, b) => (a.date! < b.date! ? 1 : -1))[0];
+  }
+  if (!prev) return null;
+
+  const stages = await listPartyStages(prev.id);
+  const concr = stages.find((s) => s.name === "Concretização");
+  if (!concr) return null;
+  const f = concr.fields;
+  const plus = readDebriefItems(f.plus_items, f.plus);
+  const delta = readDebriefItems(f.delta_items, f.delta);
+  if (plus.length === 0 && delta.length === 0) return null;
+  return { editionLabel: prev.edition_label, plus, delta };
+}
+
 // ===== PARTY TASKS =====
 
 export async function listPartyTasks(partyId: number): Promise<PartyTask[]> {

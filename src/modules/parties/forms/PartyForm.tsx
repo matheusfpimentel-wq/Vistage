@@ -982,6 +982,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 sponsors={state.sponsors}
                 lineup={state.lineup}
                 lineupStatus={state.lineup_status}
+                guests={guests}
+                barRevenue={state.bar_revenue}
+                actualAttendance={state.actual_attendance}
                 onPatchParty={patchPartyLive}
                 onPatchTeam={patchTeamLive}
                 onPatchSponsors={patchSponsorsLive}

@@ -37,6 +37,7 @@ import {
   updatePartyVenueCandidate,
 } from "../api";
 import type { Venue } from "@/modules/venues/types";
+import { computeVerdict, num, type Verdict } from "../viability";
 
 type VBlock = "venue" | "premissas" | "custos" | "veredito" | "decisao";
 
@@ -50,67 +51,6 @@ const viabBackfilling = new Set<number>();
 function mapCostCategory(c: string): string {
   if (c === "Estrutura") return "Infraestrutura";
   return ["Pessoal", "Marketing", "Operacional", "Outros"].includes(c) ? c : "Outros";
-}
-
-function pctOf(s: string | null | undefined): number {
-  const n = parseFloat(String(s ?? "").replace(",", ".").replace("%", ""));
-  return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0;
-}
-function num(s: string | number | null | undefined): number {
-  const n = typeof s === "number" ? s : parseFloat(String(s ?? "").replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
-
-type Premissas = {
-  publicoEsperado: number;
-  precoMedio: number;
-  acordoTipo: string;
-  acordoTermos: string;
-  acordoValor: number;
-  patrocinio: number;
-  barPerCapita: number;
-};
-
-type Verdict = {
-  breakEvenPeople: number | null;
-  revPerPerson: number;
-  resultado: number;
-  receitaBase: number;
-  margem: number | null;
-  light: "verde" | "ambar" | "vermelho";
-  exceedsCapacity: boolean;
-};
-
-/**
- * Veredito honesto: quantas pessoas empatam e qual o resultado no público
- * esperado (não na capacidade máxima). Considera preço, o efeito do acordo com
- * a casa (aluguel fixo x % da bilheteria x % do bar x cachê) e extras.
- */
-function computeVerdict(p: Premissas, custosProjetados: number, capacity: number | null): Verdict {
-  const ticketCutPct = p.acordoTipo === "pct_bilheteria" ? pctOf(p.acordoTermos) : 0;
-  const netTicketPerPerson = p.precoMedio * (1 - ticketCutPct / 100);
-  const barPerPerson = p.acordoTipo === "pct_bar" ? p.barPerCapita : 0;
-  const revPerPerson = netTicketPerPerson + barPerPerson;
-
-  // Receita fixa que abate os custos: patrocínio + cachê da casa (se for o acordo).
-  const fixedRevenue = p.patrocinio + (p.acordoTipo === "cache" ? p.acordoValor : 0);
-  const fixedToCover = Math.max(0, custosProjetados - fixedRevenue);
-  const breakEvenPeople = revPerPerson > 0 ? Math.ceil(fixedToCover / revPerPerson) : null;
-
-  const P = Math.max(0, p.publicoEsperado);
-  const receitaBase = P * revPerPerson + fixedRevenue;
-  const resultado = receitaBase - custosProjetados;
-  const margem = receitaBase > 0 ? resultado / receitaBase : null;
-
-  const exceedsCapacity =
-    capacity != null && capacity > 0 && breakEvenPeople != null && breakEvenPeople >= capacity;
-
-  let light: Verdict["light"];
-  if (resultado < 0 || exceedsCapacity) light = "vermelho";
-  else if (margem != null && margem >= 0.15) light = "verde";
-  else light = "ambar";
-
-  return { breakEvenPeople, revPerPerson, resultado, receitaBase, margem, light, exceedsCapacity };
 }
 
 /**

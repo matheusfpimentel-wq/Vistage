@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { formatDate } from "@/lib/format";
+import { formatDate, toLocalISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_STAGE_NAMES,
@@ -35,10 +35,13 @@ import {
 import { MarketingStagePanel } from "./MarketingStagePanel";
 import { ViabilidadeStagePanel } from "./ViabilidadeStagePanel";
 import { ExecucaoStagePanel } from "./ExecucaoStagePanel";
+import { IdeacaoStagePanel } from "./IdeacaoStagePanel";
+import { ConcretizacaoStagePanel } from "./ConcretizacaoStagePanel";
 import type { Venue } from "@/modules/venues/types";
 import type {
   PartyTeamMember,
   PartySponsor,
+  PartyGuest,
   LineupStatus,
 } from "../types";
 
@@ -86,6 +89,9 @@ export function WorkflowTab({
   sponsors,
   lineup,
   lineupStatus,
+  guests,
+  barRevenue,
+  actualAttendance,
   onPatchParty,
   onPatchTeam,
   onPatchSponsors,
@@ -117,6 +123,10 @@ export function WorkflowTab({
   sponsors: PartySponsor[];
   lineup: number[];
   lineupStatus: LineupStatus;
+  /** Cortesias + receita de bar + presença real — base do RESULTADO da Concretização. */
+  guests: PartyGuest[];
+  barRevenue: number | null;
+  actualAttendance: number | null;
   /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
   onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
   /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
@@ -267,17 +277,26 @@ export function WorkflowTab({
       {/* Stepper de LINHA ÚNICA — as etapas nunca quebram pra 2ª linha; clicar
           numa expande abaixo. Em telas apertadas o nome trunca (com tooltip). */}
       <div className="flex items-stretch gap-1 overflow-hidden rounded-lg border bg-card p-1">
-        {stages.map((stage) => (
+        {stages.map((stage) => {
+          // Gatilho do debrief: festa já passou e a Concretização segue pendente
+          // → destaca a etapa (o destaque É o aviso; sem texto de nag).
+          const needsDebrief =
+            stage.name === "Concretização" &&
+            !!partyDate && partyDate.slice(0, 10) < toLocalISODate() &&
+            stage.status !== "concluida";
+          return (
           <button
             key={stage.id}
             type="button"
             onClick={() =>
               expandedId === stage.id ? setExpandedId(null) : openStage(stage)
             }
-            title={`${stage.name} · ${stageStatusLabel(stage.status)}`}
+            title={`${stage.name} · ${stageStatusLabel(stage.status)}${needsDebrief ? " · debrief pendente" : ""}`}
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition",
-              expandedId === stage.id ? "bg-primary/10 ring-1 ring-primary" : "hover:bg-muted/50"
+              expandedId === stage.id ? "bg-primary/10 ring-1 ring-primary"
+                : needsDebrief ? "bg-amber-500/10 ring-1 ring-amber-500/60 animate-pulse"
+                : "hover:bg-muted/50"
             )}
           >
             <span className={cn("h-2 w-2 shrink-0 rounded-full", stageStatusDot(stage.status))} />
@@ -288,7 +307,8 @@ export function WorkflowTab({
               <ChevronDown className="h-3 w-3 shrink-0 opacity-40" />
             )}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {expandedId !== null && (() => {
@@ -322,7 +342,23 @@ export function WorkflowTab({
               </div>
             </div>
 
-            {stage.name === "Marketing" ? (
+            {stage.name === "Ideação" ? (
+              <IdeacaoStagePanel partyId={partyId} stage={stage} onReload={onReload} />
+            ) : stage.name === "Concretização" ? (
+              <ConcretizacaoStagePanel
+                partyId={partyId}
+                stage={stage}
+                stages={stages}
+                budgetItems={budgetItems}
+                tickets={tickets}
+                sponsors={sponsors}
+                guests={guests}
+                barRevenue={barRevenue}
+                actualAttendance={actualAttendance}
+                expectedCapacity={expectedCapacity}
+                onReload={onReload}
+              />
+            ) : stage.name === "Marketing" ? (
               <MarketingStagePanel
                 partyId={partyId}
                 stage={stage}
@@ -621,7 +657,7 @@ export function WorkflowTab({
             {/* Marketing e Viabilidade salvam sozinhos (o painel persiste cada
                 mudança); as demais etapas usam este Salvar pra gravar campos +
                 notas de uma vez. */}
-            {stage.name !== "Marketing" && stage.name !== "Viabilidade" && stage.name !== "Execução" && (
+            {stage.name !== "Ideação" && stage.name !== "Marketing" && stage.name !== "Viabilidade" && stage.name !== "Execução" && stage.name !== "Concretização" && (
               <div className="flex justify-end">
                 <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
