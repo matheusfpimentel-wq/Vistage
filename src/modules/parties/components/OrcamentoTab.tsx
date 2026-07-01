@@ -20,6 +20,7 @@ import {
   type PartyDeserialized,
   type PartyGuest,
   type PartyTicket,
+  type ViabilityCost,
 } from "../types";
 import {
   createPartyBudgetItem,
@@ -30,6 +31,15 @@ import {
 import { computePartyPnL } from "../pnl";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
+
+/** Mapeia as categorias da Viabilidade para as do Orçamento ao importar custos. */
+const VIAB_TO_BUDGET_CAT: Record<string, string> = {
+  Pessoal: "Pessoal",
+  Estrutura: "Infraestrutura",
+  Marketing: "Marketing",
+  Operacional: "Operacional",
+  Outros: "Outros",
+};
 
 /** Variância de uma linha de CUSTO: real − projetado (positivo = estourou o
  *  orçamento). Retorna null quando o real ainda não foi lançado. */
@@ -50,24 +60,91 @@ export function OrcamentoTab({
   items,
   tickets,
   guests = [],
+  barRevenue = null,
+  viabilityCostsRaw = null,
+  marketingReach = null,
+  marketingBudget = null,
   onReload,
 }: {
   party: PartyDeserialized;
   items: PartyBudgetItem[];
   tickets: PartyTicket[];
   guests?: PartyGuest[];
+  /** Receita de bar (vem do estado do formulário, editável na aba Info). */
+  barRevenue?: number | null;
+  /** JSON dos custos estimados na Viabilidade — pra reconciliar com o orçamento. */
+  viabilityCostsRaw?: string | null;
+  /** Meta de alcance (Marketing) — topo do funil. */
+  marketingReach?: number | null;
+  /** Orçamento de marketing (Marketing) — custo por alcance. */
+  marketingBudget?: number | null;
   onReload: () => Promise<void>;
 }) {
   const navigate = useNavigate();
   // P&L da festa: o Orçamento é a verdade financeira — receita (ingressos
-  // vendidos + patrocínio) menos custo real (orçamento + custo variável das
-  // cortesias) = resultado líquido. Cálculo único em computePartyPnL (antes
+  // vendidos + patrocínio + bar) menos custo real (orçamento + custo variável
+  // das cortesias) = resultado líquido. Cálculo único em computePartyPnL (antes
   // duplicado em 4 lugares com bases divergentes).
-  const pnl = computePartyPnL(tickets, items, party.sponsors, guests);
+  const pnl = computePartyPnL(tickets, items, party.sponsors, guests, {
+    barRevenue,
+    attendance: party.actual_attendance,
+  });
   const ticketRevenue = pnl.ticketRevenueReal;
   const sponsorRevenue = pnl.sponsorRevenue;
   const revenue = pnl.revenueReal;
   const net = pnl.netReal;
+
+  // Reconciliação: custos ESTIMADOS na Viabilidade × orçamento projetado real.
+  // O custos_necessarios da Viabilidade era um 2º lugar onde o custo vivia; aqui
+  // o gap fica visível e dá pra importar o que ficou só na estimativa.
+  let viabilityCosts: ViabilityCost[] = [];
+  try {
+    const p = JSON.parse(viabilityCostsRaw ?? "");
+    if (Array.isArray(p)) viabilityCosts = p;
+  } catch { /* vazio / legado */ }
+  const viabilityTotal = viabilityCosts.reduce((s, c) => s + (c.amount || 0), 0);
+  const [importing, setImporting] = useState(false);
+
+  // Funil de marketing: alcance (meta) → ingressos vendidos.
+  const reach = marketingReach && marketingReach > 0 ? marketingReach : null;
+  const conversion = reach ? (pnl.sold / reach) * 100 : null;
+  const costPerReach = reach && marketingBudget ? marketingBudget / reach : null;
+
+  async function importViabilityCosts() {
+    if (viabilityCosts.length === 0) return;
+    setImporting(true);
+    try {
+      const existing = new Set(items.map((i) => (i.description ?? "").trim().toLowerCase()));
+      let created = 0;
+      for (const c of viabilityCosts) {
+        const desc = (c.description?.trim() || c.category);
+        if (existing.has(desc.toLowerCase())) continue;
+        await createPartyBudgetItem({
+          party_id: party.id,
+          category: VIAB_TO_BUDGET_CAT[c.category] ?? "Outros",
+          subcategory: null,
+          description: desc,
+          projected_amount: c.amount || 0,
+          actual_amount: null,
+          supplier_note: null,
+          supplier_id: null,
+          status: "projetado",
+          date_paid: null,
+          premissa: "Importado da Viabilidade",
+          nota_variancia: null,
+        });
+        existing.add(desc.toLowerCase());
+        created += 1;
+      }
+      await onReload();
+      toast.success(created > 0 ? `${created} custo(s) importado(s) da Viabilidade.` : "Custos da Viabilidade já estão no orçamento.");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
   const [newSubcategory, setNewSubcategory] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -203,6 +280,7 @@ export function OrcamentoTab({
           <div className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{formatCurrency(revenue)}</div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
             Ingressos {formatCurrency(ticketRevenue)} · Patrocínio {formatCurrency(sponsorRevenue)}
+            {pnl.barRevenue > 0 && ` · Bar ${formatCurrency(pnl.barRevenue)}`}
           </div>
         </div>
         <div className="rounded-md border p-3">
@@ -226,6 +304,79 @@ export function OrcamentoTab({
           <div className="mt-0.5 text-[11px] text-muted-foreground">Receita − custo real</div>
         </div>
       </div>
+
+      {/* Economia por cabeça — quanto cada pessoa vale de faturamento e de lucro.
+          A receita de bar (2ª receita da festa) é editada na aba Info. */}
+      {pnl.heads > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Faturamento/cabeça{" "}
+            <strong className="tabular-nums text-foreground">
+              {pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            Lucro/cabeça{" "}
+            <strong className={cn("tabular-nums", (pnl.netPerHead ?? 0) >= 0 ? "text-emerald-500" : "text-red-400")}>
+              {pnl.netPerHead != null ? formatCurrency(pnl.netPerHead) : "—"}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            base: {pnl.heads} {party.actual_attendance && party.actual_attendance > 0 ? "presentes" : "vendidos"}
+          </span>
+        </div>
+      )}
+
+      {/* Reconciliação: estimativa da Viabilidade × orçamento projetado. */}
+      {viabilityTotal > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Estimativa Viabilidade{" "}
+            <strong className="tabular-nums text-foreground">{formatCurrency(viabilityTotal)}</strong>
+          </span>
+          <span className="text-muted-foreground">
+            Orçamento projetado{" "}
+            <strong className="tabular-nums text-foreground">{formatCurrency(pnl.costProjected)}</strong>
+          </span>
+          {(() => {
+            const diff = pnl.costProjected - viabilityTotal;
+            return (
+              <span className="text-muted-foreground">
+                Δ{" "}
+                <strong className={cn("tabular-nums", Math.abs(diff) < 1 ? "text-muted-foreground" : diff > 0 ? "text-red-400" : "text-emerald-500")}>
+                  {diff >= 0 ? "+" : "−"}{formatCurrency(Math.abs(diff))}
+                </strong>
+              </span>
+            );
+          })()}
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={importing} onClick={() => void importViabilityCosts()}>
+            {importing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Importar custos da Viabilidade
+          </Button>
+        </div>
+      )}
+
+      {/* Funil de marketing: alcance → ingressos vendidos. */}
+      {reach != null && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Funil: alcance <strong className="tabular-nums text-foreground">{reach.toLocaleString("pt-BR")}</strong>
+            {" → "}vendas <strong className="tabular-nums text-foreground">{pnl.sold}</strong>
+          </span>
+          {conversion != null && (
+            <span className="text-muted-foreground">
+              conversão{" "}
+              <strong className="tabular-nums text-foreground">{conversion.toFixed(conversion < 1 ? 2 : 1)}%</strong>
+            </span>
+          )}
+          {costPerReach != null && (
+            <span className="text-muted-foreground">
+              custo/alcance{" "}
+              <strong className="tabular-nums text-foreground">{formatCurrency(costPerReach)}</strong>
+            </span>
+          )}
+        </div>
+      )}
 
       {party.status === "Realizada" && party.financial_synced === 0 && (
         <div className="flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">

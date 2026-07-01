@@ -16,7 +16,7 @@ export type PartyStage = {
 
 export const DEFAULT_STAGE_NAMES = ["Ideação","Viabilidade","Marketing","Execução","Concretização"] as const;
 
-export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist" }[]> = {
+export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist"|"rider" }[]> = {
   "Ideação": [
     { key:"conceito", label:"Conceito da festa", type:"text" },
     { key:"tema", label:"Tema", type:"text" },
@@ -41,14 +41,18 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   ],
   "Execução": [
     { key:"equipe", label:"Equipe confirmada", type:"text" },
-    { key:"rider_tecnico", label:"Rider técnico", type:"text" },
+    { key:"rider_tecnico", label:"Rider técnico", type:"rider" },
     { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
     { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
   ],
   // De-dup (slice 3b): "Público real" e "Receita total" saíram daqui — são
   // COMPUTADOS (público real = ingressos vendidos; receita = ingressos +
   // patrocínio do Orçamento), exibidos no cockpit/briefing, não redigitados.
+  // Debrief Plus/Delta: o que reforçar (Plus) x o que ajustar (Delta) — a
+  // retrospectiva enxuta que vira ação na próxima edição.
   "Concretização": [
+    { key:"plus", label:"O que manteria (Plus)", type:"text" },
+    { key:"delta", label:"O que mudaria (Delta)", type:"text" },
     { key:"aprendizados", label:"Aprendizados", type:"text" },
     { key:"proximos_passos", label:"Próximos passos", type:"text" },
   ],
@@ -64,6 +68,16 @@ export type ViabilityCost = { category: string; description: string; amount: num
 
 /** Item do checklist operacional (serializado em JSON no campo da etapa). */
 export type ChecklistItem = { text: string; done: boolean };
+
+/** Rider técnico estruturado — categorias de equipamento de uma festa. */
+export const RIDER_CATEGORIES = ["Áudio (PA)", "DJ / Palco", "Monitores", "Luz", "Backline", "Energia", "Cabeamento", "Outros"] as const;
+/** Quem fornece cada item do rider. */
+export const RIDER_PROVIDERS = ["Casa", "Nós", "Locação"] as const;
+/** Linha do rider técnico (serializado em JSON no campo da etapa). */
+export type RiderItem = { category: string; item: string; quantity: number; by: string; done: boolean };
+
+/** Modelo de rider reutilizável entre festas (biblioteca de riders). */
+export type RiderTemplate = { id: number; name: string; items: string; created_at: string };
 
 export const BUDGET_CATEGORIES: Record<string, string[]> = {
   Pessoal: ["DJs","Seguranças","Promoters","Staff","Fotógrafo/Vídeo","MC/Apresentador","Outros"],
@@ -95,13 +109,46 @@ export type PartyTicket = {
   sale_start_date: string|null; sale_end_date: string|null; position: number; created_at: string;
 };
 
+/** Ponto datado da curva de venda de ingressos — quantos vendidos ATÉ essa data. */
+export type PartyTicketSale = {
+  id: number; party_id: number; sale_date: string;
+  cumulative_sold: number; note: string | null; created_at: string;
+};
+
 /** Linha do run-of-show (cronograma do Dia D) — aba Operação. */
 export type PartyRunsheetItem = {
   id: number; party_id: number; position: number;
   time: string | null; end_time: string | null;
   title: string; performer_contact_id: number | null; notes: string | null;
+  /** Duração em minutos — base do cronograma reverso (recalcula horários a partir de uma âncora). */
+  duration_min: number | null;
   created_at: string;
 };
+
+/** Compliance / licenças da festa — tira as obrigações legais do "na cabeça". */
+export const COMPLIANCE_CATEGORIES = ["ECAD", "Alvará", "Bombeiros", "SMMA", "Segurança", "Sanitária", "Outro"] as const;
+export const COMPLIANCE_STATUSES = ["pendente", "em_andamento", "ok", "na"] as const;
+export type ComplianceStatus = (typeof COMPLIANCE_STATUSES)[number];
+
+export type PartyComplianceItem = {
+  id: number; party_id: number; category: string; title: string;
+  status: ComplianceStatus; protocol: string | null; due_date: string | null;
+  notes: string | null; position: number; created_at: string;
+};
+
+/** Itens padrão de compliance de uma festa de nightlife (semente do checklist). */
+export const DEFAULT_COMPLIANCE_ITEMS: { category: string; title: string }[] = [
+  { category: "ECAD", title: "Recolhimento ECAD (direitos autorais musicais)" },
+  { category: "Alvará", title: "Alvará de funcionamento / autorização do evento" },
+  { category: "Bombeiros", title: "Vistoria / AVCB do Corpo de Bombeiros" },
+  { category: "SMMA", title: "Licença ambiental / controle de ruído (SMMA)" },
+  { category: "Segurança", title: "Plano de segurança e seguranças credenciados" },
+  { category: "Sanitária", title: "Vigilância sanitária (bar / alimentos)" },
+];
+
+export function complianceStatusLabel(s: ComplianceStatus): string {
+  return s === "ok" ? "OK" : s === "em_andamento" ? "Em andamento" : s === "na" ? "N/A" : "Pendente";
+}
 
 /** Motivos comuns de cortesia (guest list). */
 export const GUEST_REASONS = ["Influencer", "Imprensa", "VIP", "Permuta", "Equipe", "Outro"] as const;
@@ -160,6 +207,10 @@ export type Party = {
   venue_name: string|null; status: PartyStatus; status_override: number; description: string|null;
   expected_capacity: number|null; actual_attendance: number|null;
   ticket_price_regular: number|null; ticket_price_vip: number|null;
+  /** Receita de bar atribuída à festa (parte do produtor) — entra na receita do P&L. */
+  bar_revenue: number|null;
+  /** CAC-alvo: custo de aquisição por comprador que você aceita pagar (meta). */
+  target_cac: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
   gig_id: number|null;
@@ -173,11 +224,13 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"target_cac"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
   status_override?: number;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
+  bar_revenue?: number|null;
+  target_cac?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
   team?: PartyTeamMember[]|string|null;

@@ -1,17 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, ListOrdered, Plus, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, ListOrdered, Plus, ShieldCheck, Trash2, Users } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toaster";
+import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "@/components/ui/toaster";
+import { cn } from "@/lib/utils";
+import {
+  createPartyComplianceItem,
   createPartyRunsheetItem,
+  deletePartyComplianceItem,
   deletePartyRunsheetItem,
   getPartyHousePending,
+  listPartyCompliance,
   listPartyRunsheet,
   reorderPartyRunsheet,
+  seedDefaultCompliance,
   setPartyHousePending,
+  updatePartyComplianceItem,
   updatePartyRunsheetItem,
 } from "../api";
-import type { PartyRunsheetItem } from "../types";
+import {
+  COMPLIANCE_CATEGORIES,
+  COMPLIANCE_STATUSES,
+  complianceStatusLabel,
+  type ComplianceStatus,
+  type PartyComplianceItem,
+  type PartyRunsheetItem,
+} from "../types";
 
 type Performer = { id: number; name: string };
 type RowPatch = Partial<Omit<PartyRunsheetItem, "id" | "party_id" | "created_at">>;
@@ -22,10 +44,56 @@ type RowPatch = Partial<Omit<PartyRunsheetItem, "id" | "party_id" | "created_at"
  * line-up. Mais um campo único de "pendências com a casa" (a casa resolve o
  * pesado na sua escala; aqui é só o que você precisa confirmar com ela).
  */
+
+/** "HH:MM" → minutos desde a meia-noite; null se inválido. */
+function parseHHMM(s: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** Minutos → "HH:MM" no relógio de 24h (envolve a meia-noite pra trás). */
+function fmtHHMM(min: number): string {
+  const m = ((min % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
 export function OperacaoTab({ partyId, performers }: { partyId: number; performers: Performer[] }) {
   const [rows, setRows] = useState<PartyRunsheetItem[]>([]);
   const [housePending, setHousePending] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [anchorTime, setAnchorTime] = useState("");
+
+  // Cronograma reverso: recalcula os horários de trás pra frente pela duração de
+  // cada item, pra tudo TERMINAR na hora-âncora (ex.: portas às 23h). O último
+  // item acaba na âncora; cada anterior termina onde o próximo começa.
+  async function reverseSchedule() {
+    const anchor = parseHHMM(anchorTime);
+    if (anchor == null) {
+      toast.error("Informe a hora-âncora (ex.: 23:00)");
+      return;
+    }
+    let cursor = anchor;
+    const updates: { id: number; time: string; end_time: string }[] = [];
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const dur = rows[i].duration_min ?? 0;
+      const end = cursor;
+      const start = cursor - dur;
+      updates.push({ id: rows[i].id, time: fmtHHMM(start), end_time: fmtHHMM(end) });
+      cursor = start;
+    }
+    try {
+      for (const u of updates) {
+        await updatePartyRunsheetItem(u.id, { time: u.time, end_time: u.end_time });
+      }
+      await reload();
+      toast.success("Cronograma recalculado de trás pra frente.");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
 
   const reload = useCallback(async () => {
     const [r, hp] = await Promise.all([listPartyRunsheet(partyId), getPartyHousePending(partyId)]);
@@ -48,6 +116,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
         title: "",
         performer_contact_id: null,
         notes: null,
+        duration_min: null,
       });
       void reload();
     } catch (e) {
@@ -74,6 +143,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           title: `Set — ${p.name}`,
           performer_contact_id: p.id,
           notes: null,
+          duration_min: null,
         });
         added++;
       }
@@ -196,6 +266,16 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                   title="Fim"
                 />
                 <input
+                  type="number"
+                  min={0}
+                  step={5}
+                  value={r.duration_min ?? ""}
+                  placeholder="min"
+                  onChange={(e) => void patch(r.id, { duration_min: e.target.value ? Number(e.target.value) : null })}
+                  className="h-8 w-[56px] rounded border bg-background px-1.5 text-xs"
+                  title="Duração (min) — base do cronograma reverso"
+                />
+                <input
                   value={r.title}
                   placeholder="O que acontece"
                   onChange={(e) => void patch(r.id, { title: e.target.value })}
@@ -231,6 +311,26 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
         )}
       </section>
 
+      {/* Cronograma reverso — recalcula os horários pra trás a partir da âncora */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-2">
+          <span className="text-xs font-medium">Cronograma reverso</span>
+          <input
+            type="time"
+            value={anchorTime}
+            onChange={(e) => setAnchorTime(e.target.value)}
+            className="h-8 w-[92px] rounded border bg-background px-1.5 text-xs"
+            title="Tudo pronto até esta hora (âncora)"
+          />
+          <Button size="sm" variant="outline" className="h-8" onClick={() => void reverseSchedule()}>
+            Recalcular ao contrário
+          </Button>
+          <span className="text-[11px] text-muted-foreground">
+            Preencha a duração (min) de cada item; isto reescreve os horários pra tudo terminar na hora-âncora.
+          </span>
+        </div>
+      )}
+
       {/* Pendências com a casa */}
       <section className="space-y-1.5">
         <h3 className="text-sm font-semibold">Pendências com a casa</h3>
@@ -243,6 +343,182 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           className="w-full resize-y rounded-md border bg-background p-2 text-sm"
         />
       </section>
+
+      <ComplianceSection partyId={partyId} />
     </div>
+  );
+}
+
+function complianceStatusClass(s: ComplianceStatus): string {
+  return s === "ok"
+    ? "text-emerald-500"
+    : s === "em_andamento"
+    ? "text-amber-500"
+    : s === "na"
+    ? "text-muted-foreground"
+    : "text-red-400";
+}
+
+/**
+ * Compliance / licenças — checklist estruturado das obrigações legais da festa
+ * (ECAD, alvará, bombeiros, SMMA, segurança, sanitária): status + protocolo +
+ * prazo. Tira o compliance do "na cabeça" e vira responsabilidade rastreável.
+ */
+function ComplianceSection({ partyId }: { partyId: number }) {
+  const [items, setItems] = useState<PartyComplianceItem[]>([]);
+  const [cat, setCat] = useState<string>(COMPLIANCE_CATEGORIES[0]);
+  const [title, setTitle] = useState("");
+  const [seeding, setSeeding] = useState(false);
+
+  const reload = useCallback(() => {
+    void listPartyCompliance(partyId).then(setItems);
+  }, [partyId]);
+  useEffect(() => { reload(); }, [reload]);
+
+  const considered = items.filter((i) => i.status !== "na");
+  const okCount = items.filter((i) => i.status === "ok").length;
+
+  async function seed() {
+    setSeeding(true);
+    try {
+      const n = await seedDefaultCompliance(partyId);
+      reload();
+      toast.success(n > 0 ? `${n} item(ns) padrão adicionado(s).` : "Itens padrão já estavam na lista.");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  async function add() {
+    const t = title.trim();
+    if (!t) {
+      toast.error("Informe o título do item de compliance");
+      return;
+    }
+    try {
+      await createPartyComplianceItem({
+        party_id: partyId, category: cat, title: t,
+        status: "pendente", protocol: null, due_date: null, notes: null,
+        position: items.length,
+      });
+      setTitle("");
+      reload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  function patch(id: number, updates: Partial<PartyComplianceItem>) {
+    setItems((xs) => xs.map((x) => (x.id === id ? { ...x, ...updates } : x)));
+    void updatePartyComplianceItem(id, updates).catch((e) => {
+      toast.error(`Não consegui salvar: ${String(e)}`);
+      reload();
+    });
+  }
+
+  async function remove(id: number) {
+    try {
+      await deletePartyComplianceItem(id);
+      reload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  return (
+    <section className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+          <ShieldCheck className="h-4 w-4" /> Compliance / Licenças
+        </h3>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {considered.length > 0 && (
+            <span>
+              <strong className={okCount === considered.length ? "text-emerald-500" : "text-foreground"}>
+                {okCount}/{considered.length}
+              </strong>{" "}
+              OK
+            </span>
+          )}
+          <Button size="sm" variant="outline" className="h-7" onClick={() => void seed()} disabled={seeding}>
+            <Plus className="h-3.5 w-3.5" /> Itens padrão
+          </Button>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Sem itens ainda. Toque "Itens padrão" pra puxar ECAD, alvará, bombeiros, SMMA, segurança e sanitária —
+          ou adicione um item abaixo.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {items.map((it) => (
+            <li key={it.id} className="flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-sm">
+              <Badge variant="outline" className="shrink-0 text-[10px]">{it.category}</Badge>
+              <span className="min-w-0 flex-1 truncate">{it.title}</span>
+              <select
+                value={it.status}
+                onChange={(e) => patch(it.id, { status: e.target.value as ComplianceStatus })}
+                className={cn(
+                  "h-7 shrink-0 rounded border bg-background px-1 text-[11px] font-medium",
+                  complianceStatusClass(it.status)
+                )}
+              >
+                {COMPLIANCE_STATUSES.map((s) => (
+                  <option key={s} value={s}>{complianceStatusLabel(s)}</option>
+                ))}
+              </select>
+              <Input
+                className="h-7 w-28 text-xs"
+                placeholder="Protocolo/nº"
+                defaultValue={it.protocol ?? ""}
+                onBlur={(e) => {
+                  const v = e.target.value.trim() || null;
+                  if (v !== (it.protocol ?? null)) patch(it.id, { protocol: v });
+                }}
+              />
+              <Input
+                type="date"
+                className="h-7 w-36 text-xs"
+                value={it.due_date ?? ""}
+                onChange={(e) => patch(it.id, { due_date: e.target.value || null })}
+              />
+              <button
+                type="button"
+                onClick={() => void remove(it.id)}
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label="Remover item"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Select value={cat} onValueChange={setCat}>
+          <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {COMPLIANCE_CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          className="h-8 flex-1 text-xs"
+          placeholder="Item de compliance (ex.: Seguro do evento)…"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
+        />
+        <Button size="sm" variant="outline" className="h-8" onClick={() => void add()}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </section>
   );
 }

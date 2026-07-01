@@ -67,6 +67,25 @@ function parseCosts(raw: unknown): ViabilityCost[] {
   }
 }
 
+/** Rider estruturado (JSON RiderItem[]) → linhas "Categoria: qtd× item (fornecedor)". */
+function riderLines(raw: unknown): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) {
+      return (v as { category?: string; item?: string; quantity?: number; by?: string }[])
+        .filter((r) => r && r.item)
+        .map((r) => {
+          const qty = r.quantity && r.quantity > 1 ? `${r.quantity}× ` : "";
+          const by = r.by ? ` (${r.by})` : "";
+          const cat = r.category ? `${r.category}: ` : "";
+          return `${cat}${qty}${r.item}${by}`;
+        });
+    }
+  } catch { /* rider em texto legado */ }
+  return [String(raw).trim()];
+}
+
 /** Monta o briefing estruturado da etapa, já redigido para o público escolhido. */
 export function buildBriefing(
   stageName: string,
@@ -84,11 +103,13 @@ export function buildBriefing(
 
   // P&L via fonte única (computePartyPnL) — antes era um 4º cálculo divergente
   // que somava quantity_sold cru (sem || 0) e podia virar NaN.
-  const pnl = computePartyPnL(tickets, budget, party.sponsors, guests);
+  const pnl = computePartyPnL(tickets, budget, party.sponsors, guests, {
+    barRevenue: party.bar_revenue,
+    attendance: party.actual_attendance,
+  });
   const soldTotal = pnl.sold;
   const revenue = pnl.revenueReal;
   const projectedCost = pnl.costProjected;
-  const mktReal = pnl.marketingActual;
   const net = pnl.netReal;
 
   if (stageName === "Ideação") {
@@ -132,7 +153,7 @@ export function buildBriefing(
       const money = audience === "crew" ? "" : (m.amount_cents ? ` — ${formatCurrency(m.amount_cents / 100)}` : "");
       return `${m.name}${m.role ? ` (${m.role})` : ""}${money}`;
     }));
-    add("Rider técnico", [str(f.rider_tecnico)]);
+    add("Rider técnico", riderLines(f.rider_tecnico));
     if (audience !== "crew") {
       add("Fornecedores / orçamento", budget.map((b) => `${b.description ?? b.subcategory ?? b.category}: ${formatCurrency(b.actual_amount ?? b.projected_amount)}`));
     }
@@ -149,8 +170,20 @@ export function buildBriefing(
     } else {
       add("Resultado financeiro", [
         revenue > 0 ? `Receita: ${formatCurrency(revenue)}` : null,
+        pnl.barRevenue > 0 ? `— dos quais bar: ${formatCurrency(pnl.barRevenue)}` : null,
         `Resultado líquido: ${formatCurrency(net)}`,
-        mktReal > 0 && soldTotal > 0 ? `CAC: ${formatCurrency(mktReal / soldTotal)}` : null,
+        pnl.revenuePerHead != null ? `Faturamento por cabeça: ${formatCurrency(pnl.revenuePerHead)}` : null,
+        pnl.cac != null
+          ? `CAC: ${formatCurrency(pnl.cac)}${
+              party.target_cac && party.target_cac > 0
+                ? ` (alvo ${formatCurrency(party.target_cac)} — ${pnl.cac <= party.target_cac ? "dentro" : "acima"})`
+                : ""
+            }`
+          : null,
+      ]);
+      add("Debrief (Plus/Delta)", [
+        str(f.plus) ? `Plus (manter): ${str(f.plus)}` : null,
+        str(f.delta) ? `Delta (mudar): ${str(f.delta)}` : null,
       ]);
       add("Aprendizados", [str(f.aprendizados)]);
       add("Próximos passos", [str(f.proximos_passos)]);

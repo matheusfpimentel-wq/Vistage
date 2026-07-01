@@ -2289,6 +2289,75 @@ const MIGRATIONS: Migration[] = [
       "Festas/Cortesias — party_guests.unit_cost: custo variável real por cabeça da cortesia (welcome drink, pulseira, kit). Cortesia tem receita renunciada E custo de caixa; só o custo variável entra no líquido. Aditiva/idempotente.",
     sql: `ALTER TABLE party_guests ADD COLUMN unit_cost REAL NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 161,
+    description:
+      "Festas/P&L — parties.bar_revenue: receita de bar atribuída à festa (a parte que fica com o produtor). Entra na receita do P&L e alimenta o faturamento por cabeça. Aditiva/idempotente.",
+    sql: `ALTER TABLE parties ADD COLUMN bar_revenue REAL;`,
+  },
+  {
+    version: 162,
+    description:
+      "Festas/Ingressos — party_ticket_sales: pontos datados da curva de venda (quantos ingressos vendidos até cada data). Mostra o ritmo de venda (front-loaded x last-minute) e o sell-through. Tabela nova, idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_ticket_sales (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        sale_date TEXT NOT NULL,
+        cumulative_sold INTEGER NOT NULL DEFAULT 0,
+        note TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_ticket_sales_party ON party_ticket_sales(party_id, sale_date);
+    `,
+  },
+  {
+    version: 163,
+    description:
+      "Festas/CAC — parties.target_cac: custo de aquisição por comprador ALVO (meta). O cockpit compara o CAC real com essa meta pra saber se o marketing está eficiente. Aditiva/idempotente.",
+    sql: `ALTER TABLE parties ADD COLUMN target_cac REAL;`,
+  },
+  {
+    version: 164,
+    description:
+      "Festas/Compliance — party_compliance: checklist estruturado de licenças/obrigações (ECAD, alvará, bombeiros, SMMA, segurança, sanitária) com status, protocolo, prazo e nota. Tira o compliance do 'na cabeça' e vira responsabilidade rastreável. Tabela nova, idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_compliance (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        category TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pendente',
+        protocol TEXT,
+        due_date TEXT,
+        notes TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_compliance_party ON party_compliance(party_id, position);
+    `,
+  },
+  {
+    version: 165,
+    description:
+      "Festas/Operação — party_runsheet.duration_min: duração (min) de cada item do run-of-show, pra montar o cronograma REVERSO (recalcula os horários de trás pra frente a partir de uma âncora). Aditiva/idempotente.",
+    sql: `ALTER TABLE party_runsheet ADD COLUMN duration_min INTEGER;`,
+  },
+  {
+    version: 166,
+    description:
+      "Festas/Rider — rider_templates: biblioteca de riders técnicos reutilizáveis (nome + itens em JSON), pra não remontar o rider a cada festa. Tabela nova, idempotente.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS rider_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        items TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
 ];
 
 

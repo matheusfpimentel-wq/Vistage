@@ -196,9 +196,13 @@ export function SeriesEditionCard({
 
       {rollup && rollup.editionsCount > 0 && (
         <div className="space-y-1.5">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="Edições" value={String(rollup.editionsCount)} />
             <Stat label="Público médio" value={rollup.avgAttendance ? String(rollup.avgAttendance) : "—"} />
+            <Stat
+              label="Retenção"
+              value={rollup.avgRetentionPct != null ? `${rollup.avgRetentionPct}%` : "—"}
+            />
             <Stat label="Lucro total" value={formatCurrency(rollup.totalNet)} />
           </div>
           <ul className="space-y-1">
@@ -216,6 +220,17 @@ export function SeriesEditionCard({
                 <span className="shrink-0 text-muted-foreground">
                   {e.attendance != null ? `${e.attendance} pess.` : "—"}
                 </span>
+                {e.attendanceRetentionPct != null && (
+                  <span
+                    className={cn(
+                      "shrink-0 tabular-nums",
+                      e.attendanceRetentionPct >= 100 ? "text-emerald-500" : "text-amber-500"
+                    )}
+                    title="Retenção de público vs edição anterior"
+                  >
+                    {e.attendanceRetentionPct >= 100 ? "↑" : "↓"}{e.attendanceRetentionPct}%
+                  </span>
+                )}
                 <span className={cn("shrink-0 tabular-nums", e.net >= 0 ? "text-emerald-500" : "text-red-500")}>
                   {formatCurrency(e.net)}
                 </span>

@@ -14,11 +14,14 @@ import type {
   PartyVenueCandidate,
   PartyRunsheetItem,
   PartyGuest,
+  PartyTicketSale,
+  PartyComplianceItem,
+  RiderTemplate,
   PartySeries,
   PartySeriesCreateInput,
   PartySeriesUpdateInput,
 } from "./types";
-import { DEFAULT_STAGE_NAMES } from "./types";
+import { DEFAULT_STAGE_NAMES, DEFAULT_COMPLIANCE_ITEMS } from "./types";
 import { computePartyPnL } from "./pnl";
 
 function nowISO(): string {
@@ -65,7 +68,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "status_override", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "lineup", "sponsors", "team", "notes", "gig_id",
+  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "notes", "gig_id",
   "series_id", "edition_label", "edition_number",
 ];
 
@@ -724,8 +727,8 @@ export async function createEdition(
       );
       for (const r of rs) {
         await db.execute(
-          "INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-          [newId, r.position, r.time, r.end_time, r.title, r.performer_contact_id, r.notes]
+          "INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes, duration_min) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+          [newId, r.position, r.time, r.end_time, r.title, r.performer_contact_id, r.notes, r.duration_min]
         );
       }
     }
@@ -739,8 +742,12 @@ export type SeriesRollup = {
   editions: {
     id: number; title: string; date: string | null; number: number | null;
     attendance: number | null; capacity: number | null; net: number; sold: number;
+    /** Retenção de público vs edição anterior (público_N / público_{N-1} × 100); null se faltar dado. */
+    attendanceRetentionPct: number | null;
   }[];
   totalAttendance: number; avgAttendance: number; totalNet: number; editionsCount: number;
+  /** Média das retenções entre edições consecutivas (cresce >100% / esfria <100%); null se <2 edições com público. */
+  avgRetentionPct: number | null;
 };
 
 export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
@@ -760,22 +767,49 @@ export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
       "SELECT * FROM party_guests WHERE party_id = $1",
       [e.id]
     );
-    const pnl = computePartyPnL(tickets, items, e.sponsors, guests);
+    const pnl = computePartyPnL(tickets, items, e.sponsors, guests, {
+      barRevenue: e.bar_revenue,
+      attendance: e.actual_attendance,
+    });
     rows.push({
       id: e.id, title: e.title, date: e.date, number: e.edition_number,
       attendance: e.actual_attendance, capacity: e.expected_capacity,
       net: pnl.netReal, sold: pnl.sold,
+      attendanceRetentionPct: null,
     });
   }
   const withAtt = rows.filter((e) => e.attendance != null);
   const totalAttendance = withAtt.reduce((s, e) => s + (e.attendance ?? 0), 0);
   const totalNet = rows.reduce((s, e) => s + e.net, 0);
+
+  // Ordena cronologicamente (nº, depois data) e calcula a retenção de público de
+  // cada edição vs a anterior — mostra se a franquia cresce (>100%) ou esfria.
+  const ordered = [...rows].sort((a, b) => {
+    const na = a.number ?? 0, nb = b.number ?? 0;
+    if (na !== nb) return na - nb;
+    return (a.date ?? "").localeCompare(b.date ?? "");
+  });
+  const retentions: number[] = [];
+  let prevAtt: number | null = null;
+  for (const e of ordered) {
+    if (e.attendance != null && prevAtt != null && prevAtt > 0) {
+      const pct = Math.round((e.attendance / prevAtt) * 100);
+      e.attendanceRetentionPct = pct;
+      retentions.push(pct);
+    }
+    if (e.attendance != null) prevAtt = e.attendance;
+  }
+  const avgRetentionPct = retentions.length
+    ? Math.round(retentions.reduce((s, x) => s + x, 0) / retentions.length)
+    : null;
+
   return {
-    editions: rows,
+    editions: ordered,
     totalAttendance,
     avgAttendance: withAtt.length ? Math.round(totalAttendance / withAtt.length) : 0,
     totalNet,
     editionsCount: rows.length,
+    avgRetentionPct,
   };
 }
 
@@ -984,11 +1018,12 @@ export async function createPartyRunsheetItem(
   item: Omit<PartyRunsheetItem, "id" | "created_at">
 ): Promise<number> {
   const res = await getDb().execute(
-    `INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    `INSERT INTO party_runsheet (party_id, position, time, end_time, title, performer_contact_id, notes, duration_min)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       item.party_id, item.position, item.time ?? null, item.end_time ?? null,
       item.title, item.performer_contact_id ?? null, item.notes ?? null,
+      item.duration_min ?? null,
     ]
   );
   return Number(res.lastInsertId);
@@ -1071,6 +1106,104 @@ export async function updatePartyGuest(
 
 export async function deletePartyGuest(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_guests WHERE id = $1", [id]);
+}
+
+// ===== PARTY TICKET SALES (curva de venda) =====
+
+export async function listPartyTicketSales(partyId: number): Promise<PartyTicketSale[]> {
+  return getDb().select<PartyTicketSale[]>(
+    "SELECT * FROM party_ticket_sales WHERE party_id = $1 ORDER BY sale_date ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyTicketSale(
+  sale: Omit<PartyTicketSale, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_ticket_sales (party_id, sale_date, cumulative_sold, note)
+     VALUES ($1, $2, $3, $4)`,
+    [sale.party_id, sale.sale_date, sale.cumulative_sold, sale.note ?? null]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function deletePartyTicketSale(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_ticket_sales WHERE id = $1", [id]);
+}
+
+// ===== PARTY COMPLIANCE (licenças / obrigações) =====
+
+export async function listPartyCompliance(partyId: number): Promise<PartyComplianceItem[]> {
+  return getDb().select<PartyComplianceItem[]>(
+    "SELECT * FROM party_compliance WHERE party_id = $1 ORDER BY position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyComplianceItem(
+  item: Omit<PartyComplianceItem, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      item.party_id, item.category, item.title, item.status,
+      item.protocol ?? null, item.due_date ?? null, item.notes ?? null, item.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyComplianceItem(
+  id: number,
+  updates: Partial<Omit<PartyComplianceItem, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_compliance SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyComplianceItem(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+}
+
+// ===== RIDER TEMPLATES (biblioteca de riders reutilizáveis) =====
+
+export async function listRiderTemplates(): Promise<RiderTemplate[]> {
+  return getDb().select<RiderTemplate[]>("SELECT * FROM rider_templates ORDER BY name COLLATE NOCASE ASC");
+}
+
+export async function createRiderTemplate(name: string, items: string): Promise<number> {
+  const res = await getDb().execute(
+    "INSERT INTO rider_templates (name, items) VALUES ($1, $2)",
+    [name, items]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function deleteRiderTemplate(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM rider_templates WHERE id = $1", [id]);
+}
+
+/** Semeia os itens padrão de compliance que ainda não existem (por categoria+título). */
+export async function seedDefaultCompliance(partyId: number): Promise<number> {
+  const existing = await listPartyCompliance(partyId);
+  const have = new Set(existing.map((i) => `${i.category}|${i.title}`.toLowerCase()));
+  let pos = existing.reduce((m, i) => Math.max(m, i.position), -1) + 1;
+  let created = 0;
+  for (const d of DEFAULT_COMPLIANCE_ITEMS) {
+    if (have.has(`${d.category}|${d.title}`.toLowerCase())) continue;
+    await createPartyComplianceItem({
+      party_id: partyId, category: d.category, title: d.title,
+      status: "pendente", protocol: null, due_date: null, notes: null, position: pos++,
+    });
+    created += 1;
+  }
+  return created;
 }
 
 // ===== PARTY TASKS =====

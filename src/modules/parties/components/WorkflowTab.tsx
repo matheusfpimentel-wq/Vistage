@@ -18,11 +18,15 @@ import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_STAGE_NAMES,
+  RIDER_CATEGORIES,
+  RIDER_PROVIDERS,
   STAGE_FIELD_DEFS,
   VIABILITY_COST_CATEGORIES,
   type ChecklistItem,
   type PartyStage,
   type PartyTask,
+  type RiderItem,
+  type RiderTemplate,
   type StageStatus,
   type ViabilityCost,
 } from "../types";
@@ -35,7 +39,10 @@ const NO_RESPONSAVEL = "_none";
 import {
   createPartyStage,
   createPartyTask,
+  createRiderTemplate,
   deletePartyStage,
+  deleteRiderTemplate,
+  listRiderTemplates,
   updatePartyStage,
 } from "../api";
 import { listSuppliers } from "@/modules/suppliers/api";
@@ -343,6 +350,19 @@ export function WorkflowTab({
                     return (
                       <div key={fd.key} className="sm:col-span-2">
                         <ChecklistField
+                          label={fd.label}
+                          value={String(editFields[fd.key] ?? "")}
+                          onChange={(v) =>
+                            setEditFields((f) => ({ ...f, [fd.key]: v }))
+                          }
+                        />
+                      </div>
+                    );
+                  }
+                  if (fd.type === "rider") {
+                    return (
+                      <div key={fd.key} className="sm:col-span-2">
+                        <RiderField
                           label={fd.label}
                           value={String(editFields[fd.key] ?? "")}
                           onChange={(v) =>
@@ -748,6 +768,176 @@ function ChecklistField({
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** Rider técnico estruturado + reutilizável: equipamentos (categoria, item, qtd,
+ *  quem fornece) marcáveis, salváveis como modelo e recarregáveis entre festas. */
+function RiderField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string | null) => void;
+}) {
+  let items: RiderItem[] = [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) items = parsed;
+  } catch {
+    // Rider em texto legado: cada linha vira um item "Outros" não-conferido.
+    if (value.trim()) {
+      items = value.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+        .map((t) => ({ category: "Outros", item: t, quantity: 1, by: "Casa", done: false }));
+    }
+  }
+
+  const [cat, setCat] = useState<string>(RIDER_CATEGORIES[0]);
+  const [item, setItem] = useState("");
+  const [qty, setQty] = useState("1");
+  const [by, setBy] = useState<string>(RIDER_PROVIDERS[0]);
+  const [templates, setTemplates] = useState<RiderTemplate[]>([]);
+
+  const reloadTemplates = () => { void listRiderTemplates().then(setTemplates); };
+  useEffect(() => { reloadTemplates(); }, []);
+
+  function save(next: RiderItem[]) {
+    onChange(next.length ? JSON.stringify(next) : null);
+  }
+
+  function addRow() {
+    const t = item.trim();
+    if (!t) { toast.error("Informe o item do rider"); return; }
+    save([...items, { category: cat, item: t, quantity: Math.max(1, parseInt(qty, 10) || 1), by, done: false }]);
+    setItem("");
+    setQty("1");
+  }
+
+  async function saveAsTemplate() {
+    if (items.length === 0) { toast.error("Rider vazio — nada pra salvar como modelo."); return; }
+    const name = window.prompt("Nome do modelo de rider:");
+    if (!name || !name.trim()) return;
+    try {
+      await createRiderTemplate(name.trim(), JSON.stringify(items));
+      reloadTemplates();
+      toast.success("Modelo de rider salvo.");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  function loadTemplate(id: string) {
+    if (id === "_none") return;
+    const t = templates.find((x) => String(x.id) === id);
+    if (!t) return;
+    let loaded: RiderItem[] = [];
+    try { const p = JSON.parse(t.items); if (Array.isArray(p)) loaded = p; } catch { /* modelo corrompido */ }
+    save([...items, ...loaded]); // anexa ao rider atual, sem apagar o existente
+    toast.success(`Modelo "${t.name}" carregado.`);
+  }
+
+  async function removeTemplate(id: number) {
+    try { await deleteRiderTemplate(id); reloadTemplates(); }
+    catch (e) { toast.error(`Erro: ${String(e)}`); }
+  }
+
+  const doneCount = items.filter((i) => i.done).length;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Label className="text-xs">{label}</Label>
+        <div className="flex items-center gap-1.5">
+          {items.length > 0 && (
+            <span className="text-xs text-muted-foreground tabular-nums">{doneCount}/{items.length} ok</span>
+          )}
+          {templates.length > 0 && (
+            <Select value="_none" onValueChange={loadTemplate}>
+              <SelectTrigger className="h-7 w-auto gap-1 text-xs"><SelectValue placeholder="Carregar modelo" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none" disabled>Carregar modelo…</SelectItem>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void saveAsTemplate()}>
+            Salvar modelo
+          </Button>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-1">
+          {items.map((r, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+              <input
+                type="checkbox"
+                checked={r.done}
+                onChange={() => save(items.map((it, j) => (j === i ? { ...it, done: !it.done } : it)))}
+                className="h-4 w-4 shrink-0"
+                title="Conferido"
+              />
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px]">{r.category}</span>
+              <span className={cn("flex-1 truncate", r.done && "line-through text-muted-foreground")}>
+                {r.quantity > 1 ? `${r.quantity}× ` : ""}{r.item}
+              </span>
+              <span className="shrink-0 text-[10px] text-muted-foreground">{r.by}</span>
+              <button
+                type="button"
+                onClick={() => save(items.filter((_, j) => j !== i))}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Remover item"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-[10rem_1fr_4.5rem_7rem_auto]">
+        <Select value={cat} onValueChange={setCat}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {RIDER_CATEGORIES.map((c) => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <Input
+          className="h-8 text-xs"
+          placeholder="Equipamento (ex.: CDJ-3000)"
+          value={item}
+          onChange={(e) => setItem(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addRow(); }}
+        />
+        <Input className="h-8 text-xs" type="number" min={1} placeholder="Qtd" value={qty} onChange={(e) => setQty(e.target.value)} />
+        <Select value={by} onValueChange={setBy}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {RIDER_PROVIDERS.map((p) => (<SelectItem key={p} value={p}>{p}</SelectItem>))}
+          </SelectContent>
+        </Select>
+        <Button type="button" size="sm" variant="outline" className="h-8" onClick={addRow}>
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {templates.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 pt-0.5">
+          {templates.map((t) => (
+            <span key={t.id} className="flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+              {t.name}
+              <button type="button" onClick={() => void removeTemplate(t.id)} className="hover:text-destructive" aria-label="Excluir modelo">
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

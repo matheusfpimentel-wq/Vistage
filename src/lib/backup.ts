@@ -47,6 +47,7 @@ const TABLES = [
   "performance_moments",
   "recurring_fests",   // nomes de festas recorrentes salvos (autocomplete) — sem deps
   "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
+  "rider_templates",   // biblioteca de riders técnicos reutilizáveis — sem deps
   "okrs",
   "nps_responses",           // NPS — pesquisa própria (respostas manuais 0-10); sem deps
   "ideas",
@@ -81,6 +82,8 @@ const TABLES = [
   "gigs",                    // venue_id → venues, promoter_contact_id → contacts
   "classes",                 // student_id → students
   "party_tasks",             // party_id → parties, stage_id → party_stages
+  "party_ticket_sales",      // party_id → parties (NOT NULL, CASCADE)
+  "party_compliance",        // party_id → parties (NOT NULL, CASCADE)
   "track_collaborators",     // track_id → tracks
   "track_flow_sessions",     // track_id → tracks
   "track_media_targets",     // track_id → tracks

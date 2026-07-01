@@ -40,12 +40,20 @@ export type PartyPnL = {
   compVariableCost: number;
   /** Receita renunciada em cortesias (qtd × preço de ref.) — informativo, NÃO entra no líquido. */
   compForgoneRevenue: number;
+  /** Receita de bar informada (parte do produtor) — já embutida em revenueReal. */
+  barRevenue: number;
   /** Resultado líquido real = receita real − custo realizado. */
   netReal: number;
   /** Resultado líquido projetado = receita-meta − custo projetado. */
   netProjected: number;
   /** Custo de aquisição por comprador (marketing / vendidos); null se 0 vendidos. */
   cac: number | null;
+  /** Público usado no "por cabeça": presença real se houver, senão vendidos. */
+  heads: number;
+  /** Faturamento por cabeça (receita real / heads); null se heads 0. */
+  revenuePerHead: number | null;
+  /** Lucro por cabeça (líquido real / heads); null se heads 0. */
+  netPerHead: number | null;
 };
 
 export function computePartyPnL(
@@ -53,6 +61,7 @@ export function computePartyPnL(
   items: Pick<PartyBudgetItem, "category" | "projected_amount" | "actual_amount">[],
   sponsors: { amount_cents: number }[],
   guests: Pick<PartyGuest, "quantity" | "unit_cost" | "ref_price">[] = [],
+  opts: { barRevenue?: number | null; attendance?: number | null } = {},
 ): PartyPnL {
   let sold = 0;
   let capacity = 0;
@@ -91,7 +100,11 @@ export function computePartyPnL(
   const costProjectedTotal = costProjected + compVariableCost;
   const costActualTotal = costActual + compVariableCost;
 
-  const revenueReal = ticketRevenueReal + sponsorRevenue;
+  const barRevenue = opts.barRevenue || 0;
+  const revenueReal = ticketRevenueReal + sponsorRevenue + barRevenue;
+  const netReal = revenueReal - costActualTotal;
+  // "Por cabeça": usa a presença real quando existir; senão cai nos vendidos.
+  const heads = opts.attendance && opts.attendance > 0 ? opts.attendance : sold;
   return {
     sold,
     capacity,
@@ -104,8 +117,12 @@ export function computePartyPnL(
     marketingActual,
     compVariableCost,
     compForgoneRevenue,
-    netReal: revenueReal - costActualTotal,
-    netProjected: ticketRevenueMeta + sponsorRevenue - costProjectedTotal,
+    barRevenue,
+    netReal,
+    netProjected: ticketRevenueMeta + sponsorRevenue + barRevenue - costProjectedTotal,
     cac: sold > 0 ? marketingActual / sold : null,
+    heads,
+    revenuePerHead: heads > 0 ? revenueReal / heads : null,
+    netPerHead: heads > 0 ? netReal / heads : null,
   };
 }
