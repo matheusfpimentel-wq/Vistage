@@ -79,6 +79,10 @@ export type PartyBudgetItem = {
   id: number; party_id: number; category: string; subcategory: string|null;
   description: string|null; projected_amount: number; actual_amount: number|null;
   supplier_note: string|null; supplier_id: number|null; status: BudgetItemStatus; date_paid: string|null;
+  /** Premissa/assunção da linha (por que deste valor). */
+  premissa: string|null;
+  /** Causa-raiz do desvio projetado×real (preenchida no fechamento). */
+  nota_variancia: string|null;
   created_at: string; updated_at: string;
 };
 

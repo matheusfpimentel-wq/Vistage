@@ -2268,6 +2268,15 @@ const MIGRATIONS: Migration[] = [
       "Fornecedor — supplier_services.category: categoria POR SERVIÇO (antes era única por fornecedor). Aditiva/idempotente.",
     sql: `ALTER TABLE supplier_services ADD COLUMN category TEXT;`,
   },
+  {
+    version: 158,
+    description:
+      "Festas/Orçamento — party_budget_items.premissa (premissa/assunção por linha, ex.: 'cachê fechado por hora') e nota_variancia (causa-raiz do desvio projetado×real, preenchida no fechamento). Alimentam a análise de variância. Aditivas/idempotentes.",
+    sql: `
+      ALTER TABLE party_budget_items ADD COLUMN premissa TEXT;
+      ALTER TABLE party_budget_items ADD COLUMN nota_variancia TEXT;
+    `,
+  },
 ];
 
 

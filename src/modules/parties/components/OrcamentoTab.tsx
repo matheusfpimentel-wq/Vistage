@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +31,20 @@ import { computePartyPnL } from "../pnl";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
 
+/** Variância de uma linha de CUSTO: real − projetado (positivo = estourou o
+ *  orçamento). Retorna null quando o real ainda não foi lançado. */
+function lineVariance(projected: number, actual: number | null): { abs: number; pct: number } | null {
+  if (actual == null) return null;
+  const abs = actual - projected;
+  const pct = projected !== 0 ? (abs / projected) * 100 : actual !== 0 ? 100 : 0;
+  return { abs, pct };
+}
+/** "+R$ 120 · +12%" / "−R$ 50 · −8%" (usa − real, não hífen). */
+function varianceLabel(v: { abs: number; pct: number }): string {
+  const sign = v.abs >= 0 ? "+" : "−";
+  return `${sign}${formatCurrency(Math.abs(v.abs))} · ${sign}${Math.abs(v.pct).toFixed(0)}%`;
+}
+
 export function OrcamentoTab({
   party,
   items,
@@ -55,6 +69,7 @@ export function OrcamentoTab({
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
   const [newSubcategory, setNewSubcategory] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newPremissa, setNewPremissa] = useState("");
   const [newProjected, setNewProjected] = useState("");
   const [newActual, setNewActual] = useState("");
   const [newSupplier, setNewSupplier] = useState("");
@@ -62,6 +77,8 @@ export function OrcamentoTab({
   const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // Limiar de materialidade (%): destaca só desvios acima disso (foco na atenção).
+  const [materiality, setMateriality] = useState(10);
 
   useEffect(() => {
     void listSuppliers()
@@ -90,8 +107,11 @@ export function OrcamentoTab({
         supplier_id: newSupplierId === "none" ? null : Number(newSupplierId),
         status: "projetado",
         date_paid: null,
+        premissa: newPremissa.trim() || null,
+        nota_variancia: null,
       });
       setNewDesc("");
+      setNewPremissa("");
       setNewProjected("");
       setNewActual("");
       setNewSupplier("");
@@ -129,6 +149,16 @@ export function OrcamentoTab({
         supplier_id: value === "none" ? null : Number(value),
       });
       await onReload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  // Premissa e nota de variância: texto que não altera totais → salva direto,
+  // sem recarregar a lista (o input não-controlado mantém o valor digitado).
+  async function handleFieldSave(id: number, field: "premissa" | "nota_variancia", value: string) {
+    try {
+      await updatePartyBudgetItem(id, { [field]: value.trim() || null });
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -213,15 +243,30 @@ export function OrcamentoTab({
         </div>
       )}
 
+      {/* Limiar de materialidade — destaca só os desvios que merecem atenção. */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>Materialidade:</span>
+        <Input
+          type="number"
+          min={0}
+          step={1}
+          value={materiality}
+          onChange={(e) => setMateriality(Math.max(0, Number(e.target.value) || 0))}
+          className="h-7 w-16 tabular-nums"
+        />
+        <span>% — desvios acima disso ficam destacados na coluna Variância.</span>
+      </div>
+
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
               <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2">Subcategoria</th>
-              <th className="px-3 py-2">Descrição</th>
+              <th className="px-3 py-2">Descrição / premissa</th>
               <th className="px-3 py-2 text-right">Projetado</th>
               <th className="px-3 py-2 text-right">Real</th>
+              <th className="px-3 py-2 text-right">Variância</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Fornecedor</th>
               <th className="px-3 py-2" />
@@ -230,7 +275,7 @@ export function OrcamentoTab({
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
                   Nenhum item de orçamento.
                 </td>
               </tr>
@@ -238,62 +283,93 @@ export function OrcamentoTab({
             {([...Object.entries(grouped), uncategorized.length > 0 ? ["Outros", uncategorized] as [string, PartyBudgetItem[]] : null] as ([string, PartyBudgetItem[]] | null)[])
               .filter((x): x is [string, PartyBudgetItem[]] => x !== null)
               .flatMap(([, catItems]) =>
-                (catItems as PartyBudgetItem[]).map((item) => (
-                  <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{item.category}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{item.subcategory ?? "—"}</td>
-                    <td className="px-3 py-2">{item.description ?? "—"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(item.projected_amount)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {item.actual_amount != null ? formatCurrency(item.actual_amount) : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Select
-                        value={item.status}
-                        onValueChange={(v) => void handleStatusChange(item.id, v as BudgetItemStatus)}
-                      >
-                        <SelectTrigger className="h-7 text-xs w-28">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="projetado">Projetado</SelectItem>
-                          <SelectItem value="confirmado">Confirmado</SelectItem>
-                          <SelectItem value="pago">Pago</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Select
-                        value={item.supplier_id != null ? String(item.supplier_id) : "none"}
-                        onValueChange={(v) => void handleSupplierChange(item.id, v)}
-                      >
-                        <SelectTrigger className="h-7 text-xs w-36">
-                          <SelectValue placeholder="Fornecedor" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Nenhum</SelectItem>
-                          {suppliers.map((s) => (
-                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {item.supplier_note && (
-                        <div className="mt-1 text-xs text-muted-foreground">{item.supplier_note}</div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        aria-label="Excluir"
-                        onClick={() => void handleDelete(item.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))
+                (catItems as PartyBudgetItem[]).map((item) => {
+                  const v = lineVariance(item.projected_amount, item.actual_amount);
+                  const material = v != null && Math.abs(v.pct) >= materiality;
+                  const varTone = v == null ? "text-muted-foreground" : v.abs > 0 ? "text-red-400" : v.abs < 0 ? "text-emerald-500" : "text-muted-foreground";
+                  return (
+                    <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.category}</td>
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.subcategory ?? "—"}</td>
+                      <td className="px-3 py-2 align-top">
+                        <div>{item.description ?? "—"}</div>
+                        <Input
+                          defaultValue={item.premissa ?? ""}
+                          onBlur={(e) => void handleFieldSave(item.id, "premissa", e.target.value)}
+                          placeholder="Premissa (por quê deste valor)"
+                          className="mt-1 h-7 text-xs"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">{formatCurrency(item.projected_amount)}</td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">
+                        {item.actual_amount != null ? formatCurrency(item.actual_amount) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">
+                        {v == null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <>
+                            <div className={cn("inline-flex items-center justify-end gap-1", varTone, material && "font-semibold")}>
+                              {material && <AlertTriangle className="h-3 w-3" aria-label="Desvio material" />}
+                              {varianceLabel(v)}
+                            </div>
+                            <Input
+                              defaultValue={item.nota_variancia ?? ""}
+                              onBlur={(e) => void handleFieldSave(item.id, "nota_variancia", e.target.value)}
+                              placeholder="Causa do desvio"
+                              className={cn("mt-1 h-7 text-left text-xs", material && !item.nota_variancia && "ring-1 ring-amber-500/50")}
+                            />
+                          </>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <Select
+                          value={item.status}
+                          onValueChange={(val) => void handleStatusChange(item.id, val as BudgetItemStatus)}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-28">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="projetado">Projetado</SelectItem>
+                            <SelectItem value="confirmado">Confirmado</SelectItem>
+                            <SelectItem value="pago">Pago</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <Select
+                          value={item.supplier_id != null ? String(item.supplier_id) : "none"}
+                          onValueChange={(val) => void handleSupplierChange(item.id, val)}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-36">
+                            <SelectValue placeholder="Fornecedor" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum</SelectItem>
+                            {suppliers.map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {item.supplier_note && (
+                          <div className="mt-1 text-xs text-muted-foreground">{item.supplier_note}</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-top">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          aria-label="Excluir"
+                          onClick={() => void handleDelete(item.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
           </tbody>
         </table>
@@ -322,6 +398,11 @@ export function OrcamentoTab({
             placeholder="Descrição"
             value={newDesc}
             onChange={(e) => setNewDesc(e.target.value)}
+          />
+          <Input
+            placeholder="Premissa (opcional)"
+            value={newPremissa}
+            onChange={(e) => setNewPremissa(e.target.value)}
           />
           <Input
             type="number"
