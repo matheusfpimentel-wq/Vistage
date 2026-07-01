@@ -16,6 +16,8 @@ import type {
   PartyGuest,
   PartyTicketSale,
   PartyComplianceItem,
+  PartyMarketingAsset,
+  PartyMarketingAction,
   RiderTemplate,
   PartySeries,
   PartySeriesCreateInput,
@@ -1169,6 +1171,84 @@ export async function updatePartyComplianceItem(
 
 export async function deletePartyComplianceItem(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+}
+
+// ===== MARKETING — ARTES (peças) =====
+
+export async function listPartyMarketingAssets(partyId: number): Promise<PartyMarketingAsset[]> {
+  return getDb().select<PartyMarketingAsset[]>(
+    "SELECT * FROM party_marketing_assets WHERE party_id = $1 ORDER BY position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyMarketingAsset(
+  a: Omit<PartyMarketingAsset, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_marketing_assets (party_id, name, format, due_date, status, link, notes, content_id, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      a.party_id, a.name, a.format ?? null, a.due_date ?? null, a.status,
+      a.link ?? null, a.notes ?? null, a.content_id ?? null, a.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyMarketingAsset(
+  id: number,
+  updates: Partial<Omit<PartyMarketingAsset, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_marketing_assets SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyMarketingAsset(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_marketing_assets WHERE id = $1", [id]);
+}
+
+// ===== MARKETING — CANAIS (ações datadas) =====
+
+export async function listPartyMarketingActions(partyId: number): Promise<PartyMarketingAction[]> {
+  return getDb().select<PartyMarketingAction[]>(
+    "SELECT * FROM party_marketing_actions WHERE party_id = $1 ORDER BY (date IS NULL), date ASC, position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyMarketingAction(
+  a: Omit<PartyMarketingAction, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_marketing_actions (party_id, canal, papel, acao, date, done, tracking_code, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      a.party_id, a.canal, a.papel, a.acao ?? null, a.date ?? null,
+      a.done ? 1 : 0, a.tracking_code ?? null, a.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyMarketingAction(
+  id: number,
+  updates: Partial<Omit<PartyMarketingAction, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_marketing_actions SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyMarketingAction(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_marketing_actions WHERE id = $1", [id]);
 }
 
 // ===== RIDER TEMPLATES (biblioteca de riders reutilizáveis) =====

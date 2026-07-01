@@ -23,13 +23,16 @@ import {
   STAGE_FIELD_DEFS,
   VIABILITY_COST_CATEGORIES,
   type ChecklistItem,
+  type PartyBudgetItem,
   type PartyStage,
   type PartyTask,
+  type PartyTicket,
   type RiderItem,
   type RiderTemplate,
   type StageStatus,
   type ViabilityCost,
 } from "../types";
+import { MarketingStagePanel } from "./MarketingStagePanel";
 
 const fmtCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -50,12 +53,9 @@ import type { Supplier } from "@/modules/suppliers/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 
-function stageStatusColor(s: StageStatus) {
-  return s === "concluida"
-    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-    : s === "em_andamento"
-    ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-    : "bg-muted/40 text-muted-foreground border-border";
+/** Ponto de status do stepper — verde concluída, âmbar em andamento, cinza pendente. */
+function stageStatusDot(s: StageStatus) {
+  return s === "concluida" ? "bg-emerald-500" : s === "em_andamento" ? "bg-amber-500" : "bg-muted-foreground/40";
 }
 
 function stageStatusLabel(s: StageStatus) {
@@ -66,12 +66,18 @@ export function WorkflowTab({
   partyId,
   stages,
   tasks,
+  budgetItems,
+  tickets,
   expectedCapacity,
   onReload,
 }: {
   partyId: number;
   stages: PartyStage[];
   tasks: PartyTask[];
+  /** Itens do orçamento — o painel de Marketing lê a categoria "Marketing" (fonte única). */
+  budgetItems: PartyBudgetItem[];
+  /** Ingressos — para o CAC e o "vendido vs meta" da Mensuração. */
+  tickets: PartyTicket[];
   /** Público estimado canônico (Info) — usado no break-even, no lugar do antigo
    * campo "capacidade" da etapa de Viabilidade, removido na de-dup (slice 3b). */
   expectedCapacity: number | null;
@@ -211,29 +217,30 @@ export function WorkflowTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      {/* Stepper de LINHA ÚNICA — as etapas nunca quebram pra 2ª linha; clicar
+          numa expande abaixo. Em telas apertadas o nome trunca (com tooltip). */}
+      <div className="flex items-stretch gap-1 overflow-hidden rounded-lg border bg-card p-1">
         {stages.map((stage) => (
-          <div
+          <button
             key={stage.id}
-            className={cn(
-              "min-w-[140px] flex-1 rounded-lg border p-3 cursor-pointer transition",
-              stageStatusColor(stage.status),
-              expandedId === stage.id && "ring-2 ring-primary"
-            )}
+            type="button"
             onClick={() =>
               expandedId === stage.id ? setExpandedId(null) : openStage(stage)
             }
+            title={`${stage.name} · ${stageStatusLabel(stage.status)}`}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition",
+              expandedId === stage.id ? "bg-primary/10 ring-1 ring-primary" : "hover:bg-muted/50"
+            )}
           >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-sm font-medium truncate">{stage.name}</span>
-              {expandedId === stage.id ? (
-                <ChevronUp className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              )}
-            </div>
-            <div className="mt-1 text-xs opacity-80">{stageStatusLabel(stage.status)}</div>
-          </div>
+            <span className={cn("h-2 w-2 shrink-0 rounded-full", stageStatusDot(stage.status))} />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">{stage.name}</span>
+            {expandedId === stage.id ? (
+              <ChevronUp className="h-3 w-3 shrink-0 opacity-60" />
+            ) : (
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-40" />
+            )}
+          </button>
         ))}
       </div>
 
@@ -268,6 +275,17 @@ export function WorkflowTab({
               </div>
             </div>
 
+            {stage.name === "Marketing" ? (
+              <MarketingStagePanel
+                partyId={partyId}
+                stage={stage}
+                budgetItems={budgetItems}
+                tickets={tickets}
+                expectedCapacity={expectedCapacity}
+                onReload={onReload}
+              />
+            ) : (
+            <>
             {fieldDefs.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {fieldDefs.map((fd) => {
@@ -413,6 +431,8 @@ export function WorkflowTab({
                 placeholder="Observações sobre esta etapa…"
               />
             </div>
+            </>
+            )}
 
             <div className="space-y-2 border-t pt-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -520,12 +540,16 @@ export function WorkflowTab({
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Salvar
-              </Button>
-            </div>
+            {/* Marketing salva sozinho (o painel persiste cada mudança); as demais
+                etapas usam este Salvar pra gravar campos + notas de uma vez. */}
+            {stage.name !== "Marketing" && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
+                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Salvar
+                </Button>
+              </div>
+            )}
           </div>
         );
       })()}

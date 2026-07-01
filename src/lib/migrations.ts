@@ -2358,6 +2358,42 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 167,
+    description:
+      "Festas/Marketing — party_marketing_assets (peças: flyer, reel, stories… com status/prazo/link/vínculo a Conteúdo) + party_marketing_actions (ações datadas por canal, com papel e código de rastreio). Tira Artes e Canais do texto solto e vira lista rastreável. Tabelas novas, idempotentes.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_marketing_assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        format TEXT,
+        due_date TEXT,
+        status TEXT NOT NULL DEFAULT 'briefada',
+        link TEXT,
+        notes TEXT,
+        content_id INTEGER,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_marketing_assets_party ON party_marketing_assets(party_id, position);
+      CREATE TABLE IF NOT EXISTS party_marketing_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        canal TEXT NOT NULL,
+        papel TEXT NOT NULL DEFAULT 'aquisicao',
+        acao TEXT,
+        date TEXT,
+        done INTEGER NOT NULL DEFAULT 0,
+        tracking_code TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_marketing_actions_party ON party_marketing_actions(party_id, date);
+    `,
+  },
 ];
 
 

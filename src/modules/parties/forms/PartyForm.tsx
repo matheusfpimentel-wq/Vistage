@@ -877,6 +877,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 partyId={party.id}
                 stages={stages}
                 tasks={tasks}
+                budgetItems={budgetItems}
+                tickets={tickets}
                 expectedCapacity={state.expected_capacity}
                 onReload={loadSubTabs}
               />

@@ -150,6 +150,37 @@ export function complianceStatusLabel(s: ComplianceStatus): string {
   return s === "ok" ? "OK" : s === "em_andamento" ? "Em andamento" : s === "na" ? "N/A" : "Pendente";
 }
 
+// ===== MARKETING (Artes + Canais) =====
+
+/** Peça de marketing (flyer, reel, stories, aftermovie…) com pipeline de status. */
+export const MARKETING_ASSET_STATUSES = ["briefada", "em_producao", "aprovada", "publicada"] as const;
+export type MarketingAssetStatus = (typeof MARKETING_ASSET_STATUSES)[number];
+export type PartyMarketingAsset = {
+  id: number; party_id: number; name: string; format: string | null;
+  due_date: string | null; status: MarketingAssetStatus; link: string | null;
+  notes: string | null; content_id: number | null; position: number; created_at: string;
+};
+/** Peças padrão sugeridas ao montar o kit de divulgação. */
+export const DEFAULT_MARKETING_ASSETS = ["Flyer principal", "Reel teaser", "Stories de lote", "Aftermovie"] as const;
+export function marketingAssetStatusLabel(s: MarketingAssetStatus): string {
+  return s === "briefada" ? "Briefada" : s === "em_producao" ? "Em produção" : s === "aprovada" ? "Aprovada" : "Publicada";
+}
+
+/** Ação de marketing datada, por canal — o calendário de campanha. */
+export const MARKETING_CHANNELS = ["Instagram festa", "Perfis dos DJs", "WhatsApp/base", "Promoters", "Pago", "Parcerias/comunidade", "Outro"] as const;
+export const MARKETING_ROLES = ["aquisicao", "retencao", "prova_social"] as const;
+export type MarketingRole = (typeof MARKETING_ROLES)[number];
+export type PartyMarketingAction = {
+  id: number; party_id: number; canal: string; papel: MarketingRole;
+  acao: string | null; date: string | null; done: number; tracking_code: string | null;
+  position: number; created_at: string;
+};
+/** Marcos de calendário sugeridos (chips de 1 toque). */
+export const MARKETING_MILESTONES = ["Anúncio", "Reveal do line-up", "Virada de lote", "Última semana", "Dia do evento"] as const;
+export function marketingRoleLabel(r: MarketingRole): string {
+  return r === "aquisicao" ? "Aquisição" : r === "retencao" ? "Retenção" : "Prova social";
+}
+
 /** Motivos comuns de cortesia (guest list). */
 export const GUEST_REASONS = ["Influencer", "Imprensa", "VIP", "Permuta", "Equipe", "Outro"] as const;
 export const GUEST_STATUSES = ["Confirmado", "Pendente", "Compareceu", "Faltou"] as const;
