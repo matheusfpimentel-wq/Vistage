@@ -47,6 +47,7 @@ const TABLES = [
   "performance_moments",
   "recurring_fests",   // nomes de festas recorrentes salvos (autocomplete) — sem deps
   "focus_blocks",      // Trilha da semana (blocos de foco/morto) — sem deps
+  "rider_templates",   // biblioteca de riders técnicos reutilizáveis — sem deps
   "okrs",
   "nps_responses",           // NPS — pesquisa própria (respostas manuais 0-10); sem deps
   "ideas",

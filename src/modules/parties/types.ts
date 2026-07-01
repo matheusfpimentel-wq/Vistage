@@ -16,7 +16,7 @@ export type PartyStage = {
 
 export const DEFAULT_STAGE_NAMES = ["Ideação","Viabilidade","Marketing","Execução","Concretização"] as const;
 
-export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist" }[]> = {
+export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type: "text"|"number"|"date"|"costs"|"checklist"|"rider" }[]> = {
   "Ideação": [
     { key:"conceito", label:"Conceito da festa", type:"text" },
     { key:"tema", label:"Tema", type:"text" },
@@ -41,7 +41,7 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   ],
   "Execução": [
     { key:"equipe", label:"Equipe confirmada", type:"text" },
-    { key:"rider_tecnico", label:"Rider técnico", type:"text" },
+    { key:"rider_tecnico", label:"Rider técnico", type:"rider" },
     { key:"checklist_operacional", label:"Checklist operacional", type:"checklist" },
     { key:"fornecedores_fechados", label:"Fornecedores fechados", type:"text" },
   ],
@@ -68,6 +68,16 @@ export type ViabilityCost = { category: string; description: string; amount: num
 
 /** Item do checklist operacional (serializado em JSON no campo da etapa). */
 export type ChecklistItem = { text: string; done: boolean };
+
+/** Rider técnico estruturado — categorias de equipamento de uma festa. */
+export const RIDER_CATEGORIES = ["Áudio (PA)", "DJ / Palco", "Monitores", "Luz", "Backline", "Energia", "Cabeamento", "Outros"] as const;
+/** Quem fornece cada item do rider. */
+export const RIDER_PROVIDERS = ["Casa", "Nós", "Locação"] as const;
+/** Linha do rider técnico (serializado em JSON no campo da etapa). */
+export type RiderItem = { category: string; item: string; quantity: number; by: string; done: boolean };
+
+/** Modelo de rider reutilizável entre festas (biblioteca de riders). */
+export type RiderTemplate = { id: number; name: string; items: string; created_at: string };
 
 export const BUDGET_CATEGORIES: Record<string, string[]> = {
   Pessoal: ["DJs","Seguranças","Promoters","Staff","Fotógrafo/Vídeo","MC/Apresentador","Outros"],

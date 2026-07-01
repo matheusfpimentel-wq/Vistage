@@ -16,6 +16,7 @@ import type {
   PartyGuest,
   PartyTicketSale,
   PartyComplianceItem,
+  RiderTemplate,
   PartySeries,
   PartySeriesCreateInput,
   PartySeriesUpdateInput,
@@ -1168,6 +1169,24 @@ export async function updatePartyComplianceItem(
 
 export async function deletePartyComplianceItem(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+}
+
+// ===== RIDER TEMPLATES (biblioteca de riders reutilizáveis) =====
+
+export async function listRiderTemplates(): Promise<RiderTemplate[]> {
+  return getDb().select<RiderTemplate[]>("SELECT * FROM rider_templates ORDER BY name COLLATE NOCASE ASC");
+}
+
+export async function createRiderTemplate(name: string, items: string): Promise<number> {
+  const res = await getDb().execute(
+    "INSERT INTO rider_templates (name, items) VALUES ($1, $2)",
+    [name, items]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function deleteRiderTemplate(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM rider_templates WHERE id = $1", [id]);
 }
 
 /** Semeia os itens padrão de compliance que ainda não existem (por categoria+título). */

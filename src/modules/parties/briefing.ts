@@ -67,6 +67,25 @@ function parseCosts(raw: unknown): ViabilityCost[] {
   }
 }
 
+/** Rider estruturado (JSON RiderItem[]) → linhas "Categoria: qtd× item (fornecedor)". */
+function riderLines(raw: unknown): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) {
+      return (v as { category?: string; item?: string; quantity?: number; by?: string }[])
+        .filter((r) => r && r.item)
+        .map((r) => {
+          const qty = r.quantity && r.quantity > 1 ? `${r.quantity}× ` : "";
+          const by = r.by ? ` (${r.by})` : "";
+          const cat = r.category ? `${r.category}: ` : "";
+          return `${cat}${qty}${r.item}${by}`;
+        });
+    }
+  } catch { /* rider em texto legado */ }
+  return [String(raw).trim()];
+}
+
 /** Monta o briefing estruturado da etapa, já redigido para o público escolhido. */
 export function buildBriefing(
   stageName: string,
@@ -134,7 +153,7 @@ export function buildBriefing(
       const money = audience === "crew" ? "" : (m.amount_cents ? ` — ${formatCurrency(m.amount_cents / 100)}` : "");
       return `${m.name}${m.role ? ` (${m.role})` : ""}${money}`;
     }));
-    add("Rider técnico", [str(f.rider_tecnico)]);
+    add("Rider técnico", riderLines(f.rider_tecnico));
     if (audience !== "crew") {
       add("Fornecedores / orçamento", budget.map((b) => `${b.description ?? b.subcategory ?? b.category}: ${formatCurrency(b.actual_amount ?? b.projected_amount)}`));
     }
