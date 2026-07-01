@@ -113,11 +113,14 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
         WHERE date >= $1 AND status = 'Agendada' ORDER BY date LIMIT 100`,
       [today]
     ),
+    // Tarefas com data: inclui as ATRASADAS (due_date < hoje) — um compromisso
+    // vencido continua sendo compromisso e precisa aparecer em destaque no topo
+    // dos Compromissos do celular. As futuras vêm junto, ordenadas por data.
     db.select<{ id: number; title: string; due_date: string | null; priority: string | null }[]>(
       `SELECT id, title, due_date, priority FROM tasks
-        WHERE status NOT IN ('Concluída','Cancelada') AND due_date IS NOT NULL AND due_date >= $1
+        WHERE status NOT IN ('Concluída','Cancelada') AND due_date IS NOT NULL
         ORDER BY due_date LIMIT 100`,
-      [today]
+      []
     ),
     db.select<{ id: number; title: string; date: string; time: string | null; location: string | null; status: string }[]>(
       `SELECT id, title, date, time, location, status FROM meetings
@@ -309,7 +312,7 @@ async function buildTasks(uid: string) {
 // ── Catálogo pesquisável (consulta no celular) ──────────────────────────────
 type CatalogRow = {
   user_id: string;
-  kind: string; // 'gig' | 'track' | 'contact' | 'venue'
+  kind: string; // 'gig' | 'track' | 'contact' | 'venue' | 'task' | 'idea' | 'class' | 'party'
   source_id: string;
   title: string;
   subtitle: string | null;
@@ -538,6 +541,21 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       subtitle: [cl.student_name, cl.date].filter(Boolean).join(" · ") || null,
       search_text: lc(cl.subject, cl.student_name, cl.date, cl.status),
       meta: { date: cl.date, status: cl.status, student_name: cl.student_name },
+    });
+
+  // Festas — pesquisáveis e fonte do "Festas em planejamento" na Home (o mobile
+  // filtra por status em aberto). Sem coluna nova: status/data vão no meta.
+  const cparties = await db.select<{ id: number; title: string; date: string | null; venue_name: string | null; status: string }[]>(
+    `SELECT id, title, date, venue_name, status FROM parties ORDER BY date IS NULL, date DESC LIMIT 500`,
+    []
+  );
+  for (const p of cparties)
+    rows.push({
+      user_id: uid, kind: "party", source_id: String(p.id),
+      title: p.title,
+      subtitle: [p.date, p.venue_name, p.status].filter(Boolean).join(" · ") || null,
+      search_text: lc(p.title, p.venue_name, p.status, p.date),
+      meta: { status: p.status, date: p.date, venue_name: p.venue_name },
     });
 
   return rows;

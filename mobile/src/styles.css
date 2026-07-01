@@ -9,6 +9,7 @@
   --pos: #4ade80;
   --neg: #f87171;
   --danger: #ef4444;
+  --warn: #fbbf24;
 }
 
 /* Tema claro — espelhado do desktop (aplicado em <html class="light">). */
@@ -809,3 +810,97 @@ button { font-family: inherit; cursor: pointer; }
 
 /* tap-to-action: linha com vários links (telefone · WhatsApp) */
 .link-row { display: inline-flex; flex-wrap: wrap; gap: 0.1rem 0.7rem; align-items: baseline; }
+
+/* ── Home redesenhada ──────────────────────────────────────────────────────── */
+/* Pull-to-refresh + estado de sync */
+.pull-ind { display: flex; align-items: flex-end; justify-content: center; overflow: hidden; transition: height 0.12s ease; }
+.spinner.sm { width: 18px; height: 18px; border-width: 2px; margin-bottom: 0.3rem; }
+.spinner.sm.on { animation: spin 0.7s linear infinite; }
+.sync-bar { display: flex; align-items: center; gap: 0.35rem; margin: 0 0 0.2rem; font-size: 0.72rem; color: var(--muted); }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.sync-dot.on { background: var(--pos); }
+.sync-dot.off { background: var(--warn); }
+
+/* Cabeçalho de seção (escanear rápido) */
+.home-section { margin-top: 0.9rem; }
+.section-head { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+
+/* (1) Streak em destaque — porta de entrada do Foco */
+.streak-hero {
+  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
+  padding: 0.9rem 1rem; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), var(--surface));
+  color: var(--text);
+}
+.streak-hero:active { filter: brightness(0.96); }
+.streak-hero-flame { display: inline-flex; color: #fb923c; flex: 0 0 auto; }
+.streak-hero-body { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; flex: 1; }
+.streak-hero-num { font-size: 2rem; font-weight: 800; color: var(--accent); }
+.streak-hero-label { font-size: 0.82rem; color: var(--muted); }
+.streak-hero-cta {
+  display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto;
+  padding: 0.4rem 0.7rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem;
+  color: #fff; background: var(--accent);
+}
+
+/* Banner de insight */
+.insight-banner {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
+  margin-top: 0.6rem; padding: 0.7rem 0.9rem; border-radius: 14px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.insight-banner:active { filter: brightness(0.96); }
+.insight-spark { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
+.insight-text { flex: 1; font-size: 0.9rem; line-height: 1.35; min-width: 0; }
+.insight-banner.tone-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.insight-banner.tone-danger .insight-spark { color: var(--danger); }
+.insight-banner.tone-accent { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.insight-banner .chev { color: var(--muted); flex: 0 0 auto; }
+
+/* (2) O que vem / Em andamento */
+.coming-wrap { display: flex; flex-direction: column; gap: 0.7rem; }
+.coming-block { display: flex; flex-direction: column; gap: 0.3rem; }
+.coming-block-label { font-size: 0.74rem; color: var(--muted); font-weight: 600; }
+.coming-row {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
+  padding: 0.55rem 0.7rem; border-radius: 12px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); min-width: 0;
+}
+.coming-row:active { filter: brightness(0.96); }
+.coming-ic {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+}
+.coming-ic.gig { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.coming-ic.track { color: #f472b6; background: color-mix(in srgb, #f472b6 14%, transparent); }
+.coming-ic.party { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
+.coming-body { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.coming-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coming-sub { font-size: 0.74rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coming-chips { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; justify-content: flex-end; flex: 0 0 auto; }
+.coming-row .chev { color: var(--muted); flex: 0 0 auto; }
+.empty-card { display: flex; flex-direction: column; }
+
+/* Chip de urgência/estado (sistema de cor consistente) */
+.u-chip {
+  display: inline-flex; align-items: center; padding: 0.1rem 0.45rem; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 700; white-space: nowrap;
+}
+.u-neutral { color: var(--muted); background: color-mix(in srgb, var(--muted) 15%, transparent); }
+.u-ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 16%, transparent); }
+.u-warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.u-danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.u-accent { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+
+/* (3) Compromissos — urgência na linha */
+.commit-item { padding-left: 0.5rem; border-left: 3px solid transparent; }
+.commit-item.u-row-danger { border-left-color: var(--danger); }
+.commit-item.u-row-warn { border-left-color: var(--warn); }
+.commit-title.as-link { min-width: 0; background: none; border: none; padding: 0; text-align: left; color: var(--text); font: inherit; font-weight: 600; }
+.commit-title.as-link:active { opacity: 0.6; }
+.commit-time.u-danger { color: var(--danger); font-weight: 700; }
+.commit-time.u-warn { color: var(--warn); font-weight: 700; }
+
+/* Chips no topo dos sheets de leitura */
+.sheet-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.1rem 0 0.6rem; }
