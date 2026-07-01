@@ -1145,6 +1145,8 @@ export function Foco() {
   const [repertoire, setRepertoire] = useState(3);
   const [technique, setTechnique] = useState(3);
   const [charisma, setCharisma] = useState(3);
+  const [floor, setFloor] = useState(3); // Pista: lotação/retenção/resposta
+  const [isSpecial, setIsSpecial] = useState(false); // ⭐ selo de destaque
   // GIG resolvida quando a atividade é "Tempo de palco" (id + título). Ref pra os
   // marcadores ao vivo carregarem o gig_id sem closure velha.
   const [stageGig, setStageGig] = useState<StageGigOption | null>(null);
@@ -1474,7 +1476,13 @@ export function Foco() {
         // Palco manda SEMPRE as avaliações (mesmo sem GIG resolvida) pra não perder
         // o debrief — sem GIG, o PC pergunta na revisão se quer criar uma Concluída.
         ...(isStage
-          ? { rating_repertoire: repertoire, rating_technique: technique, rating_charisma: charisma }
+          ? {
+              rating_repertoire: repertoire,
+              rating_technique: technique,
+              rating_charisma: charisma,
+              rating_floor: floor,
+              is_special: isSpecial ? 1 : 0,
+            }
           : {}),
         ...((isStage || isPrep) && sg ? { context_type: "gig", gig_id: sg.id } : {}),
         // Vínculo opcional (Criação musical→faixa, Produção de festa→festa,
@@ -1496,6 +1504,8 @@ export function Foco() {
       setRepertoire(3);
       setTechnique(3);
       setCharisma(3);
+      setFloor(3);
+      setIsSpecial(false);
     } catch (e) {
       setMsg("Erro ao salvar: " + String(e));
     } finally {
@@ -1612,6 +1622,24 @@ export function Foco() {
               <StarRating label="Repertório" value={repertoire} onChange={setRepertoire} />
               <StarRating label="Técnica" value={technique} onChange={setTechnique} />
               <StarRating label="Carisma" value={charisma} onChange={setCharisma} />
+              <StarRating label="Pista" value={floor} onChange={setFloor} />
+              <button
+                type="button"
+                onClick={() => setIsSpecial((v) => !v)}
+                style={{
+                  alignSelf: "flex-start",
+                  marginTop: 4,
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: 999,
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  border: isSpecial ? "1px solid #f5c83c" : "1px solid var(--border)",
+                  background: isSpecial ? "color-mix(in srgb, #f5c83c 18%, transparent)" : "var(--surface-2)",
+                  color: isSpecial ? "#c99a1e" : "var(--muted)",
+                }}
+              >
+                {isSpecial ? "⭐ GIG especial" : "Marcar como especial"}
+              </button>
             </>
           ) : (
             <>

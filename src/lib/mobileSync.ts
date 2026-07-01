@@ -873,7 +873,7 @@ export function isOrphanStageDebrief(c: { kind: string; payload: Record<string, 
   if (c.kind !== "session") return false;
   const p = c.payload ?? {};
   if (p.activity_type !== "Tempo de palco") return false;
-  const hasRating = ["rating_repertoire", "rating_technique", "rating_charisma"].some(
+  const hasRating = ["rating_repertoire", "rating_technique", "rating_charisma", "rating_floor"].some(
     (k) => typeof p[k] === "number"
   );
   if (!hasRating) return false;
@@ -949,7 +949,9 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
     const activity = s("activity_type") ?? "Outro";
     const isStage = activity === "Tempo de palco";
     const rep = n("rating_repertoire"), tec = n("rating_technique"), car = n("rating_charisma");
-    const hasRating = rep != null || tec != null || car != null;
+    const flr = n("rating_floor");       // Pista (eixo obrigatório do debrief no PC)
+    const spc = n("is_special");         // ⭐ selo (0/1); sync só faz upgrade, nunca downgrade
+    const hasRating = rep != null || tec != null || car != null || flr != null;
 
     // Debrief de palco que chegou SEM GIG: se o usuário pediu na revisão, cria uma
     // GIG já Concluída com as avaliações preenchidas e linka a sessão + marcadores.
@@ -959,9 +961,9 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
       const [, mm, dd] = date.split("-");
       const venuePlaceholder = dd && mm ? `Palco ${dd}/${mm}` : "Palco";
       const res = await db.execute(
-        `INSERT INTO gigs (date, venue_name, status, rating_repertoire, rating_technique, rating_charisma, debrief_completed_at, debrief_pending)
-         VALUES ($1, $2, 'Concluída', $3, $4, $5, $6, 0)`,
-        [date, venuePlaceholder, rep, tec, car, now]
+        `INSERT INTO gigs (date, venue_name, status, rating_repertoire, rating_technique, rating_charisma, rating_floor, is_special, debrief_completed_at, debrief_pending)
+         VALUES ($1, $2, 'Concluída', $3, $4, $5, $6, $7, $8, 0)`,
+        [date, venuePlaceholder, rep, tec, car, flr, spc === 1 ? 1 : 0, now]
       );
       stageGig = Number(res.lastInsertId);
     }
@@ -980,9 +982,11 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         await db.execute(
           `UPDATE gigs SET rating_repertoire = COALESCE($1, rating_repertoire),
                            rating_technique  = COALESCE($2, rating_technique),
-                           rating_charisma   = COALESCE($3, rating_charisma)
-             WHERE id = $4`,
-          [rep, tec, car, stageGig]
+                           rating_charisma   = COALESCE($3, rating_charisma),
+                           rating_floor      = COALESCE($4, rating_floor),
+                           is_special        = CASE WHEN $5 = 1 THEN 1 ELSE is_special END
+             WHERE id = $6`,
+          [rep, tec, car, flr, spc, stageGig]
         );
       }
       // Marcadores ao vivo (erro→pontos fracos / momento→pontos fortes) que já
