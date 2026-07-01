@@ -10,14 +10,15 @@ import { telLink, waLink, mapsLink } from "../links";
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
 type Agenda = { id: string; source: string; source_id?: string; title: string; start_at: string | null; location: string | null };
-// "Esfriando": item que o artista alimenta e ficou parado. O tipo vem no prefixo
-// do source_id ("contact:" / "fan:" / "track:" / "content:") — espelho gerado no
-// desktop. Sem prefixo (espelho antigo) cai em "contact".
+// "Esfriando": qualquer coisa que o artista alimenta e ficou parada. O tipo vem
+// no prefixo do source_id ("contact:"/"fan:"/"track:"/"content:"/"idea:"/"task:").
+// Para não-pessoas, `handle` carrega a ATIVIDADE do Modo Foco a abrir; para
+// contato/fã, `handle` é o telefone (WhatsApp/ligar).
 type Cold = { id: string; source_id: string; name: string; reason: string | null; handle: string | null };
-type ColdKind = "contact" | "fan" | "track" | "content";
+type ColdKind = "contact" | "fan" | "track" | "content" | "idea" | "task";
 function coldKind(c: Cold): ColdKind {
   const p = (c.source_id || "").split(":")[0];
-  return p === "fan" || p === "track" || p === "content" ? p : "contact";
+  return p === "fan" || p === "track" || p === "content" || p === "idea" || p === "task" ? (p as ColdKind) : "contact";
 }
 function isPerson(c: Cold): boolean {
   const k = coldKind(c);
@@ -28,9 +29,11 @@ function ColdIcon({ kind }: { kind: ColdKind }) {
   if (kind === "fan") return <svg {...p}><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>;
   if (kind === "track") return <svg {...p}><circle cx="6" cy="18" r="2.5" /><circle cx="17" cy="16" r="2.5" /><path d="M8.5 18V6l11-2v12" /></svg>;
   if (kind === "content") return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3V9z" /></svg>;
+  if (kind === "idea") return <svg {...p}><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>;
+  if (kind === "task") return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
   return <svg {...p}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
 }
-const COLD_KIND_LABEL: Record<ColdKind, string> = { contact: "Contato", fan: "Fã", track: "Faixa", content: "Conteúdo" };
+const COLD_KIND_LABEL: Record<ColdKind, string> = { contact: "Contato", fan: "Fã", track: "Faixa", content: "Conteúdo", idea: "Ideia", task: "Tarefa" };
 
 type StageSlot = { start: string; end: string };
 type GigMeta = {
@@ -49,22 +52,23 @@ type GigMeta = {
   // Checklist de Preparação (aba Preparação): ids marcados. Alimenta o selo "prep pendente".
   prep_done?: string[];
 };
-type TrackMeta = { stage?: string | null; project?: string | null; genre?: string | null; bpm?: number | null; key?: string | null; concept?: string | null };
+type TrackMeta = { stage?: string | null; project?: string | null; genre?: string | null; bpm?: number | null; key?: string | null; concept?: string | null; deadline?: string | null };
 type PartyMeta = { status?: string | null; date?: string | null; venue_name?: string | null };
+type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null };
 
 type GigRow = { source_id: string; title: string; meta: GigMeta; search_text?: string };
 type TrackRow = { source_id: string; title: string; meta: TrackMeta };
 type PartyRow = { source_id: string; title: string; meta: PartyMeta };
+type ClassRow = { source_id: string; title: string; meta: ClassMeta };
 type CatalogGig = { title: string; meta: GigMeta };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 // Total de itens do checklist de Preparação (espelha PREP_GROUPS do Foco: 5+3+5).
 const PREP_TOTAL = 13;
-// Track "em produção" = tudo menos a criação já concluída (Pós-lançamento) —
-// mesmo critério do "esfriando" do desktop.
+// Track já concluída (não entra no "O que vem").
 const TRACK_DONE_STAGE = "Pós-lançamento";
-// Festa "em aberto" (em planejamento) = tudo menos Realizada/Cancelada.
+// Festa "em aberto" = tudo menos Realizada/Cancelada.
 const PARTY_DONE = new Set(["Realizada", "Cancelada"]);
 
 function localToday(): string {
@@ -114,6 +118,10 @@ function countdownLabel(dateISO: string | null | undefined, today: string): stri
   if (d < 14) return "em 1 semana";
   return `em ${Math.round(d / 7)} semanas`;
 }
+/** Tom por proximidade de uma data (<=2 dias = âmbar). */
+function dateTone(dateISO: string, today: string): Tone {
+  return daysUntil(dateISO, today) <= 2 ? "warn" : "neutral";
+}
 /** Urgência de uma tarefa pela data de vencimento. */
 function taskUrgency(startISO: string | null, today: string): Tone {
   const d = localDateOf(startISO);
@@ -135,10 +143,6 @@ function prepPending(meta: GigMeta): boolean {
   if (h == null || h > 48) return false;
   return (meta.prep_done?.length ?? 0) < PREP_TOTAL;
 }
-/** Índice que muda por dia — pra variar frases sem repetir o mesmo texto fixo. */
-function dayIndex(): number {
-  return Math.floor(Date.now() / 86_400_000);
-}
 
 // Ícone por tipo de compromisso (só ícone — pouco texto, como pedido).
 function SourceIcon({ source }: { source: string }) {
@@ -149,11 +153,14 @@ function SourceIcon({ source }: { source: string }) {
   // task / deadline
   return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
 }
-// Ícone dos itens "em andamento".
-function ComingIcon({ kind }: { kind: "gig" | "track" | "party" }) {
+type ComingKind = "gig" | "class" | "party" | "track" | "task";
+// Ícone dos itens "O que vem".
+function ComingIcon({ kind }: { kind: ComingKind }) {
   const p = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (kind === "track") return <svg {...p}><circle cx="6" cy="18" r="2.5" /><circle cx="17" cy="16" r="2.5" /><path d="M8.5 18V6l11-2v12" /></svg>;
   if (kind === "party") return <svg {...p}><path d="M2 22l5-15 10 10z" /><path d="M14 7a3 3 0 0 0-3-3M17 4a6 6 0 0 0-6-2" /></svg>;
+  if (kind === "class") return <svg {...p}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>;
+  if (kind === "task") return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
   return <svg {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg>;
 }
 function ChevronRight() {
@@ -169,7 +176,7 @@ function suggestActivity(items: Agenda[]): string {
   return "Gestão";
 }
 
-// Frases motivacionais (rodízio por dia — nunca o mesmo texto fixo repetido).
+// Frases motivacionais prontas (loop quando os insights acionáveis acabam).
 const MOTIVATION = [
   "Comece pequeno: um bloco de foco hoje conta pro seu eu de daqui a um ano.",
   "Consistência vence intensidade. Um passo hoje.",
@@ -177,16 +184,22 @@ const MOTIVATION = [
   "Sem pressa e sem pausa. Só siga.",
   "Disciplina é lembrar do que você quer de verdade.",
 ];
-function motivationalLine(streak: number, upcomingCount: number, cold: Cold | null): string {
-  if (streak >= 2) return `${streak} dias seguidos de foco — não quebra a corrente hoje.`;
-  if (upcomingCount > 0) return `Você tem ${upcomingCount} compromisso${upcomingCount > 1 ? "s" : ""} à frente. Um passo agora encurta a lista.`;
-  if (cold) return `Faz tempo que você não fala com ${cold.name.split(" ")[0]}. Um "oi" reaquece.`;
-  return MOTIVATION[dayIndex() % MOTIVATION.length];
-}
+
+// Prioridade de tipo no "O que vem" (empate de data): GIG > aula > festa > track > tarefa.
+const COMING_PRIORITY: Record<ComingKind, number> = { gig: 0, class: 1, party: 2, track: 3, task: 4 };
+type ComingItem = {
+  key: string;
+  kind: ComingKind;
+  date: string;
+  title: string;
+  sub?: string | null;
+  chips: { tone: Tone; label: string }[];
+  onTap: () => void;
+};
 
 // ── Cache offline do digest ─────────────────────────────────────────────────
 type HomeSnapshot = {
-  agenda: Agenda[]; cooling: Cold[]; gigs: GigRow[]; tracks: TrackRow[]; parties: PartyRow[];
+  agenda: Agenda[]; cooling: Cold[]; gigs: GigRow[]; tracks: TrackRow[]; parties: PartyRow[]; classes: ClassRow[];
   streak: number; provocations: string[]; at: number;
 };
 const CACHE_KEY = "vistage.home.cache";
@@ -215,12 +228,15 @@ export function Hoje({
   const [gigOpen, setGigOpen] = useState<GigRow | null>(null);
   const [trackOpen, setTrackOpen] = useState<TrackRow | null>(null);
   const [partyOpen, setPartyOpen] = useState<PartyRow | null>(null);
+  const [classOpen, setClassOpen] = useState<ClassRow | null>(null);
   const [catGigs, setCatGigs] = useState<GigRow[]>([]);
   const [catTracks, setCatTracks] = useState<TrackRow[]>([]);
   const [catParties, setCatParties] = useState<PartyRow[]>([]);
+  const [catClasses, setCatClasses] = useState<ClassRow[]>([]);
   const [localGigs, setLocalGigs] = useState<LocalGig[]>([]);
   const [provocations, setProvocations] = useState<string[]>([]);
   const [streak, setStreak] = useState(0);
+  const [insightIdx, setInsightIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -231,19 +247,20 @@ export function Hoje({
 
   const applySnapshot = useCallback((s: HomeSnapshot) => {
     setAgenda(s.agenda); setCooling(s.cooling); setCatGigs(s.gigs);
-    setCatTracks(s.tracks); setCatParties(s.parties); setStreak(s.streak);
-    setProvocations(s.provocations);
+    setCatTracks(s.tracks); setCatParties(s.parties); setCatClasses(s.classes ?? []);
+    setStreak(s.streak); setProvocations(s.provocations);
   }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [a, c, g, tr, pa, s, prov] = await Promise.all([
+      const [a, c, g, tr, pa, cl, s, prov] = await Promise.all([
         supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(60),
-        supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(12),
+        supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(18),
         supabase.from("catalog_mirror").select("source_id, title, meta, search_text").eq("kind", "gig").limit(200),
         supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "track").limit(120),
         supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "party").limit(120),
+        supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "class").limit(120),
         loadStreak(),
         loadProvocations([]),
       ]);
@@ -255,12 +272,14 @@ export function Hoje({
       const gigRows = (g.data ?? []) as GigRow[];
       const trackRows = (tr.data ?? []) as TrackRow[];
       const partyRows = (pa.data ?? []) as PartyRow[];
+      const classRows = (cl.data ?? []) as ClassRow[];
 
       setAgenda(agendaRows);
       setCooling(coolingRows);
       setCatGigs(gigRows);
       setCatTracks(trackRows);
       setCatParties(partyRows);
+      setCatClasses(classRows);
       setStreak(s);
       setProvocations(prov);
       // GIGs criadas no celular ainda não sincronizadas: reconcilia contra o espelho.
@@ -273,7 +292,7 @@ export function Hoje({
         )
       );
       setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
-      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, streak: s, provocations: prov, at: Date.now() });
+      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, classes: classRows, streak: s, provocations: prov, at: Date.now() });
     } catch {
       // Sem rede: mostra o último sync (legível offline).
       const snap = readSnapshot();
@@ -336,30 +355,17 @@ export function Hoje({
 
   const today = localToday();
 
-  // GIG de HOJE (variante "dia de GIG") e demais derivações do catálogo.
+  // GIG de HOJE (variante "dia de GIG").
   const todayGig = catGigs
     .filter((x) => x.meta?.date === today && x.meta.status !== "Cancelada")
     .sort((x, y) => (x.meta.start_time ?? "").localeCompare(y.meta.start_time ?? ""))[0] ?? null;
-
-  // Próximas GIGs (estritamente futuras, não canceladas), mais próximas primeiro.
-  // A de hoje já lidera como herói (GigDayHero), então não repete aqui.
-  const comingGigs = catGigs
-    .filter((x) => typeof x.meta?.date === "string" && x.meta.date! > today && x.meta.status !== "Cancelada")
-    .sort((x, y) => (x.meta.date! < y.meta.date! ? -1 : x.meta.date! > y.meta.date! ? 1 : 0))
-    .slice(0, 4);
-  // Tracks em produção (não concluídas).
-  const comingTracks = catTracks.filter((t) => (t.meta?.stage ?? "") !== TRACK_DONE_STAGE).slice(0, 4);
-  // Festas em planejamento (em aberto).
-  const comingParties = catParties.filter((p) => !PARTY_DONE.has(p.meta?.status ?? "")).slice(0, 4);
-  const hasComing = comingGigs.length > 0 || comingTracks.length > 0 || comingParties.length > 0;
 
   // GIGs pendentes criadas no celular → compromissos sintéticos (aparecem já).
   const localUpcoming: Agenda[] = localGigs
     .filter((g) => !g.date || g.date >= today)
     .map((g) => ({ id: "local:" + g.client_ref, source: "gig", source_id: undefined, title: g.venue_name, start_at: g.date ? `${g.date}T21:00:00` : null, location: g.city }));
 
-  // Compromissos = tarefas atrasadas (topo) + hoje + futuros. Ordena por data
-  // ascendente: datas passadas (atrasadas) sobem, depois hoje, depois futuras.
+  // Compromissos = tarefas atrasadas (topo) + hoje + futuros. Ordena por data asc.
   const commitments = [...localUpcoming, ...agenda]
     .sort((x, y) => {
       const dx = localDateOf(x.start_at) ?? "9999-99-99";
@@ -370,23 +376,67 @@ export function Hoje({
     .slice(0, 12);
 
   const gigById = new Map(catGigs.map((g) => [g.source_id, g]));
+
+  // ── "O que vem": lista única (GIG, aula, festa, track, próxima tarefa),
+  // ordenada por data mais próxima e depois pela prioridade de tipo. Sem ideias.
+  const coming: ComingItem[] = [];
+  for (const g of catGigs) {
+    if (typeof g.meta?.date !== "string" || g.meta.date <= today || g.meta.status === "Cancelada") continue;
+    const chips: ComingItem["chips"] = [];
+    if (prepPending(g.meta)) chips.push({ tone: "warn", label: "prep pendente" });
+    chips.push({ tone: dateTone(g.meta.date, today), label: countdownLabel(g.meta.date, today) });
+    coming.push({ key: "g" + g.source_id, kind: "gig", date: g.meta.date, title: g.title, sub: g.meta.city, chips, onTap: () => setGigOpen(g) });
+  }
+  for (const cl of catClasses) {
+    const d = cl.meta?.date;
+    if (typeof d !== "string" || d < today || cl.meta.status !== "Agendada") continue;
+    coming.push({ key: "c" + cl.source_id, kind: "class", date: d, title: cl.title, sub: cl.meta.student_name, chips: [{ tone: dateTone(d, today), label: countdownLabel(d, today) }], onTap: () => setClassOpen(cl) });
+  }
+  for (const p of catParties) {
+    const d = p.meta?.date;
+    if (typeof d !== "string" || d < today || PARTY_DONE.has(p.meta?.status ?? "")) continue;
+    const chips: ComingItem["chips"] = [];
+    if (p.meta.status) chips.push({ tone: "neutral", label: p.meta.status });
+    chips.push({ tone: dateTone(d, today), label: countdownLabel(d, today) });
+    coming.push({ key: "p" + p.source_id, kind: "party", date: d, title: p.title, sub: p.meta.venue_name, chips, onTap: () => setPartyOpen(p) });
+  }
+  for (const t of catTracks) {
+    const d = t.meta?.deadline;
+    if (typeof d !== "string" || d < today || (t.meta?.stage ?? "") === TRACK_DONE_STAGE) continue;
+    const chips: ComingItem["chips"] = [];
+    if (t.meta.stage) chips.push({ tone: "accent", label: t.meta.stage });
+    chips.push({ tone: dateTone(d, today), label: countdownLabel(d, today) });
+    coming.push({ key: "t" + t.source_id, kind: "track", date: d, title: t.title, sub: t.meta.project, chips, onTap: () => setTrackOpen(t) });
+  }
+  // Só a PRÓXIMA tarefa (a de vencimento mais próximo, de hoje em diante).
+  const nextTask = agenda
+    .filter((i) => i.source === "task" && !!localDateOf(i.start_at) && (localDateOf(i.start_at) as string) >= today)
+    .sort((x, y) => ((localDateOf(x.start_at) as string) < (localDateOf(y.start_at) as string) ? -1 : 1))[0];
+  if (nextTask) {
+    const d = localDateOf(nextTask.start_at) as string;
+    coming.push({ key: "k" + nextTask.id, kind: "task", date: d, title: nextTask.title, sub: null, chips: [{ tone: dateTone(d, today), label: countdownLabel(d, today) }], onTap: onGoTasks });
+  }
+  coming.sort((x, y) => (x.date !== y.date ? (x.date < y.date ? -1 : 1) : COMING_PRIORITY[x.kind] - COMING_PRIORITY[y.kind]));
+  const comingTop = coming.slice(0, 8);
+
   const coldPerson = cooling.find(isPerson) ?? null;
   const overdue = commitments.filter((i) => i.source === "task" && taskUrgency(i.start_at, today) === "danger");
 
-  // Banner de insight: relevante e acionável quando há; senão, motivação.
-  const insight: { text: string; tone: Tone; onClick?: () => void } = (() => {
-    if (overdue[0]) {
-      const o = overdue[0];
-      return { text: `Atrasada: ${o.title} · ${countdownLabel(localDateOf(o.start_at), today)}`, tone: "danger", onClick: onGoTasks };
-    }
-    if (coldPerson) {
-      return { text: `Faz tempo que você não fala com ${coldPerson.name.split(" ")[0]}. Um "oi" reaquece.`, tone: "accent", onClick: () => setColdOpen(coldPerson) };
-    }
-    if (provocations.length > 0) {
-      return { text: provocations[dayIndex() % provocations.length], tone: "accent" };
-    }
-    return { text: motivationalLine(streak, commitments.length, coldPerson), tone: "accent" };
-  })();
+  // ── Insight: pilha de mensagens acionáveis (atrasada → fã esfriando →
+  // provocações). "Próxima" avança; passou do fim, entra o rodízio motivacional.
+  const insightPool: { text: string; tone: Tone; onClick?: () => void }[] = [];
+  if (overdue[0]) {
+    const o = overdue[0];
+    insightPool.push({ text: `Atrasada: ${o.title} · ${countdownLabel(localDateOf(o.start_at), today)}`, tone: "danger", onClick: onGoTasks });
+  }
+  if (coldPerson) {
+    insightPool.push({ text: `Faz tempo que você não fala com ${coldPerson.name.split(" ")[0]}. Um "oi" reaquece.`, tone: "accent", onClick: () => setColdOpen(coldPerson) });
+  }
+  for (const p of provocations) insightPool.push({ text: p, tone: "accent" });
+  const insight: { text: string; tone: Tone; onClick?: () => void } =
+    insightIdx < insightPool.length
+      ? insightPool[insightIdx]
+      : { text: MOTIVATION[(insightIdx - insightPool.length) % MOTIVATION.length], tone: "accent" };
 
   function goFocus() {
     try {
@@ -401,6 +451,16 @@ export function Hoje({
     } catch { /* ok */ }
     onGoFocus();
   }
+  // Esfriando → Modo Foco relacionado (não-pessoas). Tarefa foca a tarefa; os
+  // demais abrem o Foco na atividade que veio no `handle` (ex.: Criação musical).
+  function openColdFocus(item: Cold) {
+    const kind = coldKind(item);
+    const idPart = item.source_id.split(":")[1] ?? "";
+    setColdOpen(null);
+    if (kind === "task") { startFocusOnTask(idPart, item.name); return; }
+    try { if (item.handle) localStorage.setItem("vistage.foco.suggestedActivity", item.handle); } catch { /* ok */ }
+    onGoFocus();
+  }
 
   return (
     <div className="screen today" ref={rootRef}>
@@ -413,111 +473,55 @@ export function Hoje({
         <span className="sync-text">{offline ? "Offline · último sync" : "Sincronizado"}</span>
       </div>
 
-      {/* (1) Streak em destaque — porta de entrada do Modo Foco. */}
-      <button className="streak-hero" onClick={goFocus}>
-        <span className="streak-hero-flame" aria-hidden>
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
-        </span>
-        <span className="streak-hero-body">
-          <span className="streak-hero-num">{streak}</span>
-          <span className="streak-hero-label">{streak === 1 ? "dia seguido de foco" : "dias seguidos de foco"}</span>
-        </span>
-        <span className="streak-hero-cta">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
-          Focar
-        </span>
-      </button>
+      {/* (1) Streak (badge redondo, abre o Foco) + insight ao lado (dispensável). */}
+      <div className="home-top">
+        <button className="streak-badge" onClick={goFocus} aria-label={`${streak} ${streak === 1 ? "dia" : "dias"} de foco · abrir Modo Foco`}>
+          <svg className="streak-badge-flame" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+          <span className="streak-badge-num">{streak}</span>
+        </button>
+        <div className={"insight-inline tone-" + insight.tone}>
+          {insight.onClick ? (
+            <button type="button" className="insight-inline-text" onClick={insight.onClick}>{insight.text}</button>
+          ) : (
+            <span className="insight-inline-text">{insight.text}</span>
+          )}
+          <button type="button" className="insight-next" onClick={() => setInsightIdx((i) => i + 1)} aria-label="Próxima mensagem">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 17 5-5-5-5" /><path d="m13 17 5-5-5-5" /></svg>
+          </button>
+        </div>
+      </div>
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
       {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} />}
 
-      {/* Banner de insight (acionável quando há; senão motivação). */}
-      {insight.onClick ? (
-        <button className={"insight-banner tone-" + insight.tone} onClick={insight.onClick}>
-          <span className="insight-spark" aria-hidden>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6.5L20 11l-6 2.5L12 22l-2-8.5L4 11l6-2.5z" /></svg>
-          </span>
-          <span className="insight-text">{insight.text}</span>
-          <ChevronRight />
-        </button>
-      ) : (
-        <div className={"insight-banner tone-" + insight.tone}>
-          <span className="insight-spark" aria-hidden>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2 6.5L20 11l-6 2.5L12 22l-2-8.5L4 11l6-2.5z" /></svg>
-          </span>
-          <span className="insight-text">{insight.text}</span>
-        </div>
-      )}
-
-      {/* (2) O que vem / Em andamento */}
+      {/* (2) O que vem — lista única animada (cada item surge da esquerda). */}
       <section className="home-section">
         <h2 className="section-head">O que vem</h2>
-        {!hasComing ? (
+        {comingTop.length === 0 ? (
           <div className="card empty-card">
             <p className="muted small" style={{ margin: 0 }}>Nada em andamento agora. Que tal prospectar um show ou soltar uma ideia?</p>
             <button className="ghost full" style={{ marginTop: "0.5rem" }} onClick={onGoBrainstorm}>Soltar uma ideia</button>
           </div>
         ) : (
           <div className="coming-wrap">
-            {comingGigs.length > 0 && (
-              <div className="coming-block">
-                <span className="coming-block-label">Próximas GIGs</span>
-                {comingGigs.map((g) => {
-                  const near = daysUntil(g.meta.date!, today) <= 2;
-                  return (
-                    <button key={"g" + g.source_id} className="coming-row" onClick={() => setGigOpen(g)}>
-                      <span className="coming-ic gig"><ComingIcon kind="gig" /></span>
-                      <span className="coming-body">
-                        <span className="coming-title">{g.title}</span>
-                        {g.meta.city && <span className="coming-sub">{g.meta.city}</span>}
-                      </span>
-                      <span className="coming-chips">
-                        {prepPending(g.meta) && <Chip tone="warn">prep pendente</Chip>}
-                        <Chip tone={near ? "warn" : "neutral"}>{countdownLabel(g.meta.date, today)}</Chip>
-                      </span>
-                      <ChevronRight />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {comingTracks.length > 0 && (
-              <div className="coming-block">
-                <span className="coming-block-label">Em produção</span>
-                {comingTracks.map((t) => (
-                  <button key={"t" + t.source_id} className="coming-row" onClick={() => setTrackOpen(t)}>
-                    <span className="coming-ic track"><ComingIcon kind="track" /></span>
-                    <span className="coming-body">
-                      <span className="coming-title">{t.title}</span>
-                      {t.meta.project && <span className="coming-sub">{t.meta.project}</span>}
-                    </span>
-                    <span className="coming-chips">{t.meta.stage && <Chip tone="accent">{t.meta.stage}</Chip>}</span>
-                    <ChevronRight />
-                  </button>
-                ))}
-              </div>
-            )}
-            {comingParties.length > 0 && (
-              <div className="coming-block">
-                <span className="coming-block-label">Festas em planejamento</span>
-                {comingParties.map((p) => (
-                  <button key={"p" + p.source_id} className="coming-row" onClick={() => setPartyOpen(p)}>
-                    <span className="coming-ic party"><ComingIcon kind="party" /></span>
-                    <span className="coming-body">
-                      <span className="coming-title">{p.title}</span>
-                      {p.meta.date && <span className="coming-sub">{countdownLabel(p.meta.date, today)}</span>}
-                    </span>
-                    <span className="coming-chips">{p.meta.status && <Chip tone="neutral">{p.meta.status}</Chip>}</span>
-                    <ChevronRight />
-                  </button>
-                ))}
-              </div>
-            )}
+            {comingTop.map((it, i) => (
+              <button key={it.key} className="coming-card" style={{ animationDelay: `${i * 60}ms` }} onClick={it.onTap}>
+                <span className={"coming-ic " + it.kind}><ComingIcon kind={it.kind} /></span>
+                <span className="coming-body">
+                  <span className="coming-title">{it.title}</span>
+                  {it.sub && <span className="coming-sub">{it.sub}</span>}
+                </span>
+                <span className="coming-chips">
+                  {it.chips.map((c, j) => <Chip key={j} tone={c.tone}>{c.label}</Chip>)}
+                </span>
+                <ChevronRight />
+              </button>
+            ))}
           </div>
         )}
       </section>
 
-      {/* (3) Compromissos — com urgência de prazo */}
+      {/* (3) Compromissos — com urgência de prazo (inclui atrasadas no topo) */}
       <section className="today-commit">
         <div className="today-commit-head">
           <strong>Compromissos</strong>
@@ -572,13 +576,12 @@ export function Hoje({
         )}
       </section>
 
-      {/* (4) Relacionamento — esfriando */}
+      {/* (4) Relacionamento — esfriando (todas as criações, não só contatos) */}
       <section className="home-section">
-        <h2 className="section-head">Relacionamento</h2>
+        <h2 className="section-head">Esfriando</h2>
         <section className="card">
-          <span className="label">Esfriando</span>
           {cooling.length === 0 ? (
-            <p className="muted small" style={{ margin: "0.4rem 0 0" }}>Tudo aquecido.</p>
+            <p className="muted small" style={{ margin: 0 }}>Tudo aquecido.</p>
           ) : (
             <ul className="mini-list cold-list">
               {cooling.map((c) => (
@@ -604,18 +607,20 @@ export function Hoje({
         {refreshing ? "Sincronizando…" : "Atualizar"}
       </button>
 
-      {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} />}
+      {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} onFocus={() => openColdFocus(coldOpen)} />}
       {gigOpen && <GigSheet gig={gigOpen} today={today} onClose={() => setGigOpen(null)} onFocus={() => { setGigOpen(null); goFocus(); }} />}
       {trackOpen && <TrackSheet track={trackOpen} onClose={() => setTrackOpen(null)} />}
       {partyOpen && <PartySheet party={partyOpen} today={today} onClose={() => setPartyOpen(null)} />}
+      {classOpen && <ClassSheet cls={classOpen} today={today} onClose={() => setClassOpen(null)} />}
     </div>
   );
 }
 
-/** Detalhe do item esfriando (sheet): tipo, há quanto está parado e ação. */
-function ColdSheet({ item, onClose }: { item: Cold; onClose: () => void }) {
+/** Detalhe do item esfriando (sheet): contato → WhatsApp/ligar; criação → Foco. */
+function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void; onFocus: () => void }) {
   const kind = coldKind(item);
-  const digits = item.handle ? item.handle.replace(/\D/g, "") : "";
+  const person = isPerson(item);
+  const digits = person && item.handle ? item.handle.replace(/\D/g, "") : "";
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -630,15 +635,21 @@ function ColdSheet({ item, onClose }: { item: Cold; onClose: () => void }) {
             <ColdIcon kind={kind} /> {COLD_KIND_LABEL[kind]}
           </span>
           {item.reason && <p className="muted" style={{ margin: 0 }}>{item.reason}</p>}
-          {digits ? (
-            <div className="cold-detail-actions">
-              <a className="primary full" style={{ marginTop: 0 }} href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">
-                Reaquecer no WhatsApp
-              </a>
-              <a className="ghost full" style={{ marginTop: 0 }} href={`tel:${digits}`}>Ligar</a>
-            </div>
+          {person ? (
+            digits ? (
+              <div className="cold-detail-actions">
+                <a className="primary full" style={{ marginTop: 0 }} href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">
+                  Reaquecer no WhatsApp
+                </a>
+                <a className="ghost full" style={{ marginTop: 0 }} href={`tel:${digits}`}>Ligar</a>
+              </div>
+            ) : (
+              <p className="muted small" style={{ margin: 0 }}>Abra no PC pra retomar de onde parou.</p>
+            )
           ) : (
-            <p className="muted small" style={{ margin: 0 }}>Abra no PC pra retomar de onde parou.</p>
+            <button className="primary full" style={{ marginTop: 0 }} onClick={onFocus}>
+              ▶ Retomar no Modo Foco{item.handle ? ` · ${item.handle}` : ""}
+            </button>
           )}
         </div>
       </div>
@@ -663,7 +674,7 @@ function GigSheet({ gig, today, onClose, onFocus }: { gig: GigRow; today: string
           </button>
         </div>
         <div className="sheet-chips">
-          {m.date && <Chip tone={daysUntil(m.date, today) <= 2 ? "warn" : "neutral"}>{countdownLabel(m.date, today)}</Chip>}
+          {m.date && <Chip tone={dateTone(m.date, today)}>{countdownLabel(m.date, today)}</Chip>}
           {prepPending(m) && <Chip tone="warn">prep pendente</Chip>}
           {m.status && <Chip tone="accent">{m.status}</Chip>}
         </div>
@@ -726,13 +737,39 @@ function PartySheet({ party, today, onClose }: { party: PartyRow; today: string;
         </div>
         <div className="sheet-chips">
           {m.status && <Chip tone="neutral">{m.status}</Chip>}
-          {m.date && <Chip tone={daysUntil(m.date, today) <= 2 ? "warn" : "neutral"}>{countdownLabel(m.date, today)}</Chip>}
+          {m.date && <Chip tone={dateTone(m.date, today)}>{countdownLabel(m.date, today)}</Chip>}
         </div>
         <dl className="gig-day-rows">
           {m.date && <div><dt>Data</dt><dd>{fmtDate(m.date)}</dd></div>}
           {m.venue_name && <div><dt>Local</dt><dd>{m.venue_name}</dd></div>}
         </dl>
         <p className="muted small" style={{ margin: "0.5rem 0 0" }}>Abra no PC pra planejar a festa.</p>
+      </div>
+    </div>
+  );
+}
+
+/** Sheet de leitura da aula. */
+function ClassSheet({ cls, today, onClose }: { cls: ClassRow; today: string; onClose: () => void }) {
+  const m = cls.meta;
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-head">
+          <strong>{cls.title}</strong>
+          <button className="iconbtn" onClick={onClose} aria-label="Fechar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="sheet-chips">
+          {m.date && <Chip tone={dateTone(m.date, today)}>{countdownLabel(m.date, today)}</Chip>}
+          {m.status && <Chip tone="neutral">{m.status}</Chip>}
+        </div>
+        <dl className="gig-day-rows">
+          {m.date && <div><dt>Data</dt><dd>{fmtDate(m.date)}</dd></div>}
+          {m.student_name && <div><dt>Aluno</dt><dd>{m.student_name}</dd></div>}
+        </dl>
+        <p className="muted small" style={{ margin: "0.5rem 0 0" }}>Abra no PC pra ver a aula.</p>
       </div>
     </div>
   );
