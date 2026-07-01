@@ -51,7 +51,7 @@ export function EisenhowerSection() {
   async function handleToggleDone(task: Task) {
     if (task.status !== "Concluída" && task.recurrence) {
       const newId = await completeAndRecur(task);
-      if (newId) toast.success("Concluída — próxima recorrência criada");
+      if (newId) toast.success("Concluída. Próxima recorrência criada");
     } else {
       const next: TaskStatus =
         task.status === "Concluída" ? "A fazer" : "Concluída";

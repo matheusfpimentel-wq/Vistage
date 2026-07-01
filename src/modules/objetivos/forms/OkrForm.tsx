@@ -39,11 +39,11 @@ type Props = {
 
 const METRIC_SOURCES: { value: KeyResult["metric_source"]; label: string }[] = [
   { value: "manual", label: "Manual" },
-  { value: "finance_revenue", label: "Receita (R$) — auto" },
-  { value: "gigs_completed", label: "GIGs concluídas — auto" },
-  { value: "tracks_released", label: "Tracks lançadas — auto" },
-  { value: "parties_executed", label: "Festas realizadas — auto" },
-  { value: "content_published", label: "Conteúdos publicados — auto" },
+  { value: "finance_revenue", label: "Receita (R$), auto" },
+  { value: "gigs_completed", label: "GIGs concluídas, auto" },
+  { value: "tracks_released", label: "Tracks lançadas, auto" },
+  { value: "parties_executed", label: "Festas realizadas, auto" },
+  { value: "content_published", label: "Conteúdos publicados, auto" },
 ];
 
 function newKr(): KeyResult {

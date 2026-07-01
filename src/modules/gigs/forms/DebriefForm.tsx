@@ -645,7 +645,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             />
             <DebriefItemList
               label="Pontos fracos da apresentação"
-              hint="O que melhorar — cada item pode virar tarefa ou ideia."
+              hint="O que melhorar; cada item pode virar tarefa ou ideia."
               items={parseDebriefItems(state.debrief_weaknesses)}
               onChange={(items) => set("debrief_weaknesses", serializeDebriefItems(items))}
               placeholder="ponto a melhorar…"
@@ -656,7 +656,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <DebriefField
               label="Insights"
               compact
-              hint="Lição generalizável (não só desta GIG) — vira ideia no banco ao finalizar."
+              hint="Lição generalizável (não só desta GIG); vira ideia no banco ao finalizar."
               value={state.debrief_learnings}
               onChange={(v) => set("debrief_learnings", v)}
             />
@@ -712,7 +712,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
               <div>
                 <span className="flex items-center gap-1 text-sm">
                   GIG Especial ⭐
-                  <InfoHint>Marca shows de destaque na carreira — não altera a média de avaliação.</InfoHint>
+                  <InfoHint>Marca shows de destaque na carreira; não altera a média de avaliação.</InfoHint>
                 </span>
               </div>
               <div className="inline-flex rounded-md border overflow-hidden text-xs">
@@ -757,7 +757,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
           <TabsContent value="more" className="space-y-4">
             <DebriefItemList
               label="Oportunidades futuras (o que essa GIG abriu)"
-              hint="Portas que a GIG abriu — vire tarefa pra dar sequência ou vincule a pessoa-chave."
+              hint="Portas que a GIG abriu: vire tarefa pra dar sequência ou vincule a pessoa-chave."
               items={parseDebriefItems(state.debrief_future_opportunities)}
               onChange={(items) => set("debrief_future_opportunities", serializeDebriefItems(items))}
               placeholder="oportunidade…"

@@ -387,7 +387,7 @@ export function ExecucaoStagePanel({
                       <Select value={c.responsavel ?? "_none"} onValueChange={(v) => patchCompliance(c.id, { responsavel: v === "_none" ? null : v })}>
                         <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Responsável" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="_none">—</SelectItem>
+                          <SelectItem value="_none">Sem responsável</SelectItem>
                           {COMPLIANCE_RESPONSAVEIS.map((r) => (<SelectItem key={r} value={r}>{complianceResponsavelLabel(r)}</SelectItem>))}
                         </SelectContent>
                       </Select>
