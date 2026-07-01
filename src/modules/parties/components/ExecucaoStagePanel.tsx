@@ -14,6 +14,7 @@ import { toast } from "@/components/ui/toaster";
 import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { urgencyOf, urgencyClass } from "@/lib/urgency";
 import {
   COMPLIANCE_RESPONSAVEIS,
   complianceExplain,
@@ -60,21 +61,6 @@ function waLink(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, "");
   return digits.length >= 8 ? `https://wa.me/${digits}` : null;
-}
-
-/** Urgência do prazo pendente: vencido (vermelho) / próximo 7d (âmbar) / ok. */
-function dueUrgency(dateStr: string | null | undefined, resolved: boolean): "vencido" | "proximo" | null {
-  if (!dateStr || resolved) return null;
-  const d = dateStr.slice(0, 10);
-  const today = toLocalISODate();
-  if (d < today) return "vencido";
-  const in7 = new Date(today + "T00:00:00");
-  in7.setDate(in7.getDate() + 7);
-  const in7s = toLocalISODate(in7);
-  return d <= in7s ? "proximo" : null;
-}
-function urgencyClass(u: "vencido" | "proximo" | null): string {
-  return u === "vencido" ? "border-red-500/60 text-red-400" : u === "proximo" ? "border-amber-500/60 text-amber-400" : "";
 }
 
 /** Prazo default "confirmar até" = data da festa − 7 dias. */
@@ -303,7 +289,7 @@ export function ExecucaoStagePanel({
   const allConfirm = [...djRows, ...prodRows, ...sponsorRows];
   const confDenom = allConfirm.filter((r) => r.status !== "cancelado").length;
   const confDone = allConfirm.filter((r) => r.status === "confirmado").length;
-  const confLate = allConfirm.filter((r) => r.status === "pendente" && dueUrgency(r.confirmBy, false) === "vencido").length;
+  const confLate = allConfirm.filter((r) => r.status === "pendente" && urgencyOf(r.confirmBy) === "vencido").length;
 
   // ===== formalidades =====
   const applicableCompliance = compliance.filter((c) => c.status !== "na");
@@ -372,7 +358,7 @@ export function ExecucaoStagePanel({
             <ul className="space-y-1.5">
               {visibleCompliance.map((c) => {
                 const explain = complianceExplain(c.category) ?? c.notes;
-                const u = dueUrgency(c.due_date, c.status === "ok" || c.status === "na");
+                const u = urgencyOf(c.due_date, { resolved: c.status === "ok" || c.status === "na" });
                 return (
                   <li key={c.id} className="rounded-md border p-2">
                     <div className="flex items-center gap-2">
@@ -536,7 +522,7 @@ function ConfirmGroup({ title, rows, onCycleLabel }: { title: string; rows: Conf
       </div>
       <ul className="space-y-1">
         {rows.map((r) => {
-          const u = dueUrgency(r.confirmBy, r.status !== "pendente");
+          const u = urgencyOf(r.confirmBy, { resolved: r.status !== "pendente" });
           const wa = waLink(r.phone);
           return (
             <li key={r.key} className={cn("flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-sm", r.status === "cancelado" && "opacity-60")}>
