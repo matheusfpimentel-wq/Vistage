@@ -112,6 +112,7 @@ type FormState = {
   description: string | null;
   expected_capacity: number | null;
   actual_attendance: number | null;
+  bar_revenue: number | null;
   lineup: number[];
   sponsors: { name: string; amount_cents: number }[];
   team: PartyTeamMember[];
@@ -129,6 +130,7 @@ const EMPTY: FormState = {
   description: null,
   expected_capacity: null,
   actual_attendance: null,
+  bar_revenue: null,
   lineup: [],
   sponsors: [],
   team: [],
@@ -244,6 +246,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         description: party.description,
         expected_capacity: party.expected_capacity,
         actual_attendance: party.actual_attendance,
+        bar_revenue: party.bar_revenue,
         lineup: party.lineup,
         sponsors: party.sponsors,
         team: party.team,
@@ -440,6 +443,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         description: state.description,
         expected_capacity: state.expected_capacity,
         actual_attendance: state.actual_attendance,
+        bar_revenue: state.bar_revenue,
         ticket_price_regular: null,
         ticket_price_vip: null,
         lineup: state.lineup,
@@ -559,6 +563,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 items={budgetItems}
                 sponsors={state.sponsors}
                 guests={guests}
+                barRevenue={state.bar_revenue}
                 expectedCapacity={state.expected_capacity}
                 actualAttendance={state.actual_attendance}
               />
@@ -819,6 +824,25 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   </div>
                 </Field>
               )}
+              {isEdit && (
+                <Field label="Receita de bar (R$)">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      A parte do bar que fica com você — entra na receita e no faturamento por cabeça.
+                    </p>
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      placeholder="0,00"
+                      value={state.bar_revenue ?? ""}
+                      onChange={(e) =>
+                        set("bar_revenue", e.target.value ? Number(e.target.value) : null)
+                      }
+                    />
+                  </div>
+                </Field>
+              )}
             </div>
           </TabsContent>
 
@@ -1038,6 +1062,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 items={budgetItems}
                 tickets={tickets}
                 guests={guests}
+                barRevenue={state.bar_revenue}
                 onReload={loadSubTabs}
               />
             </TabsContent>

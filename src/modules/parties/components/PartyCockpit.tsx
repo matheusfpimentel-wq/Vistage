@@ -13,6 +13,7 @@ export function PartyCockpit({
   items,
   sponsors,
   guests = [],
+  barRevenue = null,
   expectedCapacity,
   actualAttendance,
 }: {
@@ -20,17 +21,21 @@ export function PartyCockpit({
   items: PartyBudgetItem[];
   sponsors: { name: string; amount_cents: number }[];
   guests?: PartyGuest[];
+  barRevenue?: number | null;
   expectedCapacity: number | null;
   actualAttendance: number | null;
 }) {
-  const pnl = computePartyPnL(tickets, items, sponsors, guests);
+  const pnl = computePartyPnL(tickets, items, sponsors, guests, {
+    barRevenue,
+    attendance: actualAttendance,
+  });
   const { sold, cac } = pnl;
   const meta = pnl.capacity;
   const lucroReal = pnl.netReal;
   const lucroProj = pnl.netProjected;
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       <Kpi
         label="Lucro"
         value={formatCurrency(lucroReal)}
@@ -46,6 +51,11 @@ export function PartyCockpit({
         label="Público"
         value={actualAttendance != null ? String(actualAttendance) : "—"}
         sub={expectedCapacity ? `cap. ${expectedCapacity}` : "a confirmar"}
+      />
+      <Kpi
+        label="R$/cabeça"
+        value={pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
+        sub={pnl.netPerHead != null ? `lucro ${formatCurrency(pnl.netPerHead)}` : "faturamento"}
       />
       <Kpi label="CAC" value={cac != null ? formatCurrency(cac) : "—"} sub="mkt / comprador" />
     </div>

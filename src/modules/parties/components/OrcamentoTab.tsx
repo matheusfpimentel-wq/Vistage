@@ -50,20 +50,26 @@ export function OrcamentoTab({
   items,
   tickets,
   guests = [],
+  barRevenue = null,
   onReload,
 }: {
   party: PartyDeserialized;
   items: PartyBudgetItem[];
   tickets: PartyTicket[];
   guests?: PartyGuest[];
+  /** Receita de bar (vem do estado do formulário, editável na aba Info). */
+  barRevenue?: number | null;
   onReload: () => Promise<void>;
 }) {
   const navigate = useNavigate();
   // P&L da festa: o Orçamento é a verdade financeira — receita (ingressos
-  // vendidos + patrocínio) menos custo real (orçamento + custo variável das
-  // cortesias) = resultado líquido. Cálculo único em computePartyPnL (antes
+  // vendidos + patrocínio + bar) menos custo real (orçamento + custo variável
+  // das cortesias) = resultado líquido. Cálculo único em computePartyPnL (antes
   // duplicado em 4 lugares com bases divergentes).
-  const pnl = computePartyPnL(tickets, items, party.sponsors, guests);
+  const pnl = computePartyPnL(tickets, items, party.sponsors, guests, {
+    barRevenue,
+    attendance: party.actual_attendance,
+  });
   const ticketRevenue = pnl.ticketRevenueReal;
   const sponsorRevenue = pnl.sponsorRevenue;
   const revenue = pnl.revenueReal;
@@ -203,6 +209,7 @@ export function OrcamentoTab({
           <div className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{formatCurrency(revenue)}</div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
             Ingressos {formatCurrency(ticketRevenue)} · Patrocínio {formatCurrency(sponsorRevenue)}
+            {pnl.barRevenue > 0 && ` · Bar ${formatCurrency(pnl.barRevenue)}`}
           </div>
         </div>
         <div className="rounded-md border p-3">
@@ -226,6 +233,28 @@ export function OrcamentoTab({
           <div className="mt-0.5 text-[11px] text-muted-foreground">Receita − custo real</div>
         </div>
       </div>
+
+      {/* Economia por cabeça — quanto cada pessoa vale de faturamento e de lucro.
+          A receita de bar (2ª receita da festa) é editada na aba Info. */}
+      {pnl.heads > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            Faturamento/cabeça{" "}
+            <strong className="tabular-nums text-foreground">
+              {pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            Lucro/cabeça{" "}
+            <strong className={cn("tabular-nums", (pnl.netPerHead ?? 0) >= 0 ? "text-emerald-500" : "text-red-400")}>
+              {pnl.netPerHead != null ? formatCurrency(pnl.netPerHead) : "—"}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            base: {pnl.heads} {party.actual_attendance && party.actual_attendance > 0 ? "presentes" : "vendidos"}
+          </span>
+        </div>
+      )}
 
       {party.status === "Realizada" && party.financial_synced === 0 && (
         <div className="flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">

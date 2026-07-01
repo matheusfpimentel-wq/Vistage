@@ -84,7 +84,10 @@ export function buildBriefing(
 
   // P&L via fonte única (computePartyPnL) — antes era um 4º cálculo divergente
   // que somava quantity_sold cru (sem || 0) e podia virar NaN.
-  const pnl = computePartyPnL(tickets, budget, party.sponsors, guests);
+  const pnl = computePartyPnL(tickets, budget, party.sponsors, guests, {
+    barRevenue: party.bar_revenue,
+    attendance: party.actual_attendance,
+  });
   const soldTotal = pnl.sold;
   const revenue = pnl.revenueReal;
   const projectedCost = pnl.costProjected;
@@ -149,7 +152,9 @@ export function buildBriefing(
     } else {
       add("Resultado financeiro", [
         revenue > 0 ? `Receita: ${formatCurrency(revenue)}` : null,
+        pnl.barRevenue > 0 ? `— dos quais bar: ${formatCurrency(pnl.barRevenue)}` : null,
         `Resultado líquido: ${formatCurrency(net)}`,
+        pnl.revenuePerHead != null ? `Faturamento por cabeça: ${formatCurrency(pnl.revenuePerHead)}` : null,
         mktReal > 0 && soldTotal > 0 ? `CAC: ${formatCurrency(mktReal / soldTotal)}` : null,
       ]);
       add("Aprendizados", [str(f.aprendizados)]);

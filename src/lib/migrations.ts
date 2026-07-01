@@ -2289,6 +2289,12 @@ const MIGRATIONS: Migration[] = [
       "Festas/Cortesias — party_guests.unit_cost: custo variável real por cabeça da cortesia (welcome drink, pulseira, kit). Cortesia tem receita renunciada E custo de caixa; só o custo variável entra no líquido. Aditiva/idempotente.",
     sql: `ALTER TABLE party_guests ADD COLUMN unit_cost REAL NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 161,
+    description:
+      "Festas/P&L — parties.bar_revenue: receita de bar atribuída à festa (a parte que fica com o produtor). Entra na receita do P&L e alimenta o faturamento por cabeça. Aditiva/idempotente.",
+    sql: `ALTER TABLE parties ADD COLUMN bar_revenue REAL;`,
+  },
 ];
 
 

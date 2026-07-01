@@ -160,6 +160,8 @@ export type Party = {
   venue_name: string|null; status: PartyStatus; status_override: number; description: string|null;
   expected_capacity: number|null; actual_attendance: number|null;
   ticket_price_regular: number|null; ticket_price_vip: number|null;
+  /** Receita de bar atribuída à festa (parte do produtor) — entra na receita do P&L. */
+  bar_revenue: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
   gig_id: number|null;
@@ -173,11 +175,12 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
   status_override?: number;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
+  bar_revenue?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
   team?: PartyTeamMember[]|string|null;

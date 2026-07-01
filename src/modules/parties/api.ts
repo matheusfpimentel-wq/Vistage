@@ -65,7 +65,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "status_override", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "lineup", "sponsors", "team", "notes", "gig_id",
+  "ticket_price_vip", "bar_revenue", "lineup", "sponsors", "team", "notes", "gig_id",
   "series_id", "edition_label", "edition_number",
 ];
 
@@ -760,7 +760,10 @@ export async function seriesRollup(seriesId: number): Promise<SeriesRollup> {
       "SELECT * FROM party_guests WHERE party_id = $1",
       [e.id]
     );
-    const pnl = computePartyPnL(tickets, items, e.sponsors, guests);
+    const pnl = computePartyPnL(tickets, items, e.sponsors, guests, {
+      barRevenue: e.bar_revenue,
+      attendance: e.actual_attendance,
+    });
     rows.push({
       id: e.id, title: e.title, date: e.date, number: e.edition_number,
       attendance: e.actual_attendance, capacity: e.expected_capacity,
