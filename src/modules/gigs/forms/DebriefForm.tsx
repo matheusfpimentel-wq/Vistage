@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle2, Film, Loader2, X } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Film, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +32,7 @@ import {
 } from "../api";
 import { createTask } from "@/modules/tasks/api";
 import { createIdea } from "@/modules/ideas/api";
+import { addVenueTechNote } from "@/modules/venues/api";
 import { clearGigMarkers, loadGigMarkers, STRONG_TIPO_LABEL, WEAK_TIPO_LABEL, type SessionMarkers } from "@/modules/foco/api";
 import {
   addFanInteraction,
@@ -316,6 +317,18 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
     const { done, total } = prepProgress(parsePrepState(gig.prep_state));
     return total > 0 ? Math.round((done / total) * 100) : null;
   }, [gig.prep_pct_at_debrief, gig.prep_state]);
+
+  /** Salva a observação técnica atual no venue (conhecimento reutilizável). */
+  async function saveTechNoteToVenue() {
+    const text = (state.debrief_technical_notes ?? "").trim();
+    if (gig.venue_id == null || !text) return;
+    try {
+      await addVenueTechNote(gig.venue_id, gig.id, text);
+      toast.success("Nota técnica salva no venue.");
+    } catch {
+      toast.error("Não foi possível salvar a nota no venue.");
+    }
+  }
 
   /** Registra (silenciosamente) a presença dos fãs marcados — dedup por fã+GIG. */
   async function registerFansPresence() {
@@ -678,11 +691,28 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
               value={state.debrief_future_opportunities}
               onChange={(v) => set("debrief_future_opportunities", v)}
             />
-            <DebriefField
-              label="Observações técnicas (som, equipamento, setup)"
-              value={state.debrief_technical_notes}
-              onChange={(v) => set("debrief_technical_notes", v)}
-            />
+            <div className="space-y-1">
+              <DebriefField
+                label="Observações técnicas (som, equipamento, setup)"
+                value={state.debrief_technical_notes}
+                onChange={(v) => set("debrief_technical_notes", v)}
+              />
+              {gig.venue_id != null && (state.debrief_technical_notes ?? "").trim() && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void saveTechNoteToVenue()}
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  Salvar no venue
+                  <InfoHint>
+                    Guarda a nota nas "Notas técnicas do venue" — aparece na
+                    Preparação de GIGs futuras no mesmo local.
+                  </InfoHint>
+                </Button>
+              )}
+            </div>
 
             {/* Os fãs marcados aqui ganham a interação de presença ao salvar o
                 debrief — não precisa mais de um botão separado. */}

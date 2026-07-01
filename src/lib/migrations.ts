@@ -2442,6 +2442,21 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN prep_pct_at_debrief INTEGER;
     `,
   },
+  {
+    version: 173,
+    description:
+      "GIGs/Debrief — venue_tech_notes: conhecimento técnico acumulado por venue (som, energia, setup). Origem numa GIG (gig_id anulável), aparece na Preparação de GIGs futuras no mesmo venue. Tabela nova.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS venue_tech_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_venue_tech_notes_venue ON venue_tech_notes(venue_id);
+    `,
+  },
 ];
 
 

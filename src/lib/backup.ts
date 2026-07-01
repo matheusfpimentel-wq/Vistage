@@ -92,6 +92,7 @@ const TABLES = [
   "track_performance_snapshots", // track_id → tracks
   // ── dependem do nível anterior ────────────────────────────────────────────
   "gig_debrief_drafts",      // gig_id → gigs
+  "venue_tech_notes",        // venue_id → venues, gig_id → gigs (anulável)
   "gig_setlists",            // gig_id → gigs
   "gig_tracks",              // gig_id → gigs, track_id → tracks
   "gig_fans",                // gig_id → gigs, fan_id → fans

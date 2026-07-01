@@ -42,7 +42,7 @@ import { todayISO, formatCurrency, formatDate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
-import { listVenues } from "@/modules/venues/api";
+import { listVenues, listVenueTechNotes, type VenueTechNote } from "@/modules/venues/api";
 import { listContentPromoting } from "@/modules/content/api";
 import { listTracks } from "@/modules/music/api";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
@@ -256,6 +256,7 @@ export function GigForm({
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [venueTechNotes, setVenueTechNotes] = useState<VenueTechNote[]>([]);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
   const [quickVenueOpen, setQuickVenueOpen] = useState(false);
@@ -313,6 +314,20 @@ export function GigForm({
       setPromotingContent([]);
     }
   }, [open, gig]);
+
+  // Notas técnicas acumuladas no venue desta GIG (aparecem na Preparação).
+  useEffect(() => {
+    const venueId = state.venue_id;
+    if (venueId == null) {
+      setVenueTechNotes([]);
+      return;
+    }
+    let alive = true;
+    void listVenueTechNotes(venueId)
+      .then((ns) => { if (alive) setVenueTechNotes(ns); })
+      .catch(() => { if (alive) setVenueTechNotes([]); });
+    return () => { alive = false; };
+  }, [state.venue_id]);
 
   useEffect(() => {
     const contactId = state.promoter_contact_id;
@@ -1030,6 +1045,29 @@ export function GigForm({
               groupFilter={isSocialCategory(state.event_category) ? ["musical", "logistica"] : undefined}
               onChange={(prep) => { setState((s) => ({ ...s, prep })); setDirty(true); }}
             />
+
+            {(() => {
+              const notes = venueTechNotes.filter((n) => n.gig_id !== gig?.id);
+              if (notes.length === 0) return null;
+              return (
+                <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                  <summary className="cursor-pointer select-none text-muted-foreground">
+                    Notas técnicas deste venue ({notes.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {notes.map((n) => (
+                      <li key={n.id} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                        <span className="flex-1 whitespace-pre-wrap">{n.text}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatDate(n.created_at.slice(0, 10), "dd/MM/yy")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              );
+            })()}
 
             <Field
               label="Observações"
