@@ -38,10 +38,10 @@ Netlify…) e use Inserir → Incorporar → **Por URL**.
 ## Ajustes (no início do `<script>`)
 
 ```js
-var WIN      = { x:79, y:185, w:297, h:450 };  // janela da foto/vídeo
-var BAR_NOME = { x:79, y:640, w:300, h:54 };   // barra do Nome
-var BAR_LOT  = { x:79, y:698, w:258, h:25 };   // barra da Lotação
-var BAR_ROLE = { x:342, y:698, w:115, h:25 };  // selo azul (Estagiário/Residente)
+var WIN      = { x:331,  y:777,  w:1245, h:1884 };  // janela da foto/vídeo
+var BAR_NOME = { x:253,  y:2638, w:1338, h:274 };   // barra do Nome
+var BAR_LOT  = { x:331,  y:2931, w:1085, h:105 };   // barra da Lotação
+var BAR_ROLE = { x:1436, y:2931, w:483,  h:105 };   // selo azul (Estagiário/Residente)
 ```
 
 ## Observações
