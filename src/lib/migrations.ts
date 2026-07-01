@@ -2312,6 +2312,12 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_party_ticket_sales_party ON party_ticket_sales(party_id, sale_date);
     `,
   },
+  {
+    version: 163,
+    description:
+      "Festas/CAC — parties.target_cac: custo de aquisição por comprador ALVO (meta). O cockpit compara o CAC real com essa meta pra saber se o marketing está eficiente. Aditiva/idempotente.",
+    sql: `ALTER TABLE parties ADD COLUMN target_cac REAL;`,
+  },
 ];
 
 

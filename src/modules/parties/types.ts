@@ -48,7 +48,11 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   // De-dup (slice 3b): "Público real" e "Receita total" saíram daqui — são
   // COMPUTADOS (público real = ingressos vendidos; receita = ingressos +
   // patrocínio do Orçamento), exibidos no cockpit/briefing, não redigitados.
+  // Debrief Plus/Delta: o que reforçar (Plus) x o que ajustar (Delta) — a
+  // retrospectiva enxuta que vira ação na próxima edição.
   "Concretização": [
+    { key:"plus", label:"O que manteria (Plus)", type:"text" },
+    { key:"delta", label:"O que mudaria (Delta)", type:"text" },
     { key:"aprendizados", label:"Aprendizados", type:"text" },
     { key:"proximos_passos", label:"Próximos passos", type:"text" },
   ],
@@ -168,6 +172,8 @@ export type Party = {
   ticket_price_regular: number|null; ticket_price_vip: number|null;
   /** Receita de bar atribuída à festa (parte do produtor) — entra na receita do P&L. */
   bar_revenue: number|null;
+  /** CAC-alvo: custo de aquisição por comprador que você aceita pagar (meta). */
+  target_cac: number|null;
   lineup: string|null; sponsors: string|null; team: string|null; tasks_generated: number;
   notes: string|null; stage_current: number|null; financial_synced: number;
   gig_id: number|null;
@@ -181,12 +187,13 @@ export type PartyDeserialized = Omit<Party,"lineup"|"sponsors"|"team"> & {
   team: PartyTeamMember[];
 };
 
-export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
+export type PartyCreateInput = Omit<Party,"id"|"created_at"|"updated_at"|"tasks_generated"|"financial_synced"|"stage_current"|"status_override"|"ticket_price_regular"|"ticket_price_vip"|"bar_revenue"|"target_cac"|"lineup"|"sponsors"|"team"|"series_id"|"edition_label"|"edition_number"> & {
   stage_current?: number|null;
   status_override?: number;
   ticket_price_regular?: number|null;
   ticket_price_vip?: number|null;
   bar_revenue?: number|null;
+  target_cac?: number|null;
   lineup?: number[]|string|null;
   sponsors?: { name: string; amount_cents: number }[]|string|null;
   team?: PartyTeamMember[]|string|null;

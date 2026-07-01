@@ -14,6 +14,7 @@ export function PartyCockpit({
   sponsors,
   guests = [],
   barRevenue = null,
+  targetCac = null,
   expectedCapacity,
   actualAttendance,
 }: {
@@ -22,6 +23,7 @@ export function PartyCockpit({
   sponsors: { name: string; amount_cents: number }[];
   guests?: PartyGuest[];
   barRevenue?: number | null;
+  targetCac?: number | null;
   expectedCapacity: number | null;
   actualAttendance: number | null;
 }) {
@@ -57,7 +59,12 @@ export function PartyCockpit({
         value={pnl.revenuePerHead != null ? formatCurrency(pnl.revenuePerHead) : "—"}
         sub={pnl.netPerHead != null ? `lucro ${formatCurrency(pnl.netPerHead)}` : "faturamento"}
       />
-      <Kpi label="CAC" value={cac != null ? formatCurrency(cac) : "—"} sub="mkt / comprador" />
+      <Kpi
+        label="CAC"
+        value={cac != null ? formatCurrency(cac) : "—"}
+        sub={targetCac != null && targetCac > 0 ? `alvo ${formatCurrency(targetCac)}` : "mkt / comprador"}
+        tone={cac != null && targetCac != null && targetCac > 0 ? (cac <= targetCac ? "good" : "bad") : undefined}
+      />
     </div>
   );
 }

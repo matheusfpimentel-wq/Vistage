@@ -91,7 +91,6 @@ export function buildBriefing(
   const soldTotal = pnl.sold;
   const revenue = pnl.revenueReal;
   const projectedCost = pnl.costProjected;
-  const mktReal = pnl.marketingActual;
   const net = pnl.netReal;
 
   if (stageName === "Ideação") {
@@ -155,7 +154,17 @@ export function buildBriefing(
         pnl.barRevenue > 0 ? `— dos quais bar: ${formatCurrency(pnl.barRevenue)}` : null,
         `Resultado líquido: ${formatCurrency(net)}`,
         pnl.revenuePerHead != null ? `Faturamento por cabeça: ${formatCurrency(pnl.revenuePerHead)}` : null,
-        mktReal > 0 && soldTotal > 0 ? `CAC: ${formatCurrency(mktReal / soldTotal)}` : null,
+        pnl.cac != null
+          ? `CAC: ${formatCurrency(pnl.cac)}${
+              party.target_cac && party.target_cac > 0
+                ? ` (alvo ${formatCurrency(party.target_cac)} — ${pnl.cac <= party.target_cac ? "dentro" : "acima"})`
+                : ""
+            }`
+          : null,
+      ]);
+      add("Debrief (Plus/Delta)", [
+        str(f.plus) ? `Plus (manter): ${str(f.plus)}` : null,
+        str(f.delta) ? `Delta (mudar): ${str(f.delta)}` : null,
       ]);
       add("Aprendizados", [str(f.aprendizados)]);
       add("Próximos passos", [str(f.proximos_passos)]);

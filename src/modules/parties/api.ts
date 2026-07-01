@@ -66,7 +66,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "status_override", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "bar_revenue", "lineup", "sponsors", "team", "notes", "gig_id",
+  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "notes", "gig_id",
   "series_id", "edition_label", "edition_number",
 ];
 
