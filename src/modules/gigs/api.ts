@@ -97,6 +97,8 @@ export type GigFilters = {
   promoterContactId?: number;
   eventCategory?: string;
   recurringEventName?: string;
+  /** Só GIGs marcadas como especiais (is_special = 1). */
+  specialOnly?: boolean;
 };
 
 export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
@@ -127,6 +129,9 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
   if (filters.recurringEventName && filters.recurringEventName.trim().length > 0) {
     params.push(filters.recurringEventName);
     where.push(`g.recurring_event_name = $${params.length}`);
+  }
+  if (filters.specialOnly) {
+    where.push(`g.is_special = 1`);
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
@@ -552,9 +557,10 @@ export type GigInsights = {
   topVenues: { venue_name: string; gigs: number; avg_rating: number | null }[];
 };
 
-export async function loadInsights(): Promise<GigInsights> {
+export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promise<GigInsights> {
   const db = getDb();
-  const all = await db.select<Gig[]>(SELECT_ALL);
+  const rawAll = await db.select<Gig[]>(SELECT_ALL);
+  const all = opts.specialOnly ? rawAll.filter((g) => g.is_special === 1) : rawAll;
 
   const byStatus: Record<GigStatus, number> = {
     Proposta: 0,

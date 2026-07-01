@@ -595,7 +595,12 @@ export function GigForm({
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-4xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
-          <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {gig ? "Editar GIG" : "Nova GIG"}
+            {state.is_special === 1 && (
+              <span className="text-amber-500" title="GIG especial">⭐</span>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">

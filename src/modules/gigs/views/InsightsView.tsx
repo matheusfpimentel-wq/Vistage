@@ -19,27 +19,46 @@ type Props = { refreshKey: number };
 export function InsightsView({ refreshKey }: Props) {
   const [insights, setInsights] = useState<GigInsights | null>(null);
   const [loading, setLoading] = useState(true);
+  const [specialOnly, setSpecialOnly] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    loadInsights()
+    loadInsights({ specialOnly })
       .then(setInsights)
       .finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, specialOnly]);
+
+  const specialToggle = (
+    <label className="flex cursor-pointer items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="h-4 w-4 accent-amber-500"
+        checked={specialOnly}
+        onChange={(e) => setSpecialOnly(e.target.checked)}
+      />
+      <span>⭐ Só especiais</span>
+    </label>
+  );
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Carregando insights…</div>;
   }
   if (!insights || insights.totalCount === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Sem dados ainda — crie algumas GIGs e volte aqui pra ver os insights.
+      <div className="space-y-4">
+        <div className="flex justify-end">{specialToggle}</div>
+        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+          {specialOnly
+            ? "Nenhuma GIG marcada como especial ainda."
+            : "Sem dados ainda — crie algumas GIGs e volte aqui pra ver os insights."}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">{specialToggle}</div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           icon={<Calendar className="h-4 w-4" />}
