@@ -475,17 +475,46 @@ export async function listPartyVenueCandidates(partyId: number): Promise<PartyVe
      FROM party_venue_candidates pvc
      LEFT JOIN venues v ON v.id = pvc.venue_id
      WHERE pvc.party_id = $1
-     ORDER BY v.name COLLATE NOCASE ASC`,
+     ORDER BY pvc.is_leader DESC, v.name COLLATE NOCASE ASC`,
     [partyId]
   );
 }
 
-export async function addPartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
+export async function addPartyVenueCandidate(
+  partyId: number,
+  venueId: number,
+  extra?: { capacity?: number | null; deal_type?: string | null; deal_terms?: string | null; estimated_cost?: number | null },
+): Promise<void> {
   const db = getDb();
+  // INSERT OR IGNORE preserva idempotência (UNIQUE party+venue). Se já existe e
+  // vieram dados novos (capacidade/acordo/custo), atualiza via update abaixo.
   await db.execute(
-    "INSERT OR IGNORE INTO party_venue_candidates (party_id, venue_id) VALUES ($1, $2)",
-    [partyId, venueId]
+    `INSERT OR IGNORE INTO party_venue_candidates (party_id, venue_id, capacity, deal_type, deal_terms, estimated_cost)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [partyId, venueId, extra?.capacity ?? null, extra?.deal_type ?? null, extra?.deal_terms ?? null, extra?.estimated_cost ?? null]
   );
+}
+
+/** Update genérico de um candidato (capacidade, acordo, custo, líder…). */
+export async function updatePartyVenueCandidate(
+  id: number,
+  updates: Partial<Omit<PartyVenueCandidate, "id" | "party_id" | "venue_id" | "venue_name" | "created_at">>,
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_venue_candidates SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+/** Marca UM candidato como líder (estrela) e zera os demais da festa. */
+export async function setPartyVenueLeader(partyId: number, candidateId: number | null): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE party_venue_candidates SET is_leader = 0 WHERE party_id = $1", [partyId]);
+  if (candidateId != null) {
+    await db.execute("UPDATE party_venue_candidates SET is_leader = 1 WHERE id = $1 AND party_id = $2", [candidateId, partyId]);
+  }
 }
 
 export async function removePartyVenueCandidate(partyId: number, venueId: number): Promise<void> {

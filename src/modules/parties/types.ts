@@ -28,10 +28,13 @@ export const STAGE_FIELD_DEFS: Record<string, { key: string; label: string; type
   // data canônica é a da Info (parties.date) e o público estimado é
   // expected_capacity. O break-even lê a capacidade da Info, não mais um campo
   // paralelo. Valores antigos em party_stages.fields ficam (não-destrutivo).
-  "Viabilidade": [
-    { key:"custos_necessarios", label:"Custos necessários", type:"costs" },
-    { key:"viabilidade_notas", label:"Observações de viabilidade", type:"text" },
-  ],
+  // A Viabilidade é renderizada por um painel próprio (ViabilidadeStagePanel):
+  // acordeão Venue&Capacidade · Premissas · Custos (view do Orçamento) ·
+  // Veredito · Decisão. Os campos antigos ("Custos necessários" e "Observações
+  // de viabilidade") saíram: custos migram pro Orçamento (fonte única) e as
+  // observações vão pras Notas da etapa. Defs vazio → o render genérico não
+  // desenha nada; o backfill lê os valores legados direto de stage.fields.
+  "Viabilidade": [],
   "Marketing": [
     { key:"canais", label:"Canais de divulgação", type:"text" },
     { key:"meta_alcance", label:"Meta de alcance", type:"number" },
@@ -278,7 +281,49 @@ export type PartyVenueCandidate = {
   notes: string | null;
   created_at: string;
   venue_name?: string | null;
+  // Viabilidade (v168): comparação de casas com capacidade, acordo e custo estimados.
+  capacity: number | null;
+  deal_type: string | null;
+  deal_terms: string | null;
+  estimated_cost: number | null;
+  is_leader: number; // 0/1 — candidato "líder" (estrela) usado no veredito sem venue confirmado
 };
+
+/**
+ * Tipos de acordo com a casa. Cada tipo diz se o valor é custo do produtor ou
+ * receita, e como entra no veredito (fixo x % da bilheteria x parte do bar):
+ * - aluguel: aluguel fixo → CUSTO fixo (vira item de Orçamento).
+ * - pct_bilheteria: a casa fica com % da bilheteria → reduz a receita/pessoa.
+ * - pct_bar: você fica com parte do bar → soma bar por cabeça na receita.
+ * - cache: a casa te paga um cachê → RECEITA fixa (offset dos custos).
+ * - parceria: sem custo.
+ * - outro: neutro; descreva nos termos.
+ */
+export const VENUE_DEAL_TYPES = ["aluguel", "pct_bilheteria", "pct_bar", "cache", "parceria", "outro"] as const;
+export type VenueDealType = (typeof VENUE_DEAL_TYPES)[number];
+export function venueDealTypeLabel(t: string | null | undefined): string {
+  switch (t) {
+    case "aluguel": return "Aluguel fixo";
+    case "pct_bilheteria": return "% da bilheteria";
+    case "pct_bar": return "% do bar";
+    case "cache": return "Cachê da casa";
+    case "parceria": return "Parceria (sem custo)";
+    case "outro": return "Outro";
+    default: return "—";
+  }
+}
+
+/** Decisão-gate da Viabilidade: vai / ajustar / não vai. */
+export const VIABILITY_DECISIONS = ["vai", "ajustar", "nao_vai"] as const;
+export type ViabilityDecision = (typeof VIABILITY_DECISIONS)[number];
+export function viabilityDecisionLabel(d: string | null | undefined): string {
+  switch (d) {
+    case "vai": return "Vai";
+    case "ajustar": return "Ajustar";
+    case "nao_vai": return "Não vai";
+    default: return "—";
+  }
+}
 
 export function partyStatusColor(s: PartyStatus): string {
   return s==="Confirmada" ? "bg-emerald-500/20 text-emerald-400"

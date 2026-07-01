@@ -33,6 +33,8 @@ import {
   type ViabilityCost,
 } from "../types";
 import { MarketingStagePanel } from "./MarketingStagePanel";
+import { ViabilidadeStagePanel } from "./ViabilidadeStagePanel";
+import type { Venue } from "@/modules/venues/types";
 
 const fmtCurrency = (n: number) =>
   n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -68,19 +70,33 @@ export function WorkflowTab({
   tasks,
   budgetItems,
   tickets,
+  venues,
+  confirmedVenueId,
+  confirmedVenueName,
   expectedCapacity,
+  onPatchParty,
+  onGoOrcamento,
   onReload,
 }: {
   partyId: number;
   stages: PartyStage[];
   tasks: PartyTask[];
-  /** Itens do orçamento — o painel de Marketing lê a categoria "Marketing" (fonte única). */
+  /** Itens do orçamento — Marketing lê a categoria "Marketing"; Viabilidade soma os custos (fonte única). */
   budgetItems: PartyBudgetItem[];
   /** Ingressos — para o CAC e o "vendido vs meta" da Mensuração. */
   tickets: PartyTicket[];
+  /** Cadastro de venues — a Viabilidade compara casas candidatas. */
+  venues: Venue[];
+  /** Venue confirmado (parties.venue_id) — a escolha da casa vive na Viabilidade. */
+  confirmedVenueId: number | null;
+  confirmedVenueName: string | null;
   /** Público estimado canônico (Info) — usado no break-even, no lugar do antigo
    * campo "capacidade" da etapa de Viabilidade, removido na de-dup (slice 3b). */
   expectedCapacity: number | null;
+  /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
+  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
+  /** Leva o usuário para a aba Orçamento (link "editar no Orçamento"). */
+  onGoOrcamento: () => void;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -282,6 +298,19 @@ export function WorkflowTab({
                 budgetItems={budgetItems}
                 tickets={tickets}
                 expectedCapacity={expectedCapacity}
+                onReload={onReload}
+              />
+            ) : stage.name === "Viabilidade" ? (
+              <ViabilidadeStagePanel
+                partyId={partyId}
+                stage={stage}
+                budgetItems={budgetItems}
+                venues={venues}
+                confirmedVenueId={confirmedVenueId}
+                confirmedVenueName={confirmedVenueName}
+                expectedCapacity={expectedCapacity}
+                onPatchParty={onPatchParty}
+                onGoOrcamento={onGoOrcamento}
                 onReload={onReload}
               />
             ) : (
@@ -540,9 +569,10 @@ export function WorkflowTab({
               </div>
             </div>
 
-            {/* Marketing salva sozinho (o painel persiste cada mudança); as demais
-                etapas usam este Salvar pra gravar campos + notas de uma vez. */}
-            {stage.name !== "Marketing" && (
+            {/* Marketing e Viabilidade salvam sozinhos (o painel persiste cada
+                mudança); as demais etapas usam este Salvar pra gravar campos +
+                notas de uma vez. */}
+            {stage.name !== "Marketing" && stage.name !== "Viabilidade" && (
               <div className="flex justify-end">
                 <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
                   {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

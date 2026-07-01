@@ -275,6 +275,22 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     setDirty(true);
   }
 
+  // Patch ao vivo de campos da festa a partir de sub-abas (ex.: Viabilidade
+  // confirma o venue / edita a capacidade). Atualiza o buffer do form E persiste
+  // na hora — mantém cockpit/orçamento em sincronia sem depender do Salvar.
+  const patchPartyLive = useCallback(
+    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity">>) => {
+      setState((s) => ({ ...s, ...updates }));
+      if (!party) return;
+      try {
+        await updateParty({ id: party.id, ...updates });
+      } catch (e) {
+        toast.error(`Não consegui salvar: ${String(e)}`);
+      }
+    },
+    [party]
+  );
+
   const isConfirmedStatus = state.status === "Confirmada" || state.status === "Realizada";
   // Público real é COMPUTADO (de-dup 3b): total de ingressos vendidos. A festa
   // pode sobrepor com uma contagem manual de portaria (actual_attendance).
@@ -692,6 +708,32 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </Field>
 
             {/* ===== VENUES ===== */}
+            {/* Em festas já criadas, a escolha da casa vive na Viabilidade — a
+                Info vira vitrine read-only (venue confirmado + capacidade). */}
+            {isEdit ? (
+              <div className="space-y-2">
+                <Label>Venue</Label>
+                <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                  <span className="text-sm">
+                    {state.venue_name ? (
+                      <span className="font-medium">{state.venue_name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Venue não confirmado</span>
+                    )}
+                    {state.expected_capacity ? (
+                      <span className="text-muted-foreground"> · cap. {state.expected_capacity}</span>
+                    ) : null}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTab("workflow")}
+                    className="shrink-0 text-xs text-primary hover:underline"
+                  >
+                    alterar na Viabilidade →
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>
@@ -784,6 +826,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </>
               )}
             </div>
+            )}
 
             <Field label="Descrição">
               <Textarea
@@ -794,19 +837,34 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </Field>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Capacidade esperada">
-                <Input
-                  type="number"
-                  min={0}
-                  value={state.expected_capacity ?? ""}
-                  onChange={(e) =>
-                    set(
-                      "expected_capacity",
-                      e.target.value ? Number(e.target.value) : null
-                    )
-                  }
-                />
-              </Field>
+              {isEdit ? (
+                <Field label="Capacidade esperada">
+                  <div className="flex h-10 items-center justify-between rounded-md border bg-muted/30 px-3 text-sm">
+                    <span>{state.expected_capacity ?? "—"}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTab("workflow")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      alterar na Viabilidade →
+                    </button>
+                  </div>
+                </Field>
+              ) : (
+                <Field label="Capacidade esperada">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={state.expected_capacity ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "expected_capacity",
+                        e.target.value ? Number(e.target.value) : null
+                      )
+                    }
+                  />
+                </Field>
+              )}
               {isEdit && (
                 <Field label="Público real">
                   <div className="space-y-1">
@@ -879,7 +937,12 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 tasks={tasks}
                 budgetItems={budgetItems}
                 tickets={tickets}
+                venues={venues}
+                confirmedVenueId={state.venue_id}
+                confirmedVenueName={state.venue_name}
                 expectedCapacity={state.expected_capacity}
+                onPatchParty={patchPartyLive}
+                onGoOrcamento={() => setTab("orcamento")}
                 onReload={loadSubTabs}
               />
             </TabsContent>

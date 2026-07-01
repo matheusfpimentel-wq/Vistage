@@ -2394,6 +2394,18 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_party_marketing_actions_party ON party_marketing_actions(party_id, date);
     `,
   },
+  {
+    version: 168,
+    description:
+      "Festas/Viabilidade — party_venue_candidates ganha capacity, deal_type, deal_terms, estimated_cost e is_leader: a comparação/escolha de casa (com acordo e custo estimados) passa a viver na Viabilidade. Colunas aditivas idempotentes; valores antigos preservados.",
+    sql: `
+      ALTER TABLE party_venue_candidates ADD COLUMN capacity INTEGER;
+      ALTER TABLE party_venue_candidates ADD COLUMN deal_type TEXT;
+      ALTER TABLE party_venue_candidates ADD COLUMN deal_terms TEXT;
+      ALTER TABLE party_venue_candidates ADD COLUMN estimated_cost REAL;
+      ALTER TABLE party_venue_candidates ADD COLUMN is_leader INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 
