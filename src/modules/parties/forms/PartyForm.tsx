@@ -1087,6 +1087,12 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 tickets={tickets}
                 guests={guests}
                 barRevenue={state.bar_revenue}
+                viabilityCostsRaw={(() => {
+                  const v = stages.find((s) => s.name === "Viabilidade")?.fields.custos_necessarios;
+                  return typeof v === "string" ? v : null;
+                })()}
+                marketingReach={Number(stages.find((s) => s.name === "Marketing")?.fields.meta_alcance) || null}
+                marketingBudget={Number(stages.find((s) => s.name === "Marketing")?.fields.orcamento_mkt) || null}
                 onReload={loadSubTabs}
               />
             </TabsContent>
