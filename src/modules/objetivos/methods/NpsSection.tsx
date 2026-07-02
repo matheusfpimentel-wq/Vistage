@@ -23,10 +23,10 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FieldHelp } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -163,11 +163,11 @@ function NpsCard({ gigs }: { gigs: Gig[] }) {
         <CardTitle className="flex items-center gap-2 text-base">
           <Smile className="h-4 w-4 text-primary" />
           NPS dos contratantes
+          <FieldHelp>
+            Derivado da "Avaliação do Contratante" do debrief das GIGs (escala 0-5). A aba
+            "Pesquisa própria" guarda, à parte, um NPS clássico 0-10 registrado à mão.
+          </FieldHelp>
         </CardTitle>
-        <CardDescription>
-          Derivado da "Avaliação do Contratante" do debrief das GIGs (escala 0-5). A aba
-          "Pesquisa própria" guarda, à parte, um NPS clássico 0-10 registrado à mão.
-        </CardDescription>
       </CardHeader>
       <CardContent>
         {/* As abas DERIVADAS (das GIGs, escala 0-5) só fazem sentido com avaliações;
