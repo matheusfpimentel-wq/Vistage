@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { Pencil, PlusSquare, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -137,7 +138,7 @@ export function ListView({
       resizable: true,
       cell: (t) => {
         const days = daysInStage(t);
-        return days !== null ? `${days}d` : "—";
+        return days !== null ? `${days}d` : EMPTY_VALUE;
       },
     },
     actions: {

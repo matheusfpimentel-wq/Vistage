@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatCurrency, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import {
   Dialog,
@@ -43,9 +43,13 @@ import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { loadAuth, pushPartyToCalendar } from "@/lib/gcal";
 import {
   PARTY_STATUSES,
+  confirmStatusLabel,
+  type ConfirmStatus,
   type PartyDeserialized,
   type PartyStatus,
   type PartyTeamMember,
+  type PartySponsor,
+  type LineupStatus,
   type PartyStage,
   type PartyBudgetItem,
   type PartyTicket,
@@ -102,6 +106,38 @@ type Props = {
   onSaved: () => void;
 };
 
+/** Próximo estado do ciclo de confirmação (pendente ↔ confirmado). */
+function cycleConfirm(s: ConfirmStatus | null | undefined): ConfirmStatus {
+  return s === "confirmado" ? "pendente" : "confirmado";
+}
+
+/** Chip de um clique pra confirmar equipe/patrocínio na própria linha (fonte única). */
+function ConfirmChip({
+  status,
+  onCycle,
+}: {
+  status: ConfirmStatus | null | undefined;
+  onCycle: () => void;
+}) {
+  const confirmed = status === "confirmado";
+  return (
+    <button
+      type="button"
+      onClick={onCycle}
+      title="Confirmar / marcar pendente"
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition",
+        confirmed
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      )}
+    >
+      {confirmed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+      {confirmStatusLabel(status)}
+    </button>
+  );
+}
+
 type FormState = {
   title: string;
   date: string | null;
@@ -115,8 +151,10 @@ type FormState = {
   bar_revenue: number | null;
   target_cac: number | null;
   lineup: number[];
-  sponsors: { name: string; amount_cents: number }[];
+  sponsors: PartySponsor[];
   team: PartyTeamMember[];
+  /** Confirmação do lineup por DJ (contact_id → status/prazo). */
+  lineup_status: LineupStatus;
   notes: string | null;
   gig_id: number | null;
 };
@@ -136,6 +174,7 @@ const EMPTY: FormState = {
   lineup: [],
   sponsors: [],
   team: [],
+  lineup_status: {},
   notes: null,
   gig_id: null,
 };
@@ -253,6 +292,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         lineup: party.lineup,
         sponsors: party.sponsors,
         team: party.team,
+        lineup_status: party.lineup_status ?? {},
         notes: party.notes,
         gig_id: party.gig_id,
       });
@@ -274,6 +314,50 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     setState((s) => ({ ...s, [key]: value }));
     setDirty(true);
   }
+
+  // Patch ao vivo de campos da festa a partir de sub-abas (ex.: Viabilidade
+  // confirma o venue / edita a capacidade). Atualiza o buffer do form E persiste
+  // na hora — mantém cockpit/orçamento em sincronia sem depender do Salvar.
+  const patchPartyLive = useCallback(
+    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity">>) => {
+      setState((s) => ({ ...s, ...updates }));
+      if (!party) return;
+      try {
+        await updateParty({ id: party.id, ...updates });
+      } catch (e) {
+        toast.error(`Não consegui salvar: ${String(e)}`);
+      }
+    },
+    [party]
+  );
+
+  // Espelho síncrono do state: as confirmações da Equipe (team/sponsors/lineup)
+  // são alternadas por linha e podem disparar dois cliques antes do re-render.
+  // Para não perder um deles, os patches recebem um MAPPER e o aplicam sobre o
+  // valor mais fresco (stateRef, avançado na hora), não sobre um prop defasado.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  function persistParty<K extends "team" | "sponsors" | "lineup_status">(key: K, next: FormState[K]) {
+    stateRef.current = { ...stateRef.current, [key]: next };
+    setState((s) => ({ ...s, [key]: next }));
+    if (party) void updateParty({ id: party.id, [key]: next }).catch((e) => toast.error(`Não consegui salvar: ${String(e)}`));
+  }
+  const patchTeamLive = useCallback(
+    (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => persistParty("team", mapper(stateRef.current.team)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party]
+  );
+  const patchSponsorsLive = useCallback(
+    (mapper: (prev: PartySponsor[]) => PartySponsor[]) => persistParty("sponsors", mapper(stateRef.current.sponsors)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party]
+  );
+  const patchLineupStatusLive = useCallback(
+    (mapper: (prev: LineupStatus) => LineupStatus) => persistParty("lineup_status", mapper(stateRef.current.lineup_status)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party]
+  );
 
   const isConfirmedStatus = state.status === "Confirmada" || state.status === "Realizada";
   // Público real é COMPUTADO (de-dup 3b): total de ingressos vendidos. A festa
@@ -453,6 +537,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         lineup: state.lineup,
         sponsors: state.sponsors,
         team: state.team,
+        lineup_status: state.lineup_status,
         notes: state.notes,
         gig_id: state.gig_id,
       };
@@ -654,7 +739,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               return (
                 <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
                   <span className="flex-1">
-                    Sugestão: marcar como <strong>{suggested}</strong> — {reason}.
+                    Sugestão: marcar como <strong>{suggested}</strong> ({reason}).
                   </span>
                   <Button
                     type="button"
@@ -692,6 +777,32 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </Field>
 
             {/* ===== VENUES ===== */}
+            {/* Em festas já criadas, a escolha da casa vive na Viabilidade — a
+                Info vira vitrine read-only (venue confirmado + capacidade). */}
+            {isEdit ? (
+              <div className="space-y-2">
+                <Label>Venue</Label>
+                <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+                  <span className="text-sm">
+                    {state.venue_name ? (
+                      <span className="font-medium">{state.venue_name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Venue não confirmado</span>
+                    )}
+                    {state.expected_capacity ? (
+                      <span className="text-muted-foreground"> · cap. {state.expected_capacity}</span>
+                    ) : null}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTab("workflow")}
+                    className="shrink-0 text-xs text-primary hover:underline"
+                  >
+                    alterar na Viabilidade →
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>
@@ -784,6 +895,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </>
               )}
             </div>
+            )}
 
             <Field label="Descrição">
               <Textarea
@@ -794,19 +906,34 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </Field>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Capacidade esperada">
-                <Input
-                  type="number"
-                  min={0}
-                  value={state.expected_capacity ?? ""}
-                  onChange={(e) =>
-                    set(
-                      "expected_capacity",
-                      e.target.value ? Number(e.target.value) : null
-                    )
-                  }
-                />
-              </Field>
+              {isEdit ? (
+                <Field label="Capacidade esperada">
+                  <div className="flex h-10 items-center justify-between rounded-md border bg-muted/30 px-3 text-sm">
+                    <span>{state.expected_capacity ?? EMPTY_VALUE}</span>
+                    <button
+                      type="button"
+                      onClick={() => setTab("workflow")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      alterar na Viabilidade →
+                    </button>
+                  </div>
+                </Field>
+              ) : (
+                <Field label="Capacidade esperada">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={state.expected_capacity ?? ""}
+                    onChange={(e) =>
+                      set(
+                        "expected_capacity",
+                        e.target.value ? Number(e.target.value) : null
+                      )
+                    }
+                  />
+                </Field>
+              )}
               {isEdit && (
                 <Field label="Público real">
                   <div className="space-y-1">
@@ -877,7 +1004,27 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 partyId={party.id}
                 stages={stages}
                 tasks={tasks}
+                budgetItems={budgetItems}
+                tickets={tickets}
+                venues={venues}
+                confirmedVenueId={state.venue_id}
+                confirmedVenueName={state.venue_name}
                 expectedCapacity={state.expected_capacity}
+                partyTitle={state.title}
+                partyDate={state.date}
+                team={state.team}
+                sponsors={state.sponsors}
+                lineup={state.lineup}
+                lineupStatus={state.lineup_status}
+                guests={guests}
+                barRevenue={state.bar_revenue}
+                actualAttendance={state.actual_attendance}
+                onPatchParty={patchPartyLive}
+                onPatchTeam={patchTeamLive}
+                onPatchSponsors={patchSponsorsLive}
+                onPatchLineupStatus={patchLineupStatusLive}
+                onGoOrcamento={() => setTab("orcamento")}
+                onOpenEquipe={() => setTab("lineup")}
                 onReload={loadSubTabs}
               />
             </TabsContent>
@@ -931,14 +1078,22 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       key={i}
                       className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
                     >
-                      <span className="font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+                      <span className="shrink-0 text-muted-foreground">
                         {formatCurrency(s.amount_cents / 100)}
                       </span>
+                      <ConfirmChip
+                        status={s.status}
+                        onCycle={() =>
+                          patchSponsorsLive((prev) =>
+                            prev.map((sp, idx) => (idx === i ? { ...sp, status: cycleConfirm(sp.status) } : sp))
+                          )
+                        }
+                      />
                       <button
                         type="button"
                         onClick={() => removeSponsor(i)}
-                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label="Remover patrocinador"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -978,15 +1133,23 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       key={i}
                       className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
                     >
-                      <span className="font-medium">{m.name}</span>
-                      <span className="text-muted-foreground">{m.role}</span>
-                      <span className="text-muted-foreground">
-                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : "—"}
+                      <span className="min-w-0 flex-1 truncate font-medium">{m.name}</span>
+                      <span className="shrink-0 text-muted-foreground">{m.role}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {m.amount_cents > 0 ? formatCurrency(m.amount_cents / 100) : EMPTY_VALUE}
                       </span>
+                      <ConfirmChip
+                        status={m.status}
+                        onCycle={() =>
+                          patchTeamLive((prev) =>
+                            prev.map((tm, idx) => (idx === i ? { ...tm, status: cycleConfirm(tm.status) } : tm))
+                          )
+                        }
+                      />
                       <button
                         type="button"
                         onClick={() => removeTeamMember(i)}
-                        className="ml-2 text-muted-foreground hover:text-destructive"
+                        className="shrink-0 text-muted-foreground hover:text-destructive"
                         aria-label="Remover membro"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1150,7 +1313,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    setQuickContentForm({ title: state.title + " — ", format: "", network: "", status: "Ideia" });
+                    setQuickContentForm({ title: state.title + ": ", format: "", network: "", status: "Ideia" });
                     setQuickContent(true);
                   }}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"

@@ -106,8 +106,8 @@ export function AlertsPage() {
           <CheckCircle2 className="h-10 w-10 text-emerald-500" />
           <p className="text-sm font-medium">Nenhum alerta no momento</p>
           <p className="max-w-xs text-xs text-muted-foreground">
-            Quando algo precisar da sua atenção — GIG sem prep, cachê pendente,
-            tarefa atrasada — aparece aqui.
+            Quando algo precisar da sua atenção (GIG sem prep, cachê pendente,
+            tarefa atrasada), aparece aqui.
           </p>
         </div>
       ) : (

@@ -2,6 +2,8 @@ import { getDb } from "@/lib/db";
 import { toLocalISODate } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
+import { averageRating } from "./types";
+import { parsePrepState, prepProgress } from "./prep";
 
 const GIG_COLUMNS = [
   "id",
@@ -59,6 +61,7 @@ const GIG_COLUMNS = [
   "rating_repertoire_note",
   "debrief_completed_at",
   "debrief_pending",
+  "prep_pct_at_debrief",
   "gcal_event_id",
   "gcal_synced_at",
   "main_goal",
@@ -70,6 +73,8 @@ const GIG_COLUMNS = [
   "event_category",
   "recurring_event_name",
   "rating_contractor",
+  "rating_floor",
+  "rating_floor_note",
   "is_special",
   "created_at",
   "updated_at",
@@ -94,6 +99,8 @@ export type GigFilters = {
   promoterContactId?: number;
   eventCategory?: string;
   recurringEventName?: string;
+  /** Só GIGs marcadas como especiais (is_special = 1). */
+  specialOnly?: boolean;
 };
 
 export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
@@ -124,6 +131,9 @@ export async function listGigs(filters: GigFilters = {}): Promise<Gig[]> {
   if (filters.recurringEventName && filters.recurringEventName.trim().length > 0) {
     params.push(filters.recurringEventName);
     where.push(`g.recurring_event_name = $${params.length}`);
+  }
+  if (filters.specialOnly) {
+    where.push(`g.is_special = 1`);
   }
   if (filters.search && filters.search.trim().length > 0) {
     const q = `%${filters.search.trim()}%`;
@@ -221,14 +231,16 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     // Marca debrief como pendente se as avaliações não estiverem todas preenchidas
     // (a menos que o debrief já tenha sido finalizado).
     try {
-      const rrows = await db.select<{ rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null; rating_contractor: number | null; debrief_completed_at: string | null }[]>(
-        "SELECT rating_charisma, rating_technique, rating_repertoire, rating_contractor, debrief_completed_at FROM gigs WHERE id = $1", [id]
+      const rrows = await db.select<{ rating_charisma: number | null; rating_technique: number | null; rating_repertoire: number | null; rating_floor: number | null; debrief_completed_at: string | null }[]>(
+        "SELECT rating_charisma, rating_technique, rating_repertoire, rating_floor, debrief_completed_at FROM gigs WHERE id = $1", [id]
       );
       const r = rrows[0];
       if (r && !r.debrief_completed_at) {
+        // Eixos obrigatórios do debrief: carisma/técnica/repertório/pista
+        // (contratante é opcional). Espelha isComplete() no DebriefForm.
         const ratingsComplete =
           r.rating_charisma != null && r.rating_technique != null &&
-          r.rating_repertoire != null && r.rating_contractor != null;
+          r.rating_repertoire != null && r.rating_floor != null;
         await db.execute("UPDATE gigs SET debrief_pending = $1 WHERE id = $2", [ratingsComplete ? 0 : 1, id]);
       }
     } catch { /* não interrompe */ }
@@ -545,11 +557,17 @@ export type GigInsights = {
   byStatus: Record<GigStatus, number>;
   byMonth: { month: string; count: number; revenue: number; avgRating: number | null }[];
   topVenues: { venue_name: string; gigs: number; avg_rating: number | null }[];
+  /**
+   * Avaliação média por faixa de preparação (leitura, não causa). Amostra por
+   * faixa; o consumidor só mostra faixas com sample >= 3.
+   */
+  ratingByPrepBand: { band: "low" | "mid" | "full"; sample: number; avgRating: number | null }[];
 };
 
-export async function loadInsights(): Promise<GigInsights> {
+export async function loadInsights(opts: { specialOnly?: boolean } = {}): Promise<GigInsights> {
   const db = getDb();
-  const all = await db.select<Gig[]>(SELECT_ALL);
+  const rawAll = await db.select<Gig[]>(SELECT_ALL);
+  const all = opts.specialOnly ? rawAll.filter((g) => g.is_special === 1) : rawAll;
 
   const byStatus: Record<GigStatus, number> = {
     Proposta: 0,
@@ -566,6 +584,9 @@ export async function loadInsights(): Promise<GigInsights> {
     { count: number; revenue: number; ratings: number[] }
   >();
   const venueBuckets = new Map<string, { gigs: number; ratings: number[] }>();
+  // Faixas de preparação (leitura prep×nota): usa o % congelado no debrief ou,
+  // na falta, o % ao vivo do checklist. Só entram GIGs com avaliação e prep.
+  const prepBands: Record<"low" | "mid" | "full", number[]> = { low: [], mid: [], full: [] };
 
   for (const g of all) {
     byStatus[g.status] = (byStatus[g.status] ?? 0) + 1;
@@ -575,12 +596,22 @@ export async function loadInsights(): Promise<GigInsights> {
       cacheCount += 1;
     }
 
-    const gigRatings = [g.rating_charisma, g.rating_technique, g.rating_repertoire]
-      .filter((r): r is number => typeof r === "number");
-    const avgGig =
-      gigRatings.length > 0
-        ? gigRatings.reduce((s, r) => s + r, 0) / gigRatings.length
-        : null;
+    // Média por GIG = fonte única averageRating (eixos preenchidos, sem o termo
+    // fantasma de is_special) — mesma conta da lista/detalhe.
+    const avgGig = averageRating(g);
+    if (avgGig !== null) {
+      const prepPct =
+        g.prep_pct_at_debrief != null
+          ? g.prep_pct_at_debrief
+          : (() => {
+              const { done, total } = prepProgress(parsePrepState(g.prep_state));
+              return total > 0 ? Math.round((done / total) * 100) : null;
+            })();
+      if (prepPct !== null) {
+        const band = prepPct < 50 ? "low" : prepPct < 100 ? "mid" : "full";
+        prepBands[band].push(avgGig);
+      }
+    }
     if (avgGig !== null) ratings.push(avgGig);
 
     if (g.debrief_pending === 1) pendingDebriefs += 1;
@@ -640,6 +671,14 @@ export async function loadInsights(): Promise<GigInsights> {
     byStatus,
     byMonth,
     topVenues,
+    ratingByPrepBand: (["low", "mid", "full"] as const).map((band) => {
+      const arr = prepBands[band];
+      return {
+        band,
+        sample: arr.length,
+        avgRating: arr.length > 0 ? arr.reduce((s, r) => s + r, 0) / arr.length : null,
+      };
+    }),
   };
 }
 

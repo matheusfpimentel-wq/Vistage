@@ -8,8 +8,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { InfoHint } from "@/components/ui/tooltip";
 import { loadInsights, type GigInsights } from "../api";
-import { formatCurrency, formatRating } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatRating } from "@/lib/format";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { GIG_STATUSES } from "../types";
@@ -19,27 +20,46 @@ type Props = { refreshKey: number };
 export function InsightsView({ refreshKey }: Props) {
   const [insights, setInsights] = useState<GigInsights | null>(null);
   const [loading, setLoading] = useState(true);
+  const [specialOnly, setSpecialOnly] = useState(false);
 
   useEffect(() => {
     setLoading(true);
-    loadInsights()
+    loadInsights({ specialOnly })
       .then(setInsights)
       .finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, specialOnly]);
+
+  const specialToggle = (
+    <label className="flex cursor-pointer items-center gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="h-4 w-4 accent-amber-500"
+        checked={specialOnly}
+        onChange={(e) => setSpecialOnly(e.target.checked)}
+      />
+      <span>⭐ Só especiais</span>
+    </label>
+  );
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Carregando insights…</div>;
   }
   if (!insights || insights.totalCount === 0) {
     return (
-      <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
-        Sem dados ainda — crie algumas GIGs e volte aqui pra ver os insights.
+      <div className="space-y-4">
+        <div className="flex justify-end">{specialToggle}</div>
+        <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
+          {specialOnly
+            ? "Nenhuma GIG marcada como especial ainda."
+            : "Ainda sem dados. Crie GIGs e volte aqui pros insights."}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">{specialToggle}</div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat
           icon={<Calendar className="h-4 w-4" />}
@@ -57,7 +77,7 @@ export function InsightsView({ refreshKey }: Props) {
           value={
             insights.averageRating !== null
               ? formatRating(insights.averageRating)
-              : "—"
+              : EMPTY_VALUE
           }
         />
         <Stat
@@ -132,7 +152,7 @@ export function InsightsView({ refreshKey }: Props) {
                       </span>
                     </div>
                     <span className="tabular-nums text-amber-500">
-                      {v.avg_rating !== null ? formatRating(v.avg_rating) : "—"}
+                      {v.avg_rating !== null ? formatRating(v.avg_rating) : EMPTY_VALUE}
                     </span>
                   </div>
                 ))}
@@ -196,6 +216,59 @@ export function InsightsView({ refreshKey }: Props) {
               })}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Avaliação por faixa de preparação
+            <InfoHint>
+              Leitura, não causa: mais preparo costuma andar junto de nota mais
+              alta, mas correlação não é causalidade. Faixa aparece só com ≥3
+              GIGs avaliadas.
+            </InfoHint>
+          </CardTitle>
+          <CardDescription>
+            Compara a nota média das GIGs por quanto da Preparação estava pronto.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const shown = insights.ratingByPrepBand.filter((b) => b.sample >= 3);
+            if (shown.length === 0) {
+              return (
+                <div className="text-sm text-muted-foreground">
+                  Ainda sem amostra suficiente (mínimo 3 GIGs avaliadas por faixa).
+                </div>
+              );
+            }
+            const label: Record<"low" | "mid" | "full", string> = {
+              low: "< 50%",
+              mid: "50–99%",
+              full: "100%",
+            };
+            return (
+              <div className="space-y-2">
+                {shown.map((b) => (
+                  <div
+                    key={b.band}
+                    className="flex items-center justify-between rounded-md border p-2 text-sm"
+                  >
+                    <span className="font-medium">Preparação {label[b.band]}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {b.sample} GIG{b.sample > 1 ? "s" : ""}
+                      </span>
+                      <span className="tabular-nums text-amber-500">
+                        {b.avgRating !== null ? `★ ${formatRating(b.avgRating)}` : EMPTY_VALUE}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

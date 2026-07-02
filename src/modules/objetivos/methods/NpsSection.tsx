@@ -44,7 +44,7 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { formatDate, toLocalISODate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, toLocalISODate } from "@/lib/format";
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
 import { gigDisplayName } from "@/modules/gigs/displayName";
@@ -117,7 +117,7 @@ export function npsVerdict(nps: number | null): string {
 
 /** Comentário do contratante: feedback do debrief, com fallback nos aprendizados. */
 function npsComment(g: Gig): string {
-  return g.debrief_promoter_feedback?.trim() || g.debrief_learnings?.trim() || "—";
+  return g.debrief_promoter_feedback?.trim() || g.debrief_learnings?.trim() || EMPTY_VALUE;
 }
 
 export function NpsSection() {
@@ -202,7 +202,7 @@ function NpsCard({ gigs }: { gigs: Gig[] }) {
           {rated.length === 0 ? (
             <TabsContent value="overview">
               <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-                Nenhuma GIG com avaliação de contratante ainda. Preencha no debrief — ou
+                Nenhuma GIG com avaliação de contratante ainda. Preencha no debrief, ou
                 use a aba "Pesquisa própria" para registrar respostas de NPS à mão.
               </p>
             </TabsContent>
@@ -399,7 +399,7 @@ function TrendTab({ rated }: { rated: Gig[] }) {
         </p>
         {trend.length === 1 ? (
           <p className="text-center text-xs text-muted-foreground">
-            Único mês com avaliação: {trend[0].label} — NPS {trend[0].nps} ({trend[0].count}{" "}
+            Único mês com avaliação: {trend[0].label}. NPS {trend[0].nps} ({trend[0].count}{" "}
             avaliação{trend[0].count === 1 ? "" : "es"}).
           </p>
         ) : null}
@@ -446,7 +446,7 @@ function TrendTab({ rated }: { rated: Gig[] }) {
         </LineChart>
       </ResponsiveContainer>
       <p className="text-xs text-muted-foreground">
-        Meses com 1 avaliação ficam em 100 ou -100 — confira a contagem no tooltip antes
+        Meses com 1 avaliação ficam em 100 ou -100. Confira a contagem no tooltip antes
         de tirar conclusões.
       </p>
     </div>
@@ -564,7 +564,7 @@ function DetractorsTab({ rated }: { rated: Gig[] }) {
   if (detractors.length === 0) {
     return (
       <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-        Nenhum detrator por enquanto — todas as avaliações estão acima de 2,5.
+        Nenhum detrator por enquanto: todas as avaliações estão acima de 2,5.
       </p>
     );
   }
@@ -573,7 +573,7 @@ function DetractorsTab({ rated }: { rated: Gig[] }) {
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
         {detractors.length} GIG{detractors.length === 1 ? "" : "s"} com nota ≤ 2,5. Lista para
-        follow-up — clique para abrir o debrief.
+        follow-up. Clique para abrir o debrief.
       </p>
       <div className="space-y-1.5">
         {detractors.map((g) => (

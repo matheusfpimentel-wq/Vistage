@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
-import { formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, toLocalISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   DEFAULT_STAGE_NAMES,
@@ -23,12 +23,26 @@ import {
   STAGE_FIELD_DEFS,
   VIABILITY_COST_CATEGORIES,
   type ChecklistItem,
+  type PartyBudgetItem,
   type PartyStage,
   type PartyTask,
+  type PartyTicket,
   type RiderItem,
   type RiderTemplate,
   type StageStatus,
   type ViabilityCost,
+} from "../types";
+import { MarketingStagePanel } from "./MarketingStagePanel";
+import { ViabilidadeStagePanel } from "./ViabilidadeStagePanel";
+import { ExecucaoStagePanel } from "./ExecucaoStagePanel";
+import { IdeacaoStagePanel } from "./IdeacaoStagePanel";
+import { ConcretizacaoStagePanel } from "./ConcretizacaoStagePanel";
+import type { Venue } from "@/modules/venues/types";
+import type {
+  PartyTeamMember,
+  PartySponsor,
+  PartyGuest,
+  LineupStatus,
 } from "../types";
 
 const fmtCurrency = (n: number) =>
@@ -50,12 +64,9 @@ import type { Supplier } from "@/modules/suppliers/types";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 
-function stageStatusColor(s: StageStatus) {
-  return s === "concluida"
-    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-    : s === "em_andamento"
-    ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
-    : "bg-muted/40 text-muted-foreground border-border";
+/** Ponto de status do stepper — verde concluída, âmbar em andamento, cinza pendente. */
+function stageStatusDot(s: StageStatus) {
+  return s === "concluida" ? "bg-emerald-500" : s === "em_andamento" ? "bg-amber-500" : "bg-muted-foreground/40";
 }
 
 function stageStatusLabel(s: StageStatus) {
@@ -66,15 +77,67 @@ export function WorkflowTab({
   partyId,
   stages,
   tasks,
+  budgetItems,
+  tickets,
+  venues,
+  confirmedVenueId,
+  confirmedVenueName,
   expectedCapacity,
+  partyTitle,
+  partyDate,
+  team,
+  sponsors,
+  lineup,
+  lineupStatus,
+  guests,
+  barRevenue,
+  actualAttendance,
+  onPatchParty,
+  onPatchTeam,
+  onPatchSponsors,
+  onPatchLineupStatus,
+  onGoOrcamento,
+  onOpenEquipe,
   onReload,
 }: {
   partyId: number;
   stages: PartyStage[];
   tasks: PartyTask[];
+  /** Itens do orçamento — Marketing lê a categoria "Marketing"; Viabilidade soma os custos (fonte única). */
+  budgetItems: PartyBudgetItem[];
+  /** Ingressos — para o CAC e o "vendido vs meta" da Mensuração. */
+  tickets: PartyTicket[];
+  /** Cadastro de venues — a Viabilidade compara casas candidatas. */
+  venues: Venue[];
+  /** Venue confirmado (parties.venue_id) — a escolha da casa vive na Viabilidade. */
+  confirmedVenueId: number | null;
+  confirmedVenueName: string | null;
   /** Público estimado canônico (Info) — usado no break-even, no lugar do antigo
    * campo "capacidade" da etapa de Viabilidade, removido na de-dup (slice 3b). */
   expectedCapacity: number | null;
+  /** Título/data da festa — export do rider + prazo default das confirmações. */
+  partyTitle: string;
+  partyDate: string | null;
+  /** Equipe (fonte única) — a Execução mostra confirmações destes registros. */
+  team: PartyTeamMember[];
+  sponsors: PartySponsor[];
+  lineup: number[];
+  lineupStatus: LineupStatus;
+  /** Cortesias + receita de bar + presença real — base do RESULTADO da Concretização. */
+  guests: PartyGuest[];
+  barRevenue: number | null;
+  actualAttendance: number | null;
+  /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
+  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
+  /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
+   * fresco — evita que dois toggles rápidos se sobrescrevam. */
+  onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
+  onPatchSponsors: (mapper: (prev: PartySponsor[]) => PartySponsor[]) => void;
+  onPatchLineupStatus: (mapper: (prev: LineupStatus) => LineupStatus) => void;
+  /** Leva o usuário para a aba Orçamento (link "editar no Orçamento"). */
+  onGoOrcamento: () => void;
+  /** Leva o usuário para a aba Equipe (add pessoa/fornecedor na fonte única). */
+  onOpenEquipe: () => void;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -211,30 +274,41 @@ export function WorkflowTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {stages.map((stage) => (
-          <div
+      {/* Stepper de LINHA ÚNICA — as etapas nunca quebram pra 2ª linha; clicar
+          numa expande abaixo. Em telas apertadas o nome trunca (com tooltip). */}
+      <div className="flex items-stretch gap-1 overflow-hidden rounded-lg border bg-card p-1">
+        {stages.map((stage) => {
+          // Gatilho do debrief: festa já passou e a Concretização segue pendente
+          // → destaca a etapa (o destaque É o aviso; sem texto de nag).
+          const needsDebrief =
+            stage.name === "Concretização" &&
+            !!partyDate && partyDate.slice(0, 10) < toLocalISODate() &&
+            stage.status !== "concluida";
+          return (
+          <button
             key={stage.id}
-            className={cn(
-              "min-w-[140px] flex-1 rounded-lg border p-3 cursor-pointer transition",
-              stageStatusColor(stage.status),
-              expandedId === stage.id && "ring-2 ring-primary"
-            )}
+            type="button"
             onClick={() =>
               expandedId === stage.id ? setExpandedId(null) : openStage(stage)
             }
+            title={`${stage.name} · ${stageStatusLabel(stage.status)}${needsDebrief ? " · debrief pendente" : ""}`}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition",
+              expandedId === stage.id ? "bg-primary/10 ring-1 ring-primary"
+                : needsDebrief ? "bg-amber-500/10 ring-1 ring-amber-500/60 animate-pulse"
+                : "hover:bg-muted/50"
+            )}
           >
-            <div className="flex items-center justify-between gap-1">
-              <span className="text-sm font-medium truncate">{stage.name}</span>
-              {expandedId === stage.id ? (
-                <ChevronUp className="h-3.5 w-3.5 shrink-0" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-              )}
-            </div>
-            <div className="mt-1 text-xs opacity-80">{stageStatusLabel(stage.status)}</div>
-          </div>
-        ))}
+            <span className={cn("h-2 w-2 shrink-0 rounded-full", stageStatusDot(stage.status))} />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium">{stage.name}</span>
+            {expandedId === stage.id ? (
+              <ChevronUp className="h-3 w-3 shrink-0 opacity-60" />
+            ) : (
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-40" />
+            )}
+          </button>
+          );
+        })}
       </div>
 
       {expandedId !== null && (() => {
@@ -268,6 +342,64 @@ export function WorkflowTab({
               </div>
             </div>
 
+            {stage.name === "Ideação" ? (
+              <IdeacaoStagePanel partyId={partyId} stage={stage} onReload={onReload} />
+            ) : stage.name === "Concretização" ? (
+              <ConcretizacaoStagePanel
+                partyId={partyId}
+                stage={stage}
+                stages={stages}
+                budgetItems={budgetItems}
+                tickets={tickets}
+                sponsors={sponsors}
+                guests={guests}
+                barRevenue={barRevenue}
+                actualAttendance={actualAttendance}
+                expectedCapacity={expectedCapacity}
+                onReload={onReload}
+              />
+            ) : stage.name === "Marketing" ? (
+              <MarketingStagePanel
+                partyId={partyId}
+                stage={stage}
+                budgetItems={budgetItems}
+                tickets={tickets}
+                expectedCapacity={expectedCapacity}
+                onReload={onReload}
+              />
+            ) : stage.name === "Viabilidade" ? (
+              <ViabilidadeStagePanel
+                partyId={partyId}
+                stage={stage}
+                budgetItems={budgetItems}
+                venues={venues}
+                confirmedVenueId={confirmedVenueId}
+                confirmedVenueName={confirmedVenueName}
+                expectedCapacity={expectedCapacity}
+                onPatchParty={onPatchParty}
+                onGoOrcamento={onGoOrcamento}
+                onReload={onReload}
+              />
+            ) : stage.name === "Execução" ? (
+              <ExecucaoStagePanel
+                partyId={partyId}
+                stage={stage}
+                partyTitle={partyTitle}
+                partyDate={partyDate}
+                team={team}
+                sponsors={sponsors}
+                lineup={lineup}
+                lineupStatus={lineupStatus}
+                contacts={contacts}
+                suppliers={suppliers}
+                onPatchTeam={onPatchTeam}
+                onPatchSponsors={onPatchSponsors}
+                onPatchLineupStatus={onPatchLineupStatus}
+                onOpenEquipe={onOpenEquipe}
+                onReload={onReload}
+              />
+            ) : (
+            <>
             {fieldDefs.length > 0 && (
               <div className="grid gap-3 sm:grid-cols-2">
                 {fieldDefs.map((fd) => {
@@ -413,6 +545,8 @@ export function WorkflowTab({
                 placeholder="Observações sobre esta etapa…"
               />
             </div>
+            </>
+            )}
 
             <div className="space-y-2 border-t pt-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -520,12 +654,17 @@ export function WorkflowTab({
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Salvar
-              </Button>
-            </div>
+            {/* Marketing e Viabilidade salvam sozinhos (o painel persiste cada
+                mudança); as demais etapas usam este Salvar pra gravar campos +
+                notas de uma vez. */}
+            {stage.name !== "Ideação" && stage.name !== "Marketing" && stage.name !== "Viabilidade" && stage.name !== "Execução" && stage.name !== "Concretização" && (
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => void saveStage(stage)} disabled={saving}>
+                  {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Salvar
+                </Button>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -609,7 +748,7 @@ function CostsField({
             >
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.category}</span>
               <span className="flex-1 truncate text-muted-foreground">
-                {r.description || "—"}
+                {r.description || EMPTY_VALUE}
               </span>
               <span className="shrink-0 font-medium tabular-nums">
                 {fmtCurrency(r.amount)}
@@ -678,14 +817,17 @@ function CostsField({
 }
 
 /** Checklist operacional: itens marcáveis com adição/remoção de linhas. */
-function ChecklistField({
+export function ChecklistField({
   label,
   value,
   onChange,
+  suggestions,
 }: {
   label: string;
   value: string;
   onChange: (v: string | null) => void;
+  /** Chips de sugestão de itens comuns (um toque cria). */
+  suggestions?: string[];
 }) {
   let items: ChecklistItem[] = [];
   try {
@@ -756,6 +898,23 @@ function ChecklistField({
         </div>
       )}
 
+      {suggestions && suggestions.filter((s) => !items.some((it) => it.text.trim().toLowerCase() === s.toLowerCase())).length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions
+            .filter((s) => !items.some((it) => it.text.trim().toLowerCase() === s.toLowerCase()))
+            .map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => save([...items, { text: s, done: false }])}
+                className="flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+              >
+                <Plus className="h-3 w-3" /> {s}
+              </button>
+            ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <Input
           className="h-8 flex-1 text-xs"
@@ -774,7 +933,7 @@ function ChecklistField({
 
 /** Rider técnico estruturado + reutilizável: equipamentos (categoria, item, qtd,
  *  quem fornece) marcáveis, salváveis como modelo e recarregáveis entre festas. */
-function RiderField({
+export function RiderField({
   label,
   value,
   onChange,

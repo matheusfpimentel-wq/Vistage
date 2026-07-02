@@ -307,7 +307,7 @@ function Detail({ r }: { r: Row }) {
       )}
       {r.pending ? (
         <p className="muted" style={{ fontSize: "0.78rem" }}>
-          GIG criada no celular — sobe pro PC na próxima sincronização.
+          GIG criada no celular: sobe pro PC na próxima sincronização.
         </p>
       ) : (
         ["contact", "gig", "track", "venue"].includes(r.kind) && <AnotarBox r={r} />

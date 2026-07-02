@@ -28,8 +28,10 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 export { Tooltip, TooltipTrigger, TooltipContent };
 
 /**
- * Pequeno ícone "i" com tooltip ao passar o mouse.
- * Usado pra dar contexto extra em labels concisos sem poluir a UI.
+ * "?" padrão de ajuda de campo: ícone HelpCircle discreto + tooltip.
+ * Componente único para toda explicação de campo/regra/comportamento —
+ * a EXPLICAÇÃO mora aqui, não em texto solto na tela. Estado/dado
+ * (contadores, datas, avisos de segurança) permanece visível.
  */
 export function InfoHint({ children }: { children: React.ReactNode }) {
   return (
@@ -48,3 +50,10 @@ export function InfoHint({ children }: { children: React.ReactNode }) {
     </Tooltip>
   );
 }
+
+/**
+ * Nome canônico do "?" de ajuda de campo. Alias de {@link InfoHint} — mesma
+ * implementação (HelpCircle + Tooltip), um só componente pra padronizar as
+ * migrações de explicação pro "?".
+ */
+export const FieldHelp = InfoHint;

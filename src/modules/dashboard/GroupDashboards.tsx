@@ -10,7 +10,7 @@ import {
   type NavGroup,
 } from "@/lib/nav";
 import { useHiddenModules } from "@/lib/moduleVisibility";
-import { formatCurrency, formatDate, todayISO } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, todayISO } from "@/lib/format";
 // Criação
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
@@ -237,7 +237,7 @@ export function RelacionamentoDashboard() {
                 empty={highPriority.length === 0}
               >
                 {highPriority.slice(0, 6).map((c) => (
-                  <TextRow key={c.id} to={`/pessoas?open=${c.id}`} name={c.name} context={c.types[0] ?? "—"} />
+                  <TextRow key={c.id} to={`/pessoas?open=${c.id}`} name={c.name} context={c.types[0] ?? EMPTY_VALUE} />
                 ))}
               </TextSection>
 
@@ -340,7 +340,7 @@ export function CriacaoDashboard() {
                 <TextSection title="Tracks ativas" empty={activeTracks.length === 0}>
                   {activeTracks.slice(0, 6).map((t) => {
                     const d = daysInStage(t);
-                    const stage = t.current_stage ?? "—";
+                    const stage = t.current_stage ?? EMPTY_VALUE;
                     return (
                       <TextRow
                         key={t.id}
@@ -406,7 +406,7 @@ export function GestaoDashboard() {
                 items={[
                   { label: "Receita do mês", value: formatCurrency(data.fin.monthIncome), to: "/financeiro" },
                   { label: "Saldo do mês", value: formatCurrency(data.fin.monthBalance), to: "/financeiro" },
-                  { label: "OKRs", value: avgPct !== null ? `${avgPct}%` : "—", to: "/objetivos", hint: `${shownOkrs.length} objetivo(s) · ${quarter}` },
+                  { label: "OKRs", value: avgPct !== null ? `${avgPct}%` : EMPTY_VALUE, to: "/objetivos", hint: `${shownOkrs.length} objetivo(s) · ${quarter}` },
                   { label: "Horas de foco", value: `${focusHours}h`, to: "/foco", hint: `${data.activity.reduce((s, a) => s + (a.sessions ?? 0), 0)} sessões` },
                 ]}
               />

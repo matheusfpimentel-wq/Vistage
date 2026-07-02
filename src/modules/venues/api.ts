@@ -12,6 +12,45 @@ export type VenueFilters = {
   search?: string;
 };
 
+/** Nota técnica acumulada num venue (som/energia/setup), com origem numa GIG. */
+export type VenueTechNote = {
+  id: number;
+  venue_id: number;
+  gig_id: number | null;
+  text: string;
+  created_at: string;
+};
+
+/** Salva uma nota técnica no venue (a partir do debrief de uma GIG). */
+export async function addVenueTechNote(
+  venueId: number,
+  gigId: number | null,
+  text: string
+): Promise<number> {
+  const db = getDb();
+  const clean = text.trim();
+  if (!clean) return 0;
+  const res = await db.execute(
+    "INSERT INTO venue_tech_notes (venue_id, gig_id, text) VALUES ($1, $2, $3)",
+    [venueId, gigId, clean]
+  );
+  return Number(res.lastInsertId ?? 0);
+}
+
+/** Lista as notas técnicas de um venue, mais recentes primeiro. */
+export async function listVenueTechNotes(venueId: number): Promise<VenueTechNote[]> {
+  const db = getDb();
+  return db.select<VenueTechNote[]>(
+    "SELECT id, venue_id, gig_id, text, created_at FROM venue_tech_notes WHERE venue_id = $1 ORDER BY created_at DESC, id DESC",
+    [venueId]
+  );
+}
+
+export async function deleteVenueTechNote(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM venue_tech_notes WHERE id = $1", [id]);
+}
+
 export async function listVenues(filters: VenueFilters = {}): Promise<Venue[]> {
   const db = getDb();
   const where: string[] = [];
@@ -104,6 +143,7 @@ export async function getVenueStats(venueId: number): Promise<VenueStats> {
       avg_c: number | null;
       avg_t: number | null;
       avg_r: number | null;
+      avg_f: number | null;
     }[]
   >(
     `SELECT COUNT(*) as n,
@@ -111,12 +151,13 @@ export async function getVenueStats(venueId: number): Promise<VenueStats> {
             MAX(date) as last,
             AVG(rating_charisma) as avg_c,
             AVG(rating_technique) as avg_t,
-            AVG(rating_repertoire) as avg_r
+            AVG(rating_repertoire) as avg_r,
+            AVG(rating_floor) as avg_f
        FROM gigs WHERE venue_id = $1`,
     [venueId]
   );
   const r = rows[0];
-  const ratings = [r.avg_c, r.avg_t, r.avg_r].filter(
+  const ratings = [r.avg_c, r.avg_t, r.avg_r, r.avg_f].filter(
     (v): v is number => typeof v === "number"
   );
   return {

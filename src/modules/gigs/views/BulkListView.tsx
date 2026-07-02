@@ -13,7 +13,7 @@ import {
 import { StatusBadge } from "../components/StatusBadge";
 import { GIG_STATUSES, PAYMENT_STATUSES, type Gig, type GigStatus, type PaymentStatus } from "../types";
 import { gigDisplayName } from "../displayName";
-import { formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate } from "@/lib/format";
 import { updateGig } from "../api";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
@@ -250,7 +250,7 @@ export function BulkListView({ gigs, onEdit, onRefresh }: Props) {
                 </td>
                 <td className="px-3 py-2 font-medium">{gigDisplayName(g)}</td>
                 <td className="px-3 py-2 text-muted-foreground text-xs">
-                  {g.date ? formatDate(g.date) : "—"}
+                  {g.date ? formatDate(g.date) : EMPTY_VALUE}
                 </td>
                 <td className="px-3 py-2">
                   <StatusBadge status={g.status} />

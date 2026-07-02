@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
-import { todayISO, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, todayISO, formatDate } from "@/lib/format";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import {
@@ -199,11 +199,11 @@ export function ContentSnapshots({ contentId, title }: Props) {
               {snapshots.map((s) => (
                 <tr key={s.id} className="border-t">
                   <td className="px-2 py-1.5 tabular-nums">{formatDate(s.captured_at)}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_views ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_likes ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_comments ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_shares ?? "—"}</td>
-                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_saves ?? "—"}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_views ?? EMPTY_VALUE}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_likes ?? EMPTY_VALUE}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_comments ?? EMPTY_VALUE}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_shares ?? EMPTY_VALUE}</td>
+                  <td className="px-2 py-1.5 text-right tabular-nums">{s.metric_saves ?? EMPTY_VALUE}</td>
                   <td className="px-2 py-1.5 text-right">
                     <button
                       type="button"

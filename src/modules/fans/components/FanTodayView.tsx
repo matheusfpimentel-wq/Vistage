@@ -61,7 +61,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "convidar",
     title: "Convidar pro próximo show",
-    hint: "Estiveram num show recente — chame pra próxima GIG.",
+    hint: "Estiveram num show recente. Chame pra próxima GIG.",
     icon: Ticket,
     actionId: "convidar",
     fallback: { label: "Convidar", template: "Convidar {nome} para o próximo show" },
@@ -69,7 +69,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "parabenizar",
     title: "Parabenizar",
-    hint: "Subiram de nível nos últimos dias — vale um toque.",
+    hint: "Subiram de nível nos últimos dias. Vale um toque.",
     icon: PartyPopper,
     actionId: "parabenizar",
     fallback: { label: "Parabenizar", template: "Parabenizar {nome} pela evolução" },
@@ -77,7 +77,7 @@ const BUCKETS: BucketDef[] = [
   {
     key: "reativar",
     title: "Reativar",
-    hint: "Fãs fortes esfriando — sem contato faz tempo.",
+    hint: "Fãs fortes esfriando, sem contato faz tempo.",
     icon: Flame,
     actionId: "reativar",
     fallback: { label: "Reativar", template: "Reativar contato com {nome}" },

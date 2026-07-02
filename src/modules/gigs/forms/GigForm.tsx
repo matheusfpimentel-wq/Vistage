@@ -38,11 +38,11 @@ import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { todayISO, formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, todayISO, formatCurrency, formatDate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
-import { listVenues } from "@/modules/venues/api";
+import { listVenues, listVenueTechNotes, type VenueTechNote } from "@/modules/venues/api";
 import { listContentPromoting } from "@/modules/content/api";
 import { listTracks } from "@/modules/music/api";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
@@ -140,7 +140,10 @@ const EMPTY: FormState = {
   rating_repertoire: null,
   rating_repertoire_note: null,
   rating_contractor: null,
+  rating_floor: null,
+  rating_floor_note: null,
   is_special: 0,
+  prep_pct_at_debrief: null,
   gcal_event_id: null,
   main_goal: null,
   prep_state: null,
@@ -253,6 +256,7 @@ export function GigForm({
   const [errors, setErrors] = useState<{ date?: string; venue_name?: string }>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [venueTechNotes, setVenueTechNotes] = useState<VenueTechNote[]>([]);
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
   const [quickVenueOpen, setQuickVenueOpen] = useState(false);
@@ -310,6 +314,20 @@ export function GigForm({
       setPromotingContent([]);
     }
   }, [open, gig]);
+
+  // Notas técnicas acumuladas no venue desta GIG (aparecem na Preparação).
+  useEffect(() => {
+    const venueId = state.venue_id;
+    if (venueId == null) {
+      setVenueTechNotes([]);
+      return;
+    }
+    let alive = true;
+    void listVenueTechNotes(venueId)
+      .then((ns) => { if (alive) setVenueTechNotes(ns); })
+      .catch(() => { if (alive) setVenueTechNotes([]); });
+    return () => { alive = false; };
+  }, [state.venue_id]);
 
   useEffect(() => {
     const contactId = state.promoter_contact_id;
@@ -423,6 +441,7 @@ export function GigForm({
         "debrief_promoter_feedback", "debrief_technical_notes", "debrief_media_content",
         "rating_charisma", "rating_charisma_note", "rating_technique", "rating_technique_note",
         "rating_repertoire", "rating_repertoire_note", "rating_contractor", "is_special",
+        "rating_floor", "rating_floor_note", "prep_pct_at_debrief",
         "debrief_pending", "debrief_completed_at", "fans_present",
       ];
       for (const f of DEBRIEF_FIELDS) {
@@ -593,7 +612,12 @@ export function GigForm({
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-4xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
-          <DialogTitle>{gig ? "Editar GIG" : "Nova GIG"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {gig ? "Editar GIG" : "Nova GIG"}
+            {state.is_special === 1 && (
+              <span className="text-amber-500" title="GIG especial">⭐</span>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1022,6 +1046,29 @@ export function GigForm({
               onChange={(prep) => { setState((s) => ({ ...s, prep })); setDirty(true); }}
             />
 
+            {(() => {
+              const notes = venueTechNotes.filter((n) => n.gig_id !== gig?.id);
+              if (notes.length === 0) return null;
+              return (
+                <details className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+                  <summary className="cursor-pointer select-none text-muted-foreground">
+                    Notas técnicas deste venue ({notes.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {notes.map((n) => (
+                      <li key={n.id} className="flex items-start gap-2">
+                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                        <span className="flex-1 whitespace-pre-wrap">{n.text}</span>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatDate(n.created_at.slice(0, 10), "dd/MM/yy")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              );
+            })()}
+
             <Field
               label="Observações"
               hint="Anotações livres da preparação. Os insights da lâmpada do Modo Foco (Preparação) no celular caem aqui."
@@ -1367,7 +1414,7 @@ function ResearchList({
               <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="text-sm font-medium leading-none">
-                  {item.title || "—"}
+                  {item.title || EMPTY_VALUE}
                   {item.artist && <span className="ml-1.5 text-xs text-muted-foreground">· {item.artist}</span>}
                 </div>
                 <Input

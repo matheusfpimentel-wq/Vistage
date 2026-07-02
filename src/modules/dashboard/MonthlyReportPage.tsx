@@ -26,7 +26,7 @@ import {
   type TransactionRow,
 } from "@/lib/report";
 import { listOkrs, okrProgress, type Okr } from "@/modules/objetivos/api";
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 
 export function MonthlyReportPage() {
   const months = useMemo(() => monthOptions(12), []);
@@ -173,7 +173,7 @@ export function MonthlyReportPage() {
         tableRow(["Data", "Descrição", "Categoria", "Valor"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const t of incomes) {
-          tableRow([t.date, t.description, t.category ?? "—", formatCurrency(t.amount)], w);
+          tableRow([t.date, t.description, t.category ?? EMPTY_VALUE, formatCurrency(t.amount)], w);
         }
         y += 8;
       }
@@ -186,7 +186,7 @@ export function MonthlyReportPage() {
         tableRow(["Data", "Descrição", "Categoria", "Valor"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const t of expenses) {
-          tableRow([t.date, t.description, t.category ?? "—", formatCurrency(t.amount)], w);
+          tableRow([t.date, t.description, t.category ?? EMPTY_VALUE, formatCurrency(t.amount)], w);
         }
         y += 8;
       }
@@ -207,7 +207,7 @@ export function MonthlyReportPage() {
         tableRow(["Data", "Nome", "Cidade", "Cachê", "Status"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const g of report.gigsList) {
-          tableRow([g.date, g.name, g.city ?? "—", formatCurrency(g.cache ?? 0), g.status], w);
+          tableRow([g.date, g.name, g.city ?? EMPTY_VALUE, formatCurrency(g.cache ?? 0), g.status], w);
         }
         y += 8;
       }
@@ -219,7 +219,7 @@ export function MonthlyReportPage() {
         tableRow(["Data", "Nome", "Status"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const p of report.partiesList) {
-          tableRow([p.date ?? "—", p.name, p.status], w);
+          tableRow([p.date ?? EMPTY_VALUE, p.name, p.status], w);
         }
         y += 8;
       }
@@ -231,7 +231,7 @@ export function MonthlyReportPage() {
         tableRow(["Data", "Título"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const c of report.contentList) {
-          tableRow([c.publish_date ?? "—", c.title], w);
+          tableRow([c.publish_date ?? EMPTY_VALUE, c.title], w);
         }
         y += 8;
       }
@@ -255,7 +255,7 @@ export function MonthlyReportPage() {
         tableRow(["Título", "Prazo"], w, true);
         doc.setDrawColor(220); doc.line(marginX, y - 8, contentRight, y - 8);
         for (const t of report.tasksList) {
-          tableRow([t.title, t.due_date ?? "—"], w);
+          tableRow([t.title, t.due_date ?? EMPTY_VALUE], w);
         }
         y += 8;
       }
@@ -384,8 +384,8 @@ export function MonthlyReportPage() {
                     <tr key={i} className="border-t">
                       <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{g.date}</td>
                       <td className="py-1.5 pr-3 font-medium">{g.name}</td>
-                      <td className="py-1.5 pr-3 text-muted-foreground">{g.city ?? "—"}</td>
-                      <td className="py-1.5 pr-3 text-right tabular-nums">{g.cache ? formatCurrency(g.cache) : "—"}</td>
+                      <td className="py-1.5 pr-3 text-muted-foreground">{g.city ?? EMPTY_VALUE}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{g.cache ? formatCurrency(g.cache) : EMPTY_VALUE}</td>
                       <td className="py-1.5 text-muted-foreground">{g.status}</td>
                     </tr>
                   ))}
@@ -408,7 +408,7 @@ export function MonthlyReportPage() {
                 <tbody>
                   {report.partiesList.map((p, i) => (
                     <tr key={i} className="border-t">
-                      <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{p.date ?? "—"}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{p.date ?? EMPTY_VALUE}</td>
                       <td className="py-1.5 pr-3 font-medium">{p.name}</td>
                       <td className="py-1.5 text-muted-foreground">{p.status}</td>
                     </tr>
@@ -431,7 +431,7 @@ export function MonthlyReportPage() {
                 <tbody>
                   {report.contentList.map((c, i) => (
                     <tr key={i} className="border-t">
-                      <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{c.publish_date ?? "—"}</td>
+                      <td className="py-1.5 pr-3 tabular-nums text-muted-foreground">{c.publish_date ?? EMPTY_VALUE}</td>
                       <td className="py-1.5 font-medium">{c.title}</td>
                     </tr>
                   ))}
@@ -476,7 +476,7 @@ export function MonthlyReportPage() {
                   {report.tasksList.map((t, i) => (
                     <tr key={i} className="border-t">
                       <td className="py-1.5 pr-3 font-medium">{t.title}</td>
-                      <td className="py-1.5 tabular-nums text-muted-foreground">{t.due_date ?? "—"}</td>
+                      <td className="py-1.5 tabular-nums text-muted-foreground">{t.due_date ?? EMPTY_VALUE}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -538,9 +538,9 @@ function TransactionTable({ title, rows }: { title: string; rows: TransactionRow
             <tr key={i} className="border-t">
               <td className="py-1.5 pr-3 tabular-nums text-muted-foreground whitespace-nowrap">{t.date}</td>
               <td className="py-1.5 pr-3">{t.description}</td>
-              <td className="py-1.5 pr-3 text-muted-foreground">{t.category ?? "—"}</td>
+              <td className="py-1.5 pr-3 text-muted-foreground">{t.category ?? EMPTY_VALUE}</td>
               <td className="py-1.5 pr-3 text-right tabular-nums font-medium">{formatCurrency(t.amount)}</td>
-              <td className="py-1.5 text-muted-foreground">{t.status ?? "—"}</td>
+              <td className="py-1.5 text-muted-foreground">{t.status ?? EMPTY_VALUE}</td>
             </tr>
           ))}
         </tbody>

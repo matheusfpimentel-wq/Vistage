@@ -5,6 +5,8 @@ import type {
   Party,
   PartyDeserialized,
   PartyTeamMember,
+  PartySponsor,
+  LineupStatus,
   PartyCreateInput,
   PartyUpdateInput,
   PartyStage,
@@ -16,6 +18,8 @@ import type {
   PartyGuest,
   PartyTicketSale,
   PartyComplianceItem,
+  PartyMarketingAsset,
+  PartyMarketingAction,
   RiderTemplate,
   PartySeries,
   PartySeriesCreateInput,
@@ -54,8 +58,9 @@ function rowToParty(r: Party): PartyDeserialized {
   return {
     ...r,
     lineup: parseJsonArray<number>(r.lineup),
-    sponsors: parseJsonArray<{ name: string; amount_cents: number }>(r.sponsors),
+    sponsors: parseJsonArray<PartySponsor>(r.sponsors),
     team: parseJsonArray<PartyTeamMember>(r.team),
+    lineup_status: parseJsonObject(r.lineup_status ?? null) as LineupStatus,
   };
 }
 
@@ -68,7 +73,7 @@ function rowToStage(r: PartyStageRow): PartyStage {
 const PARTY_COLS = [
   "title", "date", "venue_id", "venue_name", "status", "status_override", "description",
   "expected_capacity", "actual_attendance", "ticket_price_regular",
-  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "notes", "gig_id",
+  "ticket_price_vip", "bar_revenue", "target_cac", "lineup", "sponsors", "team", "lineup_status", "notes", "gig_id",
   "series_id", "edition_label", "edition_number",
 ];
 
@@ -97,6 +102,9 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
     sponsors: JSON.stringify(Array.isArray(input.sponsors) ? input.sponsors : []),
     team: JSON.stringify(Array.isArray(input.team) ? input.team : []),
   };
+  if (payload.lineup_status && typeof payload.lineup_status === "object") {
+    payload.lineup_status = JSON.stringify(payload.lineup_status);
+  }
   const cols = PARTY_COLS.filter((c) => payload[c] !== undefined);
   const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
   const values = cols.map((c) => payload[c] ?? null);
@@ -139,6 +147,9 @@ export async function updateParty(input: PartyUpdateInput): Promise<void> {
   if (Array.isArray(payload.lineup)) payload.lineup = JSON.stringify(payload.lineup);
   if (Array.isArray(payload.sponsors)) payload.sponsors = JSON.stringify(payload.sponsors);
   if (Array.isArray(payload.team)) payload.team = JSON.stringify(payload.team);
+  if (payload.lineup_status && typeof payload.lineup_status === "object") {
+    payload.lineup_status = JSON.stringify(payload.lineup_status);
+  }
   const cols = Object.keys(payload);
   if (cols.length === 0) return;
   const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
@@ -473,17 +484,46 @@ export async function listPartyVenueCandidates(partyId: number): Promise<PartyVe
      FROM party_venue_candidates pvc
      LEFT JOIN venues v ON v.id = pvc.venue_id
      WHERE pvc.party_id = $1
-     ORDER BY v.name COLLATE NOCASE ASC`,
+     ORDER BY pvc.is_leader DESC, v.name COLLATE NOCASE ASC`,
     [partyId]
   );
 }
 
-export async function addPartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
+export async function addPartyVenueCandidate(
+  partyId: number,
+  venueId: number,
+  extra?: { capacity?: number | null; deal_type?: string | null; deal_terms?: string | null; estimated_cost?: number | null },
+): Promise<void> {
   const db = getDb();
+  // INSERT OR IGNORE preserva idempotência (UNIQUE party+venue). Se já existe e
+  // vieram dados novos (capacidade/acordo/custo), atualiza via update abaixo.
   await db.execute(
-    "INSERT OR IGNORE INTO party_venue_candidates (party_id, venue_id) VALUES ($1, $2)",
-    [partyId, venueId]
+    `INSERT OR IGNORE INTO party_venue_candidates (party_id, venue_id, capacity, deal_type, deal_terms, estimated_cost)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [partyId, venueId, extra?.capacity ?? null, extra?.deal_type ?? null, extra?.deal_terms ?? null, extra?.estimated_cost ?? null]
   );
+}
+
+/** Update genérico de um candidato (capacidade, acordo, custo, líder…). */
+export async function updatePartyVenueCandidate(
+  id: number,
+  updates: Partial<Omit<PartyVenueCandidate, "id" | "party_id" | "venue_id" | "venue_name" | "created_at">>,
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_venue_candidates SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+/** Marca UM candidato como líder (estrela) e zera os demais da festa. */
+export async function setPartyVenueLeader(partyId: number, candidateId: number | null): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE party_venue_candidates SET is_leader = 0 WHERE party_id = $1", [partyId]);
+  if (candidateId != null) {
+    await db.execute("UPDATE party_venue_candidates SET is_leader = 1 WHERE id = $1 AND party_id = $2", [candidateId, partyId]);
+  }
 }
 
 export async function removePartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
@@ -828,13 +868,14 @@ export async function createPartyBudgetItem(
 ): Promise<number> {
   const db = getDb();
   const res = await db.execute(
-    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid, premissa, nota_variancia)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO party_budget_items (party_id, category, subcategory, description, projected_amount, actual_amount, supplier_note, supplier_id, status, date_paid, premissa, nota_variancia, kind, contact_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [
       item.party_id, item.category, item.subcategory ?? null, item.description ?? null,
       item.projected_amount, item.actual_amount ?? null, item.supplier_note ?? null,
       item.supplier_id ?? null, item.status, item.date_paid ?? null,
       item.premissa ?? null, item.nota_variancia ?? null,
+      item.kind ?? "custo", item.contact_id ?? null,
     ]
   );
   try {
@@ -1145,11 +1186,12 @@ export async function createPartyComplianceItem(
   item: Omit<PartyComplianceItem, "id" | "created_at">
 ): Promise<number> {
   const res = await getDb().execute(
-    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    `INSERT INTO party_compliance (party_id, category, title, status, protocol, due_date, notes, position, responsavel, valor)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
     [
       item.party_id, item.category, item.title, item.status,
       item.protocol ?? null, item.due_date ?? null, item.notes ?? null, item.position,
+      item.responsavel ?? null, item.valor ?? null,
     ]
   );
   return Number(res.lastInsertId);
@@ -1169,6 +1211,84 @@ export async function updatePartyComplianceItem(
 
 export async function deletePartyComplianceItem(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+}
+
+// ===== MARKETING — ARTES (peças) =====
+
+export async function listPartyMarketingAssets(partyId: number): Promise<PartyMarketingAsset[]> {
+  return getDb().select<PartyMarketingAsset[]>(
+    "SELECT * FROM party_marketing_assets WHERE party_id = $1 ORDER BY position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyMarketingAsset(
+  a: Omit<PartyMarketingAsset, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_marketing_assets (party_id, name, format, due_date, status, link, notes, content_id, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [
+      a.party_id, a.name, a.format ?? null, a.due_date ?? null, a.status,
+      a.link ?? null, a.notes ?? null, a.content_id ?? null, a.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyMarketingAsset(
+  id: number,
+  updates: Partial<Omit<PartyMarketingAsset, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_marketing_assets SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyMarketingAsset(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_marketing_assets WHERE id = $1", [id]);
+}
+
+// ===== MARKETING — CANAIS (ações datadas) =====
+
+export async function listPartyMarketingActions(partyId: number): Promise<PartyMarketingAction[]> {
+  return getDb().select<PartyMarketingAction[]>(
+    "SELECT * FROM party_marketing_actions WHERE party_id = $1 ORDER BY (date IS NULL), date ASC, position ASC, id ASC",
+    [partyId]
+  );
+}
+
+export async function createPartyMarketingAction(
+  a: Omit<PartyMarketingAction, "id" | "created_at">
+): Promise<number> {
+  const res = await getDb().execute(
+    `INSERT INTO party_marketing_actions (party_id, canal, papel, acao, date, done, tracking_code, position)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      a.party_id, a.canal, a.papel, a.acao ?? null, a.date ?? null,
+      a.done ? 1 : 0, a.tracking_code ?? null, a.position,
+    ]
+  );
+  return Number(res.lastInsertId);
+}
+
+export async function updatePartyMarketingAction(
+  id: number,
+  updates: Partial<Omit<PartyMarketingAction, "id" | "party_id" | "created_at">>
+): Promise<void> {
+  const cols = Object.keys(updates);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
+  values.push(id);
+  await getDb().execute(`UPDATE party_marketing_actions SET ${sets} WHERE id = $${values.length}`, values);
+}
+
+export async function deletePartyMarketingAction(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM party_marketing_actions WHERE id = $1", [id]);
 }
 
 // ===== RIDER TEMPLATES (biblioteca de riders reutilizáveis) =====
@@ -1199,11 +1319,68 @@ export async function seedDefaultCompliance(partyId: number): Promise<number> {
     if (have.has(`${d.category}|${d.title}`.toLowerCase())) continue;
     await createPartyComplianceItem({
       party_id: partyId, category: d.category, title: d.title,
-      status: "pendente", protocol: null, due_date: null, notes: null, position: pos++,
+      status: d.status, protocol: null, due_date: null, notes: null, position: pos++,
+      responsavel: d.responsavel, valor: null,
     });
     created += 1;
   }
   return created;
+}
+
+// ===== SÉRIE — DEBRIEF DA EDIÇÃO ANTERIOR =====
+
+/** Lê itens de uma lista (JSON array preferido; senão, texto quebrado por linha). */
+function readDebriefItems(itemsJson: unknown, legacyText: unknown): string[] {
+  if (typeof itemsJson === "string" && itemsJson.trim()) {
+    try {
+      const p = JSON.parse(itemsJson);
+      if (Array.isArray(p)) return p.map((x) => String(x).trim()).filter(Boolean);
+    } catch { /* ignora */ }
+  }
+  if (typeof legacyText === "string" && legacyText.trim()) {
+    return legacyText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Plus/Delta da edição ANTERIOR da mesma série — alimenta o bloco "Da edição
+ * anterior" da Ideação. Escolhe a edição imediatamente antes (por número; senão
+ * por data). Retorna null se a festa não é de série ou não há anterior.
+ */
+export async function getPreviousEditionDebrief(
+  partyId: number
+): Promise<{ editionLabel: string | null; plus: string[]; delta: string[] } | null> {
+  const db = getDb();
+  const rows = await db.select<{ id: number; series_id: number | null; edition_number: number | null; edition_label: string | null; date: string | null }[]>(
+    "SELECT id, series_id, edition_number, edition_label, date FROM parties"
+  );
+  const cur = rows.find((r) => r.id === partyId);
+  if (!cur?.series_id) return null;
+  const siblings = rows.filter((r) => r.series_id === cur.series_id && r.id !== partyId);
+  if (siblings.length === 0) return null;
+
+  let prev: (typeof siblings)[number] | undefined;
+  if (cur.edition_number != null) {
+    prev = siblings
+      .filter((s) => s.edition_number != null && s.edition_number < cur.edition_number!)
+      .sort((a, b) => b.edition_number! - a.edition_number!)[0];
+  }
+  if (!prev) {
+    prev = siblings
+      .filter((s) => s.date && (!cur.date || s.date < cur.date))
+      .sort((a, b) => (a.date! < b.date! ? 1 : -1))[0];
+  }
+  if (!prev) return null;
+
+  const stages = await listPartyStages(prev.id);
+  const concr = stages.find((s) => s.name === "Concretização");
+  if (!concr) return null;
+  const f = concr.fields;
+  const plus = readDebriefItems(f.plus_items, f.plus);
+  const delta = readDebriefItems(f.delta_items, f.delta);
+  if (plus.length === 0 && delta.length === 0) return null;
+  return { editionLabel: prev.edition_label, plus, delta };
 }
 
 // ===== PARTY TASKS =====

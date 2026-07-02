@@ -17,6 +17,7 @@ import { listTasks } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
 import { listGigs } from "@/modules/gigs/api";
 import type { Gig } from "@/modules/gigs/types";
+import { parseDebriefItems } from "@/modules/gigs/debriefItems";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listSessions, type WorkSession } from "@/modules/foco/api";
@@ -155,10 +156,12 @@ function debriefOpportunities(gigs: Gig[]): string[] {
   const out: string[] = [];
   for (const g of gigs) {
     if (g.status !== "Concluída") continue;
-    const text = g.debrief_future_opportunities?.trim();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    out.push(text);
+    for (const item of parseDebriefItems(g.debrief_future_opportunities)) {
+      const text = item.text.trim();
+      if (!text || seen.has(text)) continue;
+      seen.add(text);
+      out.push(text);
+    }
   }
   return out;
 }

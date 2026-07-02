@@ -7,7 +7,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { parsePrepState, prepProgress } from "../prep";
-import { formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
 import { useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
@@ -137,6 +137,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         <>
           <div className="font-medium flex items-center gap-1.5">
             <span className="truncate">{gigDisplayName(g)}</span>
+            {g.is_special === 1 && (
+              <span className="shrink-0 text-amber-500" title="GIG especial">⭐</span>
+            )}
             {cacheOverdue(g) && (
               <span
                 className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
@@ -164,7 +167,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         g.promoter_contact_name ? (
           <span className="truncate">{g.promoter_contact_name}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          EMPTY_VALUE
         ),
     },
     status: {
@@ -201,7 +204,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
         return avg !== null ? (
           <span className="text-amber-500">{formatRating(avg)}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          EMPTY_VALUE
         );
       },
     },
@@ -318,6 +321,9 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-medium">
                     <span className="truncate">{gigDisplayName(g)}</span>
+                    {g.is_special === 1 && (
+                      <span className="shrink-0 text-amber-500" title="GIG especial">⭐</span>
+                    )}
                     {cacheOverdue(g) && (
                       <span
                         className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"

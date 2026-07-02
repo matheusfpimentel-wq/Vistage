@@ -445,7 +445,7 @@ function NoteEditor({
             try {
               const fresh = (await getNote(noteId)) ?? note;
               await noteToIdea(fresh);
-              toast.success("Nota virou ideia — confira no Banco de Ideias");
+              toast.success("Nota virou ideia. Confira no Banco de Ideias");
               onIdea();
             } catch (e) {
               toast.error(`Não consegui transformar a nota em ideia: ${String(e)}`);
@@ -503,7 +503,7 @@ function NoteEditor({
         onBlur={flushSave}
       />
       <p className="text-[11px] text-muted-foreground">
-        Use <code>[[Título de outra nota]]</code> pra linkar e <code>#tag</code> pra marcar — continuam valendo no texto.
+        Use <code>[[Título de outra nota]]</code> pra linkar e <code>#tag</code> pra marcar; continuam valendo no texto.
       </p>
 
       {/* Backlinks */}

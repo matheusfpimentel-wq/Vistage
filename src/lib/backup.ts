@@ -84,12 +84,15 @@ const TABLES = [
   "party_tasks",             // party_id → parties, stage_id → party_stages
   "party_ticket_sales",      // party_id → parties (NOT NULL, CASCADE)
   "party_compliance",        // party_id → parties (NOT NULL, CASCADE)
+  "party_marketing_assets",  // party_id → parties (NOT NULL, CASCADE); content_id → content (anulável)
+  "party_marketing_actions", // party_id → parties (NOT NULL, CASCADE)
   "track_collaborators",     // track_id → tracks
   "track_flow_sessions",     // track_id → tracks
   "track_media_targets",     // track_id → tracks
   "track_performance_snapshots", // track_id → tracks
   // ── dependem do nível anterior ────────────────────────────────────────────
   "gig_debrief_drafts",      // gig_id → gigs
+  "venue_tech_notes",        // venue_id → venues, gig_id → gigs (anulável)
   "gig_setlists",            // gig_id → gigs
   "gig_tracks",              // gig_id → gigs, track_id → tracks
   "gig_fans",                // gig_id → gigs, fan_id → fans

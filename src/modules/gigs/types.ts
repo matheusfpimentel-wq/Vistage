@@ -87,9 +87,14 @@ export type Gig = {
   rating_repertoire: number | null;
   rating_repertoire_note: string | null;
   rating_contractor: number | null;
+  /** Pista: lotação/retenção/resposta do público (eixo obrigatório do debrief). */
+  rating_floor: number | null;
+  rating_floor_note: string | null;
   is_special: number;
   debrief_completed_at: string | null;
   debrief_pending: number; // 0 ou 1
+  /** % da Preparação congelado no momento em que o debrief foi finalizado (0-100). */
+  prep_pct_at_debrief: number | null;
 
   gcal_event_id: string | null;
   /** Quando o app gravou o evento por último (ISO). Edição no Google depois disso = drift. */
@@ -166,17 +171,19 @@ export function formatTimeSlots(slots: GigTimeSlot[]): string {
     .join(" · ");
 }
 
-/** Cálculo da média das avaliações. is_special contribui 5 se marcado, 3 se não. */
+/**
+ * Média das avaliações = média SIMPLES apenas dos eixos preenchidos
+ * (carisma/técnica/repertório/pista/contratante). `is_special` NÃO entra na
+ * conta — é só um selo de destaque; GIGs antigas sem um eixo degradam sem erro.
+ */
 export function averageRating(g: Pick<
   Gig,
-  "rating_charisma" | "rating_technique" | "rating_repertoire" | "rating_contractor" | "is_special"
+  "rating_charisma" | "rating_technique" | "rating_repertoire" | "rating_floor" | "rating_contractor"
 >): number | null {
-  const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire, g.rating_contractor]
+  const ratings = [g.rating_charisma, g.rating_technique, g.rating_repertoire, g.rating_floor, g.rating_contractor]
     .filter((r): r is number => typeof r === "number");
-  if (ratings.length === 0 && !g.is_special) return null;
-  const special = g.is_special ? 5 : 3;
-  const allRatings = [...ratings, special];
-  return allRatings.reduce((sum, r) => sum + r, 0) / allRatings.length;
+  if (ratings.length === 0) return null;
+  return ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
 }
 
 /** Status badge variant para cada estado. */

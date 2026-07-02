@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { confirmDialog } from "@/components/ui/confirm";
 import { toast } from "@/components/ui/toaster";
+import { EMPTY_VALUE } from "@/lib/format";
 import {
   addFanListMember,
   createFanList,
@@ -125,8 +126,8 @@ export function GigVipList({ gigId, gigName }: { gigId: number; gigName: string 
   }
 
   function memberName(m: FanListMember): string {
-    if (m.fan_id) return fans.find((f) => f.id === m.fan_id)?.name ?? m.name ?? "—";
-    return m.name ?? "—";
+    if (m.fan_id) return fans.find((f) => f.id === m.fan_id)?.name ?? m.name ?? EMPTY_VALUE;
+    return m.name ?? EMPTY_VALUE;
   }
 
   async function handleImport(list: FanList) {
@@ -152,7 +153,7 @@ export function GigVipList({ gigId, gigName }: { gigId: number; gigName: string 
       if (r.linked > 0) parts.push(`${r.linked} ${r.linked === 1 ? "vinculado" : "vinculados"}`);
       if (r.alreadyFans > 0) parts.push(`${r.alreadyFans} já ${r.alreadyFans === 1 ? "era fã" : "eram fãs"}`);
       const resumo = parts.length > 0 ? parts.join(", ") : "nada a importar";
-      toast.success(`${resumo} — presença marcada`);
+      toast.success(`Presença marcada: ${resumo}`);
       // reflete fãs criados/vinculados na UI (dropdown + nomes da lista)
       void listFans().then(setFans).catch(() => {});
       const rows = await listFanListMembers(list.id);

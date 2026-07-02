@@ -87,7 +87,8 @@ import {
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
-import { formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatDate } from "@/lib/format";
+import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
@@ -543,7 +544,7 @@ export function FansPage() {
           description={
             filters.search || filters.level !== "Todos" || filters.city.trim()
               ? "Ajuste a busca ou os filtros."
-              : "Cadastre quem acompanha seu trabalho. O nível de cada um cresce com presença, interação e feedback — e decai sozinho com o tempo."
+              : "Cadastre quem acompanha seu trabalho. O nível de cada um cresce com presença, interação e feedback, e decai sozinho com o tempo."
           }
           action={
             <Button onClick={openCreate}>
@@ -635,13 +636,13 @@ export function FansPage() {
                       <LevelBadge level={f.level} />
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {f.city ?? "—"}
+                      {f.city ?? EMPTY_VALUE}
                     </td>
                     <td className="px-3 py-2">
                       <FanGroupChips groups={groupMap.get(f.id) ?? []} />
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
-                      {f.instagram ?? f.email ?? f.phone ?? "—"}
+                      {f.instagram ?? f.email ?? f.phone ?? EMPTY_VALUE}
                     </td>
                     <td className="px-3 py-2">
                       {last ? (
@@ -658,7 +659,7 @@ export function FansPage() {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-xs text-muted-foreground">{EMPTY_VALUE}</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-center tabular-nums text-sm">
@@ -1100,7 +1101,7 @@ function FanCard({
             </Badge>
           )}
         </div>
-        <div className="text-xs text-muted-foreground">{f.city ?? "—"}</div>
+        <div className="text-xs text-muted-foreground">{f.city ?? EMPTY_VALUE}</div>
         {groups.length > 0 && <FanGroupChips groups={groups} />}
         {last && (
           <div className="text-[11px] text-muted-foreground">
@@ -1129,7 +1130,7 @@ function FanGroupChips({
   groups: { id: number; name: string }[];
   max?: number;
 }) {
-  if (groups.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  if (groups.length === 0) return <span className="text-xs text-muted-foreground">{EMPTY_VALUE}</span>;
   const shown = groups.slice(0, max);
   const extra = groups.length - shown.length;
   return (
@@ -1516,13 +1517,13 @@ function FanGroupedRow({
         <FanGroupChips groups={groups} max={2} />
       </span>
       <span className="hidden w-24 shrink-0 text-xs text-muted-foreground lg:block">
-        {f.city ?? "—"}
+        {f.city ?? EMPTY_VALUE}
       </span>
       <span className="hidden w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground lg:block">
-        {interactionCount > 0 ? `${interactionCount} int.` : "—"}
+        {interactionCount > 0 ? `${interactionCount} int.` : EMPTY_VALUE}
       </span>
       <span className="hidden w-16 shrink-0 text-right text-xs text-muted-foreground xl:block">
-        {daysAgo == null ? "—" : daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `${daysAgo}d`}
+        {daysAgo == null ? EMPTY_VALUE : daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `${daysAgo}d`}
       </span>
       <Button
         size="icon"
@@ -1647,7 +1648,7 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
                     const fanName = m.fan_id ? fans.find((f) => f.id === m.fan_id)?.name : null;
                     return (
                       <div key={m.id} className="flex items-center justify-between text-sm">
-                        <span>{fanName ?? m.name ?? "—"}</span>
+                        <span>{fanName ?? m.name ?? EMPTY_VALUE}</span>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -1800,7 +1801,10 @@ function ScoreField({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm font-medium">{label}</label>
+      <label className="flex items-center gap-1 text-sm font-medium">
+        {label}
+        {hint && <InfoHint>{hint}</InfoHint>}
+      </label>
       <Input
         type="number"
         min={0}
@@ -1808,7 +1812,6 @@ function ScoreField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -1907,7 +1910,7 @@ function FanUpgradeRulesDialog({
               <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
             </div>
             <p className="text-xs text-muted-foreground">
-              Embaixador não entra na pontuação — é um destaque manual no cadastro do fã.
+              Embaixador não entra na pontuação: é um destaque manual no cadastro do fã.
             </p>
           </div>
 

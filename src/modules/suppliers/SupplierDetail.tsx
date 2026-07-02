@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
 import { getSupplier, listServices, listPartiesBySupplier, getSupplierSpend } from "./api";
 import type { Supplier, SupplierService } from "./types";
 
@@ -174,9 +174,9 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                       {services.map((svc) => (
                         <tr key={svc.id} className="border-b last:border-0 hover:bg-muted/20">
                           <td className="px-3 py-2">{svc.description}</td>
-                          <td className="px-3 py-2 text-muted-foreground">{svc.unit ?? "—"}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{svc.unit ?? EMPTY_VALUE}</td>
                           <td className="px-3 py-2 text-right">
-                            {svc.price != null ? formatCurrency(svc.price) : "—"}
+                            {svc.price != null ? formatCurrency(svc.price) : EMPTY_VALUE}
                           </td>
                         </tr>
                       ))}
@@ -211,7 +211,7 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                       <div className="shrink-0 text-right font-medium">
                         {p.amount_cents != null
                           ? formatCurrency(p.amount_cents / 100)
-                          : "—"}
+                          : EMPTY_VALUE}
                       </div>
                     </div>
                   ))}

@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { formatDate, todayISO } from "@/lib/format";
+import { EMPTY_VALUE, formatDate, todayISO } from "@/lib/format";
 import { WeekTrack } from "./WeekTrack";
 import {
   loadHeatmap,
@@ -67,7 +67,7 @@ function formatHours(minutes: number): string {
 
 /** Tempo decorrido (ms desde o início da sessão) → "m:ss". */
 function formatAtMs(ms: number | null): string {
-  if (ms == null) return "—";
+  if (ms == null) return EMPTY_VALUE;
   const total = Math.max(0, Math.round(ms / 1000));
   const m = Math.floor(total / 60);
   const sec = total % 60;
@@ -458,7 +458,7 @@ function SessionMarkerPanel({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Capturado ao vivo no celular durante a apresentação. Descreva cada marca pra lembrar depois — a ideia é capturar no palco e detalhar aqui.
+        Capturado ao vivo no celular durante a apresentação. Descreva cada marca pra lembrar depois. A ideia é capturar no palco e detalhar aqui.
       </p>
 
       {weakPoints.length > 0 && (

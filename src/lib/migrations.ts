@@ -2358,6 +2358,105 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 167,
+    description:
+      "Festas/Marketing — party_marketing_assets (peças: flyer, reel, stories… com status/prazo/link/vínculo a Conteúdo) + party_marketing_actions (ações datadas por canal, com papel e código de rastreio). Tira Artes e Canais do texto solto e vira lista rastreável. Tabelas novas, idempotentes.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS party_marketing_assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        format TEXT,
+        due_date TEXT,
+        status TEXT NOT NULL DEFAULT 'briefada',
+        link TEXT,
+        notes TEXT,
+        content_id INTEGER,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_marketing_assets_party ON party_marketing_assets(party_id, position);
+      CREATE TABLE IF NOT EXISTS party_marketing_actions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        party_id INTEGER NOT NULL,
+        canal TEXT NOT NULL,
+        papel TEXT NOT NULL DEFAULT 'aquisicao',
+        acao TEXT,
+        date TEXT,
+        done INTEGER NOT NULL DEFAULT 0,
+        tracking_code TEXT,
+        position INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_party_marketing_actions_party ON party_marketing_actions(party_id, date);
+    `,
+  },
+  {
+    version: 168,
+    description:
+      "Festas/Viabilidade — party_venue_candidates ganha capacity, deal_type, deal_terms, estimated_cost e is_leader: a comparação/escolha de casa (com acordo e custo estimados) passa a viver na Viabilidade. Colunas aditivas idempotentes; valores antigos preservados.",
+    sql: `
+      ALTER TABLE party_venue_candidates ADD COLUMN capacity INTEGER;
+      ALTER TABLE party_venue_candidates ADD COLUMN deal_type TEXT;
+      ALTER TABLE party_venue_candidates ADD COLUMN deal_terms TEXT;
+      ALTER TABLE party_venue_candidates ADD COLUMN estimated_cost REAL;
+      ALTER TABLE party_venue_candidates ADD COLUMN is_leader INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
+  {
+    version: 169,
+    description:
+      "Festas/Execução — party_compliance ganha responsavel (casa/você) e valor: as Formalidades pré-dia (ECAD, alvará/CLCB, som, segurança) viram bloco estruturado da Execução. parties.lineup_status: mapa de confirmação por DJ (contact_id → status/prazo) sem mexer no formato do lineup. Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE party_compliance ADD COLUMN responsavel TEXT;
+      ALTER TABLE party_compliance ADD COLUMN valor REAL;
+      ALTER TABLE parties ADD COLUMN lineup_status TEXT NOT NULL DEFAULT '{}';
+    `,
+  },
+  {
+    version: 170,
+    description:
+      "Festas/Equipe — party_budget_items ganha kind ('custo'|'receita') e contact_id: os valores da Equipe (patrocínio=receita, produção/cachê de DJ=custo) passam a viver no Orçamento (fonte única). kind default 'custo' preserva itens antigos como custo. contact_id liga a linha de cachê ao DJ (contacts). Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE party_budget_items ADD COLUMN kind TEXT NOT NULL DEFAULT 'custo';
+      ALTER TABLE party_budget_items ADD COLUMN contact_id INTEGER;
+    `,
+  },
+  {
+    version: 171,
+    description:
+      "GIGs/Debrief — gigs ganha rating_floor (eixo Pista: lotação/retenção/resposta) + rating_floor_note. Entra na média (média simples dos eixos preenchidos); GIGs antigas sem o eixo degradam sem erro. Colunas aditivas idempotentes.",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN rating_floor INTEGER;
+      ALTER TABLE gigs ADD COLUMN rating_floor_note TEXT;
+    `,
+  },
+  {
+    version: 172,
+    description:
+      "GIGs/Debrief — gigs.prep_pct_at_debrief congela o % da Preparação no momento em que o debrief é finalizado (0-100). Alimenta o chip do cabeçalho e a leitura 'avaliação × faixa de preparação' nos Insights. Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN prep_pct_at_debrief INTEGER;
+    `,
+  },
+  {
+    version: 173,
+    description:
+      "GIGs/Debrief — venue_tech_notes: conhecimento técnico acumulado por venue (som, energia, setup). Origem numa GIG (gig_id anulável), aparece na Preparação de GIGs futuras no mesmo venue. Tabela nova.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS venue_tech_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        venue_id INTEGER NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        text TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_venue_tech_notes_venue ON venue_tech_notes(venue_id);
+    `,
+  },
 ];
 
 

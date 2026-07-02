@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
-import { formatCurrency } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { createCost, deleteCost, listProjectCosts } from "../api";
 import type { MusicProjectCost } from "../types";
@@ -67,7 +67,7 @@ export function FinancePanel({ projectId, trackId }: Props) {
   const roi =
     totalCosts > 0
       ? `${(((revenue - totalCosts) / totalCosts) * 100).toFixed(0)}%`
-      : "—";
+      : EMPTY_VALUE;
 
   async function handleAdd() {
     const amountNum = parseFloat(amount.replace(",", "."));
@@ -145,13 +145,13 @@ export function FinancePanel({ projectId, trackId }: Props) {
               key={c.id}
               className="grid grid-cols-[1fr_2fr_auto_auto_auto] items-center gap-x-2 rounded-md border px-2 py-1.5 text-xs"
             >
-              <span className="truncate font-medium">{c.category ?? "—"}</span>
+              <span className="truncate font-medium">{c.category ?? EMPTY_VALUE}</span>
               <span className="truncate text-muted-foreground">
-                {c.description ?? "—"}
+                {c.description ?? EMPTY_VALUE}
               </span>
               <span className="whitespace-nowrap">{formatCurrency(c.amount)}</span>
               <span className="whitespace-nowrap text-muted-foreground">
-                {c.date ?? "—"}
+                {c.date ?? EMPTY_VALUE}
               </span>
               <button
                 type="button"
@@ -183,13 +183,13 @@ export function FinancePanel({ projectId, trackId }: Props) {
               className="grid grid-cols-[3fr_auto_auto_auto] items-center gap-x-2 rounded-md border px-2 py-1.5 text-xs"
             >
               <span className="truncate text-muted-foreground">
-                {r.description ?? "—"}
+                {r.description ?? EMPTY_VALUE}
               </span>
               <span className="whitespace-nowrap text-emerald-600 dark:text-emerald-400">
                 {formatCurrency(r.amount)}
               </span>
               <span className="whitespace-nowrap text-muted-foreground">
-                {r.date ?? "—"}
+                {r.date ?? EMPTY_VALUE}
               </span>
               <button
                 type="button"

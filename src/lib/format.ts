@@ -1,6 +1,13 @@
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+/**
+ * Valor exibido quando uma célula/campo está vazio. Decisão do dono: célula
+ * vazia fica EM BRANCO — sem "—" nem outro caractere de preenchimento.
+ * Fonte única pra padronizar as listas.
+ */
+export const EMPTY_VALUE = "";
+
 export function formatDate(iso: string | null | undefined, pattern = "dd MMM yyyy"): string {
   if (!iso) return "—";
   try {

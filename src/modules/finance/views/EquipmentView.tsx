@@ -32,7 +32,7 @@ import {
   type Equipment,
   type EquipmentState,
 } from "../types";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 
@@ -121,13 +121,13 @@ export function EquipmentView() {
                     <Badge variant={STATE_VARIANT[it.state]}>{it.state}</Badge>
                   </td>
                   <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {it.purchase_date ? formatDate(it.purchase_date) : "—"}
+                    {it.purchase_date ? formatDate(it.purchase_date) : EMPTY_VALUE}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {formatCurrency(it.purchase_value)}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {it.location ?? "—"}
+                    {it.location ?? EMPTY_VALUE}
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>

@@ -1,4 +1,5 @@
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -106,7 +107,7 @@ function loadPrefs(): ColPrefs {
 }
 
 function fmtDuration(sec: number | null): string {
-  if (sec == null || !isFinite(sec)) return "—";
+  if (sec == null || !isFinite(sec)) return EMPTY_VALUE;
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
@@ -481,7 +482,7 @@ export function Musicas() {
                         <Cell key={c.id} t={t} col={c.editable} onSave={saveCell} numeric={c.numeric} rev={cellRev} />
                       ) : c.id === "status" ? (
                         <span key={c.id} className={cn("status", t.file_missing && "text-destructive")}>
-                          {t.file_path ? (t.file_missing ? "ausente" : "ok") : "—"}
+                          {t.file_path ? (t.file_missing ? "ausente" : "ok") : EMPTY_VALUE}
                         </span>
                       ) : c.id === "duration_sec" ? (
                         <span key={c.id} className="status">{fmtDuration(t.duration_sec)}</span>

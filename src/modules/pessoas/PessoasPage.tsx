@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { useSearchParams } from "react-router-dom";
 import { LayoutGrid, List, Pencil, Plus, Store, Trash2, User, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -662,11 +663,11 @@ function PersonTable({
                 <RoleBadges roles={p.roles} />
               </td>
               <td className="px-3 py-2">
-                {p.priority ? <PriorityBadge priority={p.priority} /> : <span className="text-muted-foreground">—</span>}
+                {p.priority ? <PriorityBadge priority={p.priority} /> : <span className="text-muted-foreground">{EMPTY_VALUE}</span>}
               </td>
-              <td className="px-3 py-2 text-muted-foreground">{p.city ?? "—"}</td>
+              <td className="px-3 py-2 text-muted-foreground">{p.city ?? EMPTY_VALUE}</td>
               <td className="truncate px-3 py-2 text-muted-foreground">
-                {p.email ?? p.phone ?? p.instagram ?? "—"}
+                {p.email ?? p.phone ?? p.instagram ?? EMPTY_VALUE}
               </td>
               <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                 <div className="flex justify-end gap-1">

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { EMPTY_VALUE } from "@/lib/format";
 import { STAGES, STAGE_COLOR, TRACK_KINDS, TRACK_KIND_LABEL } from "../stages";
 import { GATES } from "../gates";
 import { trackDisplayName, type StageHistoryEntry, type TrackWithProject } from "../types";
@@ -150,7 +151,7 @@ export function PortfolioView({ tracks }: Props) {
                         : "text-amber-400"
                     )}
                   >
-                    {g.pct !== null ? `${g.pct}%` : "—"}
+                    {g.pct !== null ? `${g.pct}%` : EMPTY_VALUE}
                   </span>
                 </div>
               ))}

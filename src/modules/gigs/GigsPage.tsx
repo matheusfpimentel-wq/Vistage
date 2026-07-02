@@ -45,8 +45,8 @@ type StatusFilter = GigStatus | "Todas";
 export function GigsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [gigs, setGigs] = useState<Gig[]>([]);
-  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string; recurringEventName: string }>(
-    { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all" }
+  const [filters, setFilters] = useState<{ status: StatusFilter; search: string; eventCategory: string; recurringEventName: string; specialOnly: boolean }>(
+    { status: "Todas", search: "", eventCategory: "all", recurringEventName: "all", specialOnly: false }
   );
   const [recurringNames, setRecurringNames] = useState<string[]>([]);
   // "Seleção múltipla" e "Planilha" deixaram de ser abas: viraram formatos dentro
@@ -87,6 +87,7 @@ export function GigsPage() {
       search: filters.search,
       eventCategory: filters.eventCategory !== "all" ? filters.eventCategory : undefined,
       recurringEventName: filters.recurringEventName !== "all" ? filters.recurringEventName : undefined,
+      specialOnly: filters.specialOnly || undefined,
     }),
     [filters]
   );
@@ -247,7 +248,8 @@ export function GigsPage() {
         filtersActiveCount={
           (filters.status !== "Todas" ? 1 : 0) +
           (filters.eventCategory !== "all" ? 1 : 0) +
-          (filters.recurringEventName !== "all" ? 1 : 0)
+          (filters.recurringEventName !== "all" ? 1 : 0) +
+          (filters.specialOnly ? 1 : 0)
         }
         filters={
           <>
@@ -307,6 +309,15 @@ export function GigsPage() {
                 </Select>
               </div>
             )}
+            <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-amber-500"
+                checked={filters.specialOnly}
+                onChange={(e) => setFilters((f) => ({ ...f, specialOnly: e.target.checked }))}
+              />
+              <span className="flex items-center gap-1">⭐ Só especiais</span>
+            </label>
           </>
         }
       />

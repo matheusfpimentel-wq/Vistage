@@ -58,7 +58,7 @@ export type PartyPnL = {
 
 export function computePartyPnL(
   tickets: Pick<PartyTicket, "price" | "quantity_sold" | "quantity_total">[],
-  items: Pick<PartyBudgetItem, "category" | "projected_amount" | "actual_amount">[],
+  items: Pick<PartyBudgetItem, "category" | "projected_amount" | "actual_amount" | "kind">[],
   sponsors: { amount_cents: number }[],
   guests: Pick<PartyGuest, "quantity" | "unit_cost" | "ref_price">[] = [],
   opts: { barRevenue?: number | null; attendance?: number | null } = {},
@@ -81,7 +81,16 @@ export function computePartyPnL(
   let costProjected = 0;
   let costActual = 0;
   let marketingActual = 0;
+  // Itens de receita (kind='receita', ex.: patrocínio migrado) entram na receita,
+  // não no custo — fonte única de dinheiro no Orçamento.
+  let budgetRevenueProjected = 0;
+  let budgetRevenueActual = 0;
   for (const i of items) {
+    if (i.kind === "receita") {
+      budgetRevenueProjected += i.projected_amount || 0;
+      budgetRevenueActual += i.actual_amount ?? 0;
+      continue;
+    }
     costProjected += i.projected_amount || 0;
     const actual = i.actual_amount ?? 0;
     costActual += actual;
@@ -101,7 +110,7 @@ export function computePartyPnL(
   const costActualTotal = costActual + compVariableCost;
 
   const barRevenue = opts.barRevenue || 0;
-  const revenueReal = ticketRevenueReal + sponsorRevenue + barRevenue;
+  const revenueReal = ticketRevenueReal + sponsorRevenue + barRevenue + budgetRevenueActual;
   const netReal = revenueReal - costActualTotal;
   // "Por cabeça": usa a presença real quando existir; senão cai nos vendidos.
   const heads = opts.attendance && opts.attendance > 0 ? opts.attendance : sold;
@@ -119,7 +128,7 @@ export function computePartyPnL(
     compForgoneRevenue,
     barRevenue,
     netReal,
-    netProjected: ticketRevenueMeta + sponsorRevenue + barRevenue - costProjectedTotal,
+    netProjected: ticketRevenueMeta + sponsorRevenue + barRevenue + budgetRevenueProjected - costProjectedTotal,
     cac: sold > 0 ? marketingActual / sold : null,
     heads,
     revenuePerHead: heads > 0 ? revenueReal / heads : null,

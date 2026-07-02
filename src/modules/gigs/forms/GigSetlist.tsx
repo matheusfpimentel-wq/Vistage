@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { EMPTY_VALUE } from "@/lib/format";
 import { Check, ChevronDown, ChevronRight, FileMusic, Library, Loader2, Music, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ function decodeTextBuffer(buf: ArrayBuffer): string {
 }
 
 function formatDuration(sec: number | null): string {
-  if (!sec) return "—";
+  if (!sec) return EMPTY_VALUE;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
@@ -242,7 +243,7 @@ export function GigSetlist({ gigId }: Props) {
               {FORMAT_LABEL[sl.source_format] ?? sl.source_format}
             </Badge>
             <span className="flex-1 truncate text-sm font-medium">
-              {sl.source_filename ?? "—"}
+              {sl.source_filename ?? EMPTY_VALUE}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {sl.tracks.length} tracks ·{" "}
@@ -270,7 +271,7 @@ export function GigSetlist({ gigId }: Props) {
                     {added.map((t) => (
                       <Badge key={t.position} variant="outline" className="gap-1 text-[11px]">
                         <Check className="h-3 w-3 text-emerald-500" />
-                        {t.title || "—"}
+                        {t.title || EMPTY_VALUE}
                       </Badge>
                     ))}
                   </div>
@@ -293,10 +294,10 @@ export function GigSetlist({ gigId }: Props) {
                     {sl.tracks.map((t) => (
                       <tr key={t.position} className="border-t hover:bg-muted/20">
                         <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground text-xs">{t.position}</td>
-                        <td className="px-3 py-1.5 font-medium truncate max-w-[200px]">{t.title || "—"}</td>
-                        <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[160px]">{t.artist || "—"}</td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{t.bpm ? Math.round(t.bpm) : "—"}</td>
-                        <td className="px-3 py-1.5 text-center text-xs">{t.key ?? "—"}</td>
+                        <td className="px-3 py-1.5 font-medium truncate max-w-[200px]">{t.title || EMPTY_VALUE}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground truncate max-w-[160px]">{t.artist || EMPTY_VALUE}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{t.bpm ? Math.round(t.bpm) : EMPTY_VALUE}</td>
+                        <td className="px-3 py-1.5 text-center text-xs">{t.key ?? EMPTY_VALUE}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(t.duration_sec)}</td>
                         <td className="px-3 py-1.5 text-right">
                           {t.library_track_id ? (
@@ -354,9 +355,9 @@ export function GigSetlist({ gigId }: Props) {
                 {preview?.tracks.map((t) => (
                   <tr key={t.position} className="border-t">
                     <td className="px-3 py-1 text-right text-xs text-muted-foreground tabular-nums">{t.position}</td>
-                    <td className="px-3 py-1 truncate max-w-[180px]">{t.title || "—"}</td>
-                    <td className="px-3 py-1 text-muted-foreground truncate max-w-[140px] text-xs">{t.artist || "—"}</td>
-                    <td className="px-3 py-1 text-right text-xs tabular-nums">{t.bpm ? Math.round(t.bpm) : "—"}</td>
+                    <td className="px-3 py-1 truncate max-w-[180px]">{t.title || EMPTY_VALUE}</td>
+                    <td className="px-3 py-1 text-muted-foreground truncate max-w-[140px] text-xs">{t.artist || EMPTY_VALUE}</td>
+                    <td className="px-3 py-1 text-right text-xs tabular-nums">{t.bpm ? Math.round(t.bpm) : EMPTY_VALUE}</td>
                   </tr>
                 ))}
               </tbody>
@@ -379,7 +380,7 @@ export function GigSetlist({ gigId }: Props) {
           <DialogHeader>
             <DialogTitle>Adicionar à biblioteca</DialogTitle>
             <DialogDescription>
-              <strong>{addTarget?.track.title || "—"}</strong>
+              <strong>{addTarget?.track.title || EMPTY_VALUE}</strong>
               {addTarget?.track.artist ? ` · ${addTarget.track.artist}` : ""}
               {addTarget?.track.bpm ? ` · ${Math.round(addTarget.track.bpm)} BPM` : ""}
               {addTarget?.track.key ? ` · ${addTarget.track.key}` : ""}
