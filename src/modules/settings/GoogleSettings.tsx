@@ -145,7 +145,7 @@ export function GoogleSettings() {
       return;
     }
     if (!/\.apps\.googleusercontent\.com\s*$/.test(cfg.clientId.trim())) {
-      toast.error("Client ID inválido — deve terminar com .apps.googleusercontent.com");
+      toast.error("Client ID inválido: deve terminar com .apps.googleusercontent.com");
       return;
     }
     setConnecting(true);
@@ -197,7 +197,7 @@ export function GoogleSettings() {
     setSyncing(true);
     try {
       const { pushed } = await syncAll();
-      toast.success(`Sync concluído — ${pushed} GIG(s) enviada(s)`);
+      toast.success(`Sync concluído: ${pushed} GIG(s) enviada(s)`);
       await refresh();
     } catch (e) {
       toast.error(`Erro na sync: ${String(e)}`);
@@ -231,7 +231,7 @@ export function GoogleSettings() {
     setDriveConnecting(true);
     try {
       await connectDrive();
-      toast.success("Drive conectado — a mídia nova vai pra lá.");
+      toast.success("Drive conectado: a mídia nova vai pra lá.");
       await refresh();
     } catch (e) {
       toast.error(`Erro ao conectar o Drive: ${String(e)}`);

@@ -181,7 +181,7 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
                 {!ruleResolvable(r) && (
                   <p className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
-                    Um campo desta regra não existe mais — ela não dispara. Edite para corrigir.
+                    Um campo desta regra não existe mais; ela não dispara. Edite para corrigir.
                   </p>
                 )}
               </div>
@@ -611,7 +611,7 @@ function RuleFormDialog({
       !(await confirmDialog({
         title: "Trocar entidade",
         description:
-          "As condições montadas serão zeradas — os campos pertencem a outra entidade. Continuar?",
+          "As condições montadas serão zeradas: os campos pertencem a outra entidade. Continuar?",
         confirmLabel: "Trocar",
       }))
     )

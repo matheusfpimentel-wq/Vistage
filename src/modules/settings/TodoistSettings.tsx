@@ -83,7 +83,7 @@ export function TodoistSettings() {
         .join(", ");
       const now = new Date().toISOString();
       setLastSync(now);
-      toast.success(msg || "Tudo sincronizado — nenhuma alteração detectada");
+      toast.success(msg || "Tudo sincronizado: nenhuma alteração detectada");
     } catch (e) {
       toast.error(`Erro na sincronização: ${String(e)}`);
     } finally {
