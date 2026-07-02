@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
@@ -379,7 +380,7 @@ export function ExecucaoStagePanel({
                       >
                         {complianceStatusLabel(c.status)}
                       </button>
-                      <button type="button" onClick={() => void deletePartyComplianceItem(c.id).then(reloadCompliance)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label="Remover">
+                      <button type="button" onClick={() => void deleteWithUndo({ label: "Item de compliance", remove: () => deletePartyComplianceItem(c.id), restore: async () => { await createPartyComplianceItem(c); }, onChange: reloadCompliance })} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label="Remover">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>

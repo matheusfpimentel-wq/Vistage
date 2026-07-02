@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { KpiCard } from "@/components/shared/KpiCard";
 import { createCost, deleteCost, listProjectCosts } from "../api";
@@ -113,6 +114,13 @@ export function FinancePanel({ projectId, trackId }: Props) {
   }
 
   async function handleDeleteCost(id: number) {
+    const ok = await confirmDialog({
+      title: "Excluir custo",
+      description: "Apaga também os lançamentos financeiros ligados a este custo.",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteCost(id);
     await refresh();
   }

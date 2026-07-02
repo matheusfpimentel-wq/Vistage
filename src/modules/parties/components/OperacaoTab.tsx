@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, ListOrdered, Plus, Trash2, Users } from "lucide
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import {
   createPartyRunsheetItem,
   deletePartyRunsheetItem,
@@ -147,13 +148,16 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
   }
 
   async function remove(id: number) {
-    try {
-      await deletePartyRunsheetItem(id);
-    } catch (e) {
-      toast.error(`Não consegui remover a linha: ${String(e)}`);
-    } finally {
-      void reload();
-    }
+    const item = rows.find((r) => r.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Linha do run-of-show",
+      remove: () => deletePartyRunsheetItem(id),
+      restore: async () => {
+        await createPartyRunsheetItem(item);
+      },
+      onChange: reload,
+    });
   }
 
   async function move(idx: number, dir: -1 | 1) {

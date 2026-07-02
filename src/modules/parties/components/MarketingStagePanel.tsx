@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import { cn } from "@/lib/utils";
 import { EMPTY_VALUE, formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
 import { urgencyLevel, urgencyClass, type UrgencyLevel } from "@/lib/urgency";
@@ -413,7 +414,16 @@ function AssetsBlock({
     void updatePartyMarketingAsset(id, updates).then(onChanged).catch((e) => toast.error(`Erro: ${String(e)}`));
   }
   async function remove(id: number) {
-    try { await deletePartyMarketingAsset(id); onChanged(); } catch (e) { toast.error(`Erro: ${String(e)}`); }
+    const item = assets.find((a) => a.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Peça de marketing",
+      remove: () => deletePartyMarketingAsset(id),
+      restore: async () => {
+        await createPartyMarketingAsset(item);
+      },
+      onChange: onChanged,
+    });
   }
 
   const missing = DEFAULT_MARKETING_ASSETS.filter((d) => !assets.some((a) => a.name.trim().toLowerCase() === d.toLowerCase()));
@@ -520,7 +530,16 @@ function ActionsBlock({
     void updatePartyMarketingAction(id, updates).then(onChanged).catch((e) => toast.error(`Erro: ${String(e)}`));
   }
   async function remove(id: number) {
-    try { await deletePartyMarketingAction(id); onChanged(); } catch (e) { toast.error(`Erro: ${String(e)}`); }
+    const item = actions.find((a) => a.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Ação de marketing",
+      remove: () => deletePartyMarketingAction(id),
+      restore: async () => {
+        await createPartyMarketingAction(item);
+      },
+      onChange: onChanged,
+    });
   }
 
   return (

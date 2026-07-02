@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import {
   addSubtask,
   deleteSubtask,
@@ -61,12 +62,14 @@ export function SubtaskList({ taskId }: Props) {
   }
 
   async function handleDelete(s: Subtask) {
-    try {
-      await deleteSubtask(s.id);
-      await refresh();
-    } catch (e) {
-      toast.error(`Não consegui excluir a subtarefa: ${String(e)}`);
-    }
+    await deleteWithUndo({
+      label: "Subtarefa",
+      remove: () => deleteSubtask(s.id),
+      restore: async () => {
+        await addSubtask(s.task_id, s.title, s.position);
+      },
+      onChange: refresh,
+    });
   }
 
   const done = items.filter((s) => s.done === 1).length;

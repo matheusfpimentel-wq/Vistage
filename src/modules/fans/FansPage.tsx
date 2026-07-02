@@ -37,6 +37,7 @@ import { SkeletonCards } from "@/components/shared/Skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import {
   Dialog,
   DialogContent,
@@ -1581,6 +1582,13 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
   }
 
   async function handleDeleteGroup(id: number) {
+    const ok = await confirmDialog({
+      title: "Excluir grupo",
+      description: "Remove o grupo e desfaz o vínculo dos fãs a ele (os fãs não são apagados).",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteFanGroup(id);
     if (expandedId === id) setExpandedId(null);
     await refresh();
@@ -1598,9 +1606,24 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
   }
 
   async function handleRemoveMember(groupId: number, memberId: number) {
-    await removeFanGroupMember(memberId);
-    const m = await listFanGroupMembers(groupId);
-    setMembers((prev) => ({ ...prev, [groupId]: m }));
+    const member = members[groupId]?.find((x) => x.id === memberId);
+    const reloadMembers = async () => {
+      const m = await listFanGroupMembers(groupId);
+      setMembers((prev) => ({ ...prev, [groupId]: m }));
+    };
+    if (!member) {
+      await removeFanGroupMember(memberId);
+      await reloadMembers();
+      return;
+    }
+    await deleteWithUndo({
+      label: "Membro do grupo",
+      remove: () => removeFanGroupMember(memberId),
+      restore: async () => {
+        await addFanGroupMember(groupId, member.fan_id, member.name, member.notes);
+      },
+      onChange: reloadMembers,
+    });
   }
 
   return (
