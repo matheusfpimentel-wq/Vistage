@@ -128,7 +128,7 @@ function StatsText({ items }: { items: StatItem[] }) {
             <span className="text-muted-foreground">{it.label}:</span>{" "}
             <span className="font-medium tabular-nums">{it.value}</span>
             {it.hint != null && it.hint !== "" && (
-              <span className="text-muted-foreground"> — {it.hint}</span>
+              <span className="text-muted-foreground"> · {it.hint}</span>
             )}
           </Link>
         </li>
@@ -165,7 +165,7 @@ function TextRow({ to, name, context }: { to: string; name: string; context?: Re
       <Link to={to} className="hover:underline">
         <span className="font-medium">{name}</span>
         {context != null && context !== "" && (
-          <span className="text-muted-foreground"> — {context}</span>
+          <span className="text-muted-foreground"> · {context}</span>
         )}
       </Link>
     </li>

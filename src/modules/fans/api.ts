@@ -732,7 +732,7 @@ export async function syncSuperfanFollowupTasks(): Promise<void> {
         const { createTask } = await import("@/modules/tasks/api");
         await createTask({
           title: `Follow-up: ${fan.name}`,
-          description: `fan_id:${fan.id} — Superfã/Embaixador sem interação há 30+ dias`,
+          description: `fan_id:${fan.id} · Superfã/Embaixador sem interação há 30+ dias`,
           category: "Pessoal",
           priority: "Média",
           status: "A fazer",
@@ -1348,7 +1348,7 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
     agradecer: agradecer.map((r) => ({ ...stripRow(r), detail: `esteve num show ${relDays(daysSinceISO(r.gig_date))}` })),
     parabenizar: parabenizar.map((r) => ({ ...stripRow(r), detail: `subiu para ${r.level}` })),
     reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
-    boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo — sem interação ainda" })),
+    boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo, sem interação ainda" })),
     convidar: convidar.map((r) => ({
       ...stripRow(r),
       detail: next ? `esteve num show ${relDays(daysSinceISO(r.gig_date))} · ${next.name}` : "",

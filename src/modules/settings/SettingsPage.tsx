@@ -91,7 +91,7 @@ export function SettingsPage() {
           <p className="leading-snug">
             <span className="font-medium">Cuidado ao compartilhar.</span> Para o
             arquivo abrir pronto em outra máquina, o <code>.vistage</code> guarda
-            tudo — inclusive suas senhas, tokens das integrações (Google,
+            tudo, inclusive suas senhas, tokens das integrações (Google,
             Todoist) e o login de sincronização. Trate-o como uma senha: não
             envie para terceiros.
           </p>

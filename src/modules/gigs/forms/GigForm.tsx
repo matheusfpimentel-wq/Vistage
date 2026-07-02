@@ -1284,15 +1284,13 @@ export function GigForm({
                 )}
 
                 {gig && (
-                  <Section title="Da Biblioteca de Músicas">
-                    <p className="text-xs text-muted-foreground">Adicione faixas da sua biblioteca; o que foi tocado fica salvo mesmo se a faixa for excluída depois.</p>
+                  <Section title="Da Biblioteca de Músicas" hint="O que foi tocado fica salvo mesmo se a faixa for excluída da biblioteca depois.">
                     <GigLibraryPicker gigId={gig.id} />
                   </Section>
                 )}
 
                 {gig ? (
-                  <Section title="Setlist tocado">
-                    <p className="text-xs text-muted-foreground">Adicione o histórico diretamente do Rekordbox, Serato ou Traktor.</p>
+                  <Section title="Setlist tocado" hint="Adicione o histórico direto do Rekordbox, Serato ou Traktor.">
                     <GigSetlist gigId={gig.id} />
                   </Section>
                 ) : (
@@ -1646,17 +1644,20 @@ function ProposalHint() {
 function Section({
   title,
   description,
+  hint,
   children,
 }: {
   title: string;
   description?: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section className="rounded-lg border bg-card p-4 space-y-3">
       <div>
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-primary-gradient">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wide text-primary-gradient">
           {title}
+          {hint && <InfoHint>{hint}</InfoHint>}
         </h3>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>

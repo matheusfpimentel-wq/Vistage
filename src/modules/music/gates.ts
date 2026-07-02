@@ -31,7 +31,7 @@ export const GATES: Gate[] = [
   {
     id: "gate1",
     afterStage: "Composição",
-    title: "Gate 1 — Vale produzir?",
+    title: "Gate 1: Vale produzir?",
     question: "Essa composição merece virar uma produção completa?",
     showIdentity: true,
     fields: [
@@ -53,7 +53,7 @@ export const GATES: Gate[] = [
   {
     id: "gate3",
     afterStage: "Master",
-    title: "Gate de Lançamento — Momento certo?",
+    title: "Gate de Lançamento: Momento certo?",
     question: "É o momento certo pra lançar?",
     fields: [
       {
@@ -79,7 +79,7 @@ export const GATES: Gate[] = [
   {
     id: "gate4",
     afterStage: "Pós-lançamento",
-    title: "Gate 4 — Manter promovendo?",
+    title: "Gate 4: Manter promovendo?",
     question: "Vale seguir investindo em promoção (3 meses pós-lançamento)?",
     fields: [
       { key: "roi_current", label: "ROI atual", type: "text" },

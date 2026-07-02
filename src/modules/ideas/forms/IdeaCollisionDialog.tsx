@@ -270,7 +270,7 @@ export function IdeaCollisionDialog({
                 rows={3}
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                placeholder="Solta o que vier — se deixar em branco, guardamos a pergunta da colisão"
+                placeholder="Solta o que vier; se deixar em branco, guardamos a pergunta da colisão"
               />
             </div>
           </div>

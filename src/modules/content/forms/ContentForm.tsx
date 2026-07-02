@@ -354,7 +354,7 @@ export function ContentForm({
               Título <span className="text-destructive">*</span>
             </Label>
             <Input
-              placeholder='Ex: "Reel — bastidor do meu set no Audio"'
+              placeholder='Ex: "Reel: bastidor do meu set no Audio"'
               value={state.title}
               onChange={(e) => {
                 set("title", e.target.value);
@@ -646,7 +646,7 @@ export function ContentForm({
               {content ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Vincule tarefas a este conteúdo — crie uma nova ou conecte uma
+                    Vincule tarefas a este conteúdo: crie uma nova ou conecte uma
                     existente. Elas aparecem como vinculadas em Tarefas.
                   </p>
                   <LinkedTasksManager

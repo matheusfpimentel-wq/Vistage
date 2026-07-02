@@ -358,7 +358,7 @@ export function ServicesTabContent({ supplierId }: { supplierId: number }) {
   return (
     <div className="space-y-3 pt-2">
       <p className="text-xs text-muted-foreground">
-        Serviços e preços — uma linha por serviço, com sua própria categoria.
+        Serviços e preços: uma linha por serviço, com sua própria categoria.
         Esvazie a lista para poder tirar o papel de Fornecedor.
       </p>
 

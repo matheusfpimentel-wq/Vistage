@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "../components/PriorityBadge";
 import type { Task } from "../types";
-import { formatDate, todayISO } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { urgencyLevel, type UrgencyLevel } from "@/lib/urgency";
+import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -14,13 +16,9 @@ type Props = {
   onCreate?: () => void;
 };
 
-function isOverdue(t: Task): boolean {
-  return (
-    !!t.due_date &&
-    t.due_date < todayISO() &&
-    t.status !== "Concluída" &&
-    t.status !== "Cancelada"
-  );
+function taskUrgency(t: Task): UrgencyLevel | null {
+  if (t.status === "Concluída" || t.status === "Cancelada") return null;
+  return urgencyLevel(t.due_date, "deadline");
 }
 
 /**
@@ -47,7 +45,8 @@ export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: P
   return (
     <div className="overflow-hidden rounded-md border">
       {tasks.map((t, i) => {
-        const overdue = isOverdue(t);
+        const level = taskUrgency(t);
+        const overdue = level === "overdue";
         const done = t.status === "Concluída";
         return (
           <div
@@ -88,14 +87,17 @@ export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: P
               </span>
             )}
             {t.due_date && (
-              <span
-                className={cn(
-                  "shrink-0 tabular-nums text-xs text-muted-foreground",
-                  overdue && "font-medium text-destructive"
-                )}
-              >
-                {formatDate(t.due_date)}
-              </span>
+              level === "overdue" || level === "soon" ? (
+                <UrgencyMark
+                  level={level}
+                  label={formatDate(t.due_date)}
+                  className="shrink-0 text-xs font-medium tabular-nums"
+                />
+              ) : (
+                <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                  {formatDate(t.due_date)}
+                </span>
+              )
             )}
             <span className="shrink-0">
               <PriorityBadge priority={t.priority} />

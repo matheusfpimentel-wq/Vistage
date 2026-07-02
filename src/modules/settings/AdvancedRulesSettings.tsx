@@ -148,7 +148,7 @@ export function AdvancedRulesSettings() {
                           {locked && (
                             <Lock
                               className="h-3 w-3 shrink-0 text-emerald-500"
-                              aria-label="Inegociável — regra de dinheiro/fisco; não pode desativar nem editar"
+                              aria-label="Inegociável: regra de dinheiro/fisco; não pode desativar nem editar"
                             />
                           )}
                           <span className={cn(!on && "line-through")}>{r.message}</span>
@@ -281,7 +281,7 @@ export function AdvancedRulesSettings() {
                       {locked ? (
                         <span
                           className="shrink-0 select-none self-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
-                          title="Regra fixa — sempre ligada"
+                          title="Regra fixa: sempre ligada"
                         >
                           Fixa
                         </span>

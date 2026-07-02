@@ -202,7 +202,7 @@ export function IdeaSessionDialog({
                     void capture();
                   }
                 }}
-                placeholder="Uma ideia (Enter) — sem julgar"
+                placeholder="Uma ideia (Enter), sem julgar"
               />
               <Button type="button" variant="outline" onClick={() => void capture()}>
                 <Plus className="h-4 w-4" />

@@ -10,6 +10,9 @@
   --neg: #f87171;
   --danger: #ef4444;
   --warn: #fbbf24;
+  /* Urgência (A.2) — paridade de nomes com o desktop (overdue/soon). */
+  --urg-overdue: var(--neg);
+  --urg-soon: var(--warn);
 }
 
 /* Tema claro — espelhado do desktop (aplicado em <html class="light">). */
@@ -800,7 +803,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--muted); margin: 0.6rem 0 0.35rem;
 }
-.task-group-h.overdue { color: var(--neg); }
+.task-group-h.overdue { color: var(--urg-overdue); }
 .swipe-wrap { position: relative; list-style: none; overflow: hidden; border-radius: 12px; }
 .swipe-behind {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;

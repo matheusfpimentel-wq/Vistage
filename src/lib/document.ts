@@ -222,7 +222,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
-          `Salvo em ${fileName(path)} — mas ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora do arquivo. Confira se ainda existem na pasta de uploads.`
+          `Salvo em ${fileName(path)}, mas ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora do arquivo. Confira se ainda existem na pasta de uploads.`
         );
       } else {
         toast.success(`Salvo em ${fileName(path)}`);
@@ -259,7 +259,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       void rotateBackup(path);
       if (skipped.length > 0) {
         toast.warning(
-          `Salvo como ${fileName(path)} — ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora.`
+          `Salvo como ${fileName(path)}: ${skipped.length} anexo(s) não puderam ser lidos e ficaram de fora.`
         );
       } else {
         toast.success(`Salvo como ${fileName(path)}`);

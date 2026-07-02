@@ -463,7 +463,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     // da festa): se o título digitado não contém o nome da festa, prefixa.
     const title = typed.toLowerCase().includes(state.title.toLowerCase())
       ? typed
-      : `${state.title} — ${typed}`;
+      : `${state.title}: ${typed}`;
     try {
       await createContent({
         title,
@@ -769,7 +769,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   {gigs.map((g) => (
                     <SelectItem key={g.id} value={String(g.id)}>
                       {(g.event_name || g.venue_name || "GIG")}
-                      {g.date ? ` — ${g.date}` : ""}
+                      {g.date ? ` · ${g.date}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -960,7 +960,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 <Field label="Receita de bar (R$)">
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">
-                      A parte do bar que fica com você — entra na receita e no faturamento por cabeça.
+                      A parte do bar que fica com você: entra na receita e no faturamento por cabeça.
                     </p>
                     <Input
                       type="number"
@@ -1206,7 +1206,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       {teamServices.map((s) => (
                         <SelectItem key={s.id} value={s.id.toString()}>
                           {s.description}
-                          {s.price != null ? ` — ${formatCurrency(s.price)}` : ""}
+                          {s.price != null ? ` · ${formatCurrency(s.price)}` : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1481,7 +1481,7 @@ function PostEventCard({ partyId, title }: { partyId: number; title: string }) {
         <Plus className="h-4 w-4" /> Mandar guest list pro Clube de Fãs
       </Button>
       <p className="text-[11px] text-muted-foreground">
-        Ingressos vendidos são contagem (sem comprador individual) — a fonte das cortesias é a guest list.
+        Ingressos vendidos são contagem (sem comprador individual). A fonte das cortesias é a guest list.
       </p>
     </div>
   );

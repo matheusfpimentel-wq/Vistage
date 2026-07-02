@@ -13,7 +13,9 @@ import {
 import { PriorityBadge } from "../components/PriorityBadge";
 import { TaskStatusBadge } from "../components/TaskStatusBadge";
 import { TASK_STATUSES, type Task, type TaskStatus } from "../types";
-import { formatDate, todayISO } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { urgencyLevel, type UrgencyLevel } from "@/lib/urgency";
+import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -29,13 +31,9 @@ type Props = {
   onBulkDelete?: (tasks: Task[]) => void;
 };
 
-function isOverdue(t: Task): boolean {
-  return (
-    !!t.due_date &&
-    t.due_date < todayISO() &&
-    t.status !== "Concluída" &&
-    t.status !== "Cancelada"
-  );
+function taskUrgency(t: Task): UrgencyLevel | null {
+  if (t.status === "Concluída" || t.status === "Cancelada") return null;
+  return urgencyLevel(t.due_date, "deadline");
 }
 
 export function TaskListView({
@@ -145,7 +143,8 @@ export function TaskListView({
       )}
 
       {tasks.map((t) => {
-        const overdue = isOverdue(t);
+        const level = taskUrgency(t);
+        const overdue = level === "overdue";
         const done = t.status === "Concluída";
         const isSel = selected.has(t.id);
         return (
@@ -213,16 +212,18 @@ export function TaskListView({
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {t.due_date && (
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 tabular-nums",
-                      overdue && "font-medium text-destructive"
-                    )}
-                  >
-                    <CalendarClock className="h-3 w-3" />
-                    {formatDate(t.due_date)}
-                    {overdue && " · atrasada"}
-                  </span>
+                  level === "overdue" || level === "soon" ? (
+                    <UrgencyMark
+                      level={level}
+                      label={formatDate(t.due_date)}
+                      className="font-medium tabular-nums"
+                    />
+                  ) : (
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <CalendarClock className="h-3 w-3" />
+                      {formatDate(t.due_date)}
+                    </span>
+                  )
                 )}
                 {t.category && <Badge variant="outline">{t.category}</Badge>}
                 {t.recurrence && (

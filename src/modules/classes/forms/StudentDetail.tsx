@@ -295,7 +295,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
                           <SelectItem key={t.id} value={t.id.toString()}>
                             {t.name}
                             {t.total_hours != null
-                              ? ` — ${fmtHoursLabel(t.total_hours)}`
+                              ? ` · ${fmtHoursLabel(t.total_hours)}`
                               : ""}
                             {t.price ? ` · ${formatCurrency(t.price)}` : ""}
                           </SelectItem>
@@ -310,7 +310,7 @@ export function StudentDetail({ open, onOpenChange, studentId, onEdit }: Props) 
 
                 {packages.length === 0 ? (
                   <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    Aluno sem pacotes — toda aula vira avulsa.
+                    Aluno sem pacotes: toda aula vira avulsa.
                   </div>
                 ) : (
                   <div className="space-y-2">

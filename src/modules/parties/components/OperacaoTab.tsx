@@ -118,7 +118,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           position: pos++,
           time: null,
           end_time: null,
-          title: `Set — ${p.name}`,
+          title: `Set: ${p.name}`,
           performer_contact_id: p.id,
           notes: null,
           duration_min: null,

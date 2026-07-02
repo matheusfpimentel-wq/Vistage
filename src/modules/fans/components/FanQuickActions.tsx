@@ -95,7 +95,7 @@ export function FanQuickActions({ fanId, fanName }: Props) {
     <div className="space-y-4">
       <div>
         <p className="mb-2 text-xs text-muted-foreground">
-          Gere uma tarefa já vinculada a {fanName} — ela aparece nas suas Tarefas
+          Gere uma tarefa já vinculada a {fanName}; ela aparece nas suas Tarefas
           e no histórico do fã.
         </p>
         <div className="flex flex-wrap gap-2">

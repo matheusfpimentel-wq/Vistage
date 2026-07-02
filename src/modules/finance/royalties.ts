@@ -264,7 +264,7 @@ export function parseRoyalties(filename: string, content: string): ParsedRoyalti
     });
   }
   if (lines.length === 0)
-    throw new Error("Nenhuma linha de royalty reconhecida — confira o arquivo.");
+    throw new Error("Nenhuma linha de royalty reconhecida: confira o arquivo.");
 
   return {
     platform,

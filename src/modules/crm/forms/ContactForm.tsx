@@ -226,7 +226,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
       }
       toast.success(
         created.length > 0
-          ? `Pessoa salva — perfil de ${created.join(" e ")} criado`
+          ? `Pessoa salva: perfil de ${created.join(" e ")} criado`
           : contact
             ? "Contato atualizado"
             : "Contato criado"
@@ -331,7 +331,7 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
                   : alsoFan
                     ? "Um perfil paralelo de fã será criado"
                     : "Um perfil paralelo de aluno será criado"}
-                {" "}ao salvar — editável no módulo correspondente.
+                {" "}ao salvar, editável no módulo correspondente.
               </p>
             )}
           </div>

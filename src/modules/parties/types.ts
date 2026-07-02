@@ -179,7 +179,7 @@ export const DEFAULT_COMPLIANCE_ITEMS: {
     category: "Alvará", title: "Alvará / CLCB do venue",
     responsavel: "casa", status: "pendente",
     explain:
-      "Verifique a validade do certificado do corpo de bombeiros (CLCB/AVCB) e do alvará — é pré-requisito de funcionamento do venue.",
+      "Verifique a validade do certificado do corpo de bombeiros (CLCB/AVCB) e do alvará; é pré-requisito de funcionamento do venue.",
   },
   {
     category: "SMMA", title: "Licença de som / ambiental",
@@ -190,7 +190,7 @@ export const DEFAULT_COMPLIANCE_ITEMS: {
     category: "Segurança", title: "Segurança",
     responsavel: "casa", status: "pendente",
     explain:
-      "A empresa de segurança deve ser autorizada pela Polícia Federal. Não há ratio legal federal de seguranças por público — dimensione pelo risco e pela casa.",
+      "A empresa de segurança deve ser autorizada pela Polícia Federal. Não há ratio legal federal de seguranças por público; dimensione pelo risco e pela casa.",
   },
 ];
 

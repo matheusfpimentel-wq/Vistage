@@ -230,7 +230,7 @@ async function getValidAccessToken(): Promise<string> {
   if (now + 60_000 < expiresAt) return auth.access_token;
 
   if (!auth.refresh_token) {
-    throw new Error("Token expirado e sem refresh_token — reconecte o Google.");
+    throw new Error("Token expirado e sem refresh_token: reconecte o Google.");
   }
   const fresh = await invoke<GcalTokens>("gcal_refresh_token", {
     clientId: cfg.clientId,
@@ -340,7 +340,7 @@ function gigToEvent(gig: Gig, tz: string): EventInput {
     `Vistage GIG #${gig.id}`,
   ].filter(Boolean);
 
-  const location = [gig.venue_address, gig.venue_city].filter(Boolean).join(" — ");
+  const location = [gig.venue_address, gig.venue_city].filter(Boolean).join(", ");
 
   return {
     // Prefere o nome da festa/evento (o que vai no flyer); cai pro venue.

@@ -110,7 +110,7 @@ export function MobileChangesDialog() {
     setBusy(true);
     try {
       await discardCaptures(ids);
-      toast.success("Descartado — recuperável no Backup");
+      toast.success("Descartado: recuperável no Backup");
       await refresh();
     } catch (e) {
       toast.error(`Erro ao descartar: ${String(e)}`);
@@ -139,7 +139,7 @@ export function MobileChangesDialog() {
 
         <p className="text-sm text-muted-foreground">
           Você adicionou {pending.length} {pending.length === 1 ? "coisa" : "coisas"} no
-          celular. Decida o que fazer — não fecha sozinho pra você não perder nada.
+          celular. Decida o que fazer: não fecha sozinho pra você não perder nada.
         </p>
 
         <ul className="max-h-60 space-y-1.5 overflow-y-auto">

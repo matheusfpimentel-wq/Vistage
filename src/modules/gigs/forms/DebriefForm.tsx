@@ -873,7 +873,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            Debrief — {gig.venue_name}
+            Debrief: {gig.venue_name}
             {complete ? (
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
             ) : (

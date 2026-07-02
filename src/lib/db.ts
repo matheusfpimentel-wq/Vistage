@@ -46,7 +46,7 @@ let _initInProgress = false;
 
 /** Abre o banco LOCAL no caminho informado e roda as migrations. */
 export async function initDatabase(replicaPath: string): Promise<void> {
-  if (_initInProgress) throw new Error("initDatabase já está em andamento — aguarde.");
+  if (_initInProgress) throw new Error("initDatabase já está em andamento: aguarde.");
   _initInProgress = true;
   try {
     await invoke("db_init", { replicaPath });

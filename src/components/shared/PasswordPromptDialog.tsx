@@ -124,14 +124,14 @@ export function PasswordPromptDialog() {
                 }}
               />
               <p className="text-xs text-muted-foreground">
-                A dica fica legível no arquivo mesmo sem a senha — não escreva a própria senha aqui.
+                A dica fica legível no arquivo mesmo sem a senha. Não escreva a própria senha aqui.
               </p>
             </div>
           )}
           {error && <p className="text-xs text-destructive">{error}</p>}
           {opts?.requireConfirm && (
             <p className="text-xs text-muted-foreground">
-              Guarde bem a senha — sem ela não há como recuperar o conteúdo do arquivo.
+              Guarde bem a senha: sem ela não há como recuperar o conteúdo do arquivo.
             </p>
           )}
         </div>

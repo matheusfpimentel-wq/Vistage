@@ -450,7 +450,7 @@ export function PessoasPage() {
         prefillPromoter={gigPromoter}
         onSaved={() => {
           setGigPromoter(null);
-          toast.success("GIG criada — confira na aba GIGs");
+          toast.success("GIG criada: confira na aba GIGs");
         }}
       />
     </div>

@@ -119,7 +119,7 @@ export async function exportInsightsTxt(hits: InsightHit[]): Promise<string> {
   ];
   for (const h of hits) {
     const date = h.occurred_at.slice(0, 10);
-    lines.push(`[${h.source_type.toUpperCase()}] ${h.source_title} — ${date}`);
+    lines.push(`[${h.source_type.toUpperCase()}] ${h.source_title} · ${date}`);
     lines.push(h.content);
     lines.push("");
   }

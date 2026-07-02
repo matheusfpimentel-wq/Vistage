@@ -124,7 +124,7 @@ export async function createParty(input: PartyCreateInput): Promise<number> {
       const { createTask } = await import("@/modules/tasks/api");
       const taskId = await createTask({
         title: `Festa: ${input.title ?? "evento"}`,
-        description: "Dia do evento — confirmar produção, equipe e logística.",
+        description: "Dia do evento: confirmar produção, equipe e logística.",
         category: "Festas",
         gig_id: null,
         contact_id: null,
@@ -262,7 +262,7 @@ async function ensurePartyAftermovieContent(partyId: number, partyTitle: string)
   if (existing.length > 0) return false;
   const { createContent } = await import("@/modules/content/api");
   await createContent({
-    title: `Aftermovie — ${partyTitle}`,
+    title: `Aftermovie: ${partyTitle}`,
     script: null,
     networks: ["Instagram"],
     format: "Reels",
@@ -716,7 +716,7 @@ export async function createEdition(
   const label = opts.editionLabel?.trim() || `Edição ${nextNumber}`;
 
   const newId = await createParty({
-    title: `${series.name} — ${label}`,
+    title: `${series.name}: ${label}`,
     date: null,
     venue_id: null,
     venue_name: null,
@@ -949,7 +949,7 @@ export async function syncTeamBudgetItems(
   );
   const created: string[] = [];
   for (const m of team) {
-    const description = `${m.name} — ${m.role}`;
+    const description = `${m.name}: ${m.role}`;
     if (existingKeys.has(description.trim().toLowerCase())) continue;
     await createPartyBudgetItem({
       party_id: partyId,

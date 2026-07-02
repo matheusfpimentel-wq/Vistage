@@ -68,7 +68,7 @@ export function IdeacaoStagePanel({
       const curObjetivo = typeof f.objetivo === "string" ? f.objetivo.trim() : "";
 
       const nextConceito = tema && !curConceito.includes(tema)
-        ? [curConceito, `Tema: ${tema}`].filter(Boolean).join(" — ")
+        ? [curConceito, `Tema: ${tema}`].filter(Boolean).join(" · ")
         : curConceito;
       const nextObjetivo = curObjetivo || motivacao;
 
@@ -132,7 +132,7 @@ export function IdeacaoStagePanel({
       </Field>
       <Field
         label="Objetivo"
-        hint="O que a festa precisa alcançar — o critério de sucesso que a Concretização vai avaliar. Ex.: resultado financeiro, construir audiência própria, ocupar uma data, posicionamento."
+        hint="O que a festa precisa alcançar: o critério de sucesso que a Concretização vai avaliar. Ex.: resultado financeiro, construir audiência própria, ocupar uma data, posicionamento."
       >
         <AutoGrowInput value={objetivo} onChange={setObjetivo} onBlur={() => void saveField("objetivo", objetivo)} placeholder="O que essa festa precisa alcançar…" />
       </Field>

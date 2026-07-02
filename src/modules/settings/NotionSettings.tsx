@@ -168,7 +168,7 @@ export function NotionSettings() {
     setCreating(true);
     try {
       await repointNotionParent(savedToken, parentPage);
-      toast.success("Página trocada — recriando e sincronizando no Notion");
+      toast.success("Página trocada: recriando e sincronizando no Notion");
       setChangingPage(false);
       setParentPage("");
       await refresh();

@@ -414,7 +414,7 @@ export function TransactionForm({
           {!transaction && isRoyaltiesCategory && (
             <div className="flex items-center justify-between gap-3 rounded-md border border-dashed bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">
-                Tem relatório do DistroKid ou Beatport? Importe de uma vez — cada
+                Tem relatório do DistroKid ou Beatport? Importe de uma vez: cada
                 faixa vira uma receita por mês, já convertida pra BRL.
               </p>
               <Button

@@ -178,7 +178,7 @@ export function VenueMap({ venues, onOpenDetail, onRefresh }: Props) {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Geocoding usa OpenStreetMap/Nominatim — gratuito, sem API key.
+            Geocoding usa OpenStreetMap/Nominatim: gratuito, sem API key.
             Certifique-se de que o nome da cidade está preenchido.
           </p>
         </div>

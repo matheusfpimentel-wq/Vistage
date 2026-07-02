@@ -8,18 +8,18 @@ export const CSV_ENTITIES = [
   { key: "contacts", label: "Contatos (CRM)", table: "contacts" },
   { key: "venues", label: "Venues", table: "venues" },
   { key: "fans", label: "Fãs", table: "fans" },
-  { key: "fan_segments", label: "Fãs — segmentos", table: "fan_segments" },
+  { key: "fan_segments", label: "Fãs: segmentos", table: "fan_segments" },
   { key: "tasks", label: "Tarefas", table: "tasks" },
   { key: "meetings", label: "Reuniões", table: "meetings" },
   { key: "content", label: "Conteúdos", table: "content" },
   { key: "ideas", label: "Ideias", table: "ideas" },
-  { key: "idea_collisions", label: "Ideias — colisões", table: "idea_collisions" },
+  { key: "idea_collisions", label: "Ideias: colisões", table: "idea_collisions" },
   { key: "students", label: "Alunos", table: "students" },
   { key: "parties", label: "Festas", table: "parties" },
   { key: "party_costs", label: "Custos de festas", table: "party_costs" },
   { key: "music_projects", label: "Projetos musicais", table: "music_projects" },
   { key: "tracks", label: "Tracks", table: "tracks" },
-  { key: "track_media_targets", label: "Tracks — mídia alvo", table: "track_media_targets" },
+  { key: "track_media_targets", label: "Tracks: mídia alvo", table: "track_media_targets" },
   { key: "classes", label: "Aulas (sessões)", table: "classes" },
   {
     key: "class_packages",
@@ -38,12 +38,12 @@ export const CSV_ENTITIES = [
   },
   { key: "work_sessions", label: "Sessões de trabalho", table: "work_sessions" },
   { key: "highlights", label: "Highlights", table: "highlights" },
-  { key: "performance_weak_points", label: "Apresentação — pontos fracos", table: "performance_weak_points" },
-  { key: "performance_moments", label: "Apresentação — momentos", table: "performance_moments" },
+  { key: "performance_weak_points", label: "Apresentação: pontos fracos", table: "performance_weak_points" },
+  { key: "performance_moments", label: "Apresentação: momentos", table: "performance_moments" },
   { key: "okrs", label: "OKRs", table: "okrs" },
-  { key: "nps_responses", label: "NPS — pesquisa", table: "nps_responses" },
-  { key: "library_tracks", label: "Biblioteca — Músicas", table: "library_tracks" },
-  { key: "notes", label: "Biblioteca — Notas", table: "notes" },
+  { key: "nps_responses", label: "NPS: pesquisa", table: "nps_responses" },
+  { key: "library_tracks", label: "Biblioteca: Músicas", table: "library_tracks" },
+  { key: "notes", label: "Biblioteca: Notas", table: "notes" },
 ] as const;
 
 export type CsvEntityKey = (typeof CSV_ENTITIES)[number]["key"];
@@ -137,7 +137,7 @@ export async function exportEntityCsv(table: string): Promise<string | null> {
   const db = getDb();
   const rows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${table}`);
   if (rows.length === 0) {
-    throw new Error(`Tabela "${table}" está vazia — nada pra exportar.`);
+    throw new Error(`Tabela "${table}" está vazia: nada pra exportar.`);
   }
   const columns = Object.keys(rows[0]);
   const csv = buildCsv(columns, rows);
@@ -171,7 +171,7 @@ export async function exportTransactionsCsv(
   }[]
 ): Promise<string | null> {
   if (rows.length === 0) {
-    throw new Error("Nenhuma transação no filtro atual — nada pra exportar.");
+    throw new Error("Nenhuma transação no filtro atual: nada pra exportar.");
   }
   const fmtBR = (iso: string) => {
     const [y, m, d] = iso.slice(0, 10).split("-");
