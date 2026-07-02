@@ -102,7 +102,7 @@ export function SeriesEditionCard({
       const newSeriesId = await transformPartyIntoSeries(partyId, partyTitle);
       setSid(newSeriesId);
       setEditNum(1);
-      toast.success("Série criada — esta festa virou a edição 1.");
+      toast.success("Série criada: esta festa virou a edição 1.");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -242,7 +242,7 @@ export function SeriesEditionCard({
 
       {showNew ? (
         <div className="space-y-2 rounded-md border p-2">
-          <div className="text-xs font-medium">Nova edição — o que trazer do andaime?</div>
+          <div className="text-xs font-medium">Nova edição: o que trazer do andaime?</div>
           <div className="grid grid-cols-2 gap-1">
             {CLONE_FIELDS.map(({ key, label: l }) => (
               <label key={key} className="flex items-center gap-1.5 text-xs">

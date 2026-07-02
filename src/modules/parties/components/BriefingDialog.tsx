@@ -144,7 +144,7 @@ export function BriefingDialog({
           <div className="text-xs text-muted-foreground">{briefing.subtitle}</div>
           {briefing.draft && (
             <div className="mt-1 inline-block rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-              Rascunho — etapa não concluída
+              Rascunho: etapa não concluída
             </div>
           )}
           <div className="mt-3 space-y-3">

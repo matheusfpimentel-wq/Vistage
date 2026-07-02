@@ -484,7 +484,7 @@ export function ViabilidadeStagePanel({
       {/* ===== PREMISSAS ===== */}
       <VBlockShell title="Premissas" summary={premissasSummary} isOpen={open === "premissas"} setOpen={() => setOpen("premissas")}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Público esperado (realista)" hint="Estimativa honesta de quantas pessoas realmente vêm — não a capacidade. Sugerimos ~70% da capacidade; ajuste pela sua realidade.">
+          <Field label="Público esperado (realista)" hint="Estimativa honesta de quantas pessoas realmente vêm, não a capacidade. Sugerimos ~70% da capacidade; ajuste pela sua realidade.">
             <Input
               type="number"
               min={0}
@@ -614,7 +614,7 @@ export function ViabilidadeStagePanel({
             </span>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <Kpi label="Pessoas p/ empatar" value={verdict.breakEvenPeople != null ? String(verdict.breakEvenPeople) : EMPTY_VALUE} hint={verdict.exceedsCapacity ? "Acima da capacidade — não empata nem lotando." : undefined} danger={verdict.exceedsCapacity} />
+            <Kpi label="Pessoas p/ empatar" value={verdict.breakEvenPeople != null ? String(verdict.breakEvenPeople) : EMPTY_VALUE} hint={verdict.exceedsCapacity ? "Acima da capacidade: não empata nem lotando." : undefined} danger={verdict.exceedsCapacity} />
             <Kpi
               label="Resultado projetado"
               value={num(publicoEsperado) > 0 ? formatCurrency(verdict.resultado) : EMPTY_VALUE}

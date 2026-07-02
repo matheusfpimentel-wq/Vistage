@@ -976,7 +976,7 @@ export function RiderField({
   }
 
   async function saveAsTemplate() {
-    if (items.length === 0) { toast.error("Rider vazio — nada pra salvar como modelo."); return; }
+    if (items.length === 0) { toast.error("Rider vazio: nada pra salvar como modelo."); return; }
     const name = window.prompt("Nome do modelo de rider:");
     if (!name || !name.trim()) return;
     try {

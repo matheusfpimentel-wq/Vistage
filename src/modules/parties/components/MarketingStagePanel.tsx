@@ -601,7 +601,7 @@ function ActionsBlock({
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        A maior parte da venda acontece na reta final — carregue o calendário até a última semana, não só no anúncio.
+        A maior parte da venda acontece na reta final; carregue o calendário até a última semana, não só no anúncio.
       </p>
     </div>
   );
