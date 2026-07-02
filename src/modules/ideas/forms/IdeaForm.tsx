@@ -330,7 +330,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
           tags: ["ideia"],
         });
         await markIdeaAsConverted(idea.id, "task", taskId);
-        toast.success(`Convertida em Tarefa — ${option.label}`);
+        toast.success(`Convertida em Tarefa: ${option.label}`);
       } else if (option.converted_to === "gig" || option.converted_to === "track") {
         // Abre o formulário REAL da entidade — a IdeasPage marca a conversão
         // (com o id verdadeiro) quando o usuário salvar.
@@ -543,7 +543,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
                 <Sparkles className="h-3.5 w-3.5" /> Lentes
               </Label>
               <p className="text-xs text-muted-foreground">
-                Um ângulo novo sobre esta ideia — toque uma lente.
+                Um ângulo novo sobre esta ideia: toque uma lente.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {LENSES.map((l) => {

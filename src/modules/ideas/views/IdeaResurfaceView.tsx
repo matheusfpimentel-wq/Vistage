@@ -98,7 +98,7 @@ export function IdeaResurfaceView({
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Ideias que andavam quentes e esfriaram. Reaqueça, vire tarefa ou arquive de vez — um olhar
+        Ideias que andavam quentes e esfriaram. Reaqueça, vire tarefa ou arquive de vez; um olhar
         fresco depois de um tempo costuma render mais que uma ideia nova.
       </p>
       {items.map((i) => {

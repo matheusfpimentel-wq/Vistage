@@ -27,7 +27,7 @@ type Insight = { key: string; text: string; kind: InsightKind };
 
 const EMPTY: Insight = {
   key: "empty",
-  text: "Sem provocações visíveis — role mais tarde ou reexiba em Configurações → Insights.",
+  text: "Sem provocações visíveis: role mais tarde ou reexiba em Configurações → Insights.",
   kind: "generic",
 };
 
@@ -170,7 +170,7 @@ export function InsightDie({ onCreatedIdea }: { onCreatedIdea?: (id: number) => 
               size="icon"
               className={cn("h-8 w-8 shrink-0", isPinned ? "text-primary" : "text-muted-foreground")}
               onClick={togglePin}
-              title={isPinned ? "Soltar (não fixar mais)" : "Fixar — aparece primeiro"}
+              title={isPinned ? "Soltar (não fixar mais)" : "Fixar: aparece primeiro"}
             >
               <Pin className={cn("h-4 w-4", isPinned && "fill-current")} />
             </Button>
@@ -179,7 +179,7 @@ export function InsightDie({ onCreatedIdea }: { onCreatedIdea?: (id: number) => 
               size="icon"
               className="h-8 w-8 shrink-0 text-muted-foreground"
               onClick={snoozeCurrent}
-              title="Soneca — adiar por 7 dias"
+              title="Soneca: adiar por 7 dias"
             >
               <Clock className="h-4 w-4" />
             </Button>

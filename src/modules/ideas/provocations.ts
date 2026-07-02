@@ -81,7 +81,7 @@ export function activeSnoozeKeys(): Set<string> {
 
 // Provocações perenes — garantem variedade mesmo com pouco dado cadastrado.
 export const EVERGREEN: string[] = [
-  "Se você só pudesse tocar em 1 lugar neste mês, qual seria — e por quê?",
+  "Se você só pudesse tocar em 1 lugar neste mês, qual seria e por quê?",
   "Qual som/transição te marcou na última GIG? Dá pra virar marca registrada?",
   "Que colaboração (DJ, produtor, marca) abriria mais portas agora?",
   "O que no seu set ninguém mais faz? Como deixar isso mais óbvio pro público?",
@@ -176,7 +176,7 @@ export async function generateRaw(): Promise<RawInsight[]> {
     for (const r of rows) {
       add(
         `weakagg:${r.tipo}`,
-        `Você marcou ${r.n}× "${r.tipo}" no Modo Foco no último mês — que ideia resolve isso de vez?`,
+        `Você marcou ${r.n}× "${r.tipo}" no Modo Foco no último mês: que ideia resolve isso de vez?`,
         true
       );
     }

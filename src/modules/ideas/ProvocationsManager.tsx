@@ -51,7 +51,7 @@ export function ProvocationsManager() {
     <div className="space-y-1.5">
       {visible.length === 0 ? (
         <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Nada por aqui ainda — cadastre OKRs, GIGs ou ideias e elas aparecem.
+          Nada por aqui ainda: cadastre OKRs, GIGs ou ideias e elas aparecem.
         </p>
       ) : (
         visible.map((r) => {

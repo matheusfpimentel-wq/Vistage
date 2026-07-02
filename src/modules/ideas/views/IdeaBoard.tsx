@@ -73,7 +73,7 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Pr
                 <Badge
                   variant="outline"
                   className="gap-0.5 border-sky-500/30 text-xs text-sky-500"
-                  title="Esfriando pela inatividade — toque pra reaquecer"
+                  title="Esfriando pela inatividade: toque pra reaquecer"
                 >
                   <TrendingDown className="h-3 w-3" /> esfriando
                 </Badge>
