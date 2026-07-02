@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, ExternalLink, Film, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ import {
   updatePartyMarketingAsset,
   updatePartyStage,
 } from "../api";
+import { createContent, listContentPromoting } from "@/modules/content/api";
 
 const MARKETING_CATEGORY = "Marketing";
 type Block = "estrategia" | "artes" | "canais" | "mensuracao";
@@ -101,6 +102,7 @@ export function MarketingStagePanel({
   const [open, setOpen] = useState<Block>("estrategia");
   const [assets, setAssets] = useState<PartyMarketingAsset[]>([]);
   const [actions, setActions] = useState<PartyMarketingAction[]>([]);
+  const [promoting, setPromoting] = useState<{ id: number; title: string; status: string }[]>([]);
 
   const f = stage.fields;
   const [metaVendas, setMetaVendas] = useState(f.meta_vendas != null ? String(f.meta_vendas) : "");
@@ -110,6 +112,7 @@ export function MarketingStagePanel({
   const reloadLists = useCallback(() => {
     void listPartyMarketingAssets(partyId).then(setAssets);
     void listPartyMarketingActions(partyId).then(setActions);
+    void listContentPromoting("Festa", partyId).then(setPromoting);
   }, [partyId]);
   useEffect(() => { reloadLists(); }, [reloadLists]);
 
@@ -294,9 +297,9 @@ export function MarketingStagePanel({
         title="Artes & Conteúdo"
         setOpen={() => setOpen("artes")}
         isOpen={open === "artes"}
-        summary={`${assets.length} peça(s)${artesAtrasadas > 0 ? ` · ${artesAtrasadas} atrasada(s)` : ""}`}
+        summary={`${assets.length} peça(s)${artesAtrasadas > 0 ? ` · ${artesAtrasadas} atrasada(s)` : ""}${promoting.length > 0 ? ` · ${promoting.length} conteúdo(s)` : ""}`}
       >
-        <AssetsBlock partyId={partyId} assets={assets} onChanged={reloadLists} />
+        <AssetsBlock partyId={partyId} partyTitle={partyTitle} assets={assets} promoting={promoting} onChanged={reloadLists} />
       </BlockShell>
 
       <BlockShell
@@ -387,17 +390,60 @@ function BlockShell({
   );
 }
 
-/** Bloco ARTES — peças com pipeline de status, prazo e link; adição inline. */
+/** Bloco ARTES & CONTEÚDO — peças com pipeline de status, prazo e link; cada
+ * peça pode gerar um card no módulo Conteúdo (vinculado à festa); adição inline. */
 function AssetsBlock({
   partyId,
+  partyTitle,
   assets,
+  promoting,
   onChanged,
 }: {
   partyId: number;
+  partyTitle: string;
   assets: PartyMarketingAsset[];
+  promoting: { id: number; title: string; status: string }[];
   onChanged: () => void;
 }) {
   const [name, setName] = useState("");
+
+  // Gera um card no módulo Conteúdo a partir da peça e o vincula (§2.4). O card
+  // nasce promovendo esta festa (promotes_type/id), então aparece no calendário
+  // de Conteúdo e na lista "promovendo esta festa" logo abaixo.
+  async function generateContent(a: PartyMarketingAsset) {
+    const base = a.name.trim();
+    const title = base.toLowerCase().includes(partyTitle.toLowerCase())
+      ? base
+      : `${partyTitle}: ${base}`;
+    try {
+      const contentId = await createContent({
+        title,
+        script: null,
+        networks: [],
+        format: null,
+        purpose: null,
+        status: "Ideia",
+        due_date: a.due_date,
+        publish_date: null,
+        published_at: null,
+        post_url: null,
+        metric_views: null,
+        metric_likes: null,
+        metric_comments: null,
+        metric_shares: null,
+        metric_saves: null,
+        notes: null,
+        task_id: null,
+        promotes_type: "Festa",
+        promotes_id: partyId,
+      });
+      await updatePartyMarketingAsset(a.id, { content_id: contentId });
+      toast.success("Conteúdo criado no calendário");
+      onChanged();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
 
   async function add(assetName: string) {
     const n = assetName.trim();
@@ -466,6 +512,23 @@ function AssetsBlock({
                   <ExternalLink className="h-3.5 w-3.5" />
                 </a>
               )}
+              {a.content_id != null ? (
+                <span
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500"
+                  title="Já tem um card no módulo Conteúdo vinculado a esta festa"
+                >
+                  <Check className="h-3 w-3" /> Conteúdo
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void generateContent(a)}
+                  className="flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"
+                  title="Criar um card no módulo Conteúdo vinculado a esta festa"
+                >
+                  <Film className="h-3 w-3" /> Gerar conteúdo
+                </button>
+              )}
               <button type="button" onClick={() => void remove(a.id)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label="Remover peça">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -501,6 +564,20 @@ function AssetsBlock({
           <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      {promoting.length > 0 && (
+        <div className="space-y-1 rounded-md border bg-muted/20 p-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Conteúdo promovendo esta festa
+          </p>
+          {promoting.map((c) => (
+            <div key={c.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="min-w-0 truncate">{c.title}</span>
+              <span className="shrink-0 text-muted-foreground">{c.status}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

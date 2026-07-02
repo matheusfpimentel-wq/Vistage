@@ -33,8 +33,6 @@ import { useUnsavedConfirm } from "@/lib/dirty";
 import { listContacts } from "@/modules/crm/api";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Contact } from "@/modules/crm/types";
-import { listContent, createContent, listContentPromoting } from "@/modules/content/api";
-import { CONTENT_FORMATS, CONTENT_NETWORKS, type Content } from "@/modules/content/types";
 import { listServices, listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier, SupplierService } from "@/modules/suppliers/types";
 import { listVenues } from "@/modules/venues/api";
@@ -200,12 +198,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [state, setState] = useState<FormState>(EMPTY);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
-  const [linkedContent, setLinkedContent] = useState<Content[]>([]);
-  const [promotingContent, setPromotingContent] = useState<
-    { id: number; title: string; status: string }[]
-  >([]);
-  const [quickContent, setQuickContent] = useState(false);
-  const [quickContentForm, setQuickContentForm] = useState({ title: "", format: "", network: "", status: "Ideia" as string });
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -277,12 +269,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     setGuests(g);
   }, [party]);
 
-  const reloadLinkedContent = useCallback(async (title: string) => {
-    const all = await listContent();
-    const lower = title.toLowerCase();
-    setLinkedContent(all.filter((c) => c.title.toLowerCase().includes(lower)));
-  }, []);
-
   useEffect(() => {
     if (!open) return;
     setDirty(false);
@@ -299,8 +285,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     void listGigs().then(setGigs);
 
     if (party) {
-      void reloadLinkedContent(party.title);
-      void listContentPromoting("Festa", party.id).then(setPromotingContent);
       setState({
         title: party.title,
         date: party.date,
@@ -324,7 +308,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       void loadSubTabs();
     } else {
       setState(EMPTY);
-      setPromotingContent([]);
       setCandidates([]);
       setStages([]);
       setBudgetItems([]);
@@ -491,46 +474,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     set("team", state.team.filter((_, i) => i !== idx));
   }
 
-  async function handleCreateQuickContent() {
-    const typed = quickContentForm.title.trim();
-    if (!typed) {
-      toast.error("Título é obrigatório");
-      return;
-    }
-    // Garante que o conteúdo apareça na lista vinculada (filtrada pelo nome
-    // da festa): se o título digitado não contém o nome da festa, prefixa.
-    const title = typed.toLowerCase().includes(state.title.toLowerCase())
-      ? typed
-      : `${state.title}: ${typed}`;
-    try {
-      await createContent({
-        title,
-        script: null,
-        networks: quickContentForm.network ? [quickContentForm.network as never] : [],
-        format: (quickContentForm.format as never) || null,
-        purpose: null,
-        status: quickContentForm.status as never,
-        due_date: null,
-        publish_date: null,
-        published_at: null,
-        post_url: null,
-        metric_views: null,
-        metric_likes: null,
-        metric_comments: null,
-        metric_shares: null,
-        metric_saves: null,
-        notes: null,
-        task_id: null,
-      });
-      setQuickContent(false);
-      setQuickContentForm({ title: "", format: "", network: "", status: "Ideia" });
-      await reloadLinkedContent(state.title);
-      toast.success("Conteúdo criado");
-    } catch {
-      toast.error("Erro ao criar conteúdo");
-    }
-  }
-
   async function handleSubmit() {
     if (!state.title.trim()) {
       toast.error("O título é obrigatório");
@@ -678,7 +621,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             {isEdit && <TabsTrigger value="orcamento">Financeiro</TabsTrigger>}
             {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
             {isEdit && <TabsTrigger value="operacao">Operação</TabsTrigger>}
-            {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
           </TabsList>
 
           {/* ===== INFO ===== */}
@@ -1400,116 +1342,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   .filter((c) => state.lineup.includes(c.id))
                   .map((c) => ({ id: c.id, name: c.name }))}
               />
-            </TabsContent>
-          )}
-
-          {/* ===== CONTEÚDO VINCULADO ===== */}
-          {isEdit && (
-            <TabsContent value="conteudo" forceMount hidden={tab !== "conteudo"} className="space-y-3 pt-2">
-              {promotingContent.length > 0 && (
-                <div className="rounded-md border bg-muted/20 p-3 space-y-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Conteúdos promovendo esta Festa
-                  </p>
-                  {promotingContent.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span>{c.title}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {c.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {linkedContent.length} conteúdo{linkedContent.length !== 1 ? "s" : ""} vinculado{linkedContent.length !== 1 ? "s" : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setQuickContentForm({ title: state.title + ": ", format: "", network: "", status: "Ideia" });
-                    setQuickContent(true);
-                  }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="h-3 w-3" /> Novo conteúdo
-                </button>
-              </div>
-
-              {quickContent && (
-                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
-                  <p className="text-xs font-medium">Novo conteúdo</p>
-                  <Input
-                    value={quickContentForm.title}
-                    onChange={(e) => setQuickContentForm((f) => ({ ...f, title: e.target.value }))}
-                    placeholder="Título do conteúdo"
-                    className="h-8 text-sm"
-                  />
-                  <div className="grid grid-cols-3 gap-2">
-                    <select
-                      value={quickContentForm.format}
-                      onChange={(e) => setQuickContentForm((f) => ({ ...f, format: e.target.value }))}
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                    >
-                      <option value="">Formato…</option>
-                      {CONTENT_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
-                    </select>
-                    <select
-                      value={quickContentForm.network}
-                      onChange={(e) => setQuickContentForm((f) => ({ ...f, network: e.target.value }))}
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                    >
-                      <option value="">Rede…</option>
-                      {CONTENT_NETWORKS.map((n) => <option key={n} value={n}>{n}</option>)}
-                    </select>
-                    <select
-                      value={quickContentForm.status}
-                      onChange={(e) => setQuickContentForm((f) => ({ ...f, status: e.target.value }))}
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                    >
-                      {["Ideia","Roteiro","Gravando","Edição","Pronto"].map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleCreateQuickContent} className="h-7 text-xs">Criar</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setQuickContent(false)} className="h-7 text-xs">Cancelar</Button>
-                  </div>
-                </div>
-              )}
-
-              {linkedContent.length === 0 && !quickContent ? (
-                <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-                  Nenhum conteúdo com o nome desta festa encontrado.
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {linkedContent.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
-                    >
-                      <span className="font-medium">{c.title}</span>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {c.format && <span>{c.format}</span>}
-                        <span
-                          className={cn(
-                            "rounded px-1.5 py-0.5",
-                            c.status === "Publicado"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {c.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </TabsContent>
           )}
 
