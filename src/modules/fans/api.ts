@@ -1540,3 +1540,64 @@ export async function createGroupedFanTask(
   emitDataChanged();
   return taskId;
 }
+
+/**
+ * Ação de "Próximas ações" POR PESSOA que AGREGA: acha uma tarefa ABERTA desta
+ * ação (marcador `[fan-action:<key>]`, criada no último dia) e adiciona o fã
+ * (vínculo + nome no título), ou cria a tarefa. Assim, marcar a mesma ação para
+ * várias pessoas gera UMA tarefa com todos os nomes, agregando conforme o dono
+ * marca — em vez de uma tarefa por pessoa. `buildTitle` monta o título a partir
+ * de todos os nomes já na tarefa.
+ */
+export async function addFanToActionTask(opts: {
+  actionKey: string;
+  buildTitle: (names: string[]) => string;
+  fan: { id: number; name: string };
+  dueDate?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const { createTask, setTaskLinks, updateTask } = await import("@/modules/tasks/api");
+  const marker = `[fan-action:${opts.actionKey}]`;
+  const rows = await db
+    .select<{ id: number }[]>(
+      `SELECT id FROM tasks
+        WHERE description LIKE $1
+          AND status NOT IN ('Concluída', 'Cancelada')
+          AND created_at >= datetime('now', '-1 day')
+        ORDER BY id DESC LIMIT 1`,
+      [`%${marker}%`]
+    )
+    .catch(() => [] as { id: number }[]);
+
+  if (rows[0]) {
+    const taskId = rows[0].id;
+    const links = await db.select<{ entity_id: number; label: string | null }[]>(
+      `SELECT entity_id, label FROM task_links
+        WHERE task_id = $1 AND entity_type = 'fan' ORDER BY id ASC`,
+      [taskId]
+    );
+    if (links.some((l) => l.entity_id === opts.fan.id)) return; // já está na tarefa
+    const names = [...links.map((l) => l.label ?? ""), opts.fan.name].filter(Boolean);
+    await setTaskLinks(taskId, [
+      ...links.map((l) => ({ entity_type: "fan" as const, entity_id: l.entity_id, label: l.label })),
+      { entity_type: "fan" as const, entity_id: opts.fan.id, label: opts.fan.name },
+    ]);
+    await updateTask({ id: taskId, title: opts.buildTitle(names) });
+  } else {
+    const taskId = await createTask({
+      title: opts.buildTitle([opts.fan.name]),
+      description: `Ação de Próximas ações ${marker}`,
+      category: "Pessoal",
+      priority: "Média",
+      status: "A fazer",
+      due_date: opts.dueDate ?? null,
+      gig_id: null,
+      contact_id: null,
+      tags: ["fã"],
+    });
+    await setTaskLinks(taskId, [
+      { entity_type: "fan", entity_id: opts.fan.id, label: opts.fan.name },
+    ]);
+  }
+  emitDataChanged();
+}

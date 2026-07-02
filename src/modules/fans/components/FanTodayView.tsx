@@ -7,7 +7,6 @@ import {
   Flame,
   Gift,
   HeartHandshake,
-  ListPlus,
   PartyPopper,
   Sparkles,
   Ticket,
@@ -25,7 +24,7 @@ import { updateTask } from "@/modules/tasks/api";
 import { LevelBadge } from "./LevelBadge";
 import {
   addFanPerk,
-  createGroupedFanTask,
+  addFanToActionTask,
   listScheduledFanActions,
   loadFanClubConfig,
   loadFanToday,
@@ -80,6 +79,26 @@ function joinNames(names: string[], cap = 8): string {
   const list = names.length > cap ? [...names.slice(0, cap), `mais ${names.length - cap}`] : names;
   if (list.length <= 1) return list[0] ?? "";
   return `${list.slice(0, -1).join(", ")} e ${list[list.length - 1]}`;
+}
+
+// Dispensadas (X) PERSISTENTES por balde — preferência da máquina no localStorage.
+// Sem isso a sugestão dispensada voltava ao reabrir o módulo (bug corrigido no §1.2).
+const DISMISS_PREFIX = "vistage.fans.dismissed.";
+function loadDismissed(key: string): Set<number> {
+  try {
+    const raw = localStorage.getItem(DISMISS_PREFIX + key);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? (arr as number[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+function saveDismissed(key: string, set: Set<number>): void {
+  try {
+    localStorage.setItem(DISMISS_PREFIX + key, JSON.stringify([...set]));
+  } catch {
+    /* storage indisponível */
+  }
 }
 
 /** Próxima GIG não-social, resolvida pra rotular/datar o convite. */
@@ -288,10 +307,8 @@ function TodayBucket({
   onOpenFan: (fanId: number) => void;
 }) {
   const Icon = def.icon;
-  // Dispensados localmente (X): saem da lista e NÃO entram na tarefa agrupada.
-  const [dismissed, setDismissed] = useState<Set<number>>(() => new Set());
-  const [acted, setActed] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // Dispensados (X) PERSISTENTES — não voltam ao reabrir o módulo (bug §1.2).
+  const [dismissed, setDismissed] = useState<Set<number>>(() => loadDismissed(def.key));
 
   const visible = items.filter((it) => !dismissed.has(it.fan_id));
 
@@ -299,105 +316,78 @@ function TodayBucket({
     setDismissed((prev) => {
       const next = new Set(prev);
       next.add(fanId);
+      saveDismissed(def.key, next);
       return next;
     });
   }
 
-  // UMA tarefa única com TODOS os fãs visíveis do balde (não uma por fã).
-  async function createGrouped() {
-    if (visible.length === 0 || busy) return;
-    setBusy(true);
-    try {
-      const joined = joinNames(visible.map((v) => v.name));
-      const title = nextGig
-        ? `Convidar ${joined} para ${nextGig.name}`
-        : action.titleTemplate.replace(/\{nome\}/g, joined);
-      await createGroupedFanTask(
-        visible.map((v) => v.fan_id),
-        title,
-        nextGig ? { due_date: nextGig.date } : undefined
-      );
-      setActed(true);
-      toast.success(
-        visible.length === 1
-          ? `Tarefa criada para ${visible[0].name}`
-          : `Tarefa criada para ${visible.length} fãs`
-      );
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
+  function buildTitle(names: string[]): string {
+    const joined = joinNames(names);
+    return nextGig
+      ? `Convidar ${joined} para ${nextGig.name}`
+      : action.titleTemplate.replace(/\{nome\}/g, joined);
   }
 
-  // Todos dispensados e nada criado → o balde some.
-  if (visible.length === 0 && !acted) return null;
+  // Ação POR PESSOA que AGREGA: junta o fã numa tarefa compartilhada desta ação
+  // (uma tarefa com os nomes de todos, agregando conforme o dono vai marcando).
+  async function act(fan: FanTodayItem): Promise<void> {
+    await addFanToActionTask({
+      actionKey: def.key,
+      buildTitle,
+      fan: { id: fan.fan_id, name: fan.name },
+      dueDate: nextGig ? nextGig.date : null,
+    });
+  }
+
+  if (visible.length === 0) return null;
 
   return (
     <div className="rounded-lg border">
       <div className="flex items-center gap-2 border-b px-4 py-2.5">
         <Icon className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold">{def.title}</span>
-        {!acted && (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-            {visible.length}
-          </span>
-        )}
-        <div className="ml-auto flex min-w-0 items-center gap-2">
-          <span className="hidden truncate text-xs text-muted-foreground sm:block">{def.hint}</span>
-          {!acted && (
-            <Button
-              size="sm"
-              className="h-8 shrink-0"
-              disabled={busy || visible.length === 0}
-              onClick={() => void createGrouped()}
-              title="Cria uma tarefa única com todos abaixo"
-            >
-              <ListPlus className="h-3.5 w-3.5" /> {action.label}
-            </Button>
-          )}
-        </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {visible.length}
+        </span>
+        <span className="ml-auto hidden truncate text-xs text-muted-foreground sm:block">{def.hint}</span>
       </div>
-      {acted ? (
-        <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
-          <Check className="h-4 w-4 text-primary" /> Tarefa criada.
-        </div>
-      ) : (
-        <div className="divide-y">
-          {visible.map((it) => (
-            <TodayRow
-              key={it.fan_id}
-              item={it}
-              perks={perks}
-              bucketBusy={busy}
-              onOpenFan={onOpenFan}
-              onDismiss={() => dismiss(it.fan_id)}
-            />
-          ))}
-        </div>
-      )}
+      <div className="divide-y">
+        {visible.map((it) => (
+          <TodayRow
+            key={it.fan_id}
+            item={it}
+            action={action}
+            perks={perks}
+            onAct={() => act(it)}
+            onOpenFan={onOpenFan}
+            onDismiss={() => dismiss(it.fan_id)}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
 function TodayRow({
   item,
+  action,
   perks,
-  bucketBusy,
+  onAct,
   onOpenFan,
   onDismiss,
 }: {
   item: FanTodayItem;
+  action: FanClubAction;
   perks: FanClubPerkTemplate[];
-  /** Balde criando a tarefa agrupada — desabilita as ações da linha. */
-  bucketBusy: boolean;
+  /** Executa a ação POR PESSOA: agrega este fã na tarefa compartilhada do balde. */
+  onAct: () => Promise<void>;
   onOpenFan: (fanId: number) => void;
   onDismiss: () => void;
 }) {
   const photo = useImageUrl(item.photo_path);
   const [perkOpen, setPerkOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const disabled = busy || bucketBusy;
+  const [acted, setActed] = useState(false);
 
   const initials = item.name
     .split(" ")
@@ -405,6 +395,22 @@ function TodayRow({
     .slice(0, 2)
     .join("")
     .toUpperCase();
+
+  // Um único botão de executar por pessoa. A tarefa gerada agrupa todos os fãs
+  // marcados nesta ação (uma tarefa com os nomes de todo mundo), agregando
+  // conforme o dono vai marcando — a agregação vive em addFanToActionTask.
+  async function doAct() {
+    setBusy(true);
+    try {
+      await onAct();
+      setActed(true);
+      toast.success(`${item.name} incluído na tarefa`);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function applyPerk(p: FanClubPerkTemplate) {
     setBusy(true);
@@ -434,7 +440,7 @@ function TodayRow({
           size="icon"
           variant="ghost"
           className="h-7 w-7 shrink-0 text-muted-foreground"
-          disabled={disabled}
+          disabled={busy}
           aria-label="Dispensar sugestão"
           title="Dispensar (não incluir na tarefa)"
           onClick={onDismiss}
@@ -465,7 +471,7 @@ function TodayRow({
             size="icon"
             variant="ghost"
             className="h-8 w-8 shrink-0"
-            disabled={disabled}
+            disabled={busy}
             aria-label="Dar um perk"
             title="Dar um perk"
             onClick={() => setPerkOpen((v) => !v)}
@@ -473,6 +479,23 @@ function TodayRow({
             <Gift className="h-4 w-4" />
           </Button>
         )}
+        {/* Executar por pessoa: agrega este fã na tarefa compartilhada do balde. */}
+        <Button
+          size="sm"
+          variant={acted ? "secondary" : "outline"}
+          className="h-8 shrink-0"
+          disabled={busy || acted}
+          onClick={() => void doAct()}
+          title="Cria/atualiza uma tarefa desta ação incluindo o nome desta pessoa"
+        >
+          {acted ? (
+            <>
+              <Check className="h-3.5 w-3.5" /> Feito
+            </>
+          ) : (
+            action.label
+          )}
+        </Button>
       </div>
       {perkOpen && perks.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 pl-20">
@@ -480,7 +503,7 @@ function TodayRow({
             <button
               key={p.id}
               type="button"
-              disabled={disabled}
+              disabled={busy}
               className="rounded-full border bg-background px-2.5 py-1 text-xs transition hover:border-primary disabled:opacity-50"
               onClick={() => void applyPerk(p)}
             >
