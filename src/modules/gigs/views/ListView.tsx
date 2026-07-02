@@ -8,6 +8,8 @@ import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
 import { parsePrepState, prepProgress } from "../prep";
 import { EMPTY_VALUE, formatCurrency, formatDate, formatRating, todayISO } from "@/lib/format";
+import { urgencyLevel, type UrgencyLevel } from "@/lib/urgency";
+import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { useTableSort } from "@/lib/useTableSort";
 import { ColResizer, useResizableColumns } from "@/lib/resizableColumns";
 import { OrderableHeader, SortableTh, SortLabel, useOrderableColumns } from "@/lib/orderableColumns";
@@ -32,6 +34,12 @@ type Props = {
  */
 function showDebrief(g: Gig): boolean {
   return g.status === "Concluída";
+}
+
+/** Urgência da DATA da GIG (evento, 7d): concluída/cancelada não sinaliza. */
+function gigEventLevel(g: Gig): UrgencyLevel | null {
+  if (g.status === "Concluída" || g.status === "Cancelada") return null;
+  return urgencyLevel(g.date, "event");
 }
 
 /**
@@ -123,7 +131,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
       thClassName: "px-3 py-2 text-left hover:text-foreground",
       tdClassName: "px-3 py-2 whitespace-nowrap tabular-nums",
       resizable: true,
-      cell: (g) => formatDate(g.date),
+      cell: (g) => <UrgencyMark level={gigEventLevel(g)} label={formatDate(g.date)} />,
     },
     name: {
       id: "name",
@@ -334,7 +342,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {formatDate(g.date)}
+                    <UrgencyMark level={gigEventLevel(g)} label={formatDate(g.date)} />
                     {g.venue_city && ` · ${g.venue_city}`}
                   </div>
                   {g.promoter_contact_name && (
