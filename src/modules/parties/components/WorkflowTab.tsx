@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { EMPTY_VALUE, formatDate, toLocalISODate } from "@/lib/format";
@@ -72,6 +73,29 @@ function stageStatusDot(s: StageStatus) {
 
 function stageStatusLabel(s: StageStatus) {
   return s === "concluida" ? "Concluída" : s === "em_andamento" ? "Em andamento" : "Pendente";
+}
+
+/**
+ * Campos livres de uma etapa custom (§2.3). Etapas sem template (STAGE_FIELD_DEFS)
+ * não têm mais um bloco "Notas" fixo: o dono monta os campos que fizerem sentido
+ * (nome + valor), renomeia e preenche. Guardados como um array JSON numa chave
+ * reservada de `stage.fields` — não colide com as chaves tipadas das etapas padrão
+ * e viaja no backup como qualquer outro campo. */
+const CUSTOM_FIELDS_KEY = "_campos";
+type CustomField = { label: string; value: string };
+function parseCustomFields(raw: unknown): CustomField[] {
+  if (typeof raw !== "string") return [];
+  try {
+    const p = JSON.parse(raw);
+    if (Array.isArray(p)) {
+      return p
+        .filter((x) => x && typeof x === "object")
+        .map((x) => ({ label: String(x.label ?? ""), value: String(x.value ?? "") }));
+    }
+  } catch {
+    /* legado/inválido → sem campos */
+  }
+  return [];
 }
 
 export function WorkflowTab({
@@ -550,15 +574,83 @@ export function WorkflowTab({
               </div>
             )}
 
-            <div className="space-y-1">
-              <Label className="text-xs">Notas</Label>
-              <Textarea
-                rows={3}
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="Observações sobre esta etapa…"
-              />
-            </div>
+            {/* §2.3 — etapa custom (sem template) monta os próprios campos:
+                criar / renomear / preencher. Sem bloco "Notas" fixo: o dono
+                escolhe o que faz sentido (pode criar um campo "Notas" se quiser). */}
+            {fieldDefs.length === 0 && (() => {
+              const customFields = parseCustomFields(editFields[CUSTOM_FIELDS_KEY]);
+              const setCustom = (next: CustomField[]) =>
+                setEditFields((f) => ({
+                  ...f,
+                  [CUSTOM_FIELDS_KEY]: next.length ? JSON.stringify(next) : null,
+                }));
+              return (
+                <div className="space-y-2">
+                  <Label className="text-xs">Campos</Label>
+                  {customFields.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Monte esta etapa do seu jeito — adicione os campos que fizerem sentido.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {customFields.map((cf, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <Input
+                            className="h-8 w-1/3 min-w-[7rem] text-xs"
+                            placeholder="Nome do campo"
+                            value={cf.label}
+                            onChange={(e) => {
+                              const next = customFields.slice();
+                              next[i] = { ...next[i], label: e.target.value };
+                              setCustom(next);
+                            }}
+                          />
+                          <AutoGrowTextarea
+                            className="flex-1"
+                            placeholder="Valor…"
+                            value={cf.value}
+                            onChange={(v) => {
+                              const next = customFields.slice();
+                              next[i] = { ...next[i], value: v };
+                              setCustom(next);
+                            }}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-muted-foreground hover:text-destructive"
+                            onClick={() => setCustom(customFields.filter((_, j) => j !== i))}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCustom([...customFields, { label: "", value: "" }])}
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Adicionar campo
+                  </Button>
+                </div>
+              );
+            })()}
+
+            {/* Notas: bloco fixo só nas etapas padrão; nas custom aparece apenas
+                se já houver nota gravada (legado) — a nova nasce sem ele. */}
+            {(fieldDefs.length > 0 || (stage.notes ?? "").trim() !== "") && (
+              <div className="space-y-1">
+                <Label className="text-xs">Notas</Label>
+                <Textarea
+                  rows={3}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Observações sobre esta etapa…"
+                />
+              </div>
+            )}
             </>
             )}
 
