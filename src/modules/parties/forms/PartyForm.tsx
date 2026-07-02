@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CheckCircle2, ChevronRight, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/tooltip";
@@ -226,6 +227,15 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [sponsorAmount, setSponsorAmount] = useState("");
 
   const confirmClose = useUnsavedConfirm(dirty);
+  const navigate = useNavigate();
+  // Abre o cadastro do venue (link na Viabilidade §2.2); se há alteração não
+  // salva no buffer, avisa antes de sair — trata como um fechar do diálogo.
+  function openVenue(venueId: number) {
+    confirmClose(false, () => {
+      onOpenChange(false);
+      navigate(`/venues?open=${venueId}`);
+    });
+  }
   const isEdit = !!party;
   // Aba ativa controlada: mantemos TODAS as abas montadas (forceMount + hidden)
   // pra não perder o que foi preenchido ao trocar de aba — Radix por padrão
@@ -1020,6 +1030,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 onPatchLineupStatus={patchLineupStatusLive}
                 onGoOrcamento={() => setTab("orcamento")}
                 onOpenEquipe={() => setTab("lineup")}
+                onOpenVenue={openVenue}
                 onReload={loadSubTabs}
               />
             </TabsContent>

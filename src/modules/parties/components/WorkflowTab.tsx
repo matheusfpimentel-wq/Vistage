@@ -99,6 +99,7 @@ export function WorkflowTab({
   onPatchLineupStatus,
   onGoOrcamento,
   onOpenEquipe,
+  onOpenVenue,
   onReload,
 }: {
   partyId: number;
@@ -139,6 +140,8 @@ export function WorkflowTab({
   onGoOrcamento: () => void;
   /** Leva o usuário para a aba Equipe (add pessoa/fornecedor na fonte única). */
   onOpenEquipe: () => void;
+  /** Abre o cadastro de um venue (guarda alteração não salva antes de navegar). */
+  onOpenVenue: (venueId: number) => void;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -386,6 +389,7 @@ export function WorkflowTab({
                 confirmedVenueName={confirmedVenueName}
                 expectedCapacity={expectedCapacity}
                 onPatchParty={onPatchParty}
+                onOpenVenue={onOpenVenue}
                 onGoOrcamento={onGoOrcamento}
                 onReload={onReload}
               />

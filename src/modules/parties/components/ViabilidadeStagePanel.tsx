@@ -69,6 +69,7 @@ export function ViabilidadeStagePanel({
   confirmedVenueName,
   expectedCapacity,
   onPatchParty,
+  onOpenVenue,
   onGoOrcamento,
   onReload,
 }: {
@@ -84,6 +85,8 @@ export function ViabilidadeStagePanel({
     venue_name?: string | null;
     expected_capacity?: number | null;
   }) => Promise<void>;
+  /** Abre o cadastro do venue (com guarda de alteração não salva no PartyForm). */
+  onOpenVenue: (venueId: number) => void;
   onGoOrcamento: () => void;
   onReload: () => Promise<void>;
 }) {
@@ -320,9 +323,9 @@ export function ViabilidadeStagePanel({
         venue_id: cand.venue_id,
         venue_name: cand.venue_name ?? null,
       };
-      if ((expectedCapacity == null || expectedCapacity === 0) && cand.capacity) {
-        updates.expected_capacity = cand.capacity;
-      }
+      // Capacidade puxa do cadastro do venue escolhido (§2.2); editável depois.
+      const venueCap = venues.find((v) => v.id === cand.venue_id)?.capacity ?? cand.capacity ?? null;
+      if (venueCap != null) updates.expected_capacity = venueCap;
       await onPatchParty(updates);
       reloadCandidates();
     } catch (e) {
@@ -382,7 +385,15 @@ export function ViabilidadeStagePanel({
                       >
                         <Star className={cn("h-3.5 w-3.5", c.is_leader && "fill-amber-400")} />
                       </button>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.venue_name || EMPTY_VALUE}</span>
+                      {/* Nome do venue = link pro cadastro (§2.2). */}
+                      <button
+                        type="button"
+                        onClick={() => onOpenVenue(c.venue_id)}
+                        className="min-w-0 flex-1 truncate text-left text-sm font-medium hover:text-primary hover:underline"
+                        title="Abrir o cadastro do venue"
+                      >
+                        {c.venue_name || EMPTY_VALUE}
+                      </button>
                       {isConfirmed ? (
                         <Badge className="shrink-0 bg-emerald-500/20 text-[10px] text-emerald-400">confirmado</Badge>
                       ) : (
