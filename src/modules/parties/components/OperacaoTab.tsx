@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, ListOrdered, Plus, Trash2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import {
   createPartyRunsheetItem,
@@ -303,9 +304,9 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           <Button size="sm" variant="outline" className="h-8" onClick={() => void reverseSchedule()}>
             Recalcular ao contrário
           </Button>
-          <span className="text-[11px] text-muted-foreground">
+          <InfoHint>
             Preencha a duração (min) de cada item; isto reescreve os horários pra tudo terminar na hora-âncora.
-          </span>
+          </InfoHint>
         </div>
       )}
 

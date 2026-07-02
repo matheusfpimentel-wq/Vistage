@@ -144,9 +144,6 @@ export function SeriesEditionCard({
   if (!sid) {
     return (
       <div className="space-y-2 rounded-lg border p-3">
-        <div className="flex items-center gap-1.5 text-sm font-medium">
-          <Layers className="h-4 w-4" /> Série / Edição
-        </div>
         <div className="flex flex-wrap items-center gap-2">
           {seriesList.length > 0 && (
             <Select onValueChange={(v) => void linkTo(Number(v))}>

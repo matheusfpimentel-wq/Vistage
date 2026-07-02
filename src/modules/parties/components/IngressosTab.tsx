@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -305,7 +306,12 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs font-medium text-muted-foreground">Cortesias / Guest list</div>
+        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          Cortesias / Guest list
+          <InfoHint>
+            Cortesia tem dois números: a <span className="text-amber-500">receita renunciada</span> (qtd × preço de ref., não sai do caixa) e o <span className="text-red-400">custo variável real</span> (qtd × custo/cabeça: drink, pulseira, kit). Só o custo variável entra no líquido do P&amp;L.
+          </InfoHint>
+        </div>
         {guests.length > 0 && (
           <div className="text-xs text-muted-foreground">
             {totalGuests} cortesia(s) · renunciada{" "}
@@ -391,11 +397,6 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
           </Button>
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
-        Cortesia tem dois números: a <span className="text-amber-500">receita renunciada</span> (qtd × preço de
-        ref., não sai do caixa) e o <span className="text-red-400">custo variável real</span> (qtd × custo/cabeça:
-        drink, pulseira, kit). Só o custo variável entra no líquido do P&amp;L.
-      </p>
     </div>
   );
 }
@@ -481,7 +482,10 @@ function TicketSalesCurve({
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs font-medium text-muted-foreground">Curva de venda</div>
+        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          Curva de venda
+          <InfoHint>Registre pelo menos 2 pontos (ex.: toque "Registrar hoje" ao longo dos dias) para ver a curva.</InfoHint>
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {sellThrough != null && (
             <span>sell-through <strong className="text-foreground">{sellThrough}%</strong></span>
@@ -528,7 +532,7 @@ function TicketSalesCurve({
         </ResponsiveContainer>
       ) : (
         <p className="text-[11px] text-muted-foreground">
-          Registre pelo menos 2 pontos (ex.: toque "Registrar hoje" ao longo dos dias) para ver a curva.
+          Poucos pontos ainda pra desenhar a curva.
         </p>
       )}
 

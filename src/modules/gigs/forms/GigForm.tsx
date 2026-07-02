@@ -1200,7 +1200,7 @@ export function GigForm({
           {state.status !== "Proposta" && (
             <Section
               title="Lista VIP / Cortesias"
-              description="Convidados e cortesias desta GIG. Cada lista exporta em texto pronto pra enviar."
+              hint="Convidados e cortesias desta GIG. Cada lista exporta em texto pronto pra enviar."
             >
               {gig ? (
                 <GigVipList gigId={gig.id} gigName={gigDisplayName(gig)} />
