@@ -159,6 +159,9 @@ export function OrcamentoTab({
   const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  // Sub-aba do Financeiro (§2.5): Orçamento (projetado) | Execução (real) |
+  // Indicadores (métricas). Puramente presentacional — o pnl não muda.
+  const [sub, setSub] = useState<"orcamento" | "execucao" | "indicadores">("orcamento");
   // Limiar de materialidade (%): destaca só desvios acima disso (foco na atenção).
   const [materiality, setMateriality] = useState(10);
   // Rascunhos controlados de premissa/nota — o valor reflete na hora (o realce da
@@ -304,6 +307,27 @@ export function OrcamentoTab({
 
   return (
     <div className="space-y-4">
+      {/* Sub-abas do Financeiro (§2.5). */}
+      <div className="inline-flex rounded-md border p-0.5 text-xs">
+        {([["orcamento", "Orçamento"], ["execucao", "Execução"], ["indicadores", "Indicadores"]] as const).map(
+          ([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setSub(k)}
+              className={cn(
+                "rounded px-3 py-1 transition",
+                sub === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {label}
+            </button>
+          )
+        )}
+      </div>
+
+      {sub === "indicadores" && (
+        <>
       {/* P&L da festa — o Orçamento é a verdade financeira única */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-md border p-3">
@@ -433,7 +457,11 @@ export function OrcamentoTab({
           </button>
         </div>
       )}
+        </>
+      )}
 
+      {(sub === "orcamento" || sub === "execucao") && (
+        <>
       {/* Receitas lançadas (kind='receita', ex.: Receita de bar, patrocínio avulso). */}
       {receitaItems.length > 0 && (
         <div className="overflow-hidden rounded-md border">
@@ -464,18 +492,20 @@ export function OrcamentoTab({
       )}
 
       {/* Limiar de materialidade — destaca só os desvios que merecem atenção. */}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Variância.</InfoHint></span>
-        <Input
-          type="number"
-          min={0}
-          step={1}
-          value={materiality}
-          onChange={(e) => setMateriality(Math.max(0, Number(e.target.value) || 0))}
-          className="h-7 w-16 tabular-nums"
-        />
-        <span>%</span>
-      </div>
+      {sub === "execucao" && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Variância.</InfoHint></span>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={materiality}
+            onChange={(e) => setMateriality(Math.max(0, Number(e.target.value) || 0))}
+            className="h-7 w-16 tabular-nums"
+          />
+          <span>%</span>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-md border">
         <table className="w-full text-sm">
@@ -485,8 +515,8 @@ export function OrcamentoTab({
               <th className="px-3 py-2">Subcategoria</th>
               <th className="px-3 py-2">Descrição</th>
               <th className="px-3 py-2 text-right">Projetado</th>
-              <th className="px-3 py-2 text-right">Real</th>
-              <th className="px-3 py-2 text-right">Variância</th>
+              {sub === "execucao" && <th className="px-3 py-2 text-right">Real</th>}
+              {sub === "execucao" && <th className="px-3 py-2 text-right">Variância</th>}
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">Fornecedor</th>
               <th className="px-3 py-2" />
@@ -495,7 +525,7 @@ export function OrcamentoTab({
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={sub === "execucao" ? 9 : 7} className="px-3 py-6 text-center text-muted-foreground">
                   Nenhum item de orçamento.
                 </td>
               </tr>
@@ -538,6 +568,8 @@ export function OrcamentoTab({
                           className="h-7 w-24 text-right text-xs tabular-nums"
                         />
                       </td>
+                      {sub === "execucao" && (
+                        <>
                       <td className="px-3 py-2 text-right align-top">
                         <Input
                           key={`real-${item.id}-${item.actual_amount ?? "n"}`}
@@ -573,6 +605,8 @@ export function OrcamentoTab({
                           </>
                         )}
                       </td>
+                        </>
+                      )}
                       <td className="px-3 py-2 align-top">
                         <Select
                           value={item.status}
@@ -626,6 +660,7 @@ export function OrcamentoTab({
         </table>
       </div>
 
+      {sub === "orcamento" && (
       <div className="rounded-md border p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Adicionar</span>
@@ -712,6 +747,9 @@ export function OrcamentoTab({
           </Button>
         </div>
       </div>
+      )}
+        </>
+      )}
     </div>
   );
 }
