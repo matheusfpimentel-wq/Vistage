@@ -352,7 +352,7 @@ function fmtDate(d?: string): string {
 
 function StagePanel({ option, loading }: { option: StageGigOption | null; loading: boolean }) {
   if (loading) return <p className="muted center-text">Carregando GIGs…</p>;
-  if (!option) return <p className="muted center-text">Sem GIG confirmada à frente — o debrief vira uma GIG no PC ao revisar.</p>;
+  if (!option) return <p className="muted center-text">Sem GIG confirmada à frente: o debrief vira uma GIG no PC ao revisar.</p>;
   const gig: StageGig = { title: option.title, ...option.meta };
 
   const periods = gig.set_periods && gig.set_periods.length > 0
@@ -443,7 +443,7 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
               {concretos.length > 0 ? (
                 <ul className="goal-list">{concretos.map((g, i) => <li key={i}>{g}</li>)}</ul>
               ) : (
-                <span className="muted small">—</span>
+                <span className="muted small" />
               )}
             </div>
             <div className="goal-col">
@@ -451,7 +451,7 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
               {alvos.length > 0 ? (
                 <ul className="goal-list">{alvos.map((t, i) => <li key={i}>{t}</li>)}</ul>
               ) : (
-                <span className="muted small">—</span>
+                <span className="muted small" />
               )}
             </div>
           </div>
@@ -1245,7 +1245,7 @@ export function Foco() {
         expiredNotifiedRef.current = true;
         setExpired(true);
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        void showFocusNotification(`Tempo previsto atingido — continue ou encerre. (${activityRef.current})`, {
+        void showFocusNotification(`Tempo previsto atingido: continue ou encerre. (${activityRef.current})`, {
           title: "Tempo previsto atingido",
           renotify: true,
         });

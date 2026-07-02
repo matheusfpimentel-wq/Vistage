@@ -7,19 +7,19 @@ import { loadProvocations } from "../insights";
 // (Paridade com o banco do PC vem pela sincronização; aqui é o fallback.)
 const PROVOCATIONS = [
   "Quantidade puxa qualidade: estudos mostram que quem gera MAIS ideias gera as melhores. Solta 3 ruins agora.",
-  "Conecta mundos distantes — as ideias mais originais nascem de analogias. Que faixa sua + qual filme?",
+  "Conecta mundos distantes: as ideias mais originais nascem de analogias. Que faixa sua + qual filme?",
   "Restrição liberta a criatividade: imponha um limite absurdo (set de 10 min? sem graves?) e veja o que surge.",
   "O cérebro resolve no ócio: anote a pergunta agora, a resposta vem no banho.",
   "Pensar em voz alta gera conexões novas. Descreve sua próxima GIG como se contasse pra um amigo.",
   "Inverta o problema: como você ARRUINARIA seu próximo set? A lista vira o que evitar.",
-  "Se você só pudesse tocar em 1 lugar neste mês, qual seria — e por quê?",
+  "Se você só pudesse tocar em 1 lugar neste mês, qual seria e por quê?",
   "Que faixa sua merecia um vídeo? Como seria a cena de abertura?",
   "Quem você quer que te chame pra tocar daqui a 1 ano? O que falta?",
   "Se dobrasse seu cachê, o que mudaria no seu set?",
   "Que colaboração improvável valeria um teste?",
   "Qual ideia antiga sua merece uma segunda chance?",
   "O que o público lembrou da última festa? E o que você queria que lembrasse?",
-  "Qual seria o título do seu próximo set/EP — só pelo clima?",
+  "Qual seria o título do seu próximo set/EP, só pelo clima?",
 ];
 
 type IdeaRow = {
