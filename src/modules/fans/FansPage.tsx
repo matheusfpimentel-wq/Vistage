@@ -90,6 +90,7 @@ import { gigDisplayName } from "@/modules/gigs/displayName";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
 import { EMPTY_VALUE, formatDate } from "@/lib/format";
 import { InfoHint } from "@/components/ui/tooltip";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
@@ -709,7 +710,7 @@ export function FansPage() {
 
         <TabsContent value="grupos" className="space-y-6">
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos (comunidades externas)</h3>
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos</h3>
             <FanGroupsPanel fans={fans} embedded />
           </div>
         </TabsContent>
@@ -1849,14 +1850,19 @@ function FanUpgradeRulesDialog({
   const [s, setS] = useState<ScoringState>(emptyScoring());
   const [saving, setSaving] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (!open) return;
     void loadFanUpgradeRules().then((r: FanUpgradeRules) => setS(scoringToState(r.scoring)));
+    setDirty(false);
   }, [open]);
 
-  const set = (key: keyof ScoringState) => (v: string) =>
+  const set = (key: keyof ScoringState) => (v: string) => {
     setS((prev) => ({ ...prev, [key]: v }));
+    setDirty(true);
+  };
 
   async function persist(): Promise<void> {
     const current = await loadFanUpgradeRules();
@@ -1867,6 +1873,7 @@ function FanUpgradeRulesDialog({
     setSaving(true);
     try {
       await persist();
+      setDirty(false);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -1890,27 +1897,28 @@ function FanUpgradeRulesDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Pontuação de engajamento dos fãs</DialogTitle>
+          <DialogTitle className="flex items-center gap-1.5">
+            Pontuação de engajamento dos fãs
+            <InfoHint>
+              O nível de cada fã é calculado por uma pontuação que decai com o
+              tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
+              vazios usam o padrão.
+            </InfoHint>
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-2">
-          <p className="text-xs text-muted-foreground">
-            O nível de cada fã é calculado por uma pontuação que decai com o
-            tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
-            vazios usam o padrão.
-          </p>
-
           <div className="space-y-3">
             <div className="text-sm font-semibold">Pesos por sinal</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Presença em evento (manual)" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ScoreField label="Presença" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
               <ScoreField label="Feedback" value={s.weightFeedback} placeholder="2" onChange={set("weightFeedback")} />
               <ScoreField label="Interação" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
-              <ScoreField label="Presença em evento (GIG)" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
+              <ScoreField label="Presença em GIG" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
               <ScoreField label="Compra (ingresso/merch)" value={s.weightCompra} placeholder="4" onChange={set("weightCompra")} />
-              <ScoreField label="Indicação (trouxe alguém)" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
+              <ScoreField label="Indicação" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
             </div>
           </div>
 
@@ -1928,7 +1936,6 @@ function FanUpgradeRulesDialog({
           <div className="space-y-3">
             <div className="text-sm font-semibold">Limiares (pontos para cada nível)</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Quase fã" value={s.thQuaseFa} placeholder="2" onChange={set("thQuaseFa")} />
               <ScoreField label="Fã" value={s.thFa} placeholder="5" onChange={set("thFa")} />
               <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
             </div>
