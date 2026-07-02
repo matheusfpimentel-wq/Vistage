@@ -2465,6 +2465,14 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE students ADD COLUMN knowledge_level TEXT;
     `,
   },
+  {
+    version: 175,
+    description:
+      "Clube de fãs — fans.indicated_by_fan_id: quem indicou este fã (outro fã). Alimenta o sinal de Indicação na pontuação (o indicador recebe crédito). Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE fans ADD COLUMN indicated_by_fan_id INTEGER;
+    `,
+  },
 ];
 
 

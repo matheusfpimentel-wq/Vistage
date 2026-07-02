@@ -212,6 +212,29 @@ export async function updateFan(input: FanUpdateInput): Promise<void> {
   emitDataChanged();
 }
 
+/** Lista leve (id + nome) de todos os fãs — para o seletor "Indicado por". */
+export async function listFanNames(): Promise<{ id: number; name: string }[]> {
+  const db = getDb();
+  return db.select<{ id: number; name: string }[]>(
+    `SELECT id, name FROM fans ORDER BY name COLLATE NOCASE ASC`
+  );
+}
+
+/**
+ * Recalcula o nível dos indicadores informados — usado após gravar/alterar o
+ * campo "Indicado por:" de um fã, pra creditar o crédito de Indicação no ato
+ * (ver computeFanScoreAndLevel). Ignora nulos e duplicatas.
+ */
+export async function recomputeIndicators(ids: Array<number | null | undefined>): Promise<void> {
+  const seen = new Set<number>();
+  for (const id of ids) {
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      await recomputeFanLevel(id).catch(() => {});
+    }
+  }
+}
+
 /** Id do fã que referencia este contato (procedência), se existir. */
 export async function findFanIdByContactId(contactId: number): Promise<number | null> {
   const db = getDb();
@@ -340,6 +363,18 @@ async function computeFanScoreAndLevel(
   );
   for (const g of gigs) {
     score += decayedWeight(g.date, wGig, halfLife);
+  }
+
+  // Indicações: fãs que declaram ter sido indicados por ESTE fã (campo "Indicado
+  // por:" do perfil, §1.4). Cada indicação é um sinal de embaixador, datado pela
+  // entrada do indicado (quando a indicação aconteceu). Soma-se às interações
+  // "Indicação" manuais já contadas acima.
+  const referred = await db.select<{ created_at: string | null }[]>(
+    `SELECT created_at FROM fans WHERE indicated_by_fan_id = $1`,
+    [fanId]
+  );
+  for (const r of referred) {
+    score += decayedWeight(r.created_at, wIndic, halfLife);
   }
 
   return { score, level: scoreToLevel(score, th) };
@@ -1047,6 +1082,7 @@ export async function importVipListAsFans(
           notes: null,
           photo_path: null,
           contact_id: null,
+          indicated_by_fan_id: null,
           origem: `GIG: ${gig.name}`,
         });
         created++;

@@ -327,6 +327,7 @@ export async function addPartyGuestsToFans(
       notes: `Veio da guest list da festa "${partyTitle}".`,
       photo_path: null,
       contact_id: null,
+      indicated_by_fan_id: null,
     });
     added++;
   }

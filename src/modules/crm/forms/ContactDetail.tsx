@@ -310,6 +310,7 @@ export function ContactDetail({
         notes: contact.notes,
         photo_path: contact.photo_path,
         contact_id: contact.id,
+        indicated_by_fan_id: null,
         origem: "Pessoas (CRM)",
       });
       await refresh();
