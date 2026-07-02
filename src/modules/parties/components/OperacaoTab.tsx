@@ -40,6 +40,18 @@ function fmtHHMM(min: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Duração (min) entre início e fim quando AMBOS estão preenchidos (§2.9). Envolve
+ * a meia-noite pra frente (ex.: 23:30 → 00:15 = 45 min). null se faltar um deles.
+ */
+function durationFromTimes(start: string | null, end: string | null): number | null {
+  if (!start || !end) return null;
+  const a = parseHHMM(start);
+  const b = parseHHMM(end);
+  if (a == null || b == null) return null;
+  return ((b - a) % 1440 + 1440) % 1440;
+}
+
 export function OperacaoTab({ partyId, performers }: { partyId: number; performers: Performer[] }) {
   const [rows, setRows] = useState<PartyRunsheetItem[]>([]);
   const [housePending, setHousePending] = useState("");
@@ -204,7 +216,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
 
         {!loaded ? null : rows.length === 0 ? (
           <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Load-in · passagem de som · abertura de portas · sets por DJ · last call · encerramento · load-out.
+            Load-in / passagem de som / abertura de portas / sets por DJ / last call / encerramento / load-out.
             Comece em "Linha" ou puxe os "Sets do line-up".
           </p>
         ) : (
@@ -236,7 +248,12 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                 <input
                   type="time"
                   value={r.time ?? ""}
-                  onChange={(e) => void patch(r.id, { time: e.target.value || null })}
+                  onChange={(e) => {
+                    // Início + fim preenchidos → "min" calcula sozinho (§2.9).
+                    const time = e.target.value || null;
+                    const dur = durationFromTimes(time, r.end_time);
+                    void patch(r.id, dur != null ? { time, duration_min: dur } : { time });
+                  }}
                   className="h-8 w-[84px] rounded border bg-background px-1.5 text-xs"
                   title="Início"
                 />
@@ -244,7 +261,11 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                 <input
                   type="time"
                   value={r.end_time ?? ""}
-                  onChange={(e) => void patch(r.id, { end_time: e.target.value || null })}
+                  onChange={(e) => {
+                    const end_time = e.target.value || null;
+                    const dur = durationFromTimes(r.time, end_time);
+                    void patch(r.id, dur != null ? { end_time, duration_min: dur } : { end_time });
+                  }}
                   className="h-8 w-[84px] rounded border bg-background px-1.5 text-xs"
                   title="Fim"
                 />
@@ -256,7 +277,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                   placeholder="min"
                   onChange={(e) => void patch(r.id, { duration_min: e.target.value ? Number(e.target.value) : null })}
                   className="h-8 w-[56px] rounded border bg-background px-1.5 text-xs"
-                  title="Duração (min): base do cronograma reverso"
+                  title="Duração (min): calculada de início→fim, ou base do cronograma reverso"
                 />
                 <input
                   value={r.title}

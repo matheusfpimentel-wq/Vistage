@@ -19,6 +19,9 @@ export type Fan = {
   last_interaction_at: string | null;
   photo_path: string | null;
   contact_id: number | null;
+  /** Quem indicou este fã (outro fã). Alimenta o sinal de Indicação: o indicador
+   * ganha crédito na pontuação (ver computeFanScoreAndLevel). */
+  indicated_by_fan_id: number | null;
   /** Origem/aquisição do fã (texto livre) — filtro e dimensão de segmento. */
   origem: string | null;
   /** Data/hora da última troca de nível (gravada pelo recálculo quando o nível muda). */

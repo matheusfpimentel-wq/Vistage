@@ -212,6 +212,29 @@ export async function updateFan(input: FanUpdateInput): Promise<void> {
   emitDataChanged();
 }
 
+/** Lista leve (id + nome) de todos os fãs — para o seletor "Indicado por". */
+export async function listFanNames(): Promise<{ id: number; name: string }[]> {
+  const db = getDb();
+  return db.select<{ id: number; name: string }[]>(
+    `SELECT id, name FROM fans ORDER BY name COLLATE NOCASE ASC`
+  );
+}
+
+/**
+ * Recalcula o nível dos indicadores informados — usado após gravar/alterar o
+ * campo "Indicado por:" de um fã, pra creditar o crédito de Indicação no ato
+ * (ver computeFanScoreAndLevel). Ignora nulos e duplicatas.
+ */
+export async function recomputeIndicators(ids: Array<number | null | undefined>): Promise<void> {
+  const seen = new Set<number>();
+  for (const id of ids) {
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      await recomputeFanLevel(id).catch(() => {});
+    }
+  }
+}
+
 /** Id do fã que referencia este contato (procedência), se existir. */
 export async function findFanIdByContactId(contactId: number): Promise<number | null> {
   const db = getDb();
@@ -340,6 +363,18 @@ async function computeFanScoreAndLevel(
   );
   for (const g of gigs) {
     score += decayedWeight(g.date, wGig, halfLife);
+  }
+
+  // Indicações: fãs que declaram ter sido indicados por ESTE fã (campo "Indicado
+  // por:" do perfil, §1.4). Cada indicação é um sinal de embaixador, datado pela
+  // entrada do indicado (quando a indicação aconteceu). Soma-se às interações
+  // "Indicação" manuais já contadas acima.
+  const referred = await db.select<{ created_at: string | null }[]>(
+    `SELECT created_at FROM fans WHERE indicated_by_fan_id = $1`,
+    [fanId]
+  );
+  for (const r of referred) {
+    score += decayedWeight(r.created_at, wIndic, halfLife);
   }
 
   return { score, level: scoreToLevel(score, th) };
@@ -857,6 +892,31 @@ export async function listFanGroupMap(): Promise<Map<number, { id: number; name:
   return map;
 }
 
+/**
+ * Por grupo: nº de membros + soma das interações dos fãs membros. Para o
+ * cabeçalho do grupo (contagens ao lado do nome, sem precisar expandir). Membros
+ * por nome livre (sem fan_id) não somam interações. Read-only.
+ */
+export async function listFanGroupStats(): Promise<
+  Map<number, { members: number; interactions: number }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select<{ group_id: number; members: number; interactions: number }[]>(
+      `SELECT m.group_id AS group_id,
+              COUNT(DISTINCT m.id) AS members,
+              COALESCE(SUM(ic.n), 0) AS interactions
+         FROM fan_group_members m
+         LEFT JOIN (SELECT fan_id, COUNT(*) AS n FROM fan_interactions GROUP BY fan_id) ic
+           ON ic.fan_id = m.fan_id
+        GROUP BY m.group_id`
+    )
+    .catch(() => [] as { group_id: number; members: number; interactions: number }[]);
+  const map = new Map<number, { members: number; interactions: number }>();
+  for (const r of rows) map.set(r.group_id, { members: r.members, interactions: r.interactions });
+  return map;
+}
+
 export async function addFanGroupMember(
   groupId: number,
   fanId: number | null,
@@ -1022,6 +1082,7 @@ export async function importVipListAsFans(
           notes: null,
           photo_path: null,
           contact_id: null,
+          indicated_by_fan_id: null,
           origem: `GIG: ${gig.name}`,
         });
         created++;
@@ -1514,4 +1575,65 @@ export async function createGroupedFanTask(
   if (links.length > 0) await setTaskLinks(taskId, links);
   emitDataChanged();
   return taskId;
+}
+
+/**
+ * Ação de "Próximas ações" POR PESSOA que AGREGA: acha uma tarefa ABERTA desta
+ * ação (marcador `[fan-action:<key>]`, criada no último dia) e adiciona o fã
+ * (vínculo + nome no título), ou cria a tarefa. Assim, marcar a mesma ação para
+ * várias pessoas gera UMA tarefa com todos os nomes, agregando conforme o dono
+ * marca — em vez de uma tarefa por pessoa. `buildTitle` monta o título a partir
+ * de todos os nomes já na tarefa.
+ */
+export async function addFanToActionTask(opts: {
+  actionKey: string;
+  buildTitle: (names: string[]) => string;
+  fan: { id: number; name: string };
+  dueDate?: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const { createTask, setTaskLinks, updateTask } = await import("@/modules/tasks/api");
+  const marker = `[fan-action:${opts.actionKey}]`;
+  const rows = await db
+    .select<{ id: number }[]>(
+      `SELECT id FROM tasks
+        WHERE description LIKE $1
+          AND status NOT IN ('Concluída', 'Cancelada')
+          AND created_at >= datetime('now', '-1 day')
+        ORDER BY id DESC LIMIT 1`,
+      [`%${marker}%`]
+    )
+    .catch(() => [] as { id: number }[]);
+
+  if (rows[0]) {
+    const taskId = rows[0].id;
+    const links = await db.select<{ entity_id: number; label: string | null }[]>(
+      `SELECT entity_id, label FROM task_links
+        WHERE task_id = $1 AND entity_type = 'fan' ORDER BY id ASC`,
+      [taskId]
+    );
+    if (links.some((l) => l.entity_id === opts.fan.id)) return; // já está na tarefa
+    const names = [...links.map((l) => l.label ?? ""), opts.fan.name].filter(Boolean);
+    await setTaskLinks(taskId, [
+      ...links.map((l) => ({ entity_type: "fan" as const, entity_id: l.entity_id, label: l.label })),
+      { entity_type: "fan" as const, entity_id: opts.fan.id, label: opts.fan.name },
+    ]);
+    await updateTask({ id: taskId, title: opts.buildTitle(names) });
+  } else {
+    const taskId = await createTask({
+      title: opts.buildTitle([opts.fan.name]),
+      description: `Ação de Próximas ações ${marker}`,
+      category: "Pessoal",
+      priority: "Média",
+      status: "A fazer",
+      due_date: opts.dueDate ?? null,
+      gig_id: null,
+      contact_id: null,
+      tags: ["fã"],
+    });
+    await setTaskLinks(taskId, [
+      { entity_type: "fan", entity_id: opts.fan.id, label: opts.fan.name },
+    ]);
+  }
+  emitDataChanged();
 }

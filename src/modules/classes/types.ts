@@ -9,6 +9,9 @@ export const ACQUISITION_SOURCES = [
 ] as const;
 export type AcquisitionSource = (typeof ACQUISITION_SOURCES)[number];
 
+export const KNOWLEDGE_LEVELS = ["Básico", "Intermediário", "Avançado"] as const;
+export type KnowledgeLevel = (typeof KNOWLEDGE_LEVELS)[number];
+
 export type Student = {
   id: number;
   name: string;
@@ -20,6 +23,7 @@ export type Student = {
   notes: string | null;
   default_rate: number | null;
   contact_id: number | null;
+  knowledge_level: KnowledgeLevel | null;
   created_at: string;
   updated_at: string;
 };

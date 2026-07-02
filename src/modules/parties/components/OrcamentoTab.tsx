@@ -147,6 +147,7 @@ export function OrcamentoTab({
     }
   }
 
+  const [newKind, setNewKind] = useState<"custo" | "receita">("custo");
   const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
   const [newSubcategory, setNewSubcategory] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -194,6 +195,7 @@ export function OrcamentoTab({
         date_paid: null,
         premissa: newPremissa.trim() || null,
         nota_variancia: null,
+        kind: newKind,
       });
       setNewDesc("");
       setNewPremissa("");
@@ -202,7 +204,7 @@ export function OrcamentoTab({
       setNewSupplier("");
       setNewSupplierId("none");
       await onReload();
-      toast.success("Item adicionado");
+      toast.success(newKind === "receita" ? "Receita adicionada" : "Item adicionado");
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     } finally {
@@ -253,6 +255,24 @@ export function OrcamentoTab({
     }
   }
 
+  // Valor projetado/real de um item já lançado continua EDITÁVEL (§2.5). Recarrega
+  // pra o P&L refletir na hora. Real vazio = null (não lançado ainda).
+  async function handleAmountSave(id: number, field: "projected_amount" | "actual_amount", raw: string) {
+    const empty = raw.trim() === "";
+    const v = empty ? (field === "actual_amount" ? null : 0) : parseFloat(raw.replace(",", "."));
+    if (v != null && (!Number.isFinite(v) || v < 0)) {
+      toast.error("Valor inválido");
+      await onReload();
+      return;
+    }
+    try {
+      await updatePartyBudgetItem(id, { [field]: v });
+      await onReload();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
   async function handleSync() {
     setSyncing(true);
     try {
@@ -266,9 +286,11 @@ export function OrcamentoTab({
     }
   }
 
-  // A tabela de custos lista só itens de custo; os de receita (ex.: patrocínio
-  // gerido na aba Equipe) entram no P&L como receita, não como custo.
+  // A tabela de custos lista só itens de custo; os de receita (ex.: bar,
+  // patrocínio avulso) aparecem numa seção própria (lançáveis, §2.5) e entram no
+  // P&L como receita (computePartyPnL).
   const costItems = items.filter((i) => i.kind !== "receita");
+  const receitaItems = items.filter((i) => i.kind === "receita");
   const grouped = Object.keys(BUDGET_CATEGORIES).reduce<Record<string, PartyBudgetItem[]>>(
     (acc, cat) => {
       acc[cat] = costItems.filter((i) => i.category === cat);
@@ -412,6 +434,35 @@ export function OrcamentoTab({
         </div>
       )}
 
+      {/* Receitas lançadas (kind='receita', ex.: Receita de bar, patrocínio avulso). */}
+      {receitaItems.length > 0 && (
+        <div className="overflow-hidden rounded-md border">
+          <div className="border-b bg-emerald-500/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            Receitas lançadas
+          </div>
+          <ul className="divide-y">
+            {receitaItems.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 truncate">{r.description ?? EMPTY_VALUE}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">proj {formatCurrency(r.projected_amount)}</span>
+                <span className="shrink-0 font-medium tabular-nums text-emerald-500">
+                  {r.actual_amount != null ? formatCurrency(r.actual_amount) : EMPTY_VALUE}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                  aria-label="Excluir receita"
+                  onClick={() => void handleDelete(r.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Limiar de materialidade — destaca só os desvios que merecem atenção. */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Variância.</InfoHint></span>
@@ -432,7 +483,7 @@ export function OrcamentoTab({
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
               <th className="px-3 py-2">Categoria</th>
               <th className="px-3 py-2">Subcategoria</th>
-              <th className="px-3 py-2">Descrição / premissa</th>
+              <th className="px-3 py-2">Descrição</th>
               <th className="px-3 py-2 text-right">Projetado</th>
               <th className="px-3 py-2 text-right">Real</th>
               <th className="px-3 py-2 text-right">Variância</th>
@@ -473,9 +524,35 @@ export function OrcamentoTab({
                           className="mt-1 h-7 text-xs"
                         />
                       </td>
-                      <td className="px-3 py-2 text-right align-top tabular-nums">{formatCurrency(item.projected_amount)}</td>
-                      <td className="px-3 py-2 text-right align-top tabular-nums">
-                        {item.actual_amount != null ? formatCurrency(item.actual_amount) : EMPTY_VALUE}
+                      <td className="px-3 py-2 text-right align-top">
+                        <Input
+                          key={`proj-${item.id}-${item.projected_amount}`}
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          defaultValue={item.projected_amount}
+                          onBlur={(e) => {
+                            if (Number(e.target.value) !== item.projected_amount)
+                              void handleAmountSave(item.id, "projected_amount", e.target.value);
+                          }}
+                          className="h-7 w-24 text-right text-xs tabular-nums"
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-right align-top">
+                        <Input
+                          key={`real-${item.id}-${item.actual_amount ?? "n"}`}
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          defaultValue={item.actual_amount ?? ""}
+                          placeholder={EMPTY_VALUE}
+                          onBlur={(e) => {
+                            const cur = item.actual_amount ?? null;
+                            const nv = e.target.value.trim() === "" ? null : Number(e.target.value);
+                            if (nv !== cur) void handleAmountSave(item.id, "actual_amount", e.target.value);
+                          }}
+                          className="h-7 w-24 text-right text-xs tabular-nums"
+                        />
                       </td>
                       <td className="px-3 py-2 text-right align-top tabular-nums">
                         {v == null ? (
@@ -550,7 +627,29 @@ export function OrcamentoTab({
       </div>
 
       <div className="rounded-md border p-3">
-        <div className="mb-2 text-xs font-medium text-muted-foreground">Adicionar item</div>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">Adicionar</span>
+          {/* Custo ou Receita lançável (ex.: Receita de bar) — §2.5. */}
+          <div className="inline-flex rounded-md border p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setNewKind("custo")}
+              className={cn("rounded px-2 py-0.5 transition", newKind === "custo" ? "bg-red-500/15 font-medium text-red-400" : "text-muted-foreground")}
+            >
+              Custo
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewKind("receita")}
+              className={cn("rounded px-2 py-0.5 transition", newKind === "receita" ? "bg-emerald-500/15 font-medium text-emerald-500" : "text-muted-foreground")}
+            >
+              Receita
+            </button>
+          </div>
+          {newKind === "receita" && (
+            <span className="text-[11px] text-muted-foreground">Ex.: Receita de bar, patrocínio avulso.</span>
+          )}
+        </div>
         <div className="grid gap-2 sm:grid-cols-4">
           <Select value={newCategory} onValueChange={(v) => { setNewCategory(v); setNewSubcategory(""); }}>
             <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>

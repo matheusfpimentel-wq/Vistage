@@ -2457,6 +2457,22 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_venue_tech_notes_venue ON venue_tech_notes(venue_id);
     `,
   },
+  {
+    version: 174,
+    description:
+      "Aulas — students.knowledge_level: nível de conhecimento do aluno (Básico/Intermediário/Avançado). Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE students ADD COLUMN knowledge_level TEXT;
+    `,
+  },
+  {
+    version: 175,
+    description:
+      "Clube de fãs — fans.indicated_by_fan_id: quem indicou este fã (outro fã). Alimenta o sinal de Indicação na pontuação (o indicador recebe crédito). Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE fans ADD COLUMN indicated_by_fan_id INTEGER;
+    `,
+  },
 ];
 
 

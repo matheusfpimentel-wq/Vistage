@@ -330,11 +330,6 @@ export function ClassesPage() {
                       <td className="px-3 py-2 font-medium">{c.student_name}</td>
                       <td className="px-3 py-2">
                         <div className="font-medium">{c.title ?? c.subject ?? EMPTY_VALUE}</div>
-                        {c.title && c.subject && (
-                          <div className="max-w-[220px] truncate text-xs text-muted-foreground">
-                            {c.subject}
-                          </div>
-                        )}
                       </td>
                       <td className="px-3 py-2">
                         <Badge variant={classStatusVariant(c.status)}>

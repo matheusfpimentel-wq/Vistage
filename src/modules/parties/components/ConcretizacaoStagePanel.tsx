@@ -47,6 +47,7 @@ export function ConcretizacaoStagePanel({
   barRevenue,
   actualAttendance,
   expectedCapacity,
+  onPatchParty,
   onReload,
 }: {
   partyId: number;
@@ -59,6 +60,8 @@ export function ConcretizacaoStagePanel({
   barRevenue: number | null;
   actualAttendance: number | null;
   expectedCapacity: number | null;
+  /** Grava o público real (contagem de portaria) direto na festa. */
+  onPatchParty: (updates: { actual_attendance?: number | null }) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
   const f = stage.fields;
@@ -173,6 +176,26 @@ export function ConcretizacaoStagePanel({
           fmt={(n) => String(n)}
           hint="Esperado (Viabilidade) vs. real (portaria/ingressos)."
         />
+        {/* Público real editável (portaria) — mora aqui no RESULTADO (§2.1 tirou
+            da Info). Vazio = usa os ingressos vendidos. */}
+        <div className="flex items-center justify-between gap-2 pl-1 text-xs">
+          <span className="flex items-center gap-1 text-muted-foreground">
+            Contagem de portaria
+            <InfoHint>Sobrepõe o público real. Vazio = usa os ingressos vendidos ({pnl.sold}).</InfoHint>
+          </span>
+          <input
+            key={actualAttendance ?? "none"}
+            type="number"
+            min={0}
+            defaultValue={actualAttendance ?? ""}
+            placeholder={String(pnl.sold)}
+            onBlur={(e) => {
+              const v = e.target.value ? Number(e.target.value) : null;
+              if (v !== (actualAttendance ?? null)) void onPatchParty({ actual_attendance: v });
+            }}
+            className="h-7 w-24 rounded border bg-background px-1.5 text-right tabular-nums"
+          />
+        </div>
         <ResultRow
           label="Financeiro"
           proj={financeiroProj}

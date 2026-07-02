@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -10,28 +9,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Badge } from "@/components/ui/badge";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { cn } from "@/lib/utils";
 import { LevelBadge } from "../components/LevelBadge";
 import { FAN_LEVELS, type FanCreateInput, type FanLevel } from "../types";
-import type { Contact } from "@/modules/crm/types";
 
 /**
  * Campos editáveis de um fã — compartilhados entre o form de criação e a aba
  * "Informações" do detalhe (que agora edita direto, sem passo separado).
+ *
+ * Layout aproximado do de Contato (§1.1): foto pequena/quadrada + nome/Instagram/
+ * telefone no cabeçalho; Origem e Tags na mesma linha; Notas em auto-grow.
  */
 export function FanFields({
   state,
   setState,
-  contacts,
+  fanOptions,
   nameError,
   clearNameError,
 }: {
   state: FanCreateInput;
   setState: (updater: (prev: FanCreateInput) => FanCreateInput) => void;
-  contacts: Contact[];
+  /** Fãs para o seletor "Indicado por:" (já sem o próprio fã, quando editando). */
+  fanOptions: { id: number; name: string }[];
   nameError?: string | null;
   clearNameError?: () => void;
 }) {
@@ -52,26 +54,48 @@ export function FanFields({
 
   return (
     <div className="space-y-4">
-      <AttachmentField
-        label="Foto"
-        value={state.photo_path}
-        onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
-        subdir="fans"
-        variant="image"
-      />
-
-      <div className="space-y-1.5">
-        <Label>
-          Nome <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          value={state.name}
-          onChange={(e) => {
-            setState((s) => ({ ...s, name: e.target.value }));
-            clearNameError?.();
-          }}
-        />
-        {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+      {/* Cabeçalho estilo Contato: foto pequena/quadrada + nome/Instagram/telefone */}
+      <div className="flex items-start gap-3">
+        <div className="w-24 shrink-0 sm:w-28">
+          <AttachmentField
+            label="Foto"
+            value={state.photo_path}
+            onChange={(v) => setState((s) => ({ ...s, photo_path: v }))}
+            subdir="fans"
+            variant="image"
+            square
+          />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-1.5">
+            <Label>
+              Nome <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              value={state.name}
+              onChange={(e) => {
+                setState((s) => ({ ...s, name: e.target.value }));
+                clearNameError?.();
+              }}
+            />
+            {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Instagram">
+              <Input
+                placeholder="@fan"
+                value={state.instagram ?? ""}
+                onChange={(e) => setState((s) => ({ ...s, instagram: e.target.value || null }))}
+              />
+            </Field>
+            <Field label="Telefone">
+              <Input
+                value={state.phone ?? ""}
+                onChange={(e) => setState((s) => ({ ...s, phone: e.target.value || null }))}
+              />
+            </Field>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -112,19 +136,6 @@ export function FanFields({
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Instagram">
-          <Input
-            placeholder="@fan"
-            value={state.instagram ?? ""}
-            onChange={(e) => setState((s) => ({ ...s, instagram: e.target.value || null }))}
-          />
-        </Field>
-        <Field label="Telefone">
-          <Input
-            value={state.phone ?? ""}
-            onChange={(e) => setState((s) => ({ ...s, phone: e.target.value || null }))}
-          />
-        </Field>
         <Field label="Email">
           <Input
             type="email"
@@ -138,6 +149,10 @@ export function FanFields({
             onChange={(e) => setState((s) => ({ ...s, city: e.target.value || null }))}
           />
         </Field>
+      </div>
+
+      {/* Origem e Tags na mesma linha (§1.1). */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Origem">
           <Input
             placeholder="Como chegou (show, indicação, Instagram…)"
@@ -145,71 +160,66 @@ export function FanFields({
             onChange={(e) => setState((s) => ({ ...s, origem: e.target.value || null }))}
           />
         </Field>
+        <div className="space-y-1.5">
+          <Label>Tags</Label>
+          <div className="flex flex-wrap items-center gap-1">
+            {state.tags.map((t) => (
+              <Badge key={t} variant="outline" className="gap-1 pr-1">
+                {t}
+                <button
+                  type="button"
+                  onClick={() => removeTag(t)}
+                  className="rounded p-0.5 hover:bg-accent"
+                  aria-label="Remover"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+            <Input
+              placeholder="Nova tag (Enter)"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addTag();
+                }
+              }}
+              className="h-7 w-28 flex-1 text-xs"
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Vincular a contato (CRM)</Label>
+      {/* Indicado por: seletor de fã — alimenta o sinal de Indicação (§1.4). */}
+      <Field label="Indicado por">
         <Select
-          value={state.contact_id != null ? String(state.contact_id) : "none"}
+          value={state.indicated_by_fan_id != null ? String(state.indicated_by_fan_id) : "none"}
           onValueChange={(v) =>
-            setState((s) => ({ ...s, contact_id: v === "none" ? null : Number(v) }))
+            setState((s) => ({ ...s, indicated_by_fan_id: v === "none" ? null : Number(v) }))
           }
         >
           <SelectTrigger>
-            <SelectValue placeholder="Nenhum contato" />
+            <SelectValue placeholder="Ninguém" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Nenhum contato</SelectItem>
-            {contacts.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>
-                {c.name}
+            <SelectItem value="none">Ninguém</SelectItem>
+            {fanOptions.map((f) => (
+              <SelectItem key={f.id} value={String(f.id)}>
+                {f.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Tags</Label>
-        <div className="flex flex-wrap gap-1">
-          {state.tags.map((t) => (
-            <Badge key={t} variant="outline" className="gap-1 pr-1">
-              {t}
-              <button
-                type="button"
-                onClick={() => removeTag(t)}
-                className="rounded p-0.5 hover:bg-accent"
-                aria-label="Remover"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <Input
-            placeholder="Nova tag (Enter)"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addTag();
-              }
-            }}
-          />
-          <Button type="button" variant="outline" onClick={addTag}>
-            Adicionar
-          </Button>
-        </div>
-      </div>
+      </Field>
 
       <Field label="Notas">
-        <Textarea
-          rows={3}
+        <AutoGrowTextarea
+          rows={2}
           placeholder="Como conheceu, gostos musicais, momento marcante…"
           value={state.notes ?? ""}
-          onChange={(e) => setState((s) => ({ ...s, notes: e.target.value || null }))}
+          onChange={(v) => setState((s) => ({ ...s, notes: v || null }))}
         />
       </Field>
     </div>

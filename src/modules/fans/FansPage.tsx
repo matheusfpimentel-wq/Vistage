@@ -82,6 +82,8 @@ import {
   recomputeAllFanLevels,
   runFanAutoRules,
   removeFanGroupMember,
+  updateFanGroup,
+  listFanGroupStats,
   saveFanUpgradeRules,
   type FanFilters,
 } from "./api";
@@ -90,6 +92,7 @@ import { gigDisplayName } from "@/modules/gigs/displayName";
 import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
 import { EMPTY_VALUE, formatDate } from "@/lib/format";
 import { InfoHint } from "@/components/ui/tooltip";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
@@ -709,7 +712,7 @@ export function FansPage() {
 
         <TabsContent value="grupos" className="space-y-6">
           <div>
-            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos (comunidades externas)</h3>
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">Grupos</h3>
             <FanGroupsPanel fans={fans} embedded />
           </div>
         </TabsContent>
@@ -1553,14 +1556,35 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
   const [newOrigin, setNewOrigin] = useState("");
   const [adding, setAdding] = useState(false);
   const [memberInput, setMemberInput] = useState<Record<number, { fanId: string; name: string }>>({});
+  const [stats, setStats] = useState<Map<number, { members: number; interactions: number }>>(new Map());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ name: string; whatsapp: string; origin: string }>({ name: "", whatsapp: "", origin: "" });
 
   useEffect(() => {
     if (open) void refresh();
   }, [open]);
 
   async function refresh() {
-    const gs = await listFanGroups();
+    const [gs, st] = await Promise.all([listFanGroups(), listFanGroupStats()]);
     setGroups(gs);
+    setStats(st);
+  }
+
+  function startEdit(g: FanGroup) {
+    setEditingId(g.id);
+    setEditForm({ name: g.name, whatsapp: g.whatsapp_group ?? "", origin: g.origin ?? "" });
+  }
+
+  async function saveEdit() {
+    if (editingId == null || !editForm.name.trim()) return;
+    await updateFanGroup({
+      id: editingId,
+      name: editForm.name.trim(),
+      whatsapp_group: editForm.whatsapp || null,
+      origin: editForm.origin || null,
+    });
+    setEditingId(null);
+    await refresh();
   }
 
   async function expand(id: number) {
@@ -1644,29 +1668,64 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
           {groups.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum grupo cadastrado.</p>
           )}
-          {groups.map((g) => (
+          <div className="grid gap-3 sm:grid-cols-2">
+          {groups.map((g) => {
+            const st = stats.get(g.id);
+            return (
             <div key={g.id} className="rounded-md border">
-              <div className="flex items-center justify-between px-3 py-2">
+              {editingId === g.id ? (
+                <div className="space-y-2 p-3">
+                  <Input className="h-8 text-sm" placeholder="Nome do grupo *" value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
+                  <Input className="h-8 text-sm" placeholder="Link do grupo" value={editForm.whatsapp} onChange={(e) => setEditForm((f) => ({ ...f, whatsapp: e.target.value }))} />
+                  <Input className="h-8 text-sm" placeholder="Origem" value={editForm.origin} onChange={(e) => setEditForm((f) => ({ ...f, origin: e.target.value }))} />
+                  <div className="flex justify-end gap-1.5">
+                    <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingId(null)}>Cancelar</Button>
+                    <Button size="sm" className="h-7" onClick={() => void saveEdit()} disabled={!editForm.name.trim()}>Salvar</Button>
+                  </div>
+                </div>
+              ) : (
+              <div className="flex items-center justify-between gap-1 px-3 py-2">
                 <button
                   type="button"
-                  className="flex-1 text-left text-sm font-medium"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium"
                   onClick={() => void expand(g.id)}
                 >
-                  {g.name}
-                  {g.origin && <span className="ml-2 text-xs text-muted-foreground">({g.origin})</span>}
-                  {g.whatsapp_group && <span className="ml-2 text-xs text-muted-foreground">· {g.whatsapp_group}</span>}
+                  <span className="truncate">{g.name}</span>
+                  <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                    {st?.members ?? 0} pess. · {st?.interactions ?? 0} inter.
+                  </span>
                 </button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-6 w-6 text-destructive"
-                  onClick={() => void handleDeleteGroup(g.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <div className="flex shrink-0 items-center">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => startEdit(g)}
+                    aria-label="Editar grupo"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6 text-destructive"
+                    onClick={() => void handleDeleteGroup(g.id)}
+                    aria-label="Excluir grupo"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               </div>
-              {expandedId === g.id && (
+              )}
+              {expandedId === g.id && editingId !== g.id && (
                 <div className="border-t px-3 py-3 space-y-2">
+                  {(g.origin || g.whatsapp_group) && (
+                    <div className="text-xs text-muted-foreground">
+                      {g.origin && <span>Origem: {g.origin}</span>}
+                      {g.origin && g.whatsapp_group && <span> · </span>}
+                      {g.whatsapp_group && <span>{g.whatsapp_group}</span>}
+                    </div>
+                  )}
                   {(members[g.id] ?? []).map((m) => {
                     const fanName = m.fan_id ? fans.find((f) => f.id === m.fan_id)?.name : null;
                     return (
@@ -1707,7 +1766,9 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
+          </div>
 
           <div className="rounded-md border p-3 space-y-2">
             <div className="text-xs font-medium text-muted-foreground">Novo grupo</div>
@@ -1849,14 +1910,19 @@ function FanUpgradeRulesDialog({
   const [s, setS] = useState<ScoringState>(emptyScoring());
   const [saving, setSaving] = useState(false);
   const [recalcing, setRecalcing] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
 
   useEffect(() => {
     if (!open) return;
     void loadFanUpgradeRules().then((r: FanUpgradeRules) => setS(scoringToState(r.scoring)));
+    setDirty(false);
   }, [open]);
 
-  const set = (key: keyof ScoringState) => (v: string) =>
+  const set = (key: keyof ScoringState) => (v: string) => {
     setS((prev) => ({ ...prev, [key]: v }));
+    setDirty(true);
+  };
 
   async function persist(): Promise<void> {
     const current = await loadFanUpgradeRules();
@@ -1867,6 +1933,7 @@ function FanUpgradeRulesDialog({
     setSaving(true);
     try {
       await persist();
+      setDirty(false);
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -1890,27 +1957,28 @@ function FanUpgradeRulesDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Pontuação de engajamento dos fãs</DialogTitle>
+          <DialogTitle className="flex items-center gap-1.5">
+            Pontuação de engajamento dos fãs
+            <InfoHint>
+              O nível de cada fã é calculado por uma pontuação que decai com o
+              tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
+              vazios usam o padrão.
+            </InfoHint>
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-2">
-          <p className="text-xs text-muted-foreground">
-            O nível de cada fã é calculado por uma pontuação que decai com o
-            tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
-            vazios usam o padrão.
-          </p>
-
           <div className="space-y-3">
             <div className="text-sm font-semibold">Pesos por sinal</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Presença em evento (manual)" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
+            <div className="grid gap-3 sm:grid-cols-3">
+              <ScoreField label="Presença" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
               <ScoreField label="Feedback" value={s.weightFeedback} placeholder="2" onChange={set("weightFeedback")} />
               <ScoreField label="Interação" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
-              <ScoreField label="Presença em evento (GIG)" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
+              <ScoreField label="Presença em GIG" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
               <ScoreField label="Compra (ingresso/merch)" value={s.weightCompra} placeholder="4" onChange={set("weightCompra")} />
-              <ScoreField label="Indicação (trouxe alguém)" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
+              <ScoreField label="Indicação" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
             </div>
           </div>
 
@@ -1928,7 +1996,6 @@ function FanUpgradeRulesDialog({
           <div className="space-y-3">
             <div className="text-sm font-semibold">Limiares (pontos para cada nível)</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Quase fã" value={s.thQuaseFa} placeholder="2" onChange={set("thQuaseFa")} />
               <ScoreField label="Fã" value={s.thFa} placeholder="5" onChange={set("thFa")} />
               <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
             </div>

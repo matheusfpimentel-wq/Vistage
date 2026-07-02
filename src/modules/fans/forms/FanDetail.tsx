@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, Mic2, Star, UserPlus } from "lucide-react";
+import { Loader2, Mic2, Plus, Star, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +20,15 @@ import { FanInteractionList } from "../components/FanInteractionList";
 import { FanPerksList } from "../components/FanPerksList";
 import { FanQuickActions } from "../components/FanQuickActions";
 import { FanFields } from "./FanFields";
-import { getFan, listGigsForFan, listVipGigsForFan, setFanContactId, updateFan } from "../api";
+import {
+  getFan,
+  listFanNames,
+  listGigsForFan,
+  listVipGigsForFan,
+  recomputeIndicators,
+  setFanContactId,
+  updateFan,
+} from "../api";
 import { createContact, listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import type { Fan, FanCreateInput } from "../types";
@@ -46,6 +54,8 @@ function fanToState(f: Fan): FanCreateInput {
     notes: f.notes,
     photo_path: f.photo_path,
     contact_id: f.contact_id,
+    indicated_by_fan_id: f.indicated_by_fan_id,
+    origem: f.origem,
   };
 }
 
@@ -53,6 +63,7 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
   const [fan, setFan] = useState<Fan | null>(null);
   const [state, setStateRaw] = useState<FanCreateInput | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [fanOptions, setFanOptions] = useState<{ id: number; name: string }[]>([]);
   const [gigs, setGigs] = useState<
     { id: number; name: string | null; date: string | null; city: string | null }[]
   >([]);
@@ -93,6 +104,11 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
     if (open) void listContacts().then(setContacts).catch(() => {});
   }, [open]);
 
+  // Opções do seletor "Indicado por:" — todos os fãs menos o próprio.
+  useEffect(() => {
+    if (open) void listFanNames().then(setFanOptions).catch(() => {});
+  }, [open]);
+
   async function handleSave() {
     if (!fan || !state) return;
     if (!state.name.trim()) {
@@ -101,7 +117,10 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
     }
     setSaving(true);
     try {
+      const prevIndicator = fan.indicated_by_fan_id;
       await updateFan({ id: fan.id, ...state });
+      // Crédito de Indicação: recalcula o nível do indicador anterior e do novo.
+      await recomputeIndicators([prevIndicator, state.indicated_by_fan_id]);
       toast.success("Fã atualizado");
       await refresh();
     } catch (e) {
@@ -191,23 +210,43 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
               </TabsList>
 
               <TabsContent value="info" className="space-y-3 pt-2">
-                <FanFields state={state} setState={setState} contacts={contacts} />
+                <FanFields
+                  state={state}
+                  setState={setState}
+                  fanOptions={fanOptions.filter((f) => f.id !== fan.id)}
+                />
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void handleMakeContact()}
-                    disabled={linking}
-                    title="Cria um contato em Pessoas semeado a partir deste fã (sem sincronização)."
-                  >
-                    {linking ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <UserPlus className="h-4 w-4" />
-                    )}
-                    Tornar também um contato (em Pessoas)
-                  </Button>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {/* (+) único de CRM: cria/abre o contato vinculado em Pessoas —
+                      substitui os dois controles redundantes de antes (§1.1). */}
+                  {fan.contact_id != null ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1.5 text-muted-foreground"
+                      onClick={() => navigate(`/pessoas?open=${fan.contact_id}`)}
+                      title="Abrir a pessoa vinculada em Pessoas"
+                    >
+                      <UserCheck className="h-4 w-4" />
+                      {contacts.find((c) => c.id === fan.contact_id)?.name ?? "Pessoa vinculada"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => void handleMakeContact()}
+                      disabled={linking}
+                      title="Cria um contato em Pessoas a partir deste fã (sem sincronização)."
+                    >
+                      {linking ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      Tornar contato
+                    </Button>
+                  )}
                   <Button size="sm" onClick={handleSave} disabled={saving}>
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     Salvar

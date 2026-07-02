@@ -99,6 +99,7 @@ export function WorkflowTab({
   onPatchLineupStatus,
   onGoOrcamento,
   onOpenEquipe,
+  onOpenVenue,
   onReload,
 }: {
   partyId: number;
@@ -128,8 +129,8 @@ export function WorkflowTab({
   guests: PartyGuest[];
   barRevenue: number | null;
   actualAttendance: number | null;
-  /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
-  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
+  /** Atualiza campos da festa (venue/capacidade/público real) no buffer do form + persiste. */
+  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null; actual_attendance?: number | null }) => Promise<void>;
   /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
    * fresco — evita que dois toggles rápidos se sobrescrevam. */
   onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
@@ -139,6 +140,8 @@ export function WorkflowTab({
   onGoOrcamento: () => void;
   /** Leva o usuário para a aba Equipe (add pessoa/fornecedor na fonte única). */
   onOpenEquipe: () => void;
+  /** Abre o cadastro de um venue (guarda alteração não salva antes de navegar). */
+  onOpenVenue: (venueId: number) => void;
   onReload: () => Promise<void>;
 }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -364,6 +367,7 @@ export function WorkflowTab({
                 barRevenue={barRevenue}
                 actualAttendance={actualAttendance}
                 expectedCapacity={expectedCapacity}
+                onPatchParty={onPatchParty}
                 onReload={onReload}
               />
             ) : stage.name === "Marketing" ? (
@@ -385,6 +389,7 @@ export function WorkflowTab({
                 confirmedVenueName={confirmedVenueName}
                 expectedCapacity={expectedCapacity}
                 onPatchParty={onPatchParty}
+                onOpenVenue={onOpenVenue}
                 onGoOrcamento={onGoOrcamento}
                 onReload={onReload}
               />

@@ -8,22 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { onEnterSave } from "@/lib/formEnter";
 import { FanFields } from "./FanFields";
-import { addFanGroupMember, createFan, listFanGroups, updateFan } from "../api";
-import { type Fan, type FanCreateInput, type FanGroup } from "../types";
-import { listContacts } from "@/modules/crm/api";
-import type { Contact } from "@/modules/crm/types";
+import { createFan, listFanNames, recomputeIndicators, updateFan } from "../api";
+import { type Fan, type FanCreateInput } from "../types";
 
 type Props = {
   open: boolean;
@@ -44,6 +34,7 @@ const EMPTY: FanCreateInput = {
   notes: null,
   photo_path: null,
   contact_id: null,
+  indicated_by_fan_id: null,
   origem: null,
 };
 
@@ -60,6 +51,7 @@ function fanToState(f: Fan): FanCreateInput {
     notes: f.notes,
     photo_path: f.photo_path,
     contact_id: f.contact_id,
+    indicated_by_fan_id: f.indicated_by_fan_id,
     origem: f.origem,
   };
 }
@@ -69,9 +61,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [groups, setGroups] = useState<FanGroup[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [fanOptions, setFanOptions] = useState<{ id: number; name: string }[]>([]);
   const confirmClose = useUnsavedConfirm(dirty);
 
   const setState: typeof setStateRaw = (v) => {
@@ -85,9 +75,7 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
     else setStateRaw(EMPTY);
     setNameError(null);
     setDirty(false);
-    setSelectedGroupId(null);
-    void listFanGroups().then(setGroups).catch(() => {});
-    void listContacts().then(setContacts).catch(() => {});
+    void listFanNames().then(setFanOptions).catch(() => {});
   }, [fan, open]);
 
   async function handleSubmit() {
@@ -101,9 +89,9 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
       const id = fan
         ? (await updateFan({ id: fan.id, ...state }), fan.id)
         : await createFan(state);
-      if (!fan && selectedGroupId) {
-        await addFanGroupMember(selectedGroupId, id, state.name, null).catch(() => {});
-      }
+      // Crédito de Indicação: recalcula o nível do indicador (novo e, se editando,
+      // o anterior) pra refletir o crédito no ato.
+      await recomputeIndicators([fan?.indicated_by_fan_id, state.indicated_by_fan_id]);
       toast.success(fan ? "Fã atualizado" : "Fã criado");
       onSaved(id);
       onOpenChange(false);
@@ -113,6 +101,9 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
       setSaving(false);
     }
   }
+
+  // "Indicado por:" não lista o próprio fã (ao editar).
+  const options = fan ? fanOptions.filter((f) => f.id !== fan.id) : fanOptions;
 
   return (
     <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
@@ -125,31 +116,10 @@ export function FanForm({ open, onOpenChange, fan, onSaved }: Props) {
           <FanFields
             state={state}
             setState={setState}
-            contacts={contacts}
+            fanOptions={options}
             nameError={nameError}
             clearNameError={() => setNameError(null)}
           />
-
-          {!fan && groups.length > 0 && (
-            <div className="space-y-1.5">
-              <Label>Adicionar ao grupo</Label>
-              <Select
-                value={selectedGroupId != null ? String(selectedGroupId) : "none"}
-                onValueChange={(v) => setSelectedGroupId(v === "none" ? null : Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Nenhum grupo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum grupo</SelectItem>
-                  {groups.map((g) => (
-                    <SelectItem key={g.id} value={String(g.id)}>{g.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
         </div>
 
         <DialogFooter className="gap-2">
