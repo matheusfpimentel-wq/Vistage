@@ -25,6 +25,9 @@
     --input: 260 20% 90%;
     --ring: 262 70% 56%;
     --radius: 0.625rem;
+    /* Urgência (A.2): overdue reusa o negativo; soon = âmbar AA no claro. */
+    --urg-overdue: hsl(var(--destructive));
+    --urg-soon: #b45309;
   }
 
   .dark {
@@ -48,7 +51,19 @@
     --border: 252 18% 18%;
     --input: 252 18% 18%;
     --ring: 263 80% 68%;
+    /* Urgência (A.2): âmbar mais claro pro contraste no escuro. */
+    --urg-soon: #f59e0b;
   }
+}
+
+@layer utilities {
+  /* Tokens de urgência (A.2) — cor sempre acompanhada de ícone (ver UrgencyMark). */
+  .text-urgent-overdue { color: var(--urg-overdue); }
+  .text-urgent-soon { color: var(--urg-soon); }
+  .border-urgent-overdue { border-color: var(--urg-overdue); }
+  .border-urgent-soon { border-color: var(--urg-soon); }
+  .bg-urgent-overdue { background-color: var(--urg-overdue); }
+  .bg-urgent-soon { background-color: var(--urg-soon); }
 }
 
 @layer base {

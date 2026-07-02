@@ -14,7 +14,7 @@ import { toast } from "@/components/ui/toaster";
 import { InfoHint } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
-import { urgencyOf, urgencyClass } from "@/lib/urgency";
+import { urgencyLevel, urgencyClass } from "@/lib/urgency";
 import {
   COMPLIANCE_RESPONSAVEIS,
   complianceExplain,
@@ -289,7 +289,7 @@ export function ExecucaoStagePanel({
   const allConfirm = [...djRows, ...prodRows, ...sponsorRows];
   const confDenom = allConfirm.filter((r) => r.status !== "cancelado").length;
   const confDone = allConfirm.filter((r) => r.status === "confirmado").length;
-  const confLate = allConfirm.filter((r) => r.status === "pendente" && urgencyOf(r.confirmBy) === "vencido").length;
+  const confLate = allConfirm.filter((r) => r.status === "pendente" && urgencyLevel(r.confirmBy, "deadline") === "overdue").length;
 
   // ===== formalidades =====
   const applicableCompliance = compliance.filter((c) => c.status !== "na");
@@ -358,7 +358,7 @@ export function ExecucaoStagePanel({
             <ul className="space-y-1.5">
               {visibleCompliance.map((c) => {
                 const explain = complianceExplain(c.category) ?? c.notes;
-                const u = urgencyOf(c.due_date, { resolved: c.status === "ok" || c.status === "na" });
+                const u = c.status === "ok" || c.status === "na" ? null : urgencyLevel(c.due_date, "deadline");
                 return (
                   <li key={c.id} className="rounded-md border p-2">
                     <div className="flex items-center gap-2">
@@ -522,7 +522,7 @@ function ConfirmGroup({ title, rows, onCycleLabel }: { title: string; rows: Conf
       </div>
       <ul className="space-y-1">
         {rows.map((r) => {
-          const u = urgencyOf(r.confirmBy, { resolved: r.status !== "pendente" });
+          const u = r.status !== "pendente" ? null : urgencyLevel(r.confirmBy, "deadline");
           const wa = waLink(r.phone);
           return (
             <li key={r.key} className={cn("flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-sm", r.status === "cancelado" && "opacity-60")}>
