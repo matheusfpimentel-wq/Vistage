@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -320,7 +321,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   // confirma o venue / edita a capacidade). Atualiza o buffer do form E persiste
   // na hora — mantém cockpit/orçamento em sincronia sem depender do Salvar.
   const patchPartyLive = useCallback(
-    async (updates: Partial<Pick<FormState, "venue_id" | "venue_name" | "expected_capacity">>) => {
+    async (
+      updates: Partial<
+        Pick<FormState, "venue_id" | "venue_name" | "expected_capacity" | "actual_attendance">
+      >
+    ) => {
       setState((s) => ({ ...s, ...updates }));
       if (!party) return;
       try {
@@ -647,39 +652,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
           {/* ===== INFO ===== */}
           <TabsContent value="info" forceMount hidden={tab !== "info"} className="space-y-4 pt-2">
-            {isEdit && party && (
-              <PartyCockpit
-                tickets={tickets}
-                items={budgetItems}
-                sponsors={state.sponsors}
-                guests={guests}
-                barRevenue={state.bar_revenue}
-                targetCac={state.target_cac}
-                expectedCapacity={state.expected_capacity}
-                actualAttendance={state.actual_attendance}
-              />
-            )}
-            {isEdit && party && state.status === "Realizada" && (
-              <PostEventCard partyId={party.id} title={state.title} />
-            )}
-            {isEdit && party && (
-              <>
-                <Button type="button" variant="outline" size="sm" onClick={() => setBriefingOpen(true)}>
-                  <FileText className="h-4 w-4" /> Gerar briefing (por etapa)
-                </Button>
-                <BriefingDialog
-                  open={briefingOpen}
-                  onOpenChange={setBriefingOpen}
-                  party={party}
-                  stages={stages}
-                  tickets={tickets}
-                  budget={budgetItems}
-                  lineupNames={state.lineup
-                    .map((id) => contacts.find((c) => c.id === id)?.name)
-                    .filter((n): n is string => !!n)}
-                />
-              </>
-            )}
             <Field label="Título *">
               <Input
                 value={state.title}
@@ -793,16 +765,14 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             {isEdit ? (
               <div className="space-y-2">
                 <Label>Venue</Label>
-                <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
-                  <span className="text-sm">
+                {/* Read-only: só o nome (a casa é escolhida na Viabilidade §2.1). */}
+                <div className="flex h-10 items-center justify-between gap-2 rounded-md border bg-muted/30 px-3">
+                  <span className="min-w-0 truncate text-sm">
                     {state.venue_name ? (
                       <span className="font-medium">{state.venue_name}</span>
                     ) : (
-                      <span className="text-muted-foreground">Venue não confirmado</span>
+                      <span className="text-muted-foreground">Não confirmado</span>
                     )}
-                    {state.expected_capacity ? (
-                      <span className="text-muted-foreground"> · cap. {state.expected_capacity}</span>
-                    ) : null}
                   </span>
                   <button
                     type="button"
@@ -910,10 +880,10 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </div>
 
             <Field label="Descrição">
-              <Textarea
-                rows={3}
+              <AutoGrowTextarea
+                rows={1}
                 value={state.description ?? ""}
-                onChange={(e) => set("description", e.target.value || null)}
+                onChange={(v) => set("description", v || null)}
               />
             </Field>
 
@@ -944,32 +914,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       )
                     }
                   />
-                </Field>
-              )}
-              {isEdit && (
-                <Field
-                  label="Público real"
-                  hint={
-                    <>
-                      Computado dos ingressos:{" "}
-                      <strong className="text-foreground">{ticketsSold}</strong> vendido(s).
-                    </>
-                  }
-                >
-                  <div className="space-y-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder={`Contagem na portaria (sobrepõe · padrão ${ticketsSold})`}
-                      value={state.actual_attendance ?? ""}
-                      onChange={(e) =>
-                        set(
-                          "actual_attendance",
-                          e.target.value ? Number(e.target.value) : null
-                        )
-                      }
-                    />
-                  </div>
                 </Field>
               )}
               {isEdit && (
@@ -1011,6 +955,41 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
             </div>
+
+            {/* Métricas (cockpit) + briefing descem para baixo dos campos (§2.1). */}
+            {isEdit && party && (
+              <div className="space-y-4 border-t pt-4">
+                <PartyCockpit
+                  tickets={tickets}
+                  items={budgetItems}
+                  sponsors={state.sponsors}
+                  guests={guests}
+                  barRevenue={state.bar_revenue}
+                  targetCac={state.target_cac}
+                  expectedCapacity={state.expected_capacity}
+                  actualAttendance={state.actual_attendance}
+                />
+                {state.status === "Realizada" && (
+                  <PostEventCard partyId={party.id} title={state.title} />
+                )}
+                <div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setBriefingOpen(true)}>
+                    <FileText className="h-4 w-4" /> Gerar briefing (por etapa)
+                  </Button>
+                  <BriefingDialog
+                    open={briefingOpen}
+                    onOpenChange={setBriefingOpen}
+                    party={party}
+                    stages={stages}
+                    tickets={tickets}
+                    budget={budgetItems}
+                    lineupNames={state.lineup
+                      .map((id) => contacts.find((c) => c.id === id)?.name)
+                      .filter((n): n is string => !!n)}
+                  />
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* ===== WORKFLOW (edit only) ===== */}

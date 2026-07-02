@@ -128,8 +128,8 @@ export function WorkflowTab({
   guests: PartyGuest[];
   barRevenue: number | null;
   actualAttendance: number | null;
-  /** Atualiza campos da festa (venue/capacidade) no buffer do form + persiste. */
-  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null }) => Promise<void>;
+  /** Atualiza campos da festa (venue/capacidade/público real) no buffer do form + persiste. */
+  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null; actual_attendance?: number | null }) => Promise<void>;
   /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
    * fresco — evita que dois toggles rápidos se sobrescrevam. */
   onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
@@ -364,6 +364,7 @@ export function WorkflowTab({
                 barRevenue={barRevenue}
                 actualAttendance={actualAttendance}
                 expectedCapacity={expectedCapacity}
+                onPatchParty={onPatchParty}
                 onReload={onReload}
               />
             ) : stage.name === "Marketing" ? (
