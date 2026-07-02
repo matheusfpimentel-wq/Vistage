@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
@@ -657,7 +656,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
             {isEdit && <TabsTrigger value="operacao">Operação</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
-            <TabsTrigger value="notas">Notas</TabsTrigger>
           </TabsList>
 
           {/* ===== INFO ===== */}
@@ -1401,17 +1399,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             </TabsContent>
           )}
 
-          {/* ===== NOTAS ===== */}
-          <TabsContent value="notas" forceMount hidden={tab !== "notas"} className="pt-2">
-            <Field label="Notas">
-              <Textarea
-                rows={6}
-                value={state.notes ?? ""}
-                onChange={(e) => set("notes", e.target.value || null)}
-                placeholder="Observações, lembretes, detalhes logísticos…"
-              />
-            </Field>
-          </TabsContent>
         </Tabs>
 
         <div className="flex justify-end gap-2 border-t pt-4">

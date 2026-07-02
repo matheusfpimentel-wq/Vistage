@@ -288,7 +288,7 @@ export function MarketingStagePanel({
       </BlockShell>
 
       <BlockShell
-        title="Artes"
+        title="Artes & Conteúdo"
         setOpen={() => setOpen("artes")}
         isOpen={open === "artes"}
         summary={`${assets.length} peça(s)${artesAtrasadas > 0 ? ` · ${artesAtrasadas} atrasada(s)` : ""}`}
