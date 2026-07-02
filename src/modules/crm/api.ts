@@ -187,6 +187,17 @@ export async function removeStudentForContact(contactId: number): Promise<void> 
 
 export async function deleteContact(id: number): Promise<void> {
   const db = getDb();
+  // Apaga os espelhos (fornecedor/aluno/fã) ANTES do contato. Sem isso eles
+  // ficam órfãos e VAZAM nos pickers — ex.: o fornecedor de uma pessoa já
+  // apagada continuava aparecendo na equipe de produção da festa. force:true no
+  // fornecedor porque a pessoa está sendo removida de vez, então não vale o
+  // guard de "esvazie os serviços antes".
+  await removeFanForContact(id);
+  await removeStudentForContact(id);
+  try {
+    const { removeSupplierForContact } = await import("@/modules/suppliers/api");
+    await removeSupplierForContact(id, { force: true });
+  } catch { /* não interrompe */ }
   await db.execute("DELETE FROM contacts WHERE id = $1", [id]);
   try {
     const { removeContactFromParties } = await import("@/modules/parties/api");
