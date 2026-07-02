@@ -282,7 +282,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
             )}
             {contactIds.length > 0 && (
               <p className="pt-1 text-[11px] text-muted-foreground">
-                {contactIds.length} pessoa(s) vinculada(s) — a reunião aparece no perfil delas.
+                {contactIds.length} pessoa(s) vinculada(s): a reunião aparece no perfil delas.
               </p>
             )}
             {participants.length > 0 && (
@@ -380,7 +380,7 @@ export function MeetingForm({ open, onOpenChange, meeting, onSaved }: Props) {
                 </ul>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Cada item pode virar uma tarefa — use "Gerar tarefas" na lista de reuniões.
+                Cada item pode virar uma tarefa: use "Gerar tarefas" na lista de reuniões.
               </p>
             </div>
 

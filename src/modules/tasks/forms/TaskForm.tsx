@@ -190,7 +190,7 @@ export function TaskForm({
     if (!task) return;
     const ok = await confirmDialog({
       title: "Desvincular da origem",
-      description: `A tarefa deixa de ser gerida por ${derivedLabel ?? "sua origem"} — o título e as tags voltam a ser editáveis, e a origem deixa de apontar para ela. A tarefa em si não é excluída. Continuar?`,
+      description: `A tarefa deixa de ser gerida por ${derivedLabel ?? "sua origem"}: o título e as tags voltam a ser editáveis, e a origem deixa de apontar para ela. A tarefa em si não é excluída. Continuar?`,
       confirmLabel: "Desvincular",
     });
     if (!ok) return;
@@ -201,7 +201,7 @@ export function TaskForm({
       setState((s) => ({ ...s, gig_id: null }));
       setDetached(true);
       emitDataChanged();
-      toast.success("Tarefa desvinculada — título e tags liberados.");
+      toast.success("Tarefa desvinculada: título e tags liberados.");
     } catch (e) {
       toast.error(`Erro ao desvincular: ${String(e)}`);
     } finally {
@@ -256,7 +256,7 @@ export function TaskForm({
           {isDerived && (
             <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
               <p>
-                Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span> —
+                Tarefa vinculada a <span className="font-medium text-foreground">{derivedLabel}</span>:
                 o título e as tags são geridos pela origem. Você pode mudar status, prioridade e prazo.
                 Para editar o título ou vinculá-la a outra coisa (ex.: um Conteúdo específico),
                 <span className="font-medium text-foreground"> desvincule da origem</span> primeiro.

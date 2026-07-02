@@ -33,7 +33,7 @@ export function FileMenu() {
     setMenuOpen(false);
     const res = await promptPasswordWithHint({
       title: "Proteger com senha",
-      description: "Defina uma senha — ela será pedida toda vez que este arquivo for aberto.",
+      description: "Defina uma senha: ela será pedida toda vez que este arquivo for aberto.",
       confirmLabel: "Proteger",
       requireConfirm: true,
     });

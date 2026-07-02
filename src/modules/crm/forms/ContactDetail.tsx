@@ -480,7 +480,7 @@ export function ContactDetail({
                       active={mirror.fan}
                       disabled={linking}
                       icon={mirror.fan ? undefined : <Plus className="h-3 w-3" />}
-                      title={mirror.fan ? "Já é um fã — abrir" : "Cria um novo perfil de fã vinculado a esta pessoa"}
+                      title={mirror.fan ? "Já é um fã: abrir" : "Cria um novo perfil de fã vinculado a esta pessoa"}
                       onClick={() => void handleMakeFan()}
                     />
                     <RelButton

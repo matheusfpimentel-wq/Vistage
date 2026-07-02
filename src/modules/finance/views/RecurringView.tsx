@@ -59,7 +59,7 @@ export function RecurringView({ onChanged }: Props) {
       const yearMonth = toLocalYearMonth();
       const created = await generateRecurringForMonth(yearMonth);
       if (created === 0) {
-        toast.info("Nada novo — todos os lançamentos do mês já existem.");
+        toast.info("Nada novo: todos os lançamentos do mês já existem.");
       } else {
         toast.success(
           `${created} lançamento${created > 1 ? "s" : ""} gerado${created > 1 ? "s" : ""} para o mês.`

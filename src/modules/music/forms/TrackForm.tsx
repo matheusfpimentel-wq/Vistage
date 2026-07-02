@@ -309,12 +309,12 @@ export function TrackForm({
     } else if (record.decision === "approved") {
       const next = nextStage(loaded.current_stage);
       await persistThen(() => advanceStage(loaded, record));
-      toast.success(`Aprovado — avançou para ${next}`);
+      toast.success(`Aprovado: avançou para ${next}`);
       if (next === "Pré-lançamento") setAutoCreateOpen("pre_launch");
       if (next === "Lançamento") setAutoCreateOpen("launch");
     } else {
       await persistThen(() => rejectAtGate(loaded, record));
-      toast.warning("Reprovado — track em Stand-by (reativável)");
+      toast.warning("Reprovado: track em Stand-by (reativável)");
     }
     setGateOpen(null);
   }

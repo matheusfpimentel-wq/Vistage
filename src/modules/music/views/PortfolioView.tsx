@@ -59,7 +59,7 @@ export function PortfolioView({ tracks }: Props) {
     }
     const total = approved + rejected;
     const pct = total > 0 ? Math.round((approved / total) * 100) : null;
-    return { label: gate.title.split("—")[0].trim(), approved, rejected, total, pct };
+    return { label: gate.title.split(":")[0].trim(), approved, rejected, total, pct };
   }).filter((g) => g.total > 0);
 
   // --- Tracks em Stand-by há +180 dias ---

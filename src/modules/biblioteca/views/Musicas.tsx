@@ -321,7 +321,7 @@ export function Musicas() {
       description:
         `Isto MODIFICA ${ids.length} arquivo(s) de áudio reais (ação física).` +
         (anyComment
-          ? " Inclui o campo Comentário — isto sobrescreve o comentário do arquivo, que o Rekordbox/Serato podem usar."
+          ? " Inclui o campo Comentário: isto sobrescreve o comentário do arquivo, que o Rekordbox/Serato podem usar."
           : "") +
         " O Rekordbox/Serato só veem as novas tags após reanalisar.",
       confirmLabel: "Gravar",
@@ -415,7 +415,7 @@ export function Musicas() {
 
       {scanStatus === "scanning" && (
         <div className="text-xs text-muted-foreground">
-          Escaneando em segundo plano… {scanScanned} arquivo(s) lidos. Pode navegar — continua rodando.
+          Escaneando em segundo plano… {scanScanned} arquivo(s) lidos. Pode navegar, continua rodando.
         </div>
       )}
       {scanStatus === "reconciling" && (
@@ -464,14 +464,14 @@ export function Musicas() {
                     <span className="corr">
                       {t.file_path ? (
                         t.file_missing ? (
-                          <button title="Arquivo ausente — recorrelacionar" onClick={() => void doCorrelate(t.id)} className="text-destructive">
+                          <button title="Arquivo ausente: recorrelacionar" onClick={() => void doCorrelate(t.id)} className="text-destructive">
                             <TriangleAlert className="h-4 w-4" />
                           </button>
                         ) : (
                           <span title={t.file_path} className="text-emerald-500">✓</span>
                         )
                       ) : (
-                        <button title="Sem correlação — apontar arquivo" onClick={() => void doCorrelate(t.id)} className="text-muted-foreground hover:text-foreground">
+                        <button title="Sem correlação: apontar arquivo" onClick={() => void doCorrelate(t.id)} className="text-muted-foreground hover:text-foreground">
                           <Link2 className="h-4 w-4" />
                         </button>
                       )}

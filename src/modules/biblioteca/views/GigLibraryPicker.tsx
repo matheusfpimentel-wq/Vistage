@@ -57,7 +57,7 @@ export function GigLibraryPicker({ gigId }: { gigId: number }) {
             <li key={a.id} className="flex items-center gap-2 rounded-md bg-muted/40 px-2 py-1 text-sm">
               <span className="flex-1 truncate">
                 {a.played_title || "(sem título)"}
-                {a.played_artist ? ` — ${a.played_artist}` : ""}
+                {a.played_artist ? ` · ${a.played_artist}` : ""}
                 {a.library_track_id == null && (
                   <span className="ml-1 text-[10px] text-muted-foreground">(arquivada)</span>
                 )}
@@ -106,7 +106,7 @@ export function GigLibraryPicker({ gigId }: { gigId: number }) {
                   <Plus className="h-3.5 w-3.5 shrink-0 text-primary" />
                   <span className="truncate">
                     {r.title || "(sem título)"}
-                    {r.artist ? ` — ${r.artist}` : ""}
+                    {r.artist ? ` · ${r.artist}` : ""}
                   </span>
                 </button>
               </li>

@@ -702,12 +702,12 @@ export async function saveBackupToPath(path: string): Promise<{ skipped: string[
 export async function readBackupFromPath(path: string): Promise<Backup> {
   const bytes = await readFile(path);
   if (isEncryptedContainer(bytes)) {
-    throw new Error("Documento protegido por senha — abra pelo menu Abrir.");
+    throw new Error("Documento protegido por senha: abra pelo menu Abrir.");
   }
   if (isZip(bytes)) return readContainer(bytes);
   const raw = strFromU8(bytes);
   if (isEncryptedRaw(raw)) {
-    throw new Error("Documento protegido por senha — abra pelo menu Abrir.");
+    throw new Error("Documento protegido por senha: abra pelo menu Abrir.");
   }
   return parseBackupRaw(raw);
 }

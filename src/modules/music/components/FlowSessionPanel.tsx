@@ -69,7 +69,7 @@ export function FlowSessionPanel({ trackId }: { trackId: number }) {
       {open ? (
         <div className="space-y-3 rounded-md border border-primary/40 bg-primary/5 p-3">
           <div className="text-sm font-medium text-primary">
-            Sessão em andamento — iniciada{" "}
+            Sessão em andamento, iniciada{" "}
             {new Date(open.started_at).toLocaleTimeString("pt-BR")}
           </div>
           <div className="space-y-1.5">

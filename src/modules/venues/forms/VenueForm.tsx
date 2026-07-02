@@ -239,7 +239,7 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
         <DialogHeader>
           <DialogTitle>{venue ? "Editar venue" : "Novo venue"}</DialogTitle>
           <DialogDescription>
-            Cadastre uma vez e reutilize em todas as GIGs nessa casa — os
+            Cadastre uma vez e reutilize em todas as GIGs nessa casa; os
             dados vão automaticamente pro formulário da GIG.
           </DialogDescription>
         </DialogHeader>

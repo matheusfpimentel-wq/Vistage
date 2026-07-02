@@ -273,7 +273,7 @@ export function FanAutoRulesDialog({
           {showHelp && (
             <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
               As regras rodam sozinhas (ao abrir o Clube de Fãs e quando os níveis são
-              recalculados). Cada regra se aplica <strong>no máximo uma vez por fã</strong> —
+              recalculados). Cada regra se aplica <strong>no máximo uma vez por fã</strong>:
               não duplica perks, interações nem tarefas se rodar de novo.
             </div>
           )}

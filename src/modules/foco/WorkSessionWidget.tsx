@@ -189,7 +189,7 @@ export function WorkSessionWidget() {
         const { listen } = await import("@tauri-apps/api/event");
         unlisten = await listen<{ activity?: string }>("work-session-expired", (e) => {
           toast.warning(
-            `⏰ Tempo previsto atingido${e.payload?.activity ? ` (${e.payload.activity})` : ""} — continue ou encerre.`
+            `⏰ Tempo previsto atingido${e.payload?.activity ? ` (${e.payload.activity})` : ""}: continue ou encerre.`
           );
         });
       } catch { /* ignore */ }
@@ -495,7 +495,7 @@ export function WorkSessionWidget() {
                 <RatingRow label="Técnica: mixagem, transições" value={technique} onChange={setTechnique} />
                 <RatingRow label="Carisma: presença, conexão" value={charisma} onChange={setCharisma} />
                 <p className="text-[11px] text-muted-foreground">
-                  As avaliações entram no debrief da GIG — você detalha lá em seguida.
+                  As avaliações entram no debrief da GIG; você detalha lá em seguida.
                 </p>
               </>
             ) : (

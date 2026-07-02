@@ -758,7 +758,7 @@ function TemplateForm({
           <div className="space-y-1.5">
             <Label>Nome</Label>
             <Input
-              placeholder='Ex: "Fundo Story — agenda"'
+              placeholder='Ex: "Fundo Story: agenda"'
               value={name}
               onChange={(e) => setName(e.target.value)}
             />

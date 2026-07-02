@@ -179,7 +179,7 @@ async function syncAlertNotifications(): Promise<void> {
   for (const a of toPush) {
     if (notified.has(a.key)) continue;
     try {
-      sendNotification({ title: "Vistage — alerta", body: a.label });
+      sendNotification({ title: "Vistage: alerta", body: a.label });
     } catch {
       /* ignora — best-effort */
     }

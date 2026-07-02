@@ -159,7 +159,7 @@ export function Documentos() {
             </Button>
           </>
         )}
-        <Button size="sm" variant="ghost" onClick={() => void connect()} title="Reconectar (novo consentimento — leitura e escrita)">
+        <Button size="sm" variant="ghost" onClick={() => void connect()} title="Reconectar (novo consentimento: leitura e escrita)">
           Reconectar
         </Button>
       </div>

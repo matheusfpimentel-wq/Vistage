@@ -171,7 +171,7 @@ export function GigSetlist({ gigId }: Props) {
         genre_secondary: null,
         references: [],
         constraints: null,
-        concept_narrative: track.artist ? `Tocada na GIG — original de ${track.artist}.` : null,
+        concept_narrative: track.artist ? `Tocada na GIG, original de ${track.artist}.` : null,
         daw_project_path: null,
         stems_path: null,
         final_files_path: null,
@@ -221,7 +221,7 @@ export function GigSetlist({ gigId }: Props) {
           <Music className="h-8 w-8 opacity-40" />
           <span>
             Importe o histórico do Rekordbox (.txt / .xml), Traktor (.nml),
-            Serato (.session) ou M3U — exportado direto no pen-drive.
+            Serato (.session) ou M3U, exportado direto no pen-drive.
           </span>
         </div>
       )}
