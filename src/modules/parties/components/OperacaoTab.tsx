@@ -251,7 +251,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                   placeholder="min"
                   onChange={(e) => void patch(r.id, { duration_min: e.target.value ? Number(e.target.value) : null })}
                   className="h-8 w-[56px] rounded border bg-background px-1.5 text-xs"
-                  title="Duração (min) — base do cronograma reverso"
+                  title="Duração (min): base do cronograma reverso"
                 />
                 <input
                   value={r.title}
@@ -267,7 +267,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
                   className="h-8 w-[130px] rounded border bg-background px-1 text-xs"
                   title="Quem"
                 >
-                  <option value="">— quem —</option>
+                  <option value="">Quem?</option>
                   {performers.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}

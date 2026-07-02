@@ -739,7 +739,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               return (
                 <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs">
                   <span className="flex-1">
-                    Sugestão: marcar como <strong>{suggested}</strong> — {reason}.
+                    Sugestão: marcar como <strong>{suggested}</strong> ({reason}).
                   </span>
                   <Button
                     type="button"
@@ -909,7 +909,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               {isEdit ? (
                 <Field label="Capacidade esperada">
                   <div className="flex h-10 items-center justify-between rounded-md border bg-muted/30 px-3 text-sm">
-                    <span>{state.expected_capacity ?? "—"}</span>
+                    <span>{state.expected_capacity ?? EMPTY_VALUE}</span>
                     <button
                       type="button"
                       onClick={() => setTab("workflow")}
@@ -1313,7 +1313,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 <button
                   type="button"
                   onClick={() => {
-                    setQuickContentForm({ title: state.title + " — ", format: "", network: "", status: "Ideia" });
+                    setQuickContentForm({ title: state.title + ": ", format: "", network: "", status: "Ideia" });
                     setQuickContent(true);
                   }}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"

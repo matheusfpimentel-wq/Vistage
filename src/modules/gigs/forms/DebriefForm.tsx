@@ -638,7 +638,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             )}
             <DebriefItemList
               label="Pontos fortes da apresentação"
-              hint="O que funcionou — 1 por linha. Vira base pra repetir no próximo show."
+              hint="O que funcionou, 1 por linha. Vira base pra repetir no próximo show."
               items={parseDebriefItems(state.debrief_strengths)}
               onChange={(items) => set("debrief_strengths", serializeDebriefItems(items))}
               placeholder="ponto forte…"
@@ -781,7 +781,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                   <Building2 className="h-3.5 w-3.5" />
                   Salvar no venue
                   <InfoHint>
-                    Guarda a nota nas "Notas técnicas do venue" — aparece na
+                    Guarda a nota nas "Notas técnicas do venue"; aparece na
                     Preparação de GIGs futuras no mesmo local.
                   </InfoHint>
                 </Button>
