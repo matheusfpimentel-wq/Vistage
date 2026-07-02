@@ -259,15 +259,15 @@ export function IngressosTab({
   );
 }
 
-/** Cortesias / guest list — receita renunciada (qtd × preço de ref., informativo)
- *  E custo variável real (qtd × custo/cabeça: drink, pulseira, kit). Só o custo
- *  variável entra no líquido do P&L. */
+/** Cortesias / guest list — quem entra de graça e qual a Consumação (custo
+ *  variável real por cabeça: drink, pulseira, kit). Só a Consumação entra no
+ *  líquido do P&L. (§2.8: o preço de referência / receita renunciada saiu —
+ *  cortesia com valor vira "Ingresso de cortesia" na lista de ingressos.) */
 function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Promise<void> }) {
   const [guests, setGuests] = useState<PartyGuest[]>([]);
   const [name, setName] = useState("");
   const [reason, setReason] = useState<string>(GUEST_REASONS[0]);
   const [qty, setQty] = useState("1");
-  const [price, setPrice] = useState("");
   const [cost, setCost] = useState("");
 
   const reload = useCallback(() => {
@@ -277,7 +277,6 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
     reload();
   }, [reload]);
 
-  const renounced = guests.reduce((s, g) => s + g.quantity * g.ref_price, 0);
   const compCost = guests.reduce((s, g) => s + g.quantity * (g.unit_cost || 0), 0);
   const totalGuests = guests.reduce((s, g) => s + g.quantity, 0);
 
@@ -293,13 +292,12 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
         name: n,
         reason,
         quantity: Math.max(1, parseInt(qty, 10) || 1),
-        ref_price: parseFloat(price) || 0,
+        ref_price: 0,
         unit_cost: parseFloat(cost) || 0,
         status: "Confirmado",
       });
       setName("");
       setQty("1");
-      setPrice("");
       setCost("");
       reload();
       void onReload();
@@ -314,16 +312,15 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
         <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
           Cortesias / Guest list
           <InfoHint>
-            Cortesia tem dois números: a <span className="text-amber-500">receita renunciada</span> (qtd × preço de ref., não sai do caixa) e o <span className="text-red-400">custo variável real</span> (qtd × custo/cabeça: drink, pulseira, kit). Só o custo variável entra no líquido do P&amp;L.
+            A cortesia entra de graça: o que pesa no bolso é a <span className="text-red-400">Consumação</span> — o custo variável real por cabeça (drink, pulseira, kit). Só ela entra no líquido do P&amp;L. Se a "cortesia" tem um valor cobrado, crie um <strong>Ingresso de cortesia</strong> na lista de ingressos com o preço real.
           </InfoHint>
         </div>
         {guests.length > 0 && (
           <div className="text-xs text-muted-foreground">
-            {totalGuests} cortesia(s) · renunciada{" "}
-            <strong className="text-amber-500">{formatCurrency(renounced)}</strong>
+            {totalGuests} cortesia(s)
             {compCost > 0 && (
               <>
-                {" · custo real "}
+                {" · consumação "}
                 <strong className="text-red-400">{formatCurrency(compCost)}</strong>
               </>
             )}
@@ -338,9 +335,8 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
               <span className="min-w-0 flex-1 truncate">{g.name}</span>
               {g.reason && <Badge variant="outline" className="shrink-0 text-[10px]">{g.reason}</Badge>}
               <span className="shrink-0 text-xs text-muted-foreground">×{g.quantity}</span>
-              <span className="shrink-0 text-xs text-amber-500/80" title="Receita renunciada">{formatCurrency(g.quantity * g.ref_price)}</span>
               {g.unit_cost > 0 && (
-                <span className="shrink-0 text-xs text-red-400" title="Custo variável real (drink/pulseira/kit)">
+                <span className="shrink-0 text-xs text-red-400" title="Consumação — custo variável real (drink/pulseira/kit)">
                   −{formatCurrency(g.quantity * g.unit_cost)}
                 </span>
               )}
@@ -387,7 +383,7 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
         </ul>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-4">
         <Input className="h-8 text-sm" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
         <Select value={reason} onValueChange={setReason}>
           <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -398,9 +394,8 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
           </SelectContent>
         </Select>
         <Input className="h-8 text-sm" type="number" min={1} placeholder="Qtd" value={qty} onChange={(e) => setQty(e.target.value)} />
-        <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Preço ref." value={price} onChange={(e) => setPrice(e.target.value)} />
         <div className="flex gap-1.5">
-          <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Custo/cabeça" value={cost} onChange={(e) => setCost(e.target.value)} />
+          <Input className="h-8 text-sm" type="number" min={0} step={0.01} placeholder="Consumação" value={cost} onChange={(e) => setCost(e.target.value)} />
           <Button size="sm" className="h-8 shrink-0" onClick={() => void add()}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
