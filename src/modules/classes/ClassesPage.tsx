@@ -519,7 +519,7 @@ export function ClassesPage() {
                         <ul className="space-y-0.5 text-xs">
                           {p.syllabus_items.map((it, i) => (
                             <li key={i} className="text-muted-foreground">
-                              {it.hours != null ? `${fmtItemLoad(it.hours)} — ` : ""}
+                              {it.hours != null ? `${fmtItemLoad(it.hours)} · ` : ""}
                               {it.title || "(sem título)"}
                             </li>
                           ))}

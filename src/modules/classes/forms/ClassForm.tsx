@@ -324,7 +324,7 @@ export function ClassForm({
                   const total = isHours ? `${String(tpl!.total_hours).replace(".", ",")}h` : `${p.total_classes}`;
                   return (
                     <SelectItem key={p.id} value={p.id.toString()}>
-                      Pacote #{p.id} — {used}/{total} usadas · {p.status}
+                      Pacote #{p.id}: {used}/{total} usadas · {p.status}
                     </SelectItem>
                   );
                 })}
@@ -363,7 +363,7 @@ export function ClassForm({
                         <SelectItem key={p.id} value={p.id.toString()}>
                           {p.name}
                           {p.total_hours != null
-                            ? ` — ${String(p.total_hours).replace(".", ",")}h`
+                            ? ` · ${String(p.total_hours).replace(".", ",")}h`
                             : ""}
                         </SelectItem>
                       ))}
@@ -441,7 +441,7 @@ export function ClassForm({
               <Label>
                 Valor (R$){" "}
                 <span className="text-xs text-muted-foreground">
-                  {selectedPkg ? "(opcional — pacote)" : "(avulsa)"}
+                  {selectedPkg ? "(opcional, pacote)" : "(avulsa)"}
                 </span>
               </Label>
               <Input
@@ -459,7 +459,7 @@ export function ClassForm({
           <div className="space-y-1.5">
             <Label>Título da aula</Label>
             <Input
-              placeholder="Ex: Aula 3 — Transições, Mentoria mensal, Aulão de scratch…"
+              placeholder="Ex: Aula 3 · Transições, Mentoria mensal, Aulão de scratch…"
               value={state.title ?? ""}
               onChange={(e) => set("title", e.target.value || null)}
             />
