@@ -35,3 +35,12 @@ rand = "0.8"
 # Biblioteca de Músicas: ler/gravar tags (ID3/MP4/FLAC/Vorbis/AIFF) + varredura.
 lofty = "0.18"
 walkdir = "2"
+
+# Binário de release menor: remove símbolos de debug, LTO, uma única unidade de
+# codegen e otimização por tamanho. O build de release fica mais lento — aceitável
+# porque só roda ao empacotar. Sem custo funcional.
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "s"

@@ -13,6 +13,8 @@ export default defineConfig(async () => ({
   },
   clearScreen: false,
   build: {
+    // Sem sourcemaps em produção (explícito) — não vazam código nem incham o app.
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
