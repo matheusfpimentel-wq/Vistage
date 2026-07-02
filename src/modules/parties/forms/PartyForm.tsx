@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, ChevronRight, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import {
@@ -662,15 +663,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               <PostEventCard partyId={party.id} title={state.title} />
             )}
             {isEdit && party && (
-              <SeriesEditionCard
-                partyId={party.id}
-                seriesId={party.series_id}
-                editionLabel={party.edition_label}
-                editionNumber={party.edition_number}
-                partyTitle={state.title}
-              />
-            )}
-            {isEdit && party && (
               <>
                 <Button type="button" variant="outline" size="sm" onClick={() => setBriefingOpen(true)}>
                   <FileText className="h-4 w-4" /> Gerar briefing (por etapa)
@@ -695,6 +687,24 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 placeholder='Ex: "Party Night Vol. 3"'
               />
             </Field>
+
+            {isEdit && party && (
+              <details className="group">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                  Série / Edição
+                </summary>
+                <div className="pt-2">
+                  <SeriesEditionCard
+                    partyId={party.id}
+                    seriesId={party.series_id}
+                    editionLabel={party.edition_label}
+                    editionNumber={party.edition_number}
+                    partyTitle={state.title}
+                  />
+                </div>
+              </details>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Data">
@@ -754,7 +764,8 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               );
             })()}
 
-            <Field label="GIG vinculada (se você toca na própria festa)">
+            <div className="grid items-start gap-3 sm:grid-cols-2">
+            <Field label="GIG vinculada" hint="Não precisa preencher se você toca na própria festa.">
               <Select
                 value={state.gig_id != null ? String(state.gig_id) : "none"}
                 onValueChange={(v) =>
@@ -896,6 +907,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               )}
             </div>
             )}
+            </div>
 
             <Field label="Descrição">
               <Textarea
@@ -935,12 +947,16 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
               {isEdit && (
-                <Field label="Público real">
-                  <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
+                <Field
+                  label="Público real"
+                  hint={
+                    <>
                       Computado dos ingressos:{" "}
                       <strong className="text-foreground">{ticketsSold}</strong> vendido(s).
-                    </p>
+                    </>
+                  }
+                >
+                  <div className="space-y-1">
                     <Input
                       type="number"
                       min={0}
@@ -957,11 +973,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
               {isEdit && (
-                <Field label="Receita de bar (R$)">
+                <Field
+                  label="Receita de bar (R$)"
+                  hint="A parte do bar que fica com você: entra na receita e no faturamento por cabeça."
+                >
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      A parte do bar que fica com você: entra na receita e no faturamento por cabeça.
-                    </p>
                     <Input
                       type="number"
                       min={0}
@@ -976,11 +992,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 </Field>
               )}
               {isEdit && (
-                <Field label="CAC-alvo (R$)">
+                <Field
+                  label="CAC-alvo (R$)"
+                  hint="Quanto você aceita pagar de marketing por comprador. O cockpit compara com o CAC real."
+                >
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">
-                      Quanto você aceita pagar de marketing por comprador. O cockpit compara com o CAC real.
-                    </p>
                     <Input
                       type="number"
                       min={0}
@@ -1487,10 +1503,13 @@ function PostEventCard({ partyId, title }: { partyId: number; title: string }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="flex items-center gap-1">
+        {label}
+        {hint && <InfoHint>{hint}</InfoHint>}
+      </Label>
       {children}
     </div>
   );

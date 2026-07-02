@@ -1482,3 +1482,36 @@ export async function createFanTask(
   emitDataChanged();
   return taskId;
 }
+
+/**
+ * Cria UMA tarefa agrupada vinculada a VÁRIOS fãs de uma vez (task_links
+ * entity_type "fan" para cada um). Usado pelas ações de Próximas ações: em vez de
+ * uma tarefa por fã, junta todo mundo do mesmo balde numa tarefa só
+ * ("Convidar fulano, cicrano e beltrano para o próximo show").
+ */
+export async function createGroupedFanTask(
+  fanIds: number[],
+  title: string,
+  opts?: { description?: string | null; due_date?: string | null }
+): Promise<number> {
+  const { createTask, setTaskLinks } = await import("@/modules/tasks/api");
+  const taskId = await createTask({
+    title,
+    description: opts?.description ?? null,
+    category: "Pessoal",
+    priority: "Média",
+    status: "A fazer",
+    due_date: opts?.due_date ?? null,
+    gig_id: null,
+    contact_id: null,
+    tags: ["fã"],
+  });
+  const links: { entity_type: "fan"; entity_id: number; label: string | null }[] = [];
+  for (const id of fanIds) {
+    const fan = await getFan(id);
+    links.push({ entity_type: "fan", entity_id: id, label: fan?.name ?? null });
+  }
+  if (links.length > 0) await setTaskLinks(taskId, links);
+  emitDataChanged();
+  return taskId;
+}

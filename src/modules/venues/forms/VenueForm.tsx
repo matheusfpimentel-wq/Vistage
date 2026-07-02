@@ -11,7 +11,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -238,10 +237,6 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
       <DialogContent className="max-w-2xl" onKeyDown={onEnterSave(handleSubmit)}>
         <DialogHeader>
           <DialogTitle>{venue ? "Editar venue" : "Novo venue"}</DialogTitle>
-          <DialogDescription>
-            Cadastre uma vez e reutilize em todas as GIGs nessa casa; os
-            dados vão automaticamente pro formulário da GIG.
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { HelpCircle, Pencil, Plus, Trash2, Zap } from "lucide-react";
+import { HelpCircle, Pencil, Plus, Sparkles, Trash2, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { loadFanAutoRules, loadFanClubConfig, saveFanAutoRules } from "../api";
+import { FAN_SUGGESTION_RULES } from "../suggestions";
 import {
   FAN_INTERACTION_TYPES,
   FAN_LEVELS,
@@ -278,9 +279,36 @@ export function FanAutoRulesDialog({
             </div>
           )}
 
-          {/* Lista de regras */}
+          {/* Sugestões automáticas embutidas: a regra "se… então…" por trás de cada
+              balde de Próximas ações, mostrada de forma explícita (read-only). */}
           {!draft && (
             <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <h4 className="text-sm font-semibold">Sugestões automáticas</h4>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Regras embutidas que geram os cartões da aba <strong>Próximas ações</strong>. Sempre
+                ativas — mostradas aqui pra você ver o critério de cada uma.
+              </p>
+              <div className="space-y-1.5">
+                {FAN_SUGGESTION_RULES.map((r) => (
+                  <div key={r.key} className="rounded-md border bg-muted/30 p-2.5">
+                    <div className="text-sm font-medium">{r.title}</div>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground/70">Se</span> {r.when}{" "}
+                      <span className="font-semibold text-foreground/70">→</span> {r.then}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Suas regras (custom) */}
+          {!draft && (
+            <div className="space-y-2 border-t pt-4">
+              <h4 className="text-sm font-semibold">Suas regras</h4>
               {rules.length === 0 ? (
                 <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
                   Nenhuma ação programada ainda.

@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -369,16 +370,15 @@ export function TrackForm({
                 />
               </Field>
             </div>
-            <Field label="Prazo de conclusão">
+            <Field
+              label="Prazo de conclusão"
+              hint="Se preenchido, cria/atualiza uma tarefa com esse vencimento. Em branco, a track não gera tarefa."
+            >
               <Input
                 type="date"
                 value={state.deadline ?? ""}
                 onChange={(e) => set("deadline", e.target.value || null)}
               />
-              <p className="text-xs text-muted-foreground">
-                Se preenchido, cria/atualiza uma tarefa com esse vencimento. Em
-                branco, a track não gera tarefa.
-              </p>
             </Field>
             <Field label="Projeto (pasta que agrupa as músicas)">
               <Select
@@ -844,14 +844,19 @@ export function TrackForm({
 
 function Field({
   label,
+  hint,
   children,
 }: {
   label: string;
+  hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
+      <Label className="flex items-center gap-1">
+        {label}
+        {hint && <InfoHint>{hint}</InfoHint>}
+      </Label>
       {children}
     </div>
   );
