@@ -653,7 +653,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             <TabsTrigger value="info">Info</TabsTrigger>
             {isEdit && <TabsTrigger value="workflow">Workflow</TabsTrigger>}
             <TabsTrigger value="lineup">Equipe</TabsTrigger>
-            {isEdit && <TabsTrigger value="orcamento">Orçamento</TabsTrigger>}
+            {isEdit && <TabsTrigger value="orcamento">Financeiro</TabsTrigger>}
             {isEdit && <TabsTrigger value="ingressos">Ingressos</TabsTrigger>}
             {isEdit && <TabsTrigger value="operacao">Operação</TabsTrigger>}
             {isEdit && <TabsTrigger value="conteudo">Conteúdo</TabsTrigger>}
