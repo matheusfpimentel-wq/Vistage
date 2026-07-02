@@ -39,6 +39,7 @@ import {
   deletePartyMarketingAsset,
   listPartyMarketingActions,
   listPartyMarketingAssets,
+  syncMarketingActionTask,
   updatePartyMarketingAction,
   updatePartyMarketingAsset,
   updatePartyStage,
@@ -83,6 +84,7 @@ function mktLevel(date: string | null, done: boolean): UrgencyLevel | null {
 export function MarketingStagePanel({
   partyId,
   stage,
+  partyTitle,
   budgetItems,
   tickets,
   expectedCapacity,
@@ -90,6 +92,7 @@ export function MarketingStagePanel({
 }: {
   partyId: number;
   stage: PartyStage;
+  partyTitle: string;
   budgetItems: PartyBudgetItem[];
   tickets: PartyTicket[];
   expectedCapacity: number | null;
@@ -306,7 +309,7 @@ export function MarketingStagePanel({
             : `${actions.length} ação(ões) · ${acoesFeitas} feita(s)${acoesAtrasadas > 0 ? ` · ${acoesAtrasadas} atrasada(s)` : ""}${proximaAcao?.date ? ` · próxima ${formatDate(proximaAcao.date)}` : ""}`
         }
       >
-        <ActionsBlock partyId={partyId} actions={actions} onChanged={reloadLists} />
+        <ActionsBlock partyId={partyId} partyTitle={partyTitle} actions={actions} onChanged={reloadLists} />
       </BlockShell>
 
       <BlockShell
@@ -505,15 +508,30 @@ function AssetsBlock({
 /** Bloco CANAIS & CALENDÁRIO — ações datadas com papel; marcos de 1 toque. */
 function ActionsBlock({
   partyId,
+  partyTitle,
   actions,
   onChanged,
 }: {
   partyId: number;
+  partyTitle: string;
   actions: PartyMarketingAction[];
   onChanged: () => void;
 }) {
   const [canal, setCanal] = useState<string>(MARKETING_CHANNELS[0]);
   const [acao, setAcao] = useState("");
+
+  // Ação datada gera uma tarefa com o vencimento na data (§2.4). Idempotente por
+  // ação; mantém título/data em dia conforme o dono edita.
+  function syncTask(a: PartyMarketingAction, overrides: Partial<PartyMarketingAction>) {
+    const merged = { ...a, ...overrides };
+    void syncMarketingActionTask({
+      actionId: a.id,
+      partyTitle,
+      canal: merged.canal,
+      acao: merged.acao,
+      date: merged.date,
+    }).catch(() => {});
+  }
 
   async function add(a: { canal: string; acao: string | null; papel?: MarketingRole; date?: string | null }) {
     try {
@@ -577,14 +595,22 @@ function ActionsBlock({
                 defaultValue={a.acao ?? ""}
                 onBlur={(e) => {
                   const v = e.target.value.trim() || null;
-                  if (v !== (a.acao ?? null)) patch(a.id, { acao: v });
+                  if (v !== (a.acao ?? null)) {
+                    patch(a.id, { acao: v });
+                    syncTask(a, { acao: v });
+                  }
                 }}
               />
               <Input
                 type="date"
                 className="h-7 w-32 shrink-0 text-xs"
                 value={a.date ?? ""}
-                onChange={(e) => patch(a.id, { date: e.target.value || null })}
+                onChange={(e) => {
+                  const date = e.target.value || null;
+                  patch(a.id, { date });
+                  syncTask(a, { date });
+                }}
+                title="Com data preenchida, cria uma tarefa com este vencimento"
               />
               <button type="button" onClick={() => void remove(a.id)} className="shrink-0 text-muted-foreground hover:text-destructive" aria-label="Remover ação">
                 <Trash2 className="h-3.5 w-3.5" />
