@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toaster";
+import { confirmDialog } from "@/components/ui/confirm";
 import { EMPTY_VALUE, formatDate, toLocalISODate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -216,6 +217,13 @@ export function WorkflowTab({
   }
 
   async function handleDeleteStage(id: number) {
+    const ok = await confirmDialog({
+      title: "Excluir etapa",
+      description: "As tarefas desta etapa ficam sem etapa (não são apagadas).",
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deletePartyStage(id);
       if (expandedId === id) setExpandedId(null);

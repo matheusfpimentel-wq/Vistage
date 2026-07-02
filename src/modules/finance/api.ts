@@ -1,11 +1,7 @@
 import { getDb } from "@/lib/db";
-import { toLocalISODate, toLocalYearMonth } from "@/lib/format";
+import { formatDateBR, toLocalISODate, toLocalYearMonth } from "@/lib/format";
 import { emitDataChanged } from "@/lib/events";
 
-function fmtDateBR(iso: string): string {
-  const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}/${m}/${y}`;
-}
 import type {
   Equipment,
   EquipmentCreateInput,
@@ -296,7 +292,7 @@ export async function syncGigPaymentTransaction(
 
   const wantPrevista = !paid && (amount > 0) && !!hasDueDate;
   const eventDate = gigEventDate ?? date;
-  const descWithDate = `${description} (${fmtDateBR(eventDate)})`;
+  const descWithDate = `${description} (${formatDateBR(eventDate)})`;
 
   if (!paid && !wantPrevista) {
     if (existing.length > 0) {
@@ -584,7 +580,7 @@ WHERE c.id = $1`,
   }
 
   const num = c.class_number ?? 1;
-  const desc = `Aula ${num}: ${c.student_name ?? "Aluno"} (${fmtDateBR(c.date)})`;
+  const desc = `Aula ${num}: ${c.student_name ?? "Aluno"} (${formatDateBR(c.date)})`;
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions

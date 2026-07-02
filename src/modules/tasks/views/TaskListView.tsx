@@ -17,6 +17,7 @@ import { formatDate } from "@/lib/format";
 import { urgencyLevel, type UrgencyLevel } from "@/lib/urgency";
 import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_ROW_CLASS, interactiveRowProps } from "@/lib/interactiveRow";
 
 type Props = {
   tasks: Task[];
@@ -152,10 +153,11 @@ export function TaskListView({
             key={t.id}
             className={cn(
               "group flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors hover:bg-muted/40",
+              INTERACTIVE_ROW_CLASS,
               overdue && "border-destructive/40 bg-destructive/5",
               isSel && "bg-primary/5 ring-1 ring-primary/40"
             )}
-            onClick={() => onEdit(t)}
+            {...interactiveRowProps(() => onEdit(t))}
             title="Clique pra editar"
           >
             {/* Caixa de SELEÇÃO — revelada no hover (ou sempre, com algo selecionado) */}

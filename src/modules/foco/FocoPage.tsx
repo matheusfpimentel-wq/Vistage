@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Clock, Flame, Plus, Smartphone, Star, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -584,8 +585,10 @@ function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Heatmap de energia</CardTitle>
-        <CardDescription>Dia da semana × horário: intensidade = energia média.</CardDescription>
+        <CardTitle className="flex items-center gap-1.5 text-base">
+          Heatmap de energia
+          <InfoHint>Dia da semana × horário: intensidade = energia média.</InfoHint>
+        </CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <div className="min-w-[400px]">

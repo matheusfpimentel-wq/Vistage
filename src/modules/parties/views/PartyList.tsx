@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_ROW_CLASS, interactiveRowProps } from "@/lib/interactiveRow";
 import { EMPTY_VALUE, formatDate, formatCurrency } from "@/lib/format";
 import { type PartyDeserialized, partyStatusColor, estimatedRevenue } from "../types";
 import { useTableSort } from "@/lib/useTableSort";
@@ -181,8 +182,8 @@ export function PartyList({ parties, onEdit, onDelete, density = "full" }: Props
           {sorted.map((p) => (
             <tr
               key={p.id}
-              className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/20"
-              onClick={() => onEdit(p)}
+              className={cn("cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/20", INTERACTIVE_ROW_CLASS)}
+              {...interactiveRowProps(() => onEdit(p))}
               title="Clique pra editar"
             >
               {oc.order.map((id) => {

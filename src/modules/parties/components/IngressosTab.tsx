@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import { EMPTY_VALUE, formatDate, formatCurrency, toLocalISODate } from "@/lib/format";
 import {
   GUEST_REASONS,
@@ -104,12 +105,16 @@ export function IngressosTab({
   }
 
   async function handleDelete(id: number) {
-    try {
-      await deletePartyTicket(id);
-      await onReload();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
+    const item = tickets.find((t) => t.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Lote",
+      remove: () => deletePartyTicket(id),
+      restore: async () => {
+        await createPartyTicket(item);
+      },
+      onChange: onReload,
+    });
   }
 
   async function handleSaveSold(ticket: PartyTicket) {
@@ -359,15 +364,19 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
               </select>
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    await deletePartyGuest(g.id);
-                    reload();
-                    void onReload();
-                  } catch (e) {
-                    toast.error(`Não consegui remover a cortesia: ${String(e)}`);
-                  }
-                }}
+                onClick={() =>
+                  void deleteWithUndo({
+                    label: "Cortesia",
+                    remove: () => deletePartyGuest(g.id),
+                    restore: async () => {
+                      await createPartyGuest(g);
+                    },
+                    onChange: () => {
+                      reload();
+                      void onReload();
+                    },
+                  })
+                }
                 className="shrink-0 text-muted-foreground hover:text-destructive"
                 aria-label="Remover cortesia"
               >
@@ -471,12 +480,16 @@ function TicketSalesCurve({
   }
 
   async function remove(id: number) {
-    try {
-      await deletePartyTicketSale(id);
-      reload();
-    } catch (e) {
-      toast.error(`Não consegui remover: ${String(e)}`);
-    }
+    const item = sales.find((s) => s.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Ponto de venda",
+      remove: () => deletePartyTicketSale(id),
+      restore: async () => {
+        await createPartyTicketSale(item);
+      },
+      onChange: reload,
+    });
   }
 
   return (

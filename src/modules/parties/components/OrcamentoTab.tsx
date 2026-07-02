@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
+import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import { cn } from "@/lib/utils";
 import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { InfoHint } from "@/components/ui/tooltip";
@@ -210,12 +211,16 @@ export function OrcamentoTab({
   }
 
   async function handleDelete(id: number) {
-    try {
-      await deletePartyBudgetItem(id);
-      await onReload();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
+    const item = items.find((i) => i.id === id);
+    if (!item) return;
+    await deleteWithUndo({
+      label: "Item de orçamento",
+      remove: () => deletePartyBudgetItem(id),
+      restore: async () => {
+        await createPartyBudgetItem(item);
+      },
+      onChange: onReload,
+    });
   }
 
   async function handleStatusChange(id: number, status: BudgetItemStatus) {

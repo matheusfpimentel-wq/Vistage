@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonList } from "@/components/shared/Skeleton";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_ROW_CLASS, interactiveRowProps } from "@/lib/interactiveRow";
 import { useNewItemShortcut } from "@/lib/shortcuts";
 // CRM (contatos)
 import { ContactForm } from "@/modules/crm/forms/ContactForm";
@@ -653,8 +654,8 @@ function PersonTable({
           {persons.map((p) => (
             <tr
               key={p.key}
-              className="cursor-pointer border-t transition-colors hover:bg-muted/40"
-              onClick={() => onOpen(p)}
+              className={cn("cursor-pointer border-t transition-colors hover:bg-muted/40", INTERACTIVE_ROW_CLASS)}
+              {...interactiveRowProps(() => onOpen(p))}
             >
               <td className="px-3 py-2">
                 <PersonAvatarName person={p} />

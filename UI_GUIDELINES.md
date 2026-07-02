@@ -83,6 +83,24 @@ mais as varreduras ativas descritas em "Varreduras" abaixo.
   (ou converta em itens/tarefas) **antes** de criar linhas novas, guardado por um
   flag `_..._migrated` + guarda de concorrência. Nada se perde.
 
+## 9. Exclusões (desfazer vs confirmar)
+
+- **Nunca exclusão silenciosa.** Toda exclusão de linha usa um dos dois padrões.
+- **Exclusão trivial → desfazer** (`deleteWithUndo`, `src/lib/deleteWithUndo.ts`):
+  quando remove só a própria linha, sem filhos nem vínculos (item de orçamento,
+  lote, cortesia, ponto de venda, linha de run-of-show, item de compliance,
+  peça/ação de marketing, subtarefa, membro de grupo…). Apaga na hora e mostra um
+  toast "‹X› excluído · Desfazer" (~6s); o desfazer reinsere o registro idêntico.
+  Racional: confirmação repetida em ação trivial vira clique automático e perde a função.
+- **Exclusão em cascata → confirmação** (`confirmDialog`, `src/components/ui/confirm.tsx`):
+  quando remove ou desvincula dependentes (festa com orçamento/ingressos/equipe; GIG
+  com debrief/lançamentos; grupo de fãs → membros; custo de projeto → lançamentos;
+  etapa → desvincula tarefas). O diálogo **diz o que vai junto** ("apaga também os
+  lançamentos financeiros").
+- **Como classificar:** siga a função de API. Se ela faz DELETEs/unlinks adicionais
+  em tabelas dependentes — ou se um restore com id novo quebraria vínculos —, é
+  cascata → confirmação. Senão, trivial → desfazer.
+
 ---
 
 ## Varreduras ativas (fazer, não só "quando tocar")
