@@ -857,6 +857,31 @@ export async function listFanGroupMap(): Promise<Map<number, { id: number; name:
   return map;
 }
 
+/**
+ * Por grupo: nº de membros + soma das interações dos fãs membros. Para o
+ * cabeçalho do grupo (contagens ao lado do nome, sem precisar expandir). Membros
+ * por nome livre (sem fan_id) não somam interações. Read-only.
+ */
+export async function listFanGroupStats(): Promise<
+  Map<number, { members: number; interactions: number }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select<{ group_id: number; members: number; interactions: number }[]>(
+      `SELECT m.group_id AS group_id,
+              COUNT(DISTINCT m.id) AS members,
+              COALESCE(SUM(ic.n), 0) AS interactions
+         FROM fan_group_members m
+         LEFT JOIN (SELECT fan_id, COUNT(*) AS n FROM fan_interactions GROUP BY fan_id) ic
+           ON ic.fan_id = m.fan_id
+        GROUP BY m.group_id`
+    )
+    .catch(() => [] as { group_id: number; members: number; interactions: number }[]);
+  const map = new Map<number, { members: number; interactions: number }>();
+  for (const r of rows) map.set(r.group_id, { members: r.members, interactions: r.interactions });
+  return map;
+}
+
 export async function addFanGroupMember(
   groupId: number,
   fanId: number | null,
