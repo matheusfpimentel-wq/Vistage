@@ -1292,6 +1292,48 @@ export async function deletePartyMarketingAction(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_marketing_actions WHERE id = $1", [id]);
 }
 
+/**
+ * Ação de marketing datada → uma tarefa com o vencimento na data (§2.4). Idempotente:
+ * acha a tarefa pelo marcador `[mkt-action:<id>]` e atualiza título/data; cria só se
+ * ainda não existe E a ação tem data. Sem data e sem tarefa: não faz nada. A tarefa
+ * segue a convenção das festas (título com o nome da festa, categoria "Festas").
+ */
+export async function syncMarketingActionTask(opts: {
+  actionId: number;
+  partyTitle: string;
+  canal: string;
+  acao: string | null;
+  date: string | null;
+}): Promise<void> {
+  const db = getDb();
+  const { createTask, updateTask } = await import("@/modules/tasks/api");
+  const marker = `[mkt-action:${opts.actionId}]`;
+  const label = (opts.acao ?? "").trim() || opts.canal;
+  const title = `${label} (${opts.partyTitle})`;
+  const rows = await db
+    .select<{ id: number }[]>(
+      `SELECT id FROM tasks WHERE description LIKE $1 AND status NOT IN ('Concluída', 'Cancelada') LIMIT 1`,
+      [`%${marker}%`]
+    )
+    .catch(() => [] as { id: number }[]);
+  if (rows[0]) {
+    await updateTask({ id: rows[0].id, title, due_date: opts.date });
+  } else if (opts.date) {
+    await createTask({
+      title,
+      description: `Ação de marketing ${marker}`,
+      category: "Festas",
+      priority: "Média",
+      status: "A fazer",
+      due_date: opts.date,
+      gig_id: null,
+      contact_id: null,
+      tags: ["festa"],
+    });
+  }
+  emitDataChanged();
+}
+
 // ===== RIDER TEMPLATES (biblioteca de riders reutilizáveis) =====
 
 export async function listRiderTemplates(): Promise<RiderTemplate[]> {

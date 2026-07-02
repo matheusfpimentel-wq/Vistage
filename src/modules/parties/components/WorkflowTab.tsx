@@ -374,6 +374,7 @@ export function WorkflowTab({
               <MarketingStagePanel
                 partyId={partyId}
                 stage={stage}
+                partyTitle={partyTitle}
                 budgetItems={budgetItems}
                 tickets={tickets}
                 expectedCapacity={expectedCapacity}
