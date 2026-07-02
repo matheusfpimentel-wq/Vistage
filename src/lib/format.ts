@@ -18,6 +18,18 @@ export function formatDate(iso: string | null | undefined, pattern = "dd MMM yyy
 }
 
 /**
+ * YYYY-MM-DD (ou ISO completo) → DD/MM/YYYY. Sem fuso — é só rearranjo de string,
+ * então não sofre o off-by-one de UTC. Vazio/nulo → "". Fonte única: antes havia
+ * cópias locais em finance/api.ts (fmtDateBR) e meetings/ataPrint.ts.
+ */
+export function formatDateBR(date: string | null | undefined): string {
+  if (!date) return "";
+  const [y, m, d] = date.slice(0, 10).split("-");
+  if (!y || !m || !d) return date;
+  return `${d}/${m}/${y}`;
+}
+
+/**
  * Formata um valor numa moeda qualquer (padrão BRL). Usa Intl com o código da
  * moeda; se o código for inválido/desconhecido, cai num formato genérico em vez
  * de quebrar.

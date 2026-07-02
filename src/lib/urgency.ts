@@ -60,12 +60,3 @@ export function urgencyClass(level: UrgencyLevel | null | undefined): string {
     ? "border-urgent-soon text-urgent-soon"
     : "";
 }
-
-/** Cor de "ponto" de status por urgência. */
-export function urgencyDot(level: UrgencyLevel | null | undefined): string {
-  return level === "overdue"
-    ? "bg-urgent-overdue"
-    : level === "soon"
-    ? "bg-urgent-soon"
-    : "bg-muted-foreground/40";
-}
