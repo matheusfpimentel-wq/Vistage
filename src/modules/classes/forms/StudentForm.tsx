@@ -21,7 +21,9 @@ import {
 import { toast } from "@/components/ui/toaster";
 import {
   ACQUISITION_SOURCES,
+  KNOWLEDGE_LEVELS,
   type AcquisitionSource,
+  type KnowledgeLevel,
   type Student,
   type StudentCreateInput,
 } from "../types";
@@ -48,6 +50,7 @@ const EMPTY: StudentCreateInput = {
   notes: null,
   default_rate: null,
   contact_id: null,
+  knowledge_level: null,
 };
 
 function toState(s: Student): StudentCreateInput {
@@ -61,6 +64,7 @@ function toState(s: Student): StudentCreateInput {
     notes: s.notes,
     default_rate: s.default_rate,
     contact_id: s.contact_id,
+    knowledge_level: s.knowledge_level,
   };
 }
 
@@ -162,6 +166,9 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
                 onChange={(e) => set("city", e.target.value || null)}
               />
             </Field>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Valor padrão por aula (R$)">
               <Input
                 type="number"
@@ -174,13 +181,33 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
                 }
               />
             </Field>
+            <Field label="Como te conheceu?">
+              <Select
+                value={state.acquisition ?? "none"}
+                onValueChange={(v) =>
+                  set("acquisition", v === "none" ? null : (v as AcquisitionSource))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {ACQUISITION_SOURCES.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
           </div>
 
-          <Field label="Como te conheceu? (modo de captação)">
+          <Field label="Nível de conhecimento">
             <Select
-              value={state.acquisition ?? "none"}
+              value={state.knowledge_level ?? "none"}
               onValueChange={(v) =>
-                set("acquisition", v === "none" ? null : (v as AcquisitionSource))
+                set("knowledge_level", v === "none" ? null : (v as KnowledgeLevel))
               }
             >
               <SelectTrigger>
@@ -188,16 +215,16 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Nenhum</SelectItem>
-                {ACQUISITION_SOURCES.map((a) => (
-                  <SelectItem key={a} value={a}>
-                    {a}
+                {KNOWLEDGE_LEVELS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
 
-          <Field label="Vincular a contato (CRM)">
+          <Field label="Vincular a contato">
             <Select
               value={state.contact_id != null ? String(state.contact_id) : "none"}
               onValueChange={(v) =>
