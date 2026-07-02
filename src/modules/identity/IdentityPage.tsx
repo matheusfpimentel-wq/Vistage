@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PersistentTextarea } from "@/components/ui/persistent-textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -274,11 +274,10 @@ export function IdentityPage() {
 
               <div className="space-y-1.5">
                 <Label>Briefing completo</Label>
-                <PersistentTextarea
-                  storageKey="identity-briefing"
-                  rows={6}
+                <AutoGrowTextarea
+                  rows={4}
                   value={identity.bio_long ?? ""}
-                  onChange={(e) => set("bio_long", e.target.value || null)}
+                  onChange={(v) => set("bio_long", v || null)}
                 />
               </div>
             </CardContent>
@@ -296,14 +295,14 @@ export function IdentityPage() {
               {/* Imagens lado a lado — mesma altura, sem buracos. */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <AttachmentField
-                  label="Logotipo (texto + símbolo)"
+                  label="Logotipo"
                   value={identity.logo_path}
                   onChange={(v) => set("logo_path", v)}
                   subdir="identity/logo"
                   variant="image"
                 />
                 <AttachmentField
-                  label="Isótipo (só símbolo)"
+                  label="Isótipo"
                   value={identity.isotype_path}
                   onChange={(v) => set("isotype_path", v)}
                   subdir="identity/isotype"
