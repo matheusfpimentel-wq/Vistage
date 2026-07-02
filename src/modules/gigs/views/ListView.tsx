@@ -3,6 +3,7 @@ import { ArrowUpDown, CalendarRange, ListChecks, NotebookPen, Pencil, Plus, Scro
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_ROW_CLASS, interactiveRowProps } from "@/lib/interactiveRow";
 import { StatusBadge } from "../components/StatusBadge";
 import { averageRating, type Gig } from "../types";
 import { gigDisplayName } from "../displayName";
@@ -442,8 +443,8 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
             {sorted.map((g) => (
               <tr
                 key={g.id}
-                className="cursor-pointer border-t transition-colors hover:bg-muted/40"
-                onClick={() => onEdit(g)}
+                className={cn("cursor-pointer border-t transition-colors hover:bg-muted/40", INTERACTIVE_ROW_CLASS)}
+                {...interactiveRowProps(() => onEdit(g))}
                 title="Clique pra editar"
               >
                 {oc.order.map((id) => {
