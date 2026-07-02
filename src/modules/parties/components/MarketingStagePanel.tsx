@@ -14,6 +14,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { EMPTY_VALUE, formatCurrency, formatDate, toLocalISODate } from "@/lib/format";
+import { urgencyLevel, urgencyClass, type UrgencyLevel } from "@/lib/urgency";
 import {
   DEFAULT_MARKETING_ASSETS,
   MARKETING_ASSET_STATUSES,
@@ -66,9 +67,8 @@ function nextAssetStatus(s: MarketingAssetStatus): MarketingAssetStatus {
   const i = MARKETING_ASSET_STATUSES.indexOf(s);
   return MARKETING_ASSET_STATUSES[(i + 1) % MARKETING_ASSET_STATUSES.length];
 }
-function isOverdue(date: string | null, done: boolean): boolean {
-  if (!date || done) return false;
-  return date.slice(0, 10) < toLocalISODate();
+function mktLevel(date: string | null, done: boolean): UrgencyLevel | null {
+  return done ? null : urgencyLevel(date, "deadline");
 }
 
 /**
@@ -216,10 +216,10 @@ export function MarketingStagePanel({
   }
 
   // ===== resumos (linha quando o bloco está fechado) =====
-  const artesAtrasadas = assets.filter((a) => a.status !== "publicada" && isOverdue(a.due_date, false)).length;
+  const artesAtrasadas = assets.filter((a) => a.status !== "publicada" && mktLevel(a.due_date, false) === "overdue").length;
   const proximaAcao = actions.find((a) => !a.done && a.date && a.date.slice(0, 10) >= toLocalISODate());
   const acoesFeitas = actions.filter((a) => a.done).length;
-  const acoesAtrasadas = actions.filter((a) => isOverdue(a.date, !!a.done)).length;
+  const acoesAtrasadas = actions.filter((a) => mktLevel(a.date, !!a.done) === "overdue").length;
 
   return (
     <div className="space-y-2">
@@ -435,7 +435,7 @@ function AssetsBlock({
               </button>
               <Input
                 type="date"
-                className={cn("h-7 w-32 shrink-0 text-xs", isOverdue(a.due_date, a.status === "publicada") && "border-red-500/60 text-red-400")}
+                className={cn("h-7 w-32 shrink-0 text-xs", urgencyClass(mktLevel(a.due_date, a.status === "publicada")))}
                 value={a.due_date ?? ""}
                 onChange={(e) => patch(a.id, { due_date: e.target.value || null })}
               />
@@ -542,7 +542,7 @@ function ActionsBlock({
       {actions.length > 0 && (
         <ul className="space-y-1">
           {actions.map((a) => (
-            <li key={a.id} className={cn("flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-sm", isOverdue(a.date, !!a.done) && "border-red-500/50 bg-red-500/5")}>
+            <li key={a.id} className={cn("flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5 text-sm", mktLevel(a.date, !!a.done) === "overdue" && "border-destructive/50 bg-destructive/5")}>
               <input
                 type="checkbox"
                 checked={!!a.done}

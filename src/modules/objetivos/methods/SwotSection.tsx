@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { toLocalISODate } from "@/lib/format";
+import { urgencyLevel } from "@/lib/urgency";
 import { listOkrs, okrProgress, type Okr } from "@/modules/objetivos/api";
 import { listTasks } from "@/modules/tasks/api";
 import type { Task } from "@/modules/tasks/types";
@@ -59,11 +60,10 @@ type SwotExtra = {
 /** Indicadores automáticos derivados dos dados do app. */
 function autoIndicators(data: SwotBaseData, extra: SwotExtra | null): SwotData {
   const { tasks, gigs, okrs } = data;
-  const today = toLocalISODate();
 
   const concluded = gigs.filter((g) => g.status === "Concluída").length;
   const proposals = gigs.filter((g) => g.status === "Proposta").length;
-  const overdue = tasks.filter((t) => t.status !== "Concluída" && t.due_date && t.due_date < today).length;
+  const overdue = tasks.filter((t) => t.status !== "Concluída" && urgencyLevel(t.due_date, "deadline") === "overdue").length;
   const cancelled = gigs.filter((g) => g.status === "Cancelada").length;
   const okrsOnTrack = okrs.filter((o) => okrProgress(o) >= 0.7).length;
   const pendingPayment = gigs.filter((g) => g.payment_status && g.payment_status !== "Pago integralmente" && g.status !== "Cancelada").length;

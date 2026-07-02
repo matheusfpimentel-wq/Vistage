@@ -34,6 +34,7 @@ import type { PartyDeserialized } from "@/modules/parties/types";
 import { triggerQuickCapture } from "@/lib/shortcuts";
 import { DATA_CHANGED } from "@/lib/events";
 import { formatDate, todayISO } from "@/lib/format";
+import { urgencyLevel } from "@/lib/urgency";
 import { cn } from "@/lib/utils";
 
 function greeting(): string {
@@ -147,7 +148,7 @@ export function TodayPage() {
             (t) => t.status !== "Concluída" && t.status !== "Cancelada"
           );
           const overdueTasks = activeTasks.filter(
-            (t) => t.due_date && t.due_date.slice(0, 10) < today
+            (t) => urgencyLevel(t.due_date, "deadline") === "overdue"
           );
           const gigsPendingDebrief = data.gigs.filter(
             (g) =>
