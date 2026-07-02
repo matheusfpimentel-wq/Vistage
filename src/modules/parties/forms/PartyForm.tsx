@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, ChevronRight, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, ChevronUp, Circle, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/tooltip";
 import { EMPTY_VALUE, formatCurrency, toLocalISODate } from "@/lib/format";
@@ -182,6 +182,16 @@ const EMPTY: FormState = {
 };
 
 const LINEUP_TYPES = ["DJ parceiro", "Músico"];
+// Papéis comuns de produção de festa — sugestões de 1 toque no campo Função (§2.7).
+const PRODUCTION_ROLES = [
+  "Segurança",
+  "Bar",
+  "Portaria/Lista",
+  "Foto/Vídeo",
+  "Luz e som",
+  "Staff de montagem",
+  "Limpeza",
+];
 
 // Candidato local (festa nova, ainda sem id): só venue_id + nome para exibir.
 type LocalCandidate = { venue_id: number; venue_name: string };
@@ -224,6 +234,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
+  const [sponsorTerms, setSponsorTerms] = useState("");
+  // Sub-aba da Equipe (§2.7): Line-up | Produção | Patrocinadores.
+  const [equipeSub, setEquipeSub] = useState<"lineup" | "producao" | "patrocinadores">("lineup");
 
   const confirmClose = useUnsavedConfirm(dirty);
   const navigate = useNavigate();
@@ -388,6 +401,15 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
     );
   }
 
+  // Ordem do line-up = escalação (a Operação lê esta ordem para os sets, §2.7).
+  function moveLineup(idx: number, dir: -1 | 1) {
+    const j = idx + dir;
+    if (j < 0 || j >= state.lineup.length) return;
+    const next = [...state.lineup];
+    [next[idx], next[j]] = [next[j], next[idx]];
+    set("lineup", next);
+  }
+
   async function addCandidate(venueId: number, venueList: Venue[] = venues) {
     const v = venueList.find((x) => x.id === venueId);
     if (!v) return;
@@ -428,9 +450,10 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       toast.error("Preencha nome e valor do patrocinador");
       return;
     }
-    set("sponsors", [...state.sponsors, { name, amount_cents: cents }]);
+    set("sponsors", [...state.sponsors, { name, amount_cents: cents, terms: sponsorTerms.trim() || null }]);
     setSponsorName("");
     setSponsorAmount("");
+    setSponsorTerms("");
   }
 
   function removeSponsor(idx: number) {
@@ -1035,44 +1058,107 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
           )}
 
           {/* ===== LINEUP / EQUIPE ===== */}
-          <TabsContent value="lineup" forceMount hidden={tab !== "lineup"} className="space-y-6 pt-2">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>DJs / Músicos escalados</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setQuickContactOpen(true)}
-                >
-                  <Plus className="h-3.5 w-3.5" /> Novo DJ / Músico
-                </Button>
-              </div>
-              {contacts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum DJ parceiro ou músico no CRM. Use "Novo DJ / Músico".
-                </p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {contacts.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleLineup(c.id)}
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs transition",
-                        state.lineup.includes(c.id)
-                          ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
-                          : "border-input hover:bg-accent"
-                      )}
-                    >
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
+          <TabsContent value="lineup" forceMount hidden={tab !== "lineup"} className="space-y-4 pt-2">
+            {/* Sub-abas da Equipe (§2.7): Line-up | Produção | Patrocinadores. */}
+            <div className="inline-flex rounded-md border p-0.5 text-xs">
+              {([["lineup", "Line-up"], ["producao", "Produção"], ["patrocinadores", "Patrocinadores"]] as const).map(
+                ([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setEquipeSub(k)}
+                    className={cn(
+                      "rounded px-3 py-1 transition",
+                      equipeSub === k ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                )
               )}
             </div>
 
+            {/* ===== LINE-UP ===== */}
+            {equipeSub === "lineup" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>DJs / Músicos escalados</Label>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setQuickContactOpen(true)}>
+                    <Plus className="h-3.5 w-3.5" /> Novo DJ / Músico
+                  </Button>
+                </div>
+                {/* Escalação ordenada — a Operação (cronograma) puxa os sets desta ordem. */}
+                {state.lineup.length > 0 && (
+                  <ol className="space-y-1">
+                    {state.lineup.map((cid, i) => {
+                      const c = contacts.find((x) => x.id === cid);
+                      return (
+                        <li key={cid} className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5 text-sm">
+                          <span className="w-5 shrink-0 text-center text-xs tabular-nums text-muted-foreground">{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate font-medium">{c?.name ?? `Contato #${cid}`}</span>
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              disabled={i === 0}
+                              onClick={() => moveLineup(i, -1)}
+                              className="text-muted-foreground/50 transition hover:text-foreground disabled:opacity-30"
+                              title="Subir"
+                              aria-label="Subir"
+                            >
+                              <ChevronUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={i === state.lineup.length - 1}
+                              onClick={() => moveLineup(i, 1)}
+                              className="text-muted-foreground/50 transition hover:text-foreground disabled:opacity-30"
+                              title="Descer"
+                              aria-label="Descer"
+                            >
+                              <ChevronDown className="h-3 w-3" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => toggleLineup(cid)}
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                            aria-label="Remover do line-up"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+                {contacts.filter((c) => !state.lineup.includes(c.id)).length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {contacts
+                      .filter((c) => !state.lineup.includes(c.id))
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => toggleLineup(c.id)}
+                          className="flex items-center gap-1 rounded-md border border-input px-2.5 py-1 text-xs transition hover:bg-accent"
+                        >
+                          <Plus className="h-3 w-3" /> {c.name}
+                        </button>
+                      ))}
+                  </div>
+                ) : contacts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum DJ parceiro ou músico no CRM. Use "Novo DJ / Músico".
+                  </p>
+                ) : null}
+                <p className="text-[11px] text-muted-foreground">
+                  A ordem aqui é a escalação; a aba Operação puxa os sets desta ordem (o line-up é a fonte).
+                </p>
+              </div>
+            )}
+
+            {/* ===== PATROCINADORES ===== */}
+            {equipeSub === "patrocinadores" && (
             <div className="space-y-3">
               <Label>Patrocinadores</Label>
               {state.sponsors.length > 0 && (
@@ -1080,8 +1166,9 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   {state.sponsors.map((s, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
+                      className="rounded-md border bg-muted/30 px-3 py-2 text-sm"
                     >
+                      <div className="flex items-center justify-between gap-2">
                       <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
                       <span className="shrink-0 text-muted-foreground">
                         {formatCurrency(s.amount_cents / 100)}
@@ -1102,32 +1189,44 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      </div>
+                      {s.terms && <div className="mt-0.5 text-xs text-muted-foreground">{s.terms}</div>}
                     </div>
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome do patrocinador"
+                    value={sponsorName}
+                    onChange={(e) => setSponsorName(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    placeholder="Valor (R$)"
+                    value={sponsorAmount}
+                    onChange={(e) => setSponsorAmount(e.target.value)}
+                    className="w-36"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={addSponsor}>
+                    <Plus className="h-3.5 w-3.5" /> Adicionar
+                  </Button>
+                </div>
                 <Input
-                  placeholder="Nome do patrocinador"
-                  value={sponsorName}
-                  onChange={(e) => setSponsorName(e.target.value)}
-                  className="flex-1"
+                  placeholder="Termos do acordo (contrapartidas, condições)…"
+                  value={sponsorTerms}
+                  onChange={(e) => setSponsorTerms(e.target.value)}
                 />
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  placeholder="Valor (R$)"
-                  value={sponsorAmount}
-                  onChange={(e) => setSponsorAmount(e.target.value)}
-                  className="w-36"
-                />
-                <Button type="button" variant="outline" size="sm" onClick={addSponsor}>
-                  <Plus className="h-3.5 w-3.5" /> Adicionar patrocinador
-                </Button>
               </div>
             </div>
+            )}
 
+            {/* ===== PRODUÇÃO ===== */}
+            {equipeSub === "producao" && (
             <div className="space-y-3">
               <Label>Equipe de produção</Label>
               {state.team.length > 0 && (
@@ -1242,7 +1341,22 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                   <Plus className="h-3.5 w-3.5" /> Adicionar
                 </Button>
               </div>
+              {/* Papéis comuns de produção — 1 toque preenche a Função (§2.7). */}
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="text-[11px] text-muted-foreground">Papéis:</span>
+                {PRODUCTION_ROLES.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setTeamRole(r)}
+                    className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
             </div>
+            )}
           </TabsContent>
 
           {/* ===== ORÇAMENTO (edit only) ===== */}

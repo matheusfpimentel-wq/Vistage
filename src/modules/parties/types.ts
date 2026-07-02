@@ -285,6 +285,8 @@ export type PartyTeamMember = {
 export type PartySponsor = {
   name: string;
   amount_cents: number;
+  /** Termos do acordo (contrapartidas, condições) — texto livre. */
+  terms?: string | null;
   status?: ConfirmStatus | null;
   confirm_by?: string | null;
   contact_id?: number | null;

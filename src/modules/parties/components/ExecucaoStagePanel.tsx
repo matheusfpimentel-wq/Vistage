@@ -52,9 +52,19 @@ const CHECKLIST_SUGGESTIONS = [
   "Imprimir lista VIP",
   "Cabos reserva",
   "Combinar load-in com a casa",
+  "Combinar horário de load-out",
   "Fita/gaffer e extensões",
   "Água/camarim dos DJs",
   "Caixa/troco de portaria",
+  "Pulseiras/lacres de entrada",
+  "Confirmar segurança/portaria",
+  "Passagem de som",
+  "Ponto de energia da cabine",
+  "Backup do set (pendrive/HD)",
+  "Rádios/HTs da equipe carregados",
+  "Bar abastecido (gelo, copos)",
+  "Sinalização (banheiros, saídas)",
+  "Kit primeiros socorros",
 ];
 
 /** wa.me a partir de um telefone do cadastro (só dígitos). */
