@@ -279,6 +279,34 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             </Field>
           </div>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Tipo">
+              <Select
+                value={state.venue_type ?? ""}
+                onValueChange={(v) => set("venue_type", (v || null) as import("../types").VenueType | null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VENUE_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Capacidade máxima">
+              <Input
+                type="number"
+                min={0}
+                value={state.capacity ?? ""}
+                onChange={(e) =>
+                  set("capacity", e.target.value ? Number(e.target.value) : null)
+                }
+              />
+            </Field>
+          </div>
+
           <div ref={addressContainerRef} className="relative">
             <Field label="Endereço completo">
               <Input
@@ -347,34 +375,6 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
             >
               Limpar coordenadas
             </Button>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Tipo">
-              <Select
-                value={state.venue_type ?? ""}
-                onValueChange={(v) => set("venue_type", (v || null) as import("../types").VenueType | null)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VENUE_TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Capacidade (pessoas)">
-              <Input
-                type="number"
-                min={0}
-                value={state.capacity ?? ""}
-                onChange={(e) =>
-                  set("capacity", e.target.value ? Number(e.target.value) : null)
-                }
-              />
-            </Field>
           </div>
 
           <Field label="Prioridade">
