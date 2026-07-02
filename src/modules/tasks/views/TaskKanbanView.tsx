@@ -2,7 +2,9 @@ import { CalendarClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "../components/PriorityBadge";
 import { TASK_STATUSES, type Task, type TaskStatus } from "../types";
-import { formatDate, todayISO } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { urgencyLevel } from "@/lib/urgency";
+import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { cn } from "@/lib/utils";
 import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
 
@@ -52,11 +54,11 @@ function Column({
           </div>
         )}
         {tasks.map((t) => {
-          const overdue =
-            t.due_date &&
-            t.due_date < todayISO() &&
-            t.status !== "Concluída" &&
-            t.status !== "Cancelada";
+          const level =
+            t.status === "Concluída" || t.status === "Cancelada"
+              ? null
+              : urgencyLevel(t.due_date, "deadline");
+          const overdue = level === "overdue";
           return (
             <KanbanCard
               key={t.id}
@@ -78,15 +80,18 @@ function Column({
                   )}
                 </div>
                 {t.due_date && (
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums",
-                      overdue && "font-medium text-destructive"
-                    )}
-                  >
-                    <CalendarClock className="h-3 w-3" />
-                    {formatDate(t.due_date, "dd/MM")}
-                  </span>
+                  level === "overdue" || level === "soon" ? (
+                    <UrgencyMark
+                      level={level}
+                      label={formatDate(t.due_date, "dd/MM")}
+                      className="text-xs font-medium tabular-nums"
+                    />
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                      <CalendarClock className="h-3 w-3" />
+                      {formatDate(t.due_date, "dd/MM")}
+                    </span>
+                  )
                 )}
               </div>
             </KanbanCard>

@@ -7,6 +7,8 @@ import { PriorityBadge } from "../components/PriorityBadge";
 import { TaskStatusBadge } from "../components/TaskStatusBadge";
 import { type Task, type TaskPriority } from "../types";
 import { formatDate, todayISO } from "@/lib/format";
+import { urgencyLevel, type UrgencyLevel } from "@/lib/urgency";
+import { UrgencyMark } from "@/components/ui/urgency-mark";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -61,13 +63,9 @@ const GROUPS: { key: GroupKey; label: string }[] = [
   { key: "sem_prazo", label: "Sem prazo" },
 ];
 
-function isOverdue(t: Task): boolean {
-  return (
-    !!t.due_date &&
-    t.due_date < todayISO() &&
-    t.status !== "Concluída" &&
-    t.status !== "Cancelada"
-  );
+function taskUrgency(t: Task): UrgencyLevel | null {
+  if (t.status === "Concluída" || t.status === "Cancelada") return null;
+  return urgencyLevel(t.due_date, "deadline");
 }
 
 function TaskRow({
@@ -81,7 +79,8 @@ function TaskRow({
   onToggleDone: (t: Task) => void;
   onDelete: (t: Task) => void;
 }) {
-  const overdue = isOverdue(task);
+  const level = taskUrgency(task);
+  const overdue = level === "overdue";
   const done = task.status === "Concluída";
 
   return (
@@ -132,16 +131,18 @@ function TaskRow({
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {task.due_date && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 tabular-nums",
-                overdue && "font-medium text-destructive"
-              )}
-            >
-              <CalendarClock className="h-3 w-3" />
-              {formatDate(task.due_date)}
-              {overdue && " · atrasada"}
-            </span>
+            level === "overdue" || level === "soon" ? (
+              <UrgencyMark
+                level={level}
+                label={formatDate(task.due_date)}
+                className="font-medium tabular-nums"
+              />
+            ) : (
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <CalendarClock className="h-3 w-3" />
+                {formatDate(task.due_date)}
+              </span>
+            )
           )}
           {task.category && <Badge variant="outline">{task.category}</Badge>}
           {task.recurrence && (
