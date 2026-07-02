@@ -136,10 +136,10 @@ export type BuiltinRule = {
 
 export const BUILTIN_RULES: BuiltinRule[] = [
   // ── Esfriamento (bloco fixo no topo do catálogo; 0 no calor desliga a regra) ──
-  { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: "Contato, fã, faixa, conteúdo, tarefa ou ideia sem movimento por mais que o tempo de resfriamento configurado (padrão 15 dias) — fora itens de criação já concluídos. Dispense com \"Deixar esfriar\".", dynamic: true },
+  { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: "Contato, fã, faixa, conteúdo, tarefa ou ideia sem movimento por mais que o tempo de resfriamento configurado (padrão 15 dias); fora itens de criação já concluídos. Dispense com \"Deixar esfriar\".", dynamic: true },
 
   // ── Alertas graves (crítico) ────────────────────────────────────────────────
-  { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída com a previsão de pagamento já vencida — ou, sem previsão, 72h após a conclusão" },
+  { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída com a previsão de pagamento já vencida; ou, sem previsão, 72h após a conclusão" },
   { id: "receita-abaixo-custo-fixo", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Receita do mês abaixo do custo fixo", trigger: "Depois do dia 15, receita realizada do mês menor que o custo fixo mensal (recorrentes)" },
   { id: "tasks-overdue", category: "Tarefas", severidade: "critico", message: "Tarefa vencida sem conclusão", trigger: "Tarefa com prazo anterior a hoje e ainda não concluída" },
   { id: "okrs-lagging", category: "Objetivos", severidade: "critico", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
@@ -154,13 +154,13 @@ export const BUILTIN_RULES: BuiltinRule[] = [
 
   // ── Avisos (info) ───────────────────────────────────────────────────────────
   { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Sem interações com contatos esta semana", trigger: "Semana sem nenhuma interação registrada com contatos" },
-  { id: "no-upcoming-gigs", category: "GIGs", severidade: "info", message: "Nenhuma GIG à frente", trigger: "Não há nenhuma GIG futura agendada — clicar abre uma nova GIG" },
-  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Nenhuma faixa sendo produzida", trigger: "Nenhuma faixa ativa em produção — clicar abre uma nova faixa" },
-  { id: "no-parties-production", category: "Festas", severidade: "info", message: "Nenhuma festa sendo produzida", trigger: "Nenhuma festa no pipeline (fora realizadas/canceladas) — clicar abre uma nova festa" },
-  { id: "no-content-production", category: "Produção", severidade: "info", message: "Nenhum conteúdo sendo produzido", trigger: "Nenhum conteúdo em Roteiro, Gravando, Edição ou Pronto — clicar abre um novo conteúdo" },
-  { id: "no-upcoming-classes", category: "Aulas", severidade: "info", message: "Nenhuma aula à frente", trigger: "Não há nenhuma aula futura agendada — clicar abre uma nova aula" },
-  { id: "students-low-balance", category: "Aulas", severidade: "info", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com o saldo configurado (padrão 1h) ou menos restante — hora de renovar" },
-  { id: "lote-esgotando-", category: "Festas", severidade: "info", message: "Lote esgotando (acima do % vendido)", trigger: "Lote de ingressos acima do % configurado vendido — hora de abrir o próximo", dynamic: true },
+  { id: "no-upcoming-gigs", category: "GIGs", severidade: "info", message: "Nenhuma GIG à frente", trigger: "Não há nenhuma GIG futura agendada; clicar abre uma nova GIG" },
+  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Nenhuma faixa sendo produzida", trigger: "Nenhuma faixa ativa em produção; clicar abre uma nova faixa" },
+  { id: "no-parties-production", category: "Festas", severidade: "info", message: "Nenhuma festa sendo produzida", trigger: "Nenhuma festa no pipeline (fora realizadas/canceladas); clicar abre uma nova festa" },
+  { id: "no-content-production", category: "Produção", severidade: "info", message: "Nenhum conteúdo sendo produzido", trigger: "Nenhum conteúdo em Roteiro, Gravando, Edição ou Pronto; clicar abre um novo conteúdo" },
+  { id: "no-upcoming-classes", category: "Aulas", severidade: "info", message: "Nenhuma aula à frente", trigger: "Não há nenhuma aula futura agendada; clicar abre uma nova aula" },
+  { id: "students-low-balance", category: "Aulas", severidade: "info", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com o saldo configurado (padrão 1h) ou menos restante; hora de renovar" },
+  { id: "lote-esgotando-", category: "Festas", severidade: "info", message: "Lote esgotando (acima do % vendido)", trigger: "Lote de ingressos acima do % configurado vendido; hora de abrir o próximo", dynamic: true },
 ];
 
 /** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */
@@ -339,7 +339,7 @@ export function computeAlerts(
       to: list.length > 0 ? `/aulas?open=${list[0].studentId}` : "/aulas",
       critical: false,
       label: single
-        ? `${single.studentName} está com ${remLabel(single)} no pacote — hora de renovar`
+        ? `${single.studentName} está com ${remLabel(single)} no pacote; hora de renovar`
         : `Há ${list.length} alunos com pacote de aulas quase no fim`,
     });
   }

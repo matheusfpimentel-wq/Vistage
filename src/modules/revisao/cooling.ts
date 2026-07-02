@@ -132,8 +132,8 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         critical: false,
         severidade: "info",
         label: single
-          ? `${single.name} esfriando — sem contato há +${days} dias`
-          : `${cold.length} contatos esfriando — sem contato há +${days} dias`,
+          ? `${single.name} esfriando: sem contato há +${days} dias`
+          : `${cold.length} contatos esfriando: sem contato há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }
@@ -160,8 +160,8 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         critical: false,
         severidade: "info",
         label: single
-          ? `${single.name} esfriando — sem interação há +${days} dias`
-          : `${cold.length} fãs esfriando — sem interação há +${days} dias`,
+          ? `${single.name} esfriando: sem interação há +${days} dias`
+          : `${cold.length} fãs esfriando: sem interação há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }
@@ -192,8 +192,8 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         critical: false,
         severidade: "info",
         label: single
-          ? `Faixa "${single.name}" esfriando — sem movimento há +${days} dias`
-          : `${cold.length} faixas esfriando — sem movimento há +${days} dias`,
+          ? `Faixa "${single.name}" esfriando: sem movimento há +${days} dias`
+          : `${cold.length} faixas esfriando: sem movimento há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }
@@ -221,8 +221,8 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         critical: false,
         severidade: "info",
         label: single
-          ? `Conteúdo "${single.name}" esfriando — sem movimento há +${days} dias`
-          : `${cold.length} conteúdos esfriando — sem movimento há +${days} dias`,
+          ? `Conteúdo "${single.name}" esfriando: sem movimento há +${days} dias`
+          : `${cold.length} conteúdos esfriando: sem movimento há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }
@@ -251,8 +251,8 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
         critical: false,
         severidade: "info",
         label: single
-          ? `Ideia "${single.name}" esfriando — sem movimento há +${days} dias`
-          : `${cold.length} ideias esfriando — sem movimento há +${days} dias`,
+          ? `Ideia "${single.name}" esfriando: sem movimento há +${days} dias`
+          : `${cold.length} ideias esfriando: sem movimento há +${days} dias`,
         coolingRefs: cold.map((c) => c.ref),
       });
     }

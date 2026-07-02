@@ -78,7 +78,7 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
       out.push({
         key: `festa-vendas-baixas-${p.id}`,
         icon: "party", to: `/festas?open=${p.id}`, critical: false, severidade: "atencao",
-        label: `Festa "${p.title}" em ${daysUntil(p.date)}d com vendas em ${pct}% da meta — campanha em apuros.`,
+        label: `Festa "${p.title}" em ${daysUntil(p.date)}d com vendas em ${pct}% da meta: campanha em apuros.`,
       });
     }
   } catch { /* ignore */ }
@@ -136,7 +136,7 @@ export async function loadPartyFinanceAlerts(): Promise<AlertItem[]> {
       out.push({
         key: `lote-esgotando-${r.id}-${r.name}`,
         icon: "zap", to: `/festas?open=${r.id}`, critical: false, severidade: "info",
-        label: `Lote "${r.name}" da festa "${r.title}" ${pct}% vendido — hora de abrir o próximo.`,
+        label: `Lote "${r.name}" da festa "${r.title}" ${pct}% vendido; hora de abrir o próximo.`,
       });
     }
   } catch { /* ignore */ }
