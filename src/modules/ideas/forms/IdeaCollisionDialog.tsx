@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -266,10 +266,10 @@ export function IdeaCollisionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Corpo</Label>
-              <Textarea
+              <AutoGrowTextarea
                 rows={3}
                 value={body}
-                onChange={(e) => setBody(e.target.value)}
+                onChange={(v) => setBody(v)}
                 placeholder="Solta o que vier; se deixar em branco, guardamos a pergunta da colisão"
               />
             </div>

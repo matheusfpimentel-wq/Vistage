@@ -4,7 +4,7 @@ import { CalendarRange, DollarSign, Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Dialog,
   DialogContent,
@@ -589,7 +589,7 @@ export function ContactDetail({
 
                 <div className="space-y-1.5">
                   <Label>Notas</Label>
-                  <Textarea rows={3} value={form.notes ?? ""} onChange={(e) => setF({ notes: e.target.value || null })} />
+                  <AutoGrowTextarea rows={3} value={form.notes ?? ""} onChange={(v) => setF({ notes: v || null })} />
                 </div>
               </TabsContent>
 

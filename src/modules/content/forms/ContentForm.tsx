@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -557,27 +557,27 @@ export function ContentForm({
             {/* ── Roteiro ── */}
             <TabsContent value="roteiro" className="space-y-3">
               <Field label="Roteiro">
-                <Textarea
+                <AutoGrowTextarea
                   rows={8}
                   placeholder="Hook, desenvolvimento, CTA…"
                   value={state.script ?? ""}
-                  onChange={(e) => set("script", e.target.value || null)}
+                  onChange={(v) => set("script", v || null)}
                 />
               </Field>
               <Field label="Notas internas">
-                <Textarea
+                <AutoGrowTextarea
                   rows={3}
                   value={state.notes ?? ""}
-                  onChange={(e) => set("notes", e.target.value || null)}
+                  onChange={(v) => set("notes", v || null)}
                 />
               </Field>
               {state.status === "Publicado" && (
                 <Field label="Resultado / engajamento">
-                  <Textarea
+                  <AutoGrowTextarea
                     rows={3}
                     placeholder="O que funcionou? Alcance, comentários, resultado…"
                     value={state.engagement_notes ?? ""}
-                    onChange={(e) => set("engagement_notes", e.target.value || null)}
+                    onChange={(v) => set("engagement_notes", v || null)}
                   />
                 </Field>
               )}

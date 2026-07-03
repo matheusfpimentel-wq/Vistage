@@ -24,7 +24,6 @@ import { copyFile, exists, mkdir } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -255,19 +254,19 @@ export function IdentityPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>Briefing rápido</Label>
-                  <Textarea
+                  <AutoGrowTextarea
                     rows={3}
                     value={identity.bio_short ?? ""}
-                    onChange={(e) => set("bio_short", e.target.value || null)}
+                    onChange={(v) => set("bio_short", v || null)}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Notas internas</Label>
-                  <Textarea
+                  <AutoGrowTextarea
                     rows={3}
                     placeholder="Tagline, posicionamento, referências…"
                     value={identity.notes ?? ""}
-                    onChange={(e) => set("notes", e.target.value || null)}
+                    onChange={(v) => set("notes", v || null)}
                   />
                 </div>
               </div>
@@ -790,11 +789,11 @@ function TemplateForm({
           </div>
           <div className="space-y-1.5">
             <Label>Texto do template</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={4}
               placeholder={`Ex: Oi! Sou {artista} e vou tocar em {venue} no dia {data}…`}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(v) => setContent(v)}
             />
             <p className="text-[11px] text-muted-foreground">
               Variáveis disponíveis: <code className="font-mono">{VARS_HINT}</code>
@@ -834,10 +833,10 @@ function TemplateForm({
           />
           <div className="space-y-1.5">
             <Label>Notas</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={2}
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(v) => setNotes(v)}
             />
           </div>
         </div>

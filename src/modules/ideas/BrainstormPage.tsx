@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Loader2, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/components/ui/toaster";
 import { InsightDie } from "./InsightDie";
@@ -79,11 +79,11 @@ export function BrainstormPage() {
               }
             }}
           />
-          <Textarea
+          <AutoGrowTextarea
             rows={2}
             placeholder="Detalhes (opcional)"
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(v) => setBody(v)}
           />
           <Button onClick={() => void save()} disabled={saving || !title.trim()} className="w-full">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}

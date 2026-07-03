@@ -116,6 +116,10 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
     }
   }
 
+  // §8.4 — puxa do line-up (espelho unidirecional): `performers` já chega na
+  // ordem do line-up, então os sets que faltam entram nessa sequência. É
+  // aditivo — não remove nem reordena o que já está no cronograma, e nunca
+  // mexe no line-up (a Operação só LÊ a ordem; a fonte é a aba Equipe).
   async function seedFromLineup() {
     const have = new Set(rows.map((r) => r.performer_contact_id).filter(Boolean));
     const missing = performers.filter((p) => !have.has(p.id));
@@ -202,11 +206,18 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
           <h3 className="flex items-center gap-1.5 text-sm font-semibold">
             <ListOrdered className="h-4 w-4 text-primary" /> Cronograma do dia
           </h3>
-          <div className="flex gap-1.5">
+          <div className="flex items-center gap-1.5">
             {performers.length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => void seedFromLineup()}>
-                <Users className="mr-1 h-3.5 w-3.5" /> Sets do line-up
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="outline" onClick={() => void seedFromLineup()}>
+                  <Users className="mr-1 h-3.5 w-3.5" /> Sets do line-up
+                </Button>
+                <InfoHint>
+                  O line-up (aba Equipe) é a fonte da ordem. Isto puxa os sets que
+                  faltam, na sequência do line-up. Reordenar ou mexer nos horários
+                  aqui não altera o line-up.
+                </InfoHint>
+              </div>
             )}
             <Button size="sm" onClick={() => void addRow()}>
               <Plus className="mr-1 h-3.5 w-3.5" /> Linha

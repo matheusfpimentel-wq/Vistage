@@ -5,7 +5,7 @@ import { confirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -356,10 +356,10 @@ function EquipmentForm({
           </div>
           <div className="space-y-1.5">
             <Label>Notas</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={2}
               value={state.notes}
-              onChange={(e) => setState((s) => ({ ...s, notes: e.target.value }))}
+              onChange={(v) => setState((s) => ({ ...s, notes: v }))}
             />
           </div>
         </div>

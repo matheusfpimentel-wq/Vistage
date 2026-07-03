@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
@@ -451,11 +451,11 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
           </div>
 
           <Field label="Notas">
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={state.notes ?? ""}
-              onChange={(e) =>
-                setState((s) => ({ ...s, notes: e.target.value || null }))
+              onChange={(v) =>
+                setState((s) => ({ ...s, notes: v || null }))
               }
             />
           </Field>

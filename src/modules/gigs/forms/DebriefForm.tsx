@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Tabs,
   TabsContent,
@@ -912,10 +912,10 @@ function DebriefField({
         {label} {required && <span className="text-destructive">*</span>}
         {hint && <InfoHint>{hint}</InfoHint>}
       </Label>
-      <Textarea
+      <AutoGrowTextarea
         rows={compact ? 2 : 4}
         value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
+        onChange={(v) => onChange(v || null)}
       />
     </div>
   );

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -291,10 +291,10 @@ export function TaskForm({
 
           <div className="space-y-1.5">
             <Label>Descrição</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={state.description ?? ""}
-              onChange={(e) => set("description", e.target.value || null)}
+              onChange={(v) => set("description", v || null)}
             />
           </div>
 
