@@ -20,7 +20,7 @@ import { PromptProvider } from "@/components/ui/prompt";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
-import { buildBackup, clearDocumentData, hasAnyDocumentData, readBackupFromPath, restoreBackup, restoreBackupFiles } from "@/lib/backup";
+import { buildBackup, clearDocumentData, hasAnyDocumentData, readBackupFromPath, restoreBackup, restoreBackupFiles, restoreBackupSession } from "@/lib/backup";
 import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY, isReopenLastEnabled } from "@/lib/document";
 import { peekUnsavedRecovery, unsavedSince, clearUnsavedWork } from "@/lib/recovery";
 import { RecoveryModal } from "@/components/shared/RecoveryModal";
@@ -234,6 +234,10 @@ function MainApp() {
                 const backup = await readBackupFromPath(lastDocPath);
                 await restoreBackup(backup);
                 await restoreBackupFiles(backup);
+                // "Uma conta por arquivo": adota a conta de sync deste .vistage
+                // (não a que estava na máquina) — assim reabrir o arquivo numa
+                // máquina nova já reconecta o celular sem digitar a senha.
+                await restoreBackupSession(backup);
                 localStorage.setItem("vistage.currentDocument", lastDocPath);
                 useDocumentStore.setState({
                   currentPath: lastDocPath,

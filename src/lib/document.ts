@@ -199,6 +199,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     try {
       await clearDocumentData();
       localStorage.removeItem(LS_KEY);
+      // "Uma conta por arquivo": um documento em branco não tem conta de sync —
+      // desloga a do arquivo anterior pra não vazar dados dele pro celular.
+      await import("./supabase").then(({ signOut }) => signOut().catch(() => {}));
       set({ currentPath: null, currentName: null, dirty: false });
       toast.success("Novo documento em branco. Recarregando…");
       setTimeout(() => reloadKeepingData(), 600);

@@ -2,7 +2,7 @@ import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
-import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
+import { adoptPortableSession, getPortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
 import { persistViewPrefsToDocument, isViewPreferenceKey } from "./docSettings";
 import {
@@ -480,13 +480,15 @@ export async function buildBackup(): Promise<Backup> {
 }
 
 /**
- * Reconecta a sessão de sincronização (Supabase) que veio embutida no .vistage.
- * Chamado depois de abrir/mesclar um documento. No-op se o arquivo não tiver
- * sessão ou se já houver login ativo nesta máquina. Não bloqueia o fluxo.
+ * ADOTA a conta de sincronização (Supabase) do .vistage que está sendo aberto —
+ * modelo "uma conta por arquivo": a conta ativa segue o arquivo, não a máquina.
+ * Desloga a conta anterior (de outro arquivo) e entra na deste; se o arquivo não
+ * carrega sessão (nunca sincronizou) ou ela expirou, fica deslogado — o usuário
+ * loga de novo pra vincular este arquivo a uma conta. Best-effort, não bloqueia.
  */
 export async function restoreBackupSession(backup: Backup): Promise<void> {
   try {
-    await restorePortableSession(backup.session);
+    await adoptPortableSession(backup.session);
   } catch {
     // reconexão é best-effort — o usuário sempre pode logar manualmente
   }
