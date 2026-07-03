@@ -133,7 +133,8 @@ export function ExecucaoStagePanel({
   onOpenEquipe: () => void;
   onReload: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState<EBlock>("confirmacoes");
+  // null = todas as seções recolhidas (o usuário pode ocultar tudo).
+  const [open, setOpen] = useState<EBlock | null>("confirmacoes");
   const [compliance, setCompliance] = useState<PartyComplianceItem[]>([]);
   const [showNa, setShowNa] = useState(false);
 
@@ -345,7 +346,7 @@ export function ExecucaoStagePanel({
         title="Confirmações"
         summary={confDenom > 0 ? `${confDone}/${confDenom} confirmados${confLate > 0 ? ` · ${confLate} atrasado` : ""}` : "sem equipe"}
         isOpen={open === "confirmacoes"}
-        setOpen={() => setOpen("confirmacoes")}
+        setOpen={() => setOpen(open === "confirmacoes" ? null : "confirmacoes")}
       >
         <div className="space-y-3">
           <ConfirmGroup title="DJs / Músicos" rows={djRows} onCycleLabel={confirmStatusChipLabel} />
@@ -362,7 +363,7 @@ export function ExecucaoStagePanel({
         title="Formalidades"
         summary={applicableCompliance.length > 0 ? `${complianceOk}/${applicableCompliance.length} ok` : "definir"}
         isOpen={open === "formalidades"}
-        setOpen={() => setOpen("formalidades")}
+        setOpen={() => setOpen(open === "formalidades" ? null : "formalidades")}
       >
         <div className="space-y-2">
           {visibleCompliance.length > 0 ? (
@@ -463,7 +464,7 @@ export function ExecucaoStagePanel({
         title="Rider técnico"
         summary={riderItems.length > 0 ? `${riderItems.length} item(ns)` : "vazio"}
         isOpen={open === "rider"}
-        setOpen={() => setOpen("rider")}
+        setOpen={() => setOpen(open === "rider" ? null : "rider")}
       >
         <div className="space-y-2">
           <RiderField label="Equipamentos" value={riderRaw} onChange={(v) => void saveField("rider_tecnico", v)} />
@@ -494,7 +495,7 @@ export function ExecucaoStagePanel({
         title="Checklist operacional"
         summary={checklistItems.length > 0 ? `${checklistDone}/${checklistItems.length}` : "vazio"}
         isOpen={open === "checklist"}
-        setOpen={() => setOpen("checklist")}
+        setOpen={() => setOpen(open === "checklist" ? null : "checklist")}
       >
         <ChecklistField label="Itens" value={checklistRaw} onChange={(v) => void saveField("checklist_operacional", v)} suggestions={CHECKLIST_SUGGESTIONS} />
       </EBlockShell>
@@ -504,7 +505,7 @@ export function ExecucaoStagePanel({
         title="Notas"
         summary={stage.notes ? "com notas" : "vazio"}
         isOpen={open === "notas"}
-        setOpen={() => setOpen("notas")}
+        setOpen={() => setOpen(open === "notas" ? null : "notas")}
       >
         <Textarea
           rows={3}

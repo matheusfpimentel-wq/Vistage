@@ -99,7 +99,8 @@ export function MarketingStagePanel({
   expectedCapacity: number | null;
   onReload: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState<Block>("estrategia");
+  // null = todas as seções recolhidas (o usuário pode ocultar tudo).
+  const [open, setOpen] = useState<Block | null>("estrategia");
   const [assets, setAssets] = useState<PartyMarketingAsset[]>([]);
   const [actions, setActions] = useState<PartyMarketingAction[]>([]);
   const [promoting, setPromoting] = useState<{ id: number; title: string; status: string }[]>([]);
@@ -232,7 +233,7 @@ export function MarketingStagePanel({
     <div className="space-y-2">
       <BlockShell
         title="Estratégia"
-        setOpen={() => setOpen("estrategia")}
+        setOpen={() => setOpen(open === "estrategia" ? null : "estrategia")}
         summary={
           metaAbs != null
             ? `meta ${metaAbs} ingressos${metaTipo === "pct" ? ` (${metaVendas}% da cap.)` : ""}`
@@ -295,7 +296,7 @@ export function MarketingStagePanel({
 
       <BlockShell
         title="Artes & Conteúdo"
-        setOpen={() => setOpen("artes")}
+        setOpen={() => setOpen(open === "artes" ? null : "artes")}
         isOpen={open === "artes"}
         summary={`${assets.length} peça(s)${artesAtrasadas > 0 ? ` · ${artesAtrasadas} atrasada(s)` : ""}${promoting.length > 0 ? ` · ${promoting.length} conteúdo(s)` : ""}`}
       >
@@ -304,7 +305,7 @@ export function MarketingStagePanel({
 
       <BlockShell
         title="Canais & Calendário"
-        setOpen={() => setOpen("canais")}
+        setOpen={() => setOpen(open === "canais" ? null : "canais")}
         isOpen={open === "canais"}
         summary={
           actions.length === 0
@@ -317,7 +318,7 @@ export function MarketingStagePanel({
 
       <BlockShell
         title="Mensuração"
-        setOpen={() => setOpen("mensuracao")}
+        setOpen={() => setOpen(open === "mensuracao" ? null : "mensuracao")}
         isOpen={open === "mensuracao"}
         summary={cac != null ? `CAC ${formatCurrency(cac)}` : soldTotal > 0 ? "sem gasto registrado" : "sem vendas ainda"}
       >

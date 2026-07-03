@@ -247,11 +247,14 @@ export type FanRuleTrigger =
  *  - grant_perk: concede um perk do catálogo (categoria + nome).
  *  - log_interaction: registra uma interação (tipo + nota opcional).
  *  - create_task: cria uma tarefa vinculada ao fã.
+ *  - suggest_action: sugere uma ação rápida do clube (pelo id da ação
+ *    configurada) — vira uma tarefa COM data e aparece em "Próximas ações".
  */
 export type FanRuleAction =
   | { type: "grant_perk"; perkCategory: FanPerkCategory; perkName: string }
   | { type: "log_interaction"; interactionType: FanInteractionType; note?: string }
-  | { type: "create_task"; taskTitle: string };
+  | { type: "create_task"; taskTitle: string }
+  | { type: "suggest_action"; actionId: string };
 
 export type FanAutoRule = {
   id: string;

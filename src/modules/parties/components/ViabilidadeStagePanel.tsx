@@ -90,7 +90,8 @@ export function ViabilidadeStagePanel({
   onGoOrcamento: () => void;
   onReload: () => Promise<void>;
 }) {
-  const [open, setOpen] = useState<VBlock>("venue");
+  // null = todas as seções recolhidas (o usuário pode ocultar tudo).
+  const [open, setOpen] = useState<VBlock | null>("venue");
   const [candidates, setCandidates] = useState<PartyVenueCandidate[]>([]);
   const [showDiscarded, setShowDiscarded] = useState(false);
 
@@ -368,7 +369,7 @@ export function ViabilidadeStagePanel({
   return (
     <div className="space-y-2">
       {/* ===== VENUE & CAPACIDADE ===== */}
-      <VBlockShell title="Venue & Capacidade" summary={venueSummary} isOpen={open === "venue"} setOpen={() => setOpen("venue")}>
+      <VBlockShell title="Venue & Capacidade" summary={venueSummary} isOpen={open === "venue"} setOpen={() => setOpen(open === "venue" ? null : "venue")}>
         <div className="space-y-2">
           {visibleCandidates.length > 0 && (
             <ul className="space-y-1.5">
@@ -493,7 +494,7 @@ export function ViabilidadeStagePanel({
       </VBlockShell>
 
       {/* ===== PREMISSAS ===== */}
-      <VBlockShell title="Premissas" summary={premissasSummary} isOpen={open === "premissas"} setOpen={() => setOpen("premissas")}>
+      <VBlockShell title="Premissas" summary={premissasSummary} isOpen={open === "premissas"} setOpen={() => setOpen(open === "premissas" ? null : "premissas")}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Público esperado (realista)" hint="Estimativa honesta de quantas pessoas realmente vêm, não a capacidade. Sugerimos ~70% da capacidade; ajuste pela sua realidade.">
             <Input
@@ -583,7 +584,7 @@ export function ViabilidadeStagePanel({
       </VBlockShell>
 
       {/* ===== CUSTOS PROJETADOS (view do Orçamento) ===== */}
-      <VBlockShell title="Custos projetados" summary={formatCurrency(custosProjetados)} isOpen={open === "custos"} setOpen={() => setOpen("custos")}>
+      <VBlockShell title="Custos projetados" summary={formatCurrency(custosProjetados)} isOpen={open === "custos"} setOpen={() => setOpen(open === "custos" ? null : "custos")}>
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -613,7 +614,7 @@ export function ViabilidadeStagePanel({
       </VBlockShell>
 
       {/* ===== VEREDITO ===== */}
-      <VBlockShell title="Veredito" summary={veredictoSummary} isOpen={open === "veredito"} setOpen={() => setOpen("veredito")}>
+      <VBlockShell title="Veredito" summary={veredictoSummary} isOpen={open === "veredito"} setOpen={() => setOpen(open === "veredito" ? null : "veredito")}>
         <div className="space-y-3">
           <div className={cn("flex items-center justify-between rounded-md border p-3", lightClass(verdict.light))}>
             <span className="flex items-center gap-1.5 text-sm font-medium">
@@ -640,7 +641,7 @@ export function ViabilidadeStagePanel({
       </VBlockShell>
 
       {/* ===== DECISÃO ===== */}
-      <VBlockShell title="Decisão" summary={decisaoSummary} isOpen={open === "decisao"} setOpen={() => setOpen("decisao")}>
+      <VBlockShell title="Decisão" summary={decisaoSummary} isOpen={open === "decisao"} setOpen={() => setOpen(open === "decisao" ? null : "decisao")}>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
             {VIABILITY_DECISIONS.map((d) => (

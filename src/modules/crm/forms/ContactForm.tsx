@@ -206,7 +206,11 @@ export function ContactForm({ open, onOpenChange, contact, onSaved }: Props) {
         if (alsoSupplier) {
           await upsertSupplierMirror(saved);
         } else if (hadMirror.supplier) {
-          const res = await removeSupplierForContact(saved.id);
+          // Desmarcar "Fornecedor" É a intenção explícita de remover o perfil —
+          // força a remoção (senão o espelho fica órfão e VAZA nos pickers, ex.:
+          // continua aparecendo na equipe de produção da festa). Consistente com
+          // o toggle do ContactDetail e com deleteContact, que já usam force.
+          const res = await removeSupplierForContact(saved.id, { force: true });
           if (!res.ok) toast.error(res.reason ?? "Não foi possível remover o fornecedor");
         }
         // Fã (perfil paralelo)

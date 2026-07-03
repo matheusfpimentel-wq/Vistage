@@ -188,8 +188,9 @@ export function BudgetItemDialog({
         description: description.trim() || null,
         projected_amount: proj,
         actual_amount: act,
-        supplier_note: supplierId != null ? null : supplierText.trim() || null,
-        supplier_id: supplierId,
+        // Receita não tem fornecedor — limpa qualquer resquício ao salvar.
+        supplier_note: kind === "receita" ? null : supplierId != null ? null : supplierText.trim() || null,
+        supplier_id: kind === "receita" ? null : supplierId,
         status,
         nota_variancia: notaVariancia.trim() || null,
         kind,
@@ -270,7 +271,7 @@ export function BudgetItemDialog({
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descrição" />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cn("grid gap-3", kind === "receita" ? "grid-cols-1" : "grid-cols-2")}>
             <div className="space-y-1">
               <Label className="text-xs">Projetado (R$)</Label>
               <Input
@@ -283,15 +284,18 @@ export function BudgetItemDialog({
                 className="tabular-nums"
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Fornecedor</Label>
-              <SupplierCombobox
-                suppliers={suppliers}
-                supplierId={supplierId}
-                supplierText={supplierText}
-                onChange={(id, text) => { setSupplierId(id); setSupplierText(text); }}
-              />
-            </div>
+            {/* Receita não tem fornecedor. */}
+            {kind !== "receita" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Fornecedor</Label>
+                <SupplierCombobox
+                  suppliers={suppliers}
+                  supplierId={supplierId}
+                  supplierText={supplierText}
+                  onChange={(id, text) => { setSupplierId(id); setSupplierText(text); }}
+                />
+              </div>
+            )}
           </div>
 
           {/* Execução: real, status e causa do desvio só aparecem na aba Execução. */}
