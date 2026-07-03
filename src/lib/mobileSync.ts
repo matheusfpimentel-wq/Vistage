@@ -483,6 +483,22 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       ORDER BY g.date DESC LIMIT 800`,
     []
   );
+  // §1 — VIPs por GIG (fan_lists + membros) pro check-in no celular. Uma query só,
+  // agrupada por gig_id; `arrived` vem do arrived_at (marcado na porta).
+  const vipRows = await db.select<{ gig_id: number; member_id: number; name: string | null; fan_name: string | null; arrived_at: string | null }[]>(
+    `SELECT fl.gig_id AS gig_id, m.id AS member_id, m.name AS name, f.name AS fan_name, m.arrived_at AS arrived_at
+       FROM fan_list_members m
+       JOIN fan_lists fl ON fl.id = m.list_id
+       LEFT JOIN fans f ON f.id = m.fan_id
+      WHERE fl.gig_id IS NOT NULL`,
+    []
+  );
+  const vipsByGig = new Map<number, { ref_id: number; name: string; arrived: boolean }[]>();
+  for (const v of vipRows) {
+    const arr = vipsByGig.get(v.gig_id) ?? [];
+    arr.push({ ref_id: v.member_id, name: v.name || v.fan_name || "Convidado", arrived: !!v.arrived_at });
+    vipsByGig.set(v.gig_id, arr);
+  }
   for (const g of gigs) {
     // Título da festa (recorrente - edição / evento), com fallback pro venue —
     // mesmo padrão do desktop (gigDisplayName). Antes ia só o venue.
@@ -507,6 +523,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // Checklist de Preparação (da aba Preparação): ids dos itens já marcados.
         // A estrutura (grupos/itens) é fixa e replicada no celular (PREP_GROUPS).
         prep_done: Object.keys(parsePrepState(g.prep_state)),
+        // §1 — lista VIP pro check-in ao vivo (chegada marcada na porta).
+        vips: vipsByGig.get(g.id) ?? [],
         // Objetivos da GIG (aba Briefing) pro card de objetivos no palco.
         main_goal: g.main_goal,
         opportunities: g.opportunities,
@@ -642,6 +660,20 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       search_text: lc(cl.subject, cl.student_name, cl.date, cl.status),
       // §2 — start_time + given pro card "Aula dada · Paga?" (passada a hora).
       meta: { date: cl.date, start_time: cl.start_time, status: cl.status, student_name: cl.student_name, given: cl.status === "Realizada", amount: cl.amount },
+    });
+
+  // §1 — Fãs pro check-in de GIG (busca rápida na porta). Nome/instagram/telefone.
+  const cfans = await db.select<{ id: number; name: string; instagram: string | null; phone: string | null; city: string | null }[]>(
+    `SELECT id, name, instagram, phone, city FROM fans ORDER BY name LIMIT 2000`,
+    []
+  );
+  for (const f of cfans)
+    rows.push({
+      user_id: uid, kind: "fan", source_id: String(f.id),
+      title: f.name,
+      subtitle: [f.city, f.instagram].filter(Boolean).join(" · ") || null,
+      search_text: lc(f.name, f.instagram, f.city),
+      meta: { instagram: f.instagram, phone: f.phone, city: f.city },
     });
 
   // Festas — pesquisáveis e fonte do "Festas em planejamento" na Home (o mobile
@@ -991,6 +1023,33 @@ export async function deleteCaptures(ids: string[]): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * §1 — marca um fã como presente na GIG no `gigs.fans_present` (JSON de ids), que
+ * é a fonte que pré-preenche o picker de "Fãs presentes" no debrief do desktop.
+ * Idempotente. O sinal de scoring vem à parte do gig_fans (addGigFan).
+ */
+async function addFanPresent(db: Db, gigId: number, fanId: number): Promise<void> {
+  const rows = await db.select<{ fans_present: string | null }[]>(
+    `SELECT fans_present FROM gigs WHERE id = $1`,
+    [gigId]
+  );
+  let ids: number[] = [];
+  try {
+    const raw = rows[0]?.fans_present;
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    if (Array.isArray(parsed)) ids = parsed.filter((x): x is number => typeof x === "number");
+  } catch {
+    ids = [];
+  }
+  if (!ids.includes(fanId)) {
+    ids.push(fanId);
+    await db.execute(
+      `UPDATE gigs SET fans_present = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [JSON.stringify(ids), gigId]
+    );
+  }
+}
+
 async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: IngestOpts): Promise<void> {
   const s = (k: string): string | null => (typeof p[k] === "string" ? (p[k] as string) : null);
   const n = (k: string): number | null => (typeof p[k] === "number" ? (p[k] as number) : null);
@@ -1323,6 +1382,60 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
     if (classId != null && dada) {
       const { updateClass } = await import("@/modules/classes/api");
       await updateClass({ id: classId, status: "Realizada", paid: paga ? 1 : 0 });
+    }
+  } else if (kind === "gig_checkin") {
+    // §1 — chegada marcada na porta. vip: marca arrived_at do membro da lista (e,
+    // se for fã, conta presença no scoring); fan: marca o fã presente na GIG.
+    const gigId = n("gig_id");
+    const refId = n("ref_id");
+    const ck = s("kind");
+    if (gigId != null && refId != null) {
+      const { addGigFan, recomputeFanLevel } = await import("@/modules/fans/api");
+      if (ck === "vip") {
+        const mem = await db.select<{ fan_id: number | null }[]>(
+          `SELECT fan_id FROM fan_list_members WHERE id = $1`,
+          [refId]
+        );
+        await db.execute(
+          `UPDATE fan_list_members SET arrived_at = $1 WHERE id = $2 AND arrived_at IS NULL`,
+          [new Date().toISOString(), refId]
+        );
+        const fid = mem[0]?.fan_id ?? null;
+        if (fid != null) {
+          await addGigFan(gigId, fid);
+          await addFanPresent(db, gigId, fid);
+          await recomputeFanLevel(fid).catch(() => {});
+        }
+      } else {
+        await addGigFan(gigId, refId); // ref_id = fan_id
+        await addFanPresent(db, gigId, refId);
+        await recomputeFanLevel(refId).catch(() => {});
+      }
+    }
+  } else if (kind === "fan_quick_add") {
+    // §1 — fã novo cadastrado na porta, já nasce presente na GIG de hoje.
+    const gigId = n("gig_id");
+    const nome = s("nome")?.trim();
+    if (gigId != null && nome) {
+      const { createFan, addGigFan, recomputeFanLevel } = await import("@/modules/fans/api");
+      const fid = await createFan({
+        name: nome,
+        level: "Possível fã",
+        is_ambassador: 0,
+        instagram: s("instagram"),
+        email: null,
+        phone: null,
+        city: null,
+        tags: [],
+        notes: null,
+        photo_path: null,
+        contact_id: null,
+        indicated_by_fan_id: null,
+        origem: "GIG (check-in)",
+      });
+      await addGigFan(gigId, fid);
+      await addFanPresent(db, gigId, fid);
+      await recomputeFanLevel(fid).catch(() => {});
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

@@ -2494,6 +2494,14 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE classes ADD COLUMN paid INTEGER;
     `,
   },
+  {
+    version: 178,
+    description:
+      "Check-in de GIG — fan_list_members.arrived_at: quando o convidado VIP chegou (marcado no celular, na porta). null = ainda não chegou. Coluna aditiva idempotente (§1).",
+    sql: `
+      ALTER TABLE fan_list_members ADD COLUMN arrived_at TEXT;
+    `,
+  },
 ];
 
 

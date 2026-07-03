@@ -10,6 +10,7 @@ import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
 import { EnergyChip } from "../components/EnergyChip";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
+import { Checkin, type Vip } from "./Checkin";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -56,6 +57,8 @@ type GigMeta = {
   // §2 — pagamento do cachê (card "Cachê · Recebido?").
   payment_status?: string | null;
   cache_pending?: boolean;
+  // §1 — lista VIP pro check-in ao vivo.
+  vips?: Vip[];
   // Checklist de Preparação (aba Preparação): ids marcados. Alimenta o selo "prep pendente".
   prep_done?: string[];
 };
@@ -217,6 +220,7 @@ export function Hoje({
   const [trackOpen, setTrackOpen] = useState<TrackRow | null>(null);
   const [partyOpen, setPartyOpen] = useState<PartyRow | null>(null);
   const [classOpen, setClassOpen] = useState<ClassRow | null>(null);
+  const [checkinOpen, setCheckinOpen] = useState(false);
   const [catGigs, setCatGigs] = useState<GigRow[]>([]);
   const [catTracks, setCatTracks] = useState<TrackRow[]>([]);
   const [catParties, setCatParties] = useState<PartyRow[]>([]);
@@ -488,7 +492,7 @@ export function Hoje({
       </div>
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
-      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} />}
+      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} />}
 
       {/* (2) O que vem — lista única animada (cada item surge da esquerda). */}
       <section className="home-section">
@@ -615,6 +619,14 @@ export function Hoje({
       {trackOpen && <TrackSheet track={trackOpen} onClose={() => setTrackOpen(null)} />}
       {partyOpen && <PartySheet party={partyOpen} today={today} onClose={() => setPartyOpen(null)} />}
       {classOpen && <ClassSheet cls={classOpen} today={today} onClose={() => setClassOpen(null)} />}
+      {checkinOpen && todayGig && (
+        <Checkin
+          gigId={Number(todayGig.source_id)}
+          gigTitle={todayGig.title}
+          vips={todayGig.meta.vips ?? []}
+          onClose={() => setCheckinOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -961,7 +973,7 @@ function ClassSheet({ cls, today, onClose }: { cls: ClassRow; today: string; onC
 }
 
 /** §4: card-herói do dia de GIG — lidera com a noite (set, cachê, contato, mapa). */
-function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) {
+function GigDayHero({ gig, onFocus, onCheckin }: { gig: CatalogGig; onFocus: () => void; onCheckin: () => void }) {
   const m = gig.meta;
   const periods =
     m.set_periods && m.set_periods.length > 0
@@ -1025,9 +1037,10 @@ function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) 
         </div>
       )}
 
-      <button className="gig-day-focus" onClick={onFocus}>
-        ▶ Ativar Modo Foco
-      </button>
+      <div className="gig-day-cta">
+        <button className="gig-day-checkin" onClick={onCheckin}>Check-in</button>
+        <button className="gig-day-focus" onClick={onFocus}>▶ Modo Foco</button>
+      </div>
     </section>
   );
 }

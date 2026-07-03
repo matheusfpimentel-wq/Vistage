@@ -802,11 +802,33 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
 }
 .gig-act:active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.gig-day-cta { display: flex; gap: 0.5rem; margin-top: 0.2rem; }
 .gig-day-focus {
-  width: 100%; margin-top: 0.2rem; padding: 0.75rem; border-radius: 14px; border: none;
+  flex: 1; padding: 0.75rem; border-radius: 14px; border: none;
   font-size: 1rem; font-weight: 700; color: #fff; cursor: pointer; background: var(--accent);
 }
 .gig-day-focus:active { filter: brightness(0.92); }
+/* §1 — botão de check-in no herói do dia de GIG */
+.gig-day-checkin {
+  flex: 0 0 auto; padding: 0.75rem 1rem; border-radius: 14px; font-size: 1rem; font-weight: 700;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+}
+.gig-day-checkin:active { transform: scale(0.97); }
+
+/* §1 — folha de Check-in (VIP + fãs presentes + novo fã) */
+.checkin-sheet { max-height: 88vh; overflow-y: auto; }
+.checkin-h { margin: 1rem 0 0.35rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.checkin-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.15rem 0; }
+.checkin-body { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.checkin-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.checkin-btn {
+  flex: 0 0 auto; min-height: 44px; padding: 0 0.9rem; border-radius: 12px; font-weight: 700; font-size: 0.85rem;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+}
+.checkin-btn:active { transform: scale(0.96); }
+.checkin-btn.ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 14%, transparent); border-color: color-mix(in srgb, var(--pos) 30%, transparent); }
+.checkin-search { width: 100%; }
+.checkin-add { display: flex; flex-direction: column; gap: 0.5rem; }
 
 /* ── §8 Tarefas: grupos por vencimento + deslizar-pra-concluir ─────────────── */
 .task-group { margin-bottom: 0.9rem; }
