@@ -147,7 +147,11 @@ export type BuiltinRule = {
   trigger: (cfg: RuleTriggerConfig) => string;
   /** Prioridade — crítico (dinheiro/prazo), atenção (acionável), info (lembrete). */
   severidade: AlertSeverity;
-  /** Regra de dinheiro/fisco — não pode ser excluída do catálogo, só desativada (🔒). */
+  /**
+   * Regra de dinheiro/fisco — marcada como IMPORTANTE (⚠) no editor. O dono pode
+   * desativá-la se quiser (com uma confirmação a mais), mas o padrão é ligada:
+   * são as que mais custam caro se passarem batido.
+   */
   inegociavel?: boolean;
   /** Chave dinâmica: o id é um prefixo (ex.: "track-standby-overdue-"). */
   dynamic?: boolean;
@@ -220,19 +224,6 @@ const MODULE_BY_RULE_ID: Record<string, string> = {
   "no-upcoming-classes": "/aulas",
 };
 
-/**
- * Ids das regras INEGOCIÁVEIS (cadeado verde — dinheiro/fisco). NÃO podem ser
- * desativadas nem editadas no editor, e o motor nunca as filtra mesmo que um id
- * antigo tenha ficado na lista de desligadas.
- */
-export const INEGOCIAVEL_RULE_IDS: ReadonlySet<string> = new Set(
-  BUILTIN_RULES.filter((r) => r.inegociavel).map((r) => r.id)
-);
-
-/** A regra (por id) é inegociável (cadeado verde)? */
-export function isInegociavelRule(id: string): boolean {
-  return INEGOCIAVEL_RULE_IDS.has(id);
-}
 
 /**
  * Calcula a lista de alertas a partir das estatísticas da semana e de stats
@@ -421,12 +412,8 @@ export function computeAlerts(
   let result = alerts;
   if (disabledRuleIds.length > 0) {
     const disabled = new Set(disabledRuleIds);
-    // Inegociáveis (cadeado verde) NUNCA são filtradas — nem que um id antigo
-    // tenha ficado na lista de desligadas.
-    result = result.filter((a) => {
-      const id = ruleIdForKey(a.key);
-      return isInegociavelRule(id) || !disabled.has(id);
-    });
+    // TODA regra pode ser desativada pelo dono (inclusive as de dinheiro/fisco).
+    result = result.filter((a) => !disabled.has(ruleIdForKey(a.key)));
   }
   // Perfil: alertas de módulos de CRIAÇÃO ocultos somem por completo — inclusive
   // os inegociáveis (ocultar um módulo o tira de toda superfície). Núcleo intacto.

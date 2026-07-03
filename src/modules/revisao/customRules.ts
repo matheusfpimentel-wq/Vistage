@@ -17,7 +17,13 @@ export type RuleEntityKey =
   | "fan"
   | "task"
   | "party"
-  | "class";
+  | "class"
+  | "student"
+  | "idea"
+  | "content"
+  | "meeting"
+  | "okr"
+  | "finance";
 export type RuleFieldType = "activity" | "date" | "number" | "text" | "enum";
 export type RuleOperator =
   | "stale" // activity: sem movimento há > N dias
@@ -81,17 +87,38 @@ export type RuleEntityDef = {
   relations?: RuleRelationDef[];
 };
 
-// Opções de enums (valores exatos como gravados no banco).
+// Opções de enums (valores exatos como gravados no banco). Espelham as uniões
+// dos types.ts de cada módulo — o motor compara `coluna = $1` contra o valor
+// escolhido, então precisam bater com o que está gravado (não com rótulos).
 const GIG_STATUS = ["Proposta", "Confirmada", "Concluída", "Cancelada"] as const;
+const GIG_PAYMENT_STATUS = ["Pendente", "Pago parcialmente", "Pago integralmente"] as const;
+const PAYMENT_METHOD = ["PIX", "Transferência", "Cartão", "Dinheiro", "Boleto", "Outro"] as const;
 const TRACK_STAGE = [
   "Ideação", "Composição", "Produção", "Mix", "Master",
   "Pré-lançamento", "Lançamento", "Pós-lançamento",
 ] as const;
+const TRACK_KIND = ["single", "album_track", "remix", "beat", "edit", "bootleg"] as const;
 const TASK_STATUS = ["A fazer", "Em andamento", "Concluída", "Cancelada"] as const;
 const TASK_PRIORITY = ["Baixa", "Média", "Alta", "Urgente"] as const;
 const TASK_CATEGORY = ["GIG", "Produção Musical", "Conteúdo", "Festas", "Administrativo", "Pessoal"] as const;
+const TASK_RECURRENCE = ["weekly", "monthly"] as const;
+const EISENHOWER = ["do", "schedule", "delegate", "eliminate"] as const;
 const PARTY_STATUS = ["Ideia", "Planejando", "Confirmada", "Em vendas", "Realizada", "Cancelada"] as const;
 const FAN_LEVEL = ["Embaixador", "Superfã", "Fã", "Quase fã", "Possível fã"] as const;
+const CLASS_STATUS = ["Agendada", "Realizada", "Cancelada", "Falta"] as const;
+const STUDENT_ACQUISITION = ["Instagram", "TikTok", "YouTube", "Indicação", "Anúncio", "Evento", "Outro"] as const;
+const KNOWLEDGE_LEVEL = ["Básico", "Intermediário", "Avançado"] as const;
+const IDEA_CATEGORY = ["Conteúdo", "GIG", "Música", "Aulas", "Marketing", "Negócio", "Outro"] as const;
+const IDEA_MATURATION = ["Embrião", "Desenvolvendo", "Pronta", "Arquivada"] as const;
+const IDEA_CONVERSION = ["task", "content", "gig", "track"] as const;
+const IDEA_SOURCE = ["manual", "provocacao", "modo_foco", "biblioteca", "colisao"] as const;
+const CONTENT_STATUS = ["Ideia", "Roteiro", "Gravando", "Edição", "Pronto", "Publicado", "Arquivado"] as const;
+const CONTENT_FORMAT = ["Reels", "Story", "Post", "Carrossel", "Vídeo longo", "Live", "Podcast", "Outro"] as const;
+const MEETING_STATUS = ["Agendada", "Realizada", "Cancelada"] as const;
+const TX_KIND = ["income", "expense"] as const;
+const TX_STATUS = ["Previsto", "Recebido", "Pago"] as const;
+const EXPENSE_TYPE = ["Variável", "Fixa"] as const;
+const CURRENCY = ["BRL", "USD", "EUR", "GBP", "ARS", "CHF", "MXN", "CAD", "AUD", "JPY"] as const;
 
 export const RULE_ENTITIES: RuleEntityDef[] = [
   {
@@ -103,12 +130,32 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
       { key: "date", label: "Data do evento", type: "date", column: "date" },
-      { key: "payment_due_date", label: "Vencimento do cachê", type: "date", column: "payment_due_date" },
-      { key: "cache_amount", label: "Cachê (R$)", type: "number", column: "cache_amount" },
+      { key: "start_time", label: "Horário de início", type: "text", column: "start_time" },
       { key: "status", label: "Status", type: "enum", column: "status", options: GIG_STATUS },
       { key: "event_name", label: "Nome do evento", type: "text", column: "event_name" },
+      { key: "event_category", label: "Categoria do evento", type: "text", column: "event_category" },
+      { key: "recurring_event_name", label: "Festa recorrente", type: "text", column: "recurring_event_name" },
+      { key: "is_special", label: "Especial (1=sim)", type: "number", column: "is_special" },
       { key: "venue_name", label: "Local", type: "text", column: "venue_name" },
+      { key: "venue_city", label: "Cidade", type: "text", column: "venue_city" },
+      { key: "venue_address", label: "Endereço", type: "text", column: "venue_address" },
+      { key: "estimated_audience", label: "Público estimado", type: "number", column: "estimated_audience" },
+      { key: "cache_amount", label: "Cachê (R$)", type: "number", column: "cache_amount" },
+      { key: "cache_paid_pct", label: "% do cachê recebido", type: "number", column: "cache_paid_pct" },
+      { key: "payment_status", label: "Status do pagamento", type: "enum", column: "payment_status", options: GIG_PAYMENT_STATUS },
+      { key: "payment_method", label: "Forma de pagamento", type: "enum", column: "payment_method", options: PAYMENT_METHOD },
+      { key: "payment_due_date", label: "Vencimento do cachê", type: "date", column: "payment_due_date" },
+      { key: "fans_notified", label: "Fãs avisados (1=sim)", type: "number", column: "fans_notified" },
+      { key: "debrief_pending", label: "Debrief pendente (1=sim)", type: "number", column: "debrief_pending" },
+      { key: "debrief_completed_at", label: "Debrief preenchido em", type: "activity", column: "debrief_completed_at" },
+      { key: "rating_charisma", label: "Nota carisma", type: "number", column: "rating_charisma" },
+      { key: "rating_technique", label: "Nota técnica", type: "number", column: "rating_technique" },
+      { key: "rating_repertoire", label: "Nota repertório", type: "number", column: "rating_repertoire" },
+      { key: "rating_floor", label: "Nota pista", type: "number", column: "rating_floor" },
+      { key: "rating_contractor", label: "Nota contratante", type: "number", column: "rating_contractor" },
+      { key: "briefing", label: "Briefing (texto)", type: "text", column: "briefing" },
       { key: "briefing_file_path", label: "Briefing (arquivo)", type: "text", column: "briefing_file_path" },
+      { key: "general_notes", label: "Observações", type: "text", column: "general_notes" },
     ],
   },
   {
@@ -118,9 +165,20 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     route: "/musica",
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "title_working", label: "Título de trabalho", type: "text", column: "title_working" },
+      { key: "title_final", label: "Título final", type: "text", column: "title_final" },
+      { key: "kind", label: "Tipo", type: "enum", column: "kind", options: TRACK_KIND },
       { key: "current_stage", label: "Estágio", type: "enum", column: "current_stage", options: TRACK_STAGE },
       { key: "deadline", label: "Prazo de conclusão", type: "date", column: "deadline" },
+      { key: "standby", label: "Em standby (1=sim)", type: "number", column: "standby" },
+      { key: "standby_until", label: "Retorno do standby", type: "date", column: "standby_until" },
       { key: "bpm", label: "BPM", type: "number", column: "bpm" },
+      { key: "key", label: "Tom", type: "text", column: "key" },
+      { key: "duration_seconds", label: "Duração (segundos)", type: "number", column: "duration_seconds" },
+      { key: "genre_primary", label: "Gênero principal", type: "text", column: "genre_primary" },
+      { key: "genre_secondary", label: "Gênero secundário", type: "text", column: "genre_secondary" },
+      { key: "stage_notes", label: "Notas do estágio", type: "text", column: "stage_notes" },
+      { key: "creative_block_notes", label: "Notas de bloqueio", type: "text", column: "creative_block_notes" },
     ],
   },
   {
@@ -131,10 +189,16 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
       { key: "last_interaction_at", label: "Última interação", type: "activity", column: "last_interaction_at" },
-      { key: "rating", label: "Avaliação (1–5)", type: "number", column: "rating" },
+      { key: "name", label: "Nome", type: "text", column: "name" },
+      { key: "rating", label: "Prioridade (1–5)", type: "number", column: "rating" },
       { key: "phone", label: "Telefone", type: "text", column: "phone" },
       { key: "email", label: "E-mail", type: "text", column: "email" },
+      { key: "instagram", label: "Instagram", type: "text", column: "instagram" },
       { key: "city", label: "Cidade", type: "text", column: "city" },
+      { key: "company", label: "Empresa", type: "text", column: "company" },
+      { key: "follower_count", label: "Seguidores", type: "number", column: "follower_count" },
+      { key: "birthday", label: "Aniversário (texto)", type: "text", column: "birthday" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
     ],
   },
   {
@@ -145,10 +209,16 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
       { key: "last_interaction_at", label: "Última interação", type: "activity", column: "last_interaction_at" },
+      { key: "nivel_changed_at", label: "Mudou de nível em", type: "activity", column: "nivel_changed_at" },
+      { key: "name", label: "Nome", type: "text", column: "name" },
       { key: "level", label: "Nível", type: "enum", column: "level", options: FAN_LEVEL },
+      { key: "is_ambassador", label: "Embaixador (1=sim)", type: "number", column: "is_ambassador" },
       { key: "city", label: "Cidade", type: "text", column: "city" },
       { key: "phone", label: "Telefone", type: "text", column: "phone" },
       { key: "email", label: "E-mail", type: "text", column: "email" },
+      { key: "instagram", label: "Instagram", type: "text", column: "instagram" },
+      { key: "origem", label: "Origem", type: "text", column: "origem" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
     ],
   },
   {
@@ -160,9 +230,14 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "due_date", label: "Prazo", type: "date", column: "due_date" },
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "title", label: "Título", type: "text", column: "title" },
+      { key: "description", label: "Descrição", type: "text", column: "description" },
       { key: "status", label: "Status", type: "enum", column: "status", options: TASK_STATUS },
       { key: "priority", label: "Prioridade", type: "enum", column: "priority", options: TASK_PRIORITY },
       { key: "category", label: "Categoria", type: "enum", column: "category", options: TASK_CATEGORY },
+      { key: "recurrence", label: "Recorrência", type: "enum", column: "recurrence", options: TASK_RECURRENCE },
+      { key: "eisenhower_quadrant", label: "Quadrante (Eisenhower)", type: "enum", column: "eisenhower_quadrant", options: EISENHOWER },
+      { key: "energy_required", label: "Energia (1–5)", type: "number", column: "energy_required" },
     ],
   },
   {
@@ -173,10 +248,20 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "date", label: "Data", type: "date", column: "date" },
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "title", label: "Título", type: "text", column: "title" },
       { key: "status", label: "Status", type: "enum", column: "status", options: PARTY_STATUS },
       { key: "description", label: "Descrição", type: "text", column: "description" },
       { key: "venue_name", label: "Local", type: "text", column: "venue_name" },
       { key: "expected_capacity", label: "Público estimado", type: "number", column: "expected_capacity" },
+      { key: "actual_attendance", label: "Público real", type: "number", column: "actual_attendance" },
+      { key: "ticket_price_regular", label: "Preço ingresso (R$)", type: "number", column: "ticket_price_regular" },
+      { key: "ticket_price_vip", label: "Preço VIP (R$)", type: "number", column: "ticket_price_vip" },
+      { key: "bar_revenue", label: "Receita de bar (R$)", type: "number", column: "bar_revenue" },
+      { key: "target_cac", label: "CAC-alvo (R$)", type: "number", column: "target_cac" },
+      { key: "stage_current", label: "Etapa do workflow (nº)", type: "number", column: "stage_current" },
+      { key: "edition_label", label: "Edição", type: "text", column: "edition_label" },
+      { key: "house_pending", label: "Pendências com a casa", type: "text", column: "house_pending" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
     ],
     relations: [
       {
@@ -210,6 +295,119 @@ export const RULE_ENTITIES: RuleEntityDef[] = [
     fields: [
       { key: "date", label: "Data", type: "date", column: "date" },
       { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "start_time", label: "Horário", type: "text", column: "start_time" },
+      { key: "duration_min", label: "Duração (min)", type: "number", column: "duration_min" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: CLASS_STATUS },
+      { key: "subject", label: "Assunto", type: "text", column: "subject" },
+      { key: "amount", label: "Valor (R$)", type: "number", column: "amount" },
+      { key: "title", label: "Título", type: "text", column: "title" },
+      { key: "feedback", label: "Feedback", type: "text", column: "feedback" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
+    ],
+  },
+  {
+    key: "student",
+    label: "Aluno",
+    table: "students",
+    route: "/aulas",
+    fields: [
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "name", label: "Nome", type: "text", column: "name" },
+      { key: "phone", label: "Telefone", type: "text", column: "phone" },
+      { key: "email", label: "E-mail", type: "text", column: "email" },
+      { key: "instagram", label: "Instagram", type: "text", column: "instagram" },
+      { key: "city", label: "Cidade", type: "text", column: "city" },
+      { key: "acquisition", label: "Origem", type: "enum", column: "acquisition", options: STUDENT_ACQUISITION },
+      { key: "knowledge_level", label: "Nível de conhecimento", type: "enum", column: "knowledge_level", options: KNOWLEDGE_LEVEL },
+      { key: "default_rate", label: "Valor padrão (R$)", type: "number", column: "default_rate" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
+    ],
+  },
+  {
+    key: "idea",
+    label: "Ideia",
+    table: "ideas",
+    route: "/ideias",
+    fields: [
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "last_touched_at", label: "Último toque (calor)", type: "activity", column: "last_touched_at" },
+      { key: "title", label: "Título", type: "text", column: "title" },
+      { key: "body", label: "Descrição", type: "text", column: "body" },
+      { key: "category", label: "Categoria", type: "enum", column: "category", options: IDEA_CATEGORY },
+      { key: "heat", label: "Calor (1–5)", type: "number", column: "heat" },
+      { key: "maturation", label: "Maturação", type: "enum", column: "maturation", options: IDEA_MATURATION },
+      { key: "converted_to", label: "Convertida em", type: "enum", column: "converted_to", options: IDEA_CONVERSION },
+      { key: "source", label: "Procedência", type: "enum", column: "source", options: IDEA_SOURCE },
+    ],
+  },
+  {
+    key: "content",
+    label: "Conteúdo",
+    table: "content",
+    route: "/conteudo",
+    fields: [
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "title", label: "Título", type: "text", column: "title" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: CONTENT_STATUS },
+      { key: "format", label: "Formato", type: "enum", column: "format", options: CONTENT_FORMAT },
+      { key: "purpose", label: "Objetivo", type: "text", column: "purpose" },
+      { key: "due_date", label: "Prazo", type: "date", column: "due_date" },
+      { key: "publish_date", label: "Data de publicação", type: "date", column: "publish_date" },
+      { key: "published_at", label: "Publicado em", type: "date", column: "published_at" },
+      { key: "post_url", label: "URL do post", type: "text", column: "post_url" },
+      { key: "metric_views", label: "Visualizações", type: "number", column: "metric_views" },
+      { key: "metric_likes", label: "Curtidas", type: "number", column: "metric_likes" },
+      { key: "metric_comments", label: "Comentários", type: "number", column: "metric_comments" },
+      { key: "metric_shares", label: "Compartilhamentos", type: "number", column: "metric_shares" },
+      { key: "metric_saves", label: "Salvamentos", type: "number", column: "metric_saves" },
+      { key: "script", label: "Roteiro", type: "text", column: "script" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
+    ],
+  },
+  {
+    key: "meeting",
+    label: "Reunião",
+    table: "meetings",
+    route: "/reunioes",
+    fields: [
+      { key: "date", label: "Data", type: "date", column: "date" },
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "title", label: "Título", type: "text", column: "title" },
+      { key: "time", label: "Horário", type: "text", column: "time" },
+      { key: "location", label: "Local", type: "text", column: "location" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: MEETING_STATUS },
+      { key: "agenda", label: "Pauta", type: "text", column: "agenda" },
+      { key: "outcomes", label: "Encaminhamentos", type: "text", column: "outcomes" },
+      { key: "notes", label: "Notas", type: "text", column: "notes" },
+    ],
+  },
+  {
+    key: "okr",
+    label: "OKR (objetivo)",
+    table: "okrs",
+    route: "/objetivos",
+    fields: [
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "quarter", label: "Quarter", type: "text", column: "quarter" },
+      { key: "objective", label: "Objetivo", type: "text", column: "objective" },
+    ],
+  },
+  {
+    key: "finance",
+    label: "Transação financeira",
+    table: "finance_transactions",
+    route: "/financeiro",
+    fields: [
+      { key: "date", label: "Data", type: "date", column: "date" },
+      { key: "updated_at", label: "Última atualização", type: "activity", column: "updated_at" },
+      { key: "kind", label: "Tipo (income/expense)", type: "enum", column: "kind", options: TX_KIND },
+      { key: "amount", label: "Valor (R$)", type: "number", column: "amount" },
+      { key: "description", label: "Descrição", type: "text", column: "description" },
+      { key: "status", label: "Status", type: "enum", column: "status", options: TX_STATUS },
+      { key: "payment_method", label: "Forma de pagamento", type: "enum", column: "payment_method", options: PAYMENT_METHOD },
+      { key: "expense_type", label: "Tipo de despesa", type: "enum", column: "expense_type", options: EXPENSE_TYPE },
+      { key: "tax_relevant", label: "Relevante p/ imposto (1=sim)", type: "number", column: "tax_relevant" },
+      { key: "currency", label: "Moeda", type: "enum", column: "currency", options: CURRENCY },
     ],
   },
 ];

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Lock, RotateCcw } from "lucide-react";
+import { AlertTriangle, RotateCcw } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm";
 import {
   Card,
   CardContent,
@@ -86,8 +87,20 @@ export function AdvancedRulesSettings() {
     okrsLaggingDays,
   };
 
-  function toggle(id: string) {
+  async function toggle(id: string, important: boolean) {
     const willDisable = !disabled.has(id);
+    // Desligar uma regra de dinheiro/fisco pede uma confirmação a mais — são as
+    // que mais custam caro se passarem batido — mas o dono decide.
+    if (willDisable && important) {
+      const ok = await confirmDialog({
+        title: "Desativar alerta importante?",
+        description:
+          "Essa é uma regra de dinheiro/fisco (cachê não recebido, resultado negativo, etc.). Desativá-la some com o aviso — só faça se tiver certeza.",
+        confirmLabel: "Desativar mesmo assim",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setDisabled(new Set(toggleRuleDisabled(id, willDisable)));
   }
 
@@ -107,10 +120,8 @@ export function AdvancedRulesSettings() {
     );
     if (rules.length > 0) ruleGroups.push({ label: SEVERITY_BUCKET_LABEL[sev], rules });
   }
-  // Inegociáveis estão sempre ativas; só as demais podem ficar desligadas.
-  const activeCount = BUILTIN_RULES.filter(
-    (r) => r.inegociavel || !disabled.has(r.id)
-  ).length;
+  // Toda regra pode ser desligada — inclusive as importantes (dinheiro/fisco).
+  const activeCount = BUILTIN_RULES.filter((r) => !disabled.has(r.id)).length;
   const anyDisabled = disabled.size > 0;
 
   return (
@@ -121,12 +132,12 @@ export function AdvancedRulesSettings() {
             <div className="min-w-0">
               <CardTitle className="text-base">Regras padrão</CardTitle>
               <CardDescription>
-                {activeCount} de {BUILTIN_RULES.length} regras ativas. As de{" "}
+                {activeCount} de {BUILTIN_RULES.length} regras ativas. Todas podem
+                ser desativadas; as com{" "}
                 <span className="inline-flex items-center gap-0.5 align-middle">
-                  <Lock className="inline h-3 w-3 text-emerald-500" />
-                  cadeado
+                  <AlertTriangle className="inline h-3 w-3 text-amber-500" />
                 </span>{" "}
-                (dinheiro/fisco) ficam sempre ligadas.
+                (dinheiro/fisco) pedem uma confirmação a mais.
               </CardDescription>
             </div>
             <button
@@ -154,8 +165,8 @@ export function AdvancedRulesSettings() {
               </h4>
               <div className="space-y-1.5">
                 {group.rules.map((r) => {
-                  const locked = !!r.inegociavel;
-                  const on = locked || !disabled.has(r.id);
+                  const important = !!r.inegociavel;
+                  const on = !disabled.has(r.id);
                   return (
                     <div
                       key={r.id}
@@ -180,10 +191,10 @@ export function AdvancedRulesSettings() {
                                 : "Informativo"
                             }
                           />
-                          {locked && (
-                            <Lock
-                              className="h-3 w-3 shrink-0 text-emerald-500"
-                              aria-label="Inegociável: regra de dinheiro/fisco; não pode desativar nem editar"
+                          {important && (
+                            <AlertTriangle
+                              className="h-3 w-3 shrink-0 text-amber-500"
+                              aria-label="Importante: regra de dinheiro/fisco; desativar pede confirmação"
                             />
                           )}
                           <span className={cn(!on && "line-through")}>{r.message}</span>
@@ -352,16 +363,7 @@ export function AdvancedRulesSettings() {
                           </label>
                         )}
                       </div>
-                      {locked ? (
-                        <span
-                          className="shrink-0 select-none self-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
-                          title="Regra fixa: sempre ligada"
-                        >
-                          Fixa
-                        </span>
-                      ) : (
-                        <Toggle on={on} onClick={() => toggle(r.id)} />
-                      )}
+                      <Toggle on={on} onClick={() => void toggle(r.id, important)} />
                     </div>
                   );
                 })}
