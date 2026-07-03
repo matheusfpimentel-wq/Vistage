@@ -1,6 +1,7 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { EMPTY_VALUE } from "@/lib/format";
 import { Pencil, PlusSquare, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { TRACK_KIND_LABEL } from "../stages";
@@ -43,14 +44,26 @@ export function ListView({
   tracks,
   onEdit,
   onDelete,
+  onBulkDelete,
   density = "full",
 }: {
   tracks: TrackWithProject[];
   onEdit: (t: TrackWithProject) => void;
   onDelete: (t: TrackWithProject) => void;
+  /** Exclui várias de uma vez — confirma uma única vez e apaga o lote. */
+  onBulkDelete: (ts: TrackWithProject[]) => void | Promise<void>;
   density?: ListDensity;
 }) {
   const navigate = useNavigate();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  function toggleOne(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const rows: MusicRow[] = useMemo(
     () =>
       tracks.map((t) => ({
@@ -187,14 +200,40 @@ export function ListView({
   );
   const tableWidth = oc.order.reduce((s, id) => s + cols.widths[id], 0);
 
+  const selectedTracks = sorted.filter((t) => selected.has(t.id));
+  const allSelected = sorted.length > 0 && selected.size === sorted.length;
+
   return (
     <PendingTasksProvider entityType="track">
+    <div className="space-y-2">
+      {selected.size > 0 && (
+        <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs">
+          <span className="text-muted-foreground">
+            {selected.size} selecionada{selected.size !== 1 ? "s" : ""}
+          </span>
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-7 gap-1.5 text-xs"
+            onClick={() => {
+              void onBulkDelete(selectedTracks);
+              setSelected(new Set());
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Excluir selecionadas
+          </Button>
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
+            Limpar seleção
+          </Button>
+        </div>
+      )}
     <div className="overflow-x-auto rounded-md border">
       <table
         className={cn("table-fixed", compact ? "text-xs [&_td]:py-1 [&_th]:py-1" : "text-sm")}
-        style={{ width: tableWidth }}
+        style={{ width: tableWidth + 36 }}
       >
         <colgroup>
+          <col style={{ width: 36 }} />
           {oc.order.map((id) => (
             <col key={id} style={cols.colStyle(id)} />
           ))}
@@ -202,6 +241,15 @@ export function ListView({
         <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
           <OrderableHeader oc={oc}>
             <tr>
+              <th className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={() => setSelected(allSelected ? new Set() : new Set(sorted.map((t) => t.id)))}
+                  className="h-3.5 w-3.5 rounded"
+                  aria-label="Selecionar todas"
+                />
+              </th>
               {oc.order.map((id) => {
                 const c = colDefs[id];
                 const active = !!c.sortKey && sortKey === c.sortKey;
@@ -234,6 +282,15 @@ export function ListView({
               onClick={() => onEdit(t)}
               title="Clique pra editar"
             >
+              <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(t.id)}
+                  onChange={() => toggleOne(t.id)}
+                  className="h-3.5 w-3.5 rounded"
+                  aria-label={`Selecionar ${trackDisplayName(t)}`}
+                />
+              </td>
               {oc.order.map((id) => {
                 const c = colDefs[id];
                 return (
@@ -246,6 +303,7 @@ export function ListView({
           ))}
         </tbody>
       </table>
+    </div>
     </div>
     </PendingTasksProvider>
   );

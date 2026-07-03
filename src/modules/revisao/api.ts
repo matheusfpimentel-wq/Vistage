@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import { todayISO, toLocalISODate } from "@/lib/format";
 import { currentQuarter, listOkrs, okrProgress, quarterRange, stageEnteredFromHistory } from "@/modules/objetivos/api";
 import { parsePrepState, PREP_GROUPS } from "@/modules/gigs/prep";
-import { getPackageHoursLeft, getPrepHours } from "./ruleConfig";
+import { getOkrsLaggingDays, getOkrsLaggingPct, getPackageHoursLeft, getPrepHours } from "./ruleConfig";
 
 export type WeekStats = {
   gigsThisWeek: number;
@@ -35,8 +35,13 @@ export type WeekStats = {
   superfasSemInteracao: number; // superfãs sem interação nos últimos 30 dias
   gigsUnprepared: number; // GIGs em <=Xh com prep musical incompleta (X editável)
   gigsUnpreparedIds: number[]; // 1ª = GIG mais próxima
-  okrsLagging: number; // OKRs do quarter atual com progresso < 20% e <30 dias p/ fechar
+  okrsLagging: number; // OKRs do quarter atual com progresso < limiar e < dias p/ fechar (configurável)
   okrsLaggingIds: number[];
+  /** Limiares usados no cálculo acima — ecoados pro rótulo do alerta bater com a config atual. */
+  okrsLaggingPct: number;
+  okrsLaggingDaysThreshold: number;
+  contactBirthdaysToday: number; // contatos (CRM) com aniversário na data de hoje
+  contactBirthdaysTodayIds: number[];
   gigsUnpaidAfter48h: number; // GIGs concluídas com pagamento pendente (previsão vencida ou +72h)
   gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
@@ -295,19 +300,41 @@ async function computeWeekStats(): Promise<WeekStats> {
   const gigsUnprepared = gigsUnpreparedRows.length;
   const gigsUnpreparedIds = gigsUnpreparedRows.map((g) => g.id);
 
-  // OKRs do quarter atual com progresso < 20% e faltando menos de 30 dias
+  // OKRs do quarter atual com progresso abaixo do limiar configurado e faltando
+  // menos que os dias configurados (padrão 20% / 30 dias — Configurações avançadas).
   let okrsLagging = 0;
   let okrsLaggingIds: number[] = [];
   try {
+    const lagDays = getOkrsLaggingDays();
+    const lagPct = getOkrsLaggingPct() / 100;
     const qtr = currentQuarter();
     const [, qEnd] = quarterRange(qtr);
     const daysLeft = Math.round((new Date(qEnd).getTime() - new Date(today).getTime()) / 86_400_000);
-    if (daysLeft < 30) {
+    if (daysLeft < lagDays) {
       const okrs = await listOkrs();
-      const lagging = okrs.filter((o) => o.quarter === qtr && okrProgress(o) < 0.2);
+      const lagging = okrs.filter((o) => o.quarter === qtr && okrProgress(o) < lagPct);
       okrsLagging = lagging.length;
       okrsLaggingIds = lagging.map((o) => o.id);
     }
+  } catch {
+    // não interrompe
+  }
+
+  // Contatos (CRM) fazendo aniversário hoje — mesmo critério de data usado por
+  // syncBirthdayTasks (crm/api.ts), que já cria a tarefa; este alerta é o
+  // mesmo evento refletido no sininho, pra quem acompanha mais por lá.
+  let contactBirthdaysToday = 0;
+  let contactBirthdaysTodayIds: number[] = [];
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const birthdayRows = await db.select<{ id: number }[]>(
+      `SELECT id FROM contacts WHERE birthday IS NOT NULL AND substr(birthday, 6, 5) = $1`,
+      [`${mm}-${dd}`]
+    );
+    contactBirthdaysToday = birthdayRows.length;
+    contactBirthdaysTodayIds = birthdayRows.map((r) => r.id);
   } catch {
     // não interrompe
   }
@@ -406,6 +433,10 @@ async function computeWeekStats(): Promise<WeekStats> {
     gigsUnpreparedIds,
     okrsLagging,
     okrsLaggingIds,
+    okrsLaggingPct: getOkrsLaggingPct(),
+    okrsLaggingDaysThreshold: getOkrsLaggingDays(),
+    contactBirthdaysToday,
+    contactBirthdaysTodayIds,
     gigsUnpaidAfter48h: (gigsUnpaidRows as { id: number }[]).length,
     gigsUnpaidIds: (gigsUnpaidRows as { id: number }[]).map((r) => r.id),
     tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],

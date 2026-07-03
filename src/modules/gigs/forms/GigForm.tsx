@@ -775,6 +775,16 @@ export function GigForm({
                     set("promoter_contact_id", id);
                     // Contato vinculado tem prioridade — limpa o nome manual.
                     if (id !== null) set("promoter_name_manual", null);
+                    // Pré-preenche o Contato no dia com os dados do contratante — só
+                    // se ainda estiver vazio, pra não sobrescrever o que já foi
+                    // digitado à mão. Continua 100% editável depois.
+                    if (id !== null) {
+                      const c = contacts.find((x) => x.id === id);
+                      if (c) {
+                        if (!state.day_contact_name) set("day_contact_name", c.name);
+                        if (!state.day_contact_phone && c.phone) set("day_contact_phone", c.phone);
+                      }
+                    }
                   }}
                 >
                   <SelectTrigger className="flex-1">
@@ -823,6 +833,7 @@ export function GigForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field
                 label="Contato no dia"
+                hint="Pré-preenchido com o contratante quando há um vinculado — edite livremente se for outra pessoa."
               >
                 <Input
                   value={state.day_contact_name ?? ""}

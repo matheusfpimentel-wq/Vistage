@@ -61,7 +61,7 @@ export function ObjetivosPage() {
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />Em dia (≥70%)</span>
           <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" />Em risco (40–69%)</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/60" />Atrasado (&lt;40%)</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-urgent-overdue" />Atrasado (&lt;40%)</span>
         </div>
       </ModuleToolbar>
 
@@ -277,7 +277,9 @@ function ProgressBar({ value, size = "md" }: { value: number; size?: "sm" | "md"
       <div
         className={cn(
           "h-full rounded-full transition-all",
-          pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-primary/60"
+          // Vermelho (mesmo token de "atrasado" do resto do app) — distingue
+          // claramente de "em risco" (âmbar), que ficava parecido com o roxo.
+          pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-urgent-overdue"
         )}
         style={{ width: `${pct}%` }}
       />

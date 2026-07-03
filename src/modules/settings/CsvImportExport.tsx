@@ -90,15 +90,19 @@ export function CsvImportExport() {
     setConfirmOpen(false);
     try {
       const res = await importCsvIntoTable(selected.table, pendingData, "append");
+      const unknownSuffix =
+        res.unknownColumns.length > 0
+          ? ` Coluna(s) do CSV sem correspondência na tabela, ignorada(s): ${res.unknownColumns.join(", ")}.`
+          : "";
       if (res.errors.length > 0) {
         // mostra o primeiro erro real pra dar pra depurar (coluna faltando,
         // constraint, data inválida etc.)
         toast.error(
-          `Importadas ${res.inserted}, puladas ${res.skipped}. ${res.errors[0]}`
+          `Importadas ${res.inserted}, puladas ${res.skipped}. ${res.errors[0]}${unknownSuffix}`
         );
       } else {
         toast.success(
-          `Importadas ${res.inserted}, puladas ${res.skipped}`
+          `Importadas ${res.inserted}, puladas ${res.skipped}${unknownSuffix}`
         );
       }
     } catch (e) {
@@ -157,10 +161,6 @@ export function CsvImportExport() {
             </Button>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            O cabeçalho do CSV precisa bater com as colunas da tabela.
-          </p>
-
           <div className="border-t pt-3">
             <Button
               variant="secondary"
@@ -174,9 +174,6 @@ export function CsvImportExport() {
               )}
               Exportar tudo em CSV
             </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Gera um único arquivo .zip com um CSV por tabela.
-            </p>
           </div>
         </CardContent>
       </Card>

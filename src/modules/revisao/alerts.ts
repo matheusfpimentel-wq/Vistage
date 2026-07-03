@@ -119,16 +119,39 @@ export type RuleCategory =
  * que aparece + quando ela dispara, e permitir LIGAR/DESLIGAR cada uma. O `id` é
  * estável; regras com chave dinâmica (sufixo por item) casam por prefixo.
  */
+/**
+ * Limiares ATUAIS (Configurações avançadas) usados pra preencher o texto de
+ * "Dispara quando" com os NÚMEROS REAIS em vigor — nunca uma palavra genérica
+ * como "configurado" ou um "padrão X" que pode já não bater com o valor
+ * efetivo. `coolingHeatLabel` já vem pronto (rótulo do calor: Fria/Morna/…)
+ * porque o vocabulário de calor pertence ao módulo de Ideias, não a este
+ * núcleo portátil de alertas.
+ */
+export type RuleTriggerConfig = {
+  coolingDays: number;
+  coolingHeatLabel: string;
+  prepHours: number;
+  packageHoursLeft: number;
+  festaSalesPct: number;
+  loteSoldPct: number;
+  okrsLaggingPct: number;
+  okrsLaggingDays: number;
+};
+
 export type BuiltinRule = {
   id: string;
   category: RuleCategory;
   /** A mensagem real que aparece no alerta (generalizada, sem o número). */
   message: string;
-  /** Quando o alerta dispara (a condição). */
-  trigger: string;
+  /** Quando o alerta dispara (a condição), já com os limiares atuais preenchidos. */
+  trigger: (cfg: RuleTriggerConfig) => string;
   /** Prioridade — crítico (dinheiro/prazo), atenção (acionável), info (lembrete). */
   severidade: AlertSeverity;
-  /** Regra de dinheiro/fisco — não pode ser excluída do catálogo, só desativada (🔒). */
+  /**
+   * Regra de dinheiro/fisco — marcada como IMPORTANTE (⚠) no editor. O dono pode
+   * desativá-la se quiser (com uma confirmação a mais), mas o padrão é ligada:
+   * são as que mais custam caro se passarem batido.
+   */
   inegociavel?: boolean;
   /** Chave dinâmica: o id é um prefixo (ex.: "track-standby-overdue-"). */
   dynamic?: boolean;
@@ -136,31 +159,32 @@ export type BuiltinRule = {
 
 export const BUILTIN_RULES: BuiltinRule[] = [
   // ── Esfriamento (bloco fixo no topo do catálogo; 0 no calor desliga a regra) ──
-  { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: "Contato, fã, faixa, conteúdo, tarefa ou ideia sem movimento por mais que o tempo de resfriamento configurado (padrão 15 dias); fora itens de criação já concluídos. Dispense com \"Deixar esfriar\".", dynamic: true },
+  { id: "cooling", category: "Pessoas", severidade: "info", message: "Itens esfriando (sem alimentar além do tempo de resfriamento)", trigger: (cfg) => `Contato, fã, faixa, conteúdo, tarefa ou ideia sem movimento por mais de ${cfg.coolingDays} dia${cfg.coolingDays === 1 ? "" : "s"} (calor mínimo: ${cfg.coolingHeatLabel}); fora itens de criação já concluídos. Dispense com "Deixar esfriar".`, dynamic: true },
 
   // ── Alertas graves (crítico) ────────────────────────────────────────────────
-  { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: "GIG concluída com a previsão de pagamento já vencida; ou, sem previsão, 72h após a conclusão" },
-  { id: "receita-abaixo-custo-fixo", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Receita do mês abaixo do custo fixo", trigger: "Depois do dia 15, receita realizada do mês menor que o custo fixo mensal (recorrentes)" },
-  { id: "tasks-overdue", category: "Tarefas", severidade: "critico", message: "Tarefa vencida sem conclusão", trigger: "Tarefa com prazo anterior a hoje e ainda não concluída" },
-  { id: "okrs-lagging", category: "Objetivos", severidade: "critico", message: "OKRs abaixo de 20% com menos de 30 dias no quarter", trigger: "OKR com progresso abaixo de 20% e menos de 30 dias restantes no quarter" },
-  { id: "festa-resultado-negativo-", category: "Festas", severidade: "critico", inegociavel: true, message: "Festa com resultado projetado negativo", trigger: "Custo projetado maior que a receita projetada (ingressos + patrocínio) antes do evento", dynamic: true },
+  { id: "gigs-unpaid", category: "GIGs", severidade: "critico", inegociavel: true, message: "GIGs concluídas com cachê não recebido", trigger: () => "GIG concluída com a previsão de pagamento já vencida; ou, sem previsão, 72h após a conclusão" },
+  { id: "receita-abaixo-custo-fixo", category: "Financeiro", severidade: "critico", inegociavel: true, message: "Receita do mês abaixo do custo fixo", trigger: () => "Depois do dia 15, receita realizada do mês menor que o custo fixo mensal (recorrentes)" },
+  { id: "tasks-overdue", category: "Tarefas", severidade: "critico", message: "Tarefa vencida sem conclusão", trigger: () => "Tarefa com prazo anterior a hoje e ainda não concluída" },
+  { id: "okrs-lagging", category: "Objetivos", severidade: "critico", message: "OKR atrasado no quarter", trigger: (cfg) => `OKR com progresso abaixo de ${cfg.okrsLaggingPct}% e menos de ${cfg.okrsLaggingDays} dias restantes no quarter` },
+  { id: "festa-resultado-negativo-", category: "Festas", severidade: "critico", inegociavel: true, message: "Festa com resultado projetado negativo", trigger: () => "Custo projetado maior que a receita projetada (ingressos + patrocínio) antes do evento", dynamic: true },
 
   // ── Exige ação (atenção) ────────────────────────────────────────────────────
-  { id: "gigs-unprepared", category: "GIGs", severidade: "atencao", message: "GIGs sem preparação em breve", trigger: "GIG dentro da antecedência configurada (padrão 72h) sem a preparação musical concluída" },
-  { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas sem preparação em breve", trigger: "Aula próxima ainda sem preparação registrada" },
-  { id: "festa-vendas-baixas-", category: "Festas", severidade: "atencao", message: "Festa próxima com vendas abaixo da meta", trigger: "Festa a até 14 dias vendendo menos que o % configurado da meta de ingressos (0 = nunca)", dynamic: true },
-  { id: "track-standby-overdue-", category: "Produção", severidade: "atencao", message: "Faixa em standby passou da data de retorno", trigger: "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
-  { id: "debriefs-pending", category: "GIGs", severidade: "atencao", message: "Debriefs de GIG pendentes", trigger: "GIG concluída sem o debrief preenchido" },
+  { id: "gigs-unprepared", category: "GIGs", severidade: "atencao", message: "GIGs sem preparação em breve", trigger: (cfg) => `GIG dentro de ${cfg.prepHours}h sem a preparação musical concluída` },
+  { id: "classes-unprepared", category: "Aulas", severidade: "atencao", message: "Aulas sem preparação em breve", trigger: () => "Aula próxima ainda sem preparação registrada" },
+  { id: "festa-vendas-baixas-", category: "Festas", severidade: "atencao", message: "Festa próxima com vendas abaixo da meta", trigger: (cfg) => cfg.festaSalesPct === 0 ? "Desligado (0 = nunca dispara)" : `Festa a até 14 dias vendendo menos que ${cfg.festaSalesPct}% da meta de ingressos`, dynamic: true },
+  { id: "track-standby-overdue-", category: "Produção", severidade: "atencao", message: "Faixa em standby passou da data de retorno", trigger: () => "Faixa marcada como standby cuja data de retorno já passou", dynamic: true },
+  { id: "debriefs-pending", category: "GIGs", severidade: "atencao", message: "Debriefs de GIG pendentes", trigger: () => "GIG concluída sem o debrief preenchido" },
 
   // ── Avisos (info) ───────────────────────────────────────────────────────────
-  { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Sem interações com contatos esta semana", trigger: "Semana sem nenhuma interação registrada com contatos" },
-  { id: "no-upcoming-gigs", category: "GIGs", severidade: "info", message: "Nenhuma GIG à frente", trigger: "Não há nenhuma GIG futura agendada; clicar abre uma nova GIG" },
-  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Nenhuma faixa sendo produzida", trigger: "Nenhuma faixa ativa em produção; clicar abre uma nova faixa" },
-  { id: "no-parties-production", category: "Festas", severidade: "info", message: "Nenhuma festa sendo produzida", trigger: "Nenhuma festa no pipeline (fora realizadas/canceladas); clicar abre uma nova festa" },
-  { id: "no-content-production", category: "Produção", severidade: "info", message: "Nenhum conteúdo sendo produzido", trigger: "Nenhum conteúdo em Roteiro, Gravando, Edição ou Pronto; clicar abre um novo conteúdo" },
-  { id: "no-upcoming-classes", category: "Aulas", severidade: "info", message: "Nenhuma aula à frente", trigger: "Não há nenhuma aula futura agendada; clicar abre uma nova aula" },
-  { id: "students-low-balance", category: "Aulas", severidade: "info", message: "Alunos com pacote de aulas quase no fim", trigger: "Pacote de aulas ativo com o saldo configurado (padrão 1h) ou menos restante; hora de renovar" },
-  { id: "lote-esgotando-", category: "Festas", severidade: "info", message: "Lote esgotando (acima do % vendido)", trigger: "Lote de ingressos acima do % configurado vendido; hora de abrir o próximo", dynamic: true },
+  { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Sem interações com contatos esta semana", trigger: () => "Semana sem nenhuma interação registrada com contatos" },
+  { id: "contact-birthdays-today", category: "Pessoas", severidade: "info", message: "Aniversário de contato hoje", trigger: () => "Contato do CRM com aniversário cadastrado na data de hoje" },
+  { id: "no-upcoming-gigs", category: "GIGs", severidade: "info", message: "Nenhuma GIG à frente", trigger: () => "Não há nenhuma GIG futura agendada; clicar abre uma nova GIG" },
+  { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Nenhuma faixa sendo produzida", trigger: () => "Nenhuma faixa ativa em produção; clicar abre uma nova faixa" },
+  { id: "no-parties-production", category: "Festas", severidade: "info", message: "Nenhuma festa sendo produzida", trigger: () => "Nenhuma festa no pipeline (fora realizadas/canceladas); clicar abre uma nova festa" },
+  { id: "no-content-production", category: "Produção", severidade: "info", message: "Nenhum conteúdo sendo produzido", trigger: () => "Nenhum conteúdo em Roteiro, Gravando, Edição ou Pronto; clicar abre um novo conteúdo" },
+  { id: "no-upcoming-classes", category: "Aulas", severidade: "info", message: "Nenhuma aula à frente", trigger: () => "Não há nenhuma aula futura agendada; clicar abre uma nova aula" },
+  { id: "students-low-balance", category: "Aulas", severidade: "info", message: "Alunos com pacote de aulas quase no fim", trigger: (cfg) => `Pacote de aulas ativo com ${cfg.packageHoursLeft}h ou menos restante; hora de renovar` },
+  { id: "lote-esgotando-", category: "Festas", severidade: "info", message: "Lote esgotando (acima do % vendido)", trigger: (cfg) => `Lote de ingressos acima de ${cfg.loteSoldPct}% vendido; hora de abrir o próximo`, dynamic: true },
 ];
 
 /** Mapeia a chave de um alerta para o `id` da regra embutida (lida no editor). */
@@ -200,19 +224,6 @@ const MODULE_BY_RULE_ID: Record<string, string> = {
   "no-upcoming-classes": "/aulas",
 };
 
-/**
- * Ids das regras INEGOCIÁVEIS (cadeado verde — dinheiro/fisco). NÃO podem ser
- * desativadas nem editadas no editor, e o motor nunca as filtra mesmo que um id
- * antigo tenha ficado na lista de desligadas.
- */
-export const INEGOCIAVEL_RULE_IDS: ReadonlySet<string> = new Set(
-  BUILTIN_RULES.filter((r) => r.inegociavel).map((r) => r.id)
-);
-
-/** A regra (por id) é inegociável (cadeado verde)? */
-export function isInegociavelRule(id: string): boolean {
-  return INEGOCIAVEL_RULE_IDS.has(id);
-}
 
 /**
  * Calcula a lista de alertas a partir das estatísticas da semana e de stats
@@ -350,7 +361,7 @@ export function computeAlerts(
       icon: "target",
       to: stats.okrsLaggingIds.length > 0 ? `/objetivos?open=${stats.okrsLaggingIds[0]}` : "/objetivos",
       critical: true,
-      label: `Há ${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de 20% com menos de 30 dias no quarter`,
+      label: `Há ${stats.okrsLagging} OKR${plural(stats.okrsLagging)} abaixo de ${stats.okrsLaggingPct}% com menos de ${stats.okrsLaggingDaysThreshold} dias no quarter`,
     });
 
   for (const t of stats.tracksStandbyOverdue ?? []) {
@@ -378,6 +389,20 @@ export function computeAlerts(
     });
   }
 
+  if (stats.contactBirthdaysToday > 0) {
+    const single = stats.contactBirthdaysTodayIds.length === 1 ? stats.contactBirthdaysTodayIds[0] : null;
+    alerts.push({
+      key: "contact-birthdays-today",
+      icon: "heart",
+      to: single ? `/pessoas?open=${single}` : "/pessoas",
+      critical: false,
+      label:
+        stats.contactBirthdaysToday === 1
+          ? "1 contato faz aniversário hoje"
+          : `${stats.contactBirthdaysToday} contatos fazem aniversário hoje`,
+    });
+  }
+
   // Superfãs/contatos sem interação → cobertos pelo alerta unificado "Esfriando"
   // (loadCoolingAlerts em cooling.ts), não mais por regras separadas aqui.
 
@@ -387,12 +412,8 @@ export function computeAlerts(
   let result = alerts;
   if (disabledRuleIds.length > 0) {
     const disabled = new Set(disabledRuleIds);
-    // Inegociáveis (cadeado verde) NUNCA são filtradas — nem que um id antigo
-    // tenha ficado na lista de desligadas.
-    result = result.filter((a) => {
-      const id = ruleIdForKey(a.key);
-      return isInegociavelRule(id) || !disabled.has(id);
-    });
+    // TODA regra pode ser desativada pelo dono (inclusive as de dinheiro/fisco).
+    result = result.filter((a) => !disabled.has(ruleIdForKey(a.key)));
   }
   // Perfil: alertas de módulos de CRIAÇÃO ocultos somem por completo — inclusive
   // os inegociáveis (ocultar um módulo o tira de toda superfície). Núcleo intacto.

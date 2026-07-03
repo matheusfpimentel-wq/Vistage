@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/toaster";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { currentUser, signIn, signOut, updatePassword } from "@/lib/supabase";
 import { getLastSyncAt, syncNow } from "@/lib/mobileSync";
+import { displayDocName, useDocumentStore } from "@/lib/document";
 
 export function MobileSyncSettings() {
   const [email, setEmail] = useState("");
@@ -20,6 +21,9 @@ export function MobileSyncSettings() {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [changingPw, setChangingPw] = useState(false);
+  // A conta de sync é vinculada AO ARQUIVO aberto (não ao computador): abrir
+  // outro .vistage troca de conta. Mostra qual arquivo esta conta acompanha.
+  const docName = displayDocName(useDocumentStore((s) => s.currentName));
 
   useEffect(() => {
     void (async () => {
@@ -138,6 +142,10 @@ export function MobileSyncSettings() {
               <div className="rounded-md border p-3 text-sm">
                 <div className="text-xs text-muted-foreground">Conta da sincronização</div>
                 <div className="font-medium break-all">{userEmail}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  Vinculada a {docName ? <strong>{docName}</strong> : "este documento"}. Abrir outro arquivo
+                  .vistage troca pela conta dele.
+                </div>
               </div>
             </IntegrationActions>
 
@@ -204,6 +212,11 @@ export function MobileSyncSettings() {
               )}
               Entrar
             </Button>
+            <p className="text-xs text-muted-foreground">
+              A conta fica vinculada a {docName ? <strong>{docName}</strong> : "este documento"}: ela viaja
+              dentro do arquivo .vistage, então abrir o mesmo arquivo em outro computador reconecta o celular
+              sem digitar a senha de novo.
+            </p>
           </>
         )}
       </CardContent>

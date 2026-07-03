@@ -2,6 +2,7 @@ import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialo
 import { readTextFile, writeTextFile, writeFile } from "@tauri-apps/plugin-fs";
 import { zipSync, strToU8 } from "fflate";
 import { getDb } from "./db";
+import { emitDataChanged } from "./events";
 
 export const CSV_ENTITIES = [
   { key: "gigs", label: "GIGs", table: "gigs" },
@@ -275,6 +276,8 @@ export type ImportResult = {
   inserted: number;
   skipped: number;
   errors: string[];
+  /** Colunas do cabeçalho do CSV que não existem na tabela — foram ignoradas. */
+  unknownColumns: string[];
 };
 
 /**
@@ -283,8 +286,10 @@ export type ImportResult = {
  * - `replace`: limpa a tabela inteira antes de inserir
  * - `append`: tenta inserir cada linha; ignora duplicatas por PK
  *
- * O cabeçalho do CSV deve bater com as colunas da tabela. Colunas extras
- * no CSV são ignoradas; colunas ausentes ficam NULL. O campo `id` é
+ * Valida o cabeçalho contra as colunas reais da tabela ANTES de tocar no
+ * banco (inclusive antes do DELETE do modo replace): colunas do CSV que não
+ * existem na tabela são reportadas em `unknownColumns` (e ignoradas na
+ * importação); colunas da tabela ausentes no CSV ficam NULL. O campo `id` é
  * preservado (não regenerado) pra manter relacionamentos.
  */
 export async function importCsvIntoTable(
@@ -293,7 +298,7 @@ export async function importCsvIntoTable(
   mode: ImportMode
 ): Promise<ImportResult> {
   if (data.length < 2) {
-    return { inserted: 0, skipped: 0, errors: ["CSV vazio ou só com cabeçalho"] };
+    return { inserted: 0, skipped: 0, errors: ["CSV vazio ou só com cabeçalho"], unknownColumns: [] };
   }
   const db = getDb();
   const header = data[0];
@@ -314,17 +319,19 @@ export async function importCsvIntoTable(
     realCols = pragma.map((r) => r.name);
   }
   const cols = header.filter((h) => realCols.includes(h));
+  const unknownColumns = header.filter((h) => !realCols.includes(h));
   if (cols.length === 0) {
     return {
       inserted: 0,
       skipped: 0,
       errors: ["Nenhuma coluna do CSV bate com a tabela"],
+      unknownColumns,
     };
   }
   const headerIdx: Record<string, number> = {};
   header.forEach((h, i) => (headerIdx[h] = i));
 
-  const result: ImportResult = { inserted: 0, skipped: 0, errors: [] };
+  const result: ImportResult = { inserted: 0, skipped: 0, errors: [], unknownColumns };
 
   // IMPORTANTE: nada de BEGIN/COMMIT manual aqui. O tauri-plugin-sql usa um
   // pool de conexões; uma transação aberta numa conexão enquanto os INSERTs
@@ -452,6 +459,10 @@ export async function importCsvIntoTable(
       }
     }
   }
+
+  // Mudou o banco de verdade (inseriu linhas, ou o replace já zerou a tabela
+  // mesmo sem inserir nada depois) — marca o documento como não salvo.
+  if (result.inserted > 0 || mode === "replace") emitDataChanged();
 
   return result;
 }

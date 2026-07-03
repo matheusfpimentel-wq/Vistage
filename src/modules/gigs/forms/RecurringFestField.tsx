@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -39,11 +40,13 @@ async function saveFest(name: string): Promise<void> {
     "INSERT OR IGNORE INTO recurring_fests (name) VALUES ($1)",
     [name]
   );
+  emitDataChanged();
 }
 
 async function deleteFest(name: string): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM recurring_fests WHERE name = $1", [name]);
+  emitDataChanged();
 }
 
 export function RecurringFestField({ enabled = true, recurringName, eventName, onChangeRecurring, onChangeEventName }: Props) {

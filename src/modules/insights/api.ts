@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import { evaluateInsightRules } from "@/modules/revisao/customRules";
 import type { InsightHit, InsightSource } from "./types";
 
@@ -90,6 +91,7 @@ export async function dismissInsight(sourceType: InsightSource, sourceId: number
      ON CONFLICT(source_type, source_id) DO NOTHING`,
     [sourceType, sourceId]
   );
+  emitDataChanged();
 }
 
 /** Restaura um insight da fonte que tinha sido excluído. */
@@ -98,16 +100,19 @@ export async function restoreInsight(sourceType: InsightSource, sourceId: number
     `DELETE FROM dismissed_insights WHERE source_type = $1 AND source_id = $2`,
     [sourceType, sourceId]
   );
+  emitDataChanged();
 }
 
 /** Cria uma anotação de insight manual. */
 export async function addManualInsight(content: string): Promise<void> {
   await getDb().execute(`INSERT INTO manual_insights (content) VALUES ($1)`, [content]);
+  emitDataChanged();
 }
 
 /** Remove uma anotação manual de vez. */
 export async function deleteManualInsight(id: number): Promise<void> {
   await getDb().execute(`DELETE FROM manual_insights WHERE id = $1`, [id]);
+  emitDataChanged();
 }
 
 export async function exportInsightsTxt(hits: InsightHit[]): Promise<string> {

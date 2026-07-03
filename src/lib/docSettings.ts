@@ -30,6 +30,21 @@ function isPortableKey(key: string): boolean {
   return PORTABLE_PREFIXES.some((p) => key.startsWith(p));
 }
 
+// Chaves exatas gravadas por theme.ts (saveDocSetting privado) — mesma lógica
+// "soft" das acima, mas sem prefixo comum.
+const NON_CONTENT_EXACT_KEYS = ["theme", "accent", "sidebarLayout"];
+
+/**
+ * true se a chave é preferência de tela/aparência (cor, coluna, filtro...),
+ * não conteúdo que o usuário digitou. Usada tanto aqui (não marcar sujo) quanto
+ * por hasAnyDocumentData (backup.ts) — sem isso, só trocar de cor ou arrastar
+ * uma coluna numa réplica em branco já contava como "documento com dados" e
+ * disparava o aviso de "alterações não salvas" ao abrir outro arquivo.
+ */
+export function isViewPreferenceKey(key: string): boolean {
+  return isPortableKey(key) || NON_CONTENT_EXACT_KEYS.includes(key);
+}
+
 /**
  * Grava uma preferência write-through: cache local (síncrono, primeiro) +
  * documento (assíncrono, portátil). Falha de banco não atrapalha a UI — o cache

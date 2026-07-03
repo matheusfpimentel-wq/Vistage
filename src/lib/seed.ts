@@ -1,5 +1,6 @@
 import { getDb } from "./db";
 import { toLocalISODate } from "./format";
+import { emitDataChanged } from "./events";
 
 /**
  * Popula o banco com dados de exemplo: 4 GIGs em estados diferentes,
@@ -446,6 +447,7 @@ export async function seedExampleData(): Promise<{
     ]
   );
 
+  emitDataChanged();
   return {
     contacts: 5,
     gigs: 4,

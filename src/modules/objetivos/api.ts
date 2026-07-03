@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 
 export type KeyResult = {
   id: string;
@@ -74,6 +75,7 @@ export async function createOkr(input: { quarter: string; objective: string; key
     [input.quarter, input.objective, JSON.stringify(input.key_results)]
   );
   const id = res.lastInsertId as number;
+  emitDataChanged();
   return id;
 }
 
@@ -83,6 +85,7 @@ export async function updateOkr(input: { id: number; quarter: string; objective:
     `UPDATE okrs SET quarter=$1, objective=$2, key_results=$3, updated_at=CURRENT_TIMESTAMP WHERE id=$4`,
     [input.quarter, input.objective, JSON.stringify(input.key_results), input.id]
   );
+  emitDataChanged();
 }
 
 export async function updateOkrGcalEventId(id: number, gcalEventId: string): Promise<void> {
@@ -91,11 +94,13 @@ export async function updateOkrGcalEventId(id: number, gcalEventId: string): Pro
     `UPDATE okrs SET gcal_event_id=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
     [gcalEventId, id]
   );
+  emitDataChanged();
 }
 
 export async function deleteOkr(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM okrs WHERE id=$1`, [id]);
+  emitDataChanged();
 }
 
 /** Data (ISO) em que a track entrou no stage atual, derivada do stage_history JSON.
@@ -246,6 +251,7 @@ export async function linkTaskToKr(okrId: number, krIndex: number, taskId: numbe
     `INSERT OR IGNORE INTO okr_kr_tasks (okr_id, kr_index, task_id) VALUES ($1, $2, $3)`,
     [okrId, krIndex, taskId]
   );
+  emitDataChanged();
 }
 
 export async function unlinkTaskFromKr(okrId: number, krIndex: number, taskId: number): Promise<void> {
@@ -254,5 +260,6 @@ export async function unlinkTaskFromKr(okrId: number, krIndex: number, taskId: n
     `DELETE FROM okr_kr_tasks WHERE okr_id = $1 AND kr_index = $2 AND task_id = $3`,
     [okrId, krIndex, taskId]
   );
+  emitDataChanged();
 }
 

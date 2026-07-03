@@ -114,6 +114,22 @@ export function MusicPage() {
     await refresh();
   }
 
+  async function handleBulkDelete(ts: TrackWithProject[]) {
+    if (ts.length === 0) return;
+    if (
+      !(await confirmDialog({
+        title: "Excluir tracks",
+        description: `Excluir ${ts.length} track${ts.length !== 1 ? "s" : ""} selecionada${ts.length !== 1 ? "s" : ""}?`,
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    await Promise.all(ts.map((t) => deleteTrack(t.id)));
+    toast.success(`${ts.length} track${ts.length !== 1 ? "s" : ""} excluída${ts.length !== 1 ? "s" : ""}`);
+    await refresh();
+  }
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return tracks.filter((t) => {
@@ -246,6 +262,7 @@ export function MusicPage() {
             tracks={filtered}
             onEdit={openEdit}
             onDelete={handleDelete}
+            onBulkDelete={handleBulkDelete}
             density={density}
           />
         </TabsContent>

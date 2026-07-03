@@ -100,6 +100,7 @@ export async function createSupplier(input: SupplierCreateInput): Promise<number
       input.rating ?? null,
     ]
   );
+  emitDataChanged();
   return result.lastInsertId as number;
 }
 
@@ -124,6 +125,7 @@ export async function updateSupplier(input: SupplierUpdateInput): Promise<void> 
       input.id,
     ]
   );
+  emitDataChanged();
 }
 
 export async function deleteSupplier(id: number): Promise<void> {
@@ -139,6 +141,7 @@ export async function deleteSupplier(id: number): Promise<void> {
     const { removeSupplierFromParties } = await import("@/modules/parties/api");
     await removeSupplierFromParties(id);
   } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 /**
@@ -277,6 +280,7 @@ export async function createService(
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [supplierId, data.category ?? null, data.description, data.unit ?? null, data.price ?? null, data.notes ?? null]
   );
+  emitDataChanged();
   return result.lastInsertId as number;
 }
 
@@ -289,9 +293,11 @@ export async function updateService(
     `UPDATE supplier_services SET category = $1, description = $2, unit = $3, price = $4, notes = $5 WHERE id = $6`,
     [data.category ?? null, data.description, data.unit ?? null, data.price ?? null, data.notes ?? null, id]
   );
+  emitDataChanged();
 }
 
 export async function deleteService(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM supplier_services WHERE id = $1", [id]);
+  emitDataChanged();
 }

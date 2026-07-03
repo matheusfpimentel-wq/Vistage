@@ -133,10 +133,23 @@ export const getPackageHoursLeft = (): number => getNum(PACKAGE_HOURS_KEY, DEFAU
 export const setPackageHoursLeft = (h: number): void => setNum(PACKAGE_HOURS_KEY, h, 0, 100);
 
 /**
- * Calor mínimo da IDEIA para entrar no "esfriando" (ideias têm calor 1–3).
- * 0 = desliga a regra de esfriando INTEIRA (todas as entidades). Padrão 1.
+ * Calor mínimo da IDEIA para entrar no "esfriando" (escala real: 1 Fria .. 5
+ * Quente — ver IDEA_HEATS em modules/ideas/types.ts). 0 = desliga a regra de
+ * esfriando INTEIRA (todas as entidades). Padrão 1 (Fria = qualquer ideia parada).
  */
 export const COOLING_HEAT_KEY = "vistage.rules.cooling_heat";
 export const DEFAULT_COOLING_HEAT = 1;
-export const getCoolingHeat = (): number => Math.round(getNum(COOLING_HEAT_KEY, DEFAULT_COOLING_HEAT, 0, 3));
-export const setCoolingHeat = (h: number): void => setNum(COOLING_HEAT_KEY, Math.round(h), 0, 3);
+export const getCoolingHeat = (): number => Math.round(getNum(COOLING_HEAT_KEY, DEFAULT_COOLING_HEAT, 0, 5));
+export const setCoolingHeat = (h: number): void => setNum(COOLING_HEAT_KEY, Math.round(h), 0, 5);
+
+/** Progresso mínimo (%) e dias restantes no quarter que disparam "OKR atrasado". */
+export const OKRS_LAGGING_PCT_KEY = "vistage.rules.okrs_lagging_pct";
+export const DEFAULT_OKRS_LAGGING_PCT = 20;
+export const OKRS_LAGGING_DAYS_KEY = "vistage.rules.okrs_lagging_days";
+export const DEFAULT_OKRS_LAGGING_DAYS = 30;
+export const getOkrsLaggingPct = (): number =>
+  Math.round(getNum(OKRS_LAGGING_PCT_KEY, DEFAULT_OKRS_LAGGING_PCT, 0, 100));
+export const setOkrsLaggingPct = (v: number): void => setNum(OKRS_LAGGING_PCT_KEY, Math.round(v), 0, 100);
+export const getOkrsLaggingDays = (): number =>
+  Math.round(getNum(OKRS_LAGGING_DAYS_KEY, DEFAULT_OKRS_LAGGING_DAYS, 1, 365));
+export const setOkrsLaggingDays = (v: number): void => setNum(OKRS_LAGGING_DAYS_KEY, Math.round(v), 1, 365);

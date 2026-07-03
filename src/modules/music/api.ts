@@ -82,6 +82,7 @@ export async function createProject(
     `INSERT INTO music_projects (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -99,11 +100,13 @@ export async function updateProject(
     `UPDATE music_projects SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteProject(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM music_projects WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -552,6 +555,7 @@ export async function moveTrackToStage(track: Track, stage: Stage): Promise<void
   }
   // Gera a tarefa da etapa de destino (se houver template e não duplicar)
   await ensureStageTask(track, stage);
+  emitDataChanged();
 }
 
 /** Coloca/tira do Stand-by sem mexer no stage (drag pro coluna Stand-by). */
@@ -561,6 +565,7 @@ export async function setTrackStandby(id: number, standby: boolean): Promise<voi
     "UPDATE tracks SET standby = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
     [standby ? 1 : 0, id]
   );
+  emitDataChanged();
 }
 
 /** Reativa uma track que estava em Stand-by. */
@@ -662,6 +667,7 @@ export async function startFlowSession(trackId: number): Promise<number> {
     "INSERT INTO track_flow_sessions (track_id, started_at) VALUES ($1, $2)",
     [trackId, nowISO()]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -675,11 +681,13 @@ export async function endFlowSession(
     "UPDATE track_flow_sessions SET ended_at = $1, flow_level = $2, block_notes = $3 WHERE id = $4",
     [nowISO(), flowLevel, blockNotes, id]
   );
+  emitDataChanged();
 }
 
 export async function deleteFlowSession(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM track_flow_sessions WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -706,6 +714,7 @@ export async function createCost(input: MusicProjectCostCreateInput): Promise<nu
     const { syncMusicCostTransaction } = await import("@/modules/finance/api");
     await syncMusicCostTransaction(costId);
   } catch { /* não interrompe */ }
+  emitDataChanged();
   return costId;
 }
 
@@ -716,6 +725,7 @@ export async function deleteCost(id: number): Promise<void> {
     await deleteTransactionsForMusicCost(id);
   } catch { /* não interrompe */ }
   await db.execute("DELETE FROM music_project_costs WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -742,11 +752,13 @@ export async function upsertSnapshot(
      ON CONFLICT(track_id, period_yyyymm) DO UPDATE SET data = excluded.data`,
     [trackId, period, JSON.stringify(data)]
   );
+  emitDataChanged();
 }
 
 export async function deleteSnapshot(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM track_performance_snapshots WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -773,6 +785,7 @@ export async function setTrackMediaTargets(
       [trackId, t.contact_id, t.role]
     );
   }
+  emitDataChanged();
 }
 
 // ============================================================
@@ -792,6 +805,7 @@ export async function autoCreatePreLaunchContent(
       [`[${t}] ${trackName}`, "Ideia", now, now]
     );
   }
+  emitDataChanged();
 }
 
 export async function autoCreateLaunchTask(track: Track): Promise<void> {
@@ -816,6 +830,7 @@ export async function autoCreateLaunchTask(track: Track): Promise<void> {
       now,
     ]
   );
+  emitDataChanged();
 }
 
 // ============================================================

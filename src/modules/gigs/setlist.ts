@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 
 export type SetlistTrack = {
   position: number;
@@ -319,12 +320,14 @@ export async function saveSetlist(gigId: number, parsed: ParsedSetlist): Promise
     "INSERT INTO gig_setlists (gig_id, source_format, source_filename, tracks) VALUES ($1, $2, $3, $4)",
     [gigId, parsed.source_format, parsed.source_filename, JSON.stringify(parsed.tracks)]
   );
+  emitDataChanged();
   return result.lastInsertId ?? 0;
 }
 
 export async function deleteSetlist(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM gig_setlists WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 /** Regrava as tracks de um setlist — usado para marcar vínculo com a biblioteca. */
@@ -337,4 +340,5 @@ export async function updateSetlistTracks(
     JSON.stringify(tracks),
     setlistId,
   ]);
+  emitDataChanged();
 }

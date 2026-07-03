@@ -134,6 +134,7 @@ export async function printAta(data: AtaData): Promise<void> {
     const safe =
       title.trim().toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "ata";
     doc.save(`ata-${safe}.pdf`);
+    toast.success(`Ata salva: ata-${safe}.pdf`);
   } catch (e) {
     toast.error(`Não foi possível gerar a ata: ${String(e)}`);
   }

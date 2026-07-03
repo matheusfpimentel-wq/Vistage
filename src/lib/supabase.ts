@@ -79,26 +79,26 @@ export async function getPortableSession(): Promise<PortableSession | null> {
 }
 
 /**
- * Reestabelece a sessão de sincronização a partir do que veio no .vistage.
- * Não sobrescreve um login já ativo nesta máquina. Retorna true se reconectou.
+ * ADOTA a conta de sync DO ARQUIVO recém-aberto — modelo "uma conta por
+ * arquivo": a conta ativa segue o .vistage aberto, não a máquina. SEMPRE desloga
+ * a conta anterior — a de outro arquivo — e entra na deste. Se o arquivo não
+ * carrega sessão (nunca sincronizou) ou ela expirou, fica DESLOGADO: o usuário
+ * loga de novo pra vincular este arquivo a uma conta. Retorna true se conectou.
  */
-export async function restorePortableSession(
+export async function adoptPortableSession(
   sess: PortableSession | null | undefined
 ): Promise<boolean> {
-  if (!sess?.refresh_token || !sess.access_token) return false;
-  // TTL: ignora uma sessão portátil capturada há mais de 90 dias — exige
-  // re-login. Arquivos antigos sem captured_at seguem válidos até a próxima
-  // gravação (back-compat), quando passam a carregar o carimbo.
-  if (sess.captured_at && Date.now() - sess.captured_at > PORTABLE_SESSION_TTL_MS) {
-    return false;
-  }
+  const expired =
+    !!sess?.captured_at && Date.now() - sess.captured_at > PORTABLE_SESSION_TTL_MS;
+  const valid = !!sess?.refresh_token && !!sess.access_token && !expired;
   try {
-    // Já há login ativo aqui? Respeita a sessão local — não troca de conta.
-    const { data } = await supabase.auth.getSession();
-    if (data.session) return false;
+    // Sai da conta anterior SEMPRE — a conta é do arquivo, não do computador.
+    // (best-effort: se não havia sessão, signOut é no-op.)
+    await supabase.auth.signOut().catch(() => {});
+    if (!valid) return false;
     const { error } = await supabase.auth.setSession({
-      access_token: sess.access_token,
-      refresh_token: sess.refresh_token,
+      access_token: sess!.access_token,
+      refresh_token: sess!.refresh_token,
     });
     return !error;
   } catch {

@@ -262,6 +262,7 @@ export async function addSubtask(
     "INSERT INTO subtasks (task_id, title, position) VALUES ($1, $2, $3)",
     [taskId, title, position]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -271,16 +272,19 @@ export async function toggleSubtask(id: number, done: boolean): Promise<void> {
     done ? 1 : 0,
     id,
   ]);
+  emitDataChanged();
 }
 
 export async function renameSubtask(id: number, title: string): Promise<void> {
   const db = getDb();
   await db.execute("UPDATE subtasks SET title = $1 WHERE id = $2", [title, id]);
+  emitDataChanged();
 }
 
 export async function deleteSubtask(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM subtasks WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

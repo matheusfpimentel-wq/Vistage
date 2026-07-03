@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser } from "./supabase";
+import { emitDataChanged } from "./events";
 import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { parsePrepState } from "@/modules/gigs/prep";
@@ -905,6 +906,8 @@ export async function ingestCaptures(ids: string[], opts?: IngestOpts): Promise<
       .update({ consumed_at: new Date().toISOString(), discarded_at: null })
       .in("id", done);
     if (upErr) throw upErr;
+    // Aplicou capturas do celular no banco local → mudou o documento.
+    emitDataChanged();
   }
   return done.length;
 }

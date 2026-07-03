@@ -8,7 +8,6 @@ import {
   Gift,
   HeartHandshake,
   PartyPopper,
-  Sparkles,
   Ticket,
   User,
   X,
@@ -64,7 +63,6 @@ const BUCKET_BEHAVIOR: Record<
   parabenizar: { icon: PartyPopper, actionId: "parabenizar", fallback: { label: "Parabenizar", template: "Parabenizar {nome} pela evolução" } },
   reativar: { icon: Flame, actionId: "reativar", fallback: { label: "Reativar", template: "Reativar contato com {nome}" } },
   aniversarios: { icon: Cake, actionId: "aniversario", fallback: { label: "Parabenizar", template: "Mensagem de aniversário para {nome}" } },
-  boasVindas: { icon: Sparkles, actionId: "convidar", fallback: { label: "Dar boas-vindas", template: "Dar boas-vindas a {nome}" } },
 };
 
 const BUCKETS: BucketDef[] = FAN_SUGGESTION_RULES.map((r) => ({
@@ -134,15 +132,14 @@ export function FanTodayView({ onOpenFan }: { onOpenFan: (fanId: number) => void
     buckets.convidar.length +
     buckets.parabenizar.length +
     buckets.reativar.length +
-    buckets.aniversarios.length +
-    buckets.boasVindas.length;
+    buckets.aniversarios.length;
 
   if (total === 0 && scheduled.length === 0) {
     return (
       <EmptyState
         icon={Coffee}
         title="Nada pendente hoje."
-        description="Quando alguém for a um show, esfriar, fizer aniversário ou entrar novo, aparece aqui pra você agir. Ações que você agendar para um fã também aparecem aqui."
+        description="Quando alguém for a um show, esfriar ou fizer aniversário, aparece aqui pra você agir. Ações que você agendar para um fã também aparecem aqui."
       />
     );
   }

@@ -59,6 +59,7 @@ export async function createStudent(input: StudentCreateInput): Promise<number> 
     `INSERT INTO students (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -74,6 +75,7 @@ export async function updateStudent(input: StudentUpdateInput): Promise<void> {
     `UPDATE students SET ${sets}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteStudent(id: number): Promise<void> {
@@ -81,6 +83,7 @@ export async function deleteStudent(id: number): Promise<void> {
   await db.execute("DELETE FROM students WHERE id = $1", [id]);
   const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
   await unlinkTasksFromEntity("student", id);
+  emitDataChanged();
 }
 
 // ============================================================
@@ -128,6 +131,7 @@ export async function createPackage(input: ClassPackageCreateInput): Promise<num
     `INSERT INTO class_packages (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -145,11 +149,13 @@ export async function updatePackage(input: ClassPackageUpdateInput): Promise<voi
     `UPDATE class_packages SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deletePackage(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM class_packages WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

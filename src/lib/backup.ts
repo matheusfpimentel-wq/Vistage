@@ -2,9 +2,9 @@ import { getDb, type BatchStatement } from "./db";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
-import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
+import { adoptPortableSession, getPortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
-import { persistViewPrefsToDocument } from "./docSettings";
+import { persistViewPrefsToDocument, isViewPreferenceKey } from "./docSettings";
 import {
   decryptString,
   isEncryptedRaw,
@@ -480,13 +480,15 @@ export async function buildBackup(): Promise<Backup> {
 }
 
 /**
- * Reconecta a sessão de sincronização (Supabase) que veio embutida no .vistage.
- * Chamado depois de abrir/mesclar um documento. No-op se o arquivo não tiver
- * sessão ou se já houver login ativo nesta máquina. Não bloqueia o fluxo.
+ * ADOTA a conta de sincronização (Supabase) do .vistage que está sendo aberto —
+ * modelo "uma conta por arquivo": a conta ativa segue o arquivo, não a máquina.
+ * Desloga a conta anterior (de outro arquivo) e entra na deste; se o arquivo não
+ * carrega sessão (nunca sincronizou) ou ela expirou, fica deslogado — o usuário
+ * loga de novo pra vincular este arquivo a uma conta. Best-effort, não bloqueia.
  */
 export async function restoreBackupSession(backup: Backup): Promise<void> {
   try {
-    await restorePortableSession(backup.session);
+    await adoptPortableSession(backup.session);
   } catch {
     // reconexão é best-effort — o usuário sempre pode logar manualmente
   }
@@ -564,6 +566,15 @@ export async function hasAnyDocumentData(): Promise<boolean> {
   for (const t of TABLES) {
     if (MACHINE_TABLES.includes(t)) continue;
     try {
+      if (t === "document_settings") {
+        // Preferências de tela (tema, colunas, filtros...) não contam como
+        // "documento com dados" — só CONTEÚDO real (SWOT, config de fãs etc.),
+        // senão só abrir a página de Aparência numa réplica em branco já
+        // dispararia o aviso de "alterações não salvas".
+        const rows = await db.select<{ key: string }[]>(`SELECT key FROM document_settings`);
+        if (rows.some((r) => !isViewPreferenceKey(r.key))) return true;
+        continue;
+      }
       const r = await db.select<{ n: number }[]>(`SELECT EXISTS(SELECT 1 FROM ${t}) as n`);
       if ((r[0]?.n ?? 0) > 0) return true;
     } catch {

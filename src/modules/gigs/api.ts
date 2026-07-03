@@ -371,11 +371,14 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         await syncGigPaymentTransaction(id, paid, received, txDate, label, null, g.promoter_contact_id, g.payment_method ?? null, !!g.payment_due_date, g.date ?? null);
 
         // ── Tarefa de cobrança ───────────────────────────────────────
-        // Cria lembrete quando há previsão de recebimento e o cachê ainda não
-        // foi integralmente pago; conclui a tarefa quando o pagamento entra.
+        // Só nasce quando o pagamento já está ATRASADO (previsão no passado e
+        // ainda não recebido) — nada de lembrete antecipado enquanto o
+        // vencimento ainda não chegou. A varredura de boot (syncOverduePaymentTasks)
+        // cobre o caso da data vencer sem nenhuma edição na GIG nesse meio-tempo.
         try {
           const { createTask } = await import("@/modules/tasks/api");
-          const wantTask = !fullyPaid && cache > 0 && !!g.payment_due_date;
+          const overdue = !!g.payment_due_date && g.payment_due_date < toLocalISODate();
+          const wantTask = !fullyPaid && cache > 0 && overdue;
           if (wantTask && !g.payment_task_id) {
             const taskId = await createTask({
               title: `Cobrar cachê: ${baseName}`,
@@ -403,6 +406,12 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
                 `UPDATE tasks SET due_date=$1, updated_at=CURRENT_TIMESTAMP WHERE id=$2`,
                 [g.payment_due_date, g.payment_task_id]
               );
+            } else {
+              // Vencimento foi adiado pro futuro (ou removido) — não está mais
+              // atrasado, então o lembrete deixa de fazer sentido.
+              const { deleteTask } = await import("@/modules/tasks/api");
+              await deleteTask(g.payment_task_id).catch(() => {});
+              await db.execute("UPDATE gigs SET payment_task_id = NULL WHERE id = $1", [id]);
             }
           }
         } catch { /* não interrompe */ }
@@ -441,6 +450,62 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
     }
   }
   emitDataChanged();
+}
+
+/**
+ * Cria a tarefa "Cobrar cachê" para GIGs cujo vencimento já passou sem o
+ * cachê ter sido recebido. Rodada no boot (mesmo padrão de syncBirthdayTasks):
+ * a passagem da data sozinha não dispara updateGig, então sem essa varredura
+ * a tarefa só nasceria se o usuário reabrisse a GIG depois do vencimento.
+ * Idempotente via payment_task_id (não recria se já existe).
+ */
+export async function syncOverduePaymentTasks(): Promise<void> {
+  try {
+    const db = getDb();
+    const today = toLocalISODate();
+    const rows = await db.select<{
+      id: number;
+      event_name: string | null;
+      venue_name: string | null;
+      recurring_event_name: string | null;
+      payment_due_date: string | null;
+      promoter_contact_id: number | null;
+    }[]>(
+      `SELECT id, event_name, venue_name, recurring_event_name, payment_due_date, promoter_contact_id
+         FROM gigs
+        WHERE payment_task_id IS NULL
+          AND payment_due_date IS NOT NULL
+          AND payment_due_date < $1
+          AND cache_amount > 0
+          AND (payment_status IS NULL OR payment_status <> 'Pago integralmente')`,
+      [today]
+    );
+    if (rows.length === 0) return;
+    const { createTask } = await import("@/modules/tasks/api");
+    for (const g of rows) {
+      const baseName = g.recurring_event_name?.trim()
+        ? g.event_name?.trim()
+          ? `${g.recurring_event_name.trim()} - ${g.event_name.trim()}`
+          : g.recurring_event_name.trim()
+        : g.event_name?.trim() || g.venue_name?.trim() || "GIG";
+      const taskId = await createTask({
+        title: `Cobrar cachê: ${baseName}`,
+        description: g.promoter_contact_id
+          ? "Confirmar recebimento do cachê com o contratante."
+          : "Confirmar recebimento do cachê.",
+        category: "GIG",
+        gig_id: g.id,
+        contact_id: g.promoter_contact_id,
+        priority: "Alta",
+        status: "A fazer",
+        due_date: g.payment_due_date,
+        tags: ["gig", "cobrança"],
+      });
+      await db.execute("UPDATE gigs SET payment_task_id = $1 WHERE id = $2", [taskId, g.id]);
+    }
+  } catch {
+    // ação automática de boot não pode quebrar o carregamento do app
+  }
 }
 
 /**
@@ -537,6 +602,7 @@ export async function saveDebriefDraft(
        updated_at = CURRENT_TIMESTAMP`,
     [gigId, JSON.stringify(payload)]
   );
+  emitDataChanged();
 }
 
 export async function clearDebriefDraft(gigId: number): Promise<void> {
@@ -740,4 +806,5 @@ export async function createGigPrepTask(gig: Gig): Promise<number> {
 export async function updateGigCityForVenue(venueId: number, city: string | null): Promise<void> {
   const db = getDb();
   await db.execute("UPDATE gigs SET venue_city = $1 WHERE venue_id = $2", [city, venueId]);
+  emitDataChanged();
 }

@@ -8,6 +8,7 @@
  */
 import { fetch } from "@tauri-apps/plugin-http";
 import { getDb } from "./db";
+import { emitDataChanged } from "./events";
 import type { TaskPriority, TaskStatus } from "@/modules/tasks/types";
 
 // ────────────────────────────────────────────────
@@ -470,6 +471,8 @@ export async function syncTodoist(): Promise<SyncResult> {
   }
 
   await setSetting(KEY_LAST_SYNC, new Date().toISOString());
+  // Puxou/atualizou/concluiu tarefas locais → mudou o documento (marca não salvo).
+  if (result.pulled > 0 || result.updated > 0 || result.completed > 0) emitDataChanged();
   return result;
 }
 

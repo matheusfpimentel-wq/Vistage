@@ -330,12 +330,14 @@ export async function addInteraction(
      WHERE id = $2 AND (last_interaction_at IS NULL OR last_interaction_at < $1)`,
     [date, contactId]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
 export async function deleteInteraction(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM contact_interactions WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

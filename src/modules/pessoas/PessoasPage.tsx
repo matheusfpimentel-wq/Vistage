@@ -563,8 +563,9 @@ function PersonCard({
   onOpen,
   ...handlers
 }: { person: Person; onOpen: () => void } & RowHandlers) {
-  // Cidade sai do card; @ e prioridade entram (preferência do usuário).
-  const sub = p.instagram ?? p.email ?? p.phone ?? null;
+  // Cidade sai do card; empresa + Instagram/telefone entram (preferência do usuário).
+  const company = p.contact?.company ?? null;
+  const contactLine = [p.instagram, p.phone].filter(Boolean).join(" · ") || null;
   return (
     <div
       role="button"
@@ -576,19 +577,24 @@ function PersonCard({
       className="group relative flex cursor-pointer items-center gap-3 overflow-hidden glass-panel p-3 text-left transition hover:border-primary hover:shadow-md"
     >
       <div
-        className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
+        className="absolute bottom-2 right-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
         onClick={(e) => e.stopPropagation()}
       >
         <PersonActions person={p} buttonClass="h-7 w-7 bg-card shadow-sm" {...handlers} />
       </div>
       <PersonAvatarName person={p} size="lg" />
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate font-medium leading-tight">{p.name}</span>
-          <PriorityBadge priority={p.priority} />
-        </div>
-        <RoleBadges roles={p.roles} />
-        {sub && <div className="truncate text-[11px] text-muted-foreground">{sub}</div>}
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <span className="block truncate font-medium leading-tight">{p.name}</span>
+        {company && (
+          <span className="block truncate text-xs text-muted-foreground">{company}</span>
+        )}
+        {contactLine && (
+          <span className="block truncate text-[11px] text-muted-foreground">{contactLine}</span>
+        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <RoleBadges roles={p.roles} iconOnly />
+        <PriorityBadge priority={p.priority} />
       </div>
     </div>
   );
