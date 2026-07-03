@@ -406,24 +406,21 @@ export async function removeContactFromParties(contactId: number): Promise<void>
 }
 
 /**
- * Anula referências a um fornecedor em `team` JSON de todas as festas
- * (membros com `supplier_id` apontando para o fornecedor removido têm o campo
- * setado para null). Só faz UPDATE quando algo muda.
+ * Remove das festas os membros de equipe que apontavam para um fornecedor
+ * excluído. Antes só anulava o `supplier_id` e o membro ficava fantasma (nome
+ * solto), vazando na Produção mesmo depois que a pessoa deixava de ser
+ * fornecedor. Agora filtra o membro (espelha removeContactFromParties). Só faz
+ * UPDATE quando algo muda.
  */
 export async function removeSupplierFromParties(supplierId: number): Promise<void> {
   const db = getDb();
   const rows = await db.select<RawParty[]>("SELECT id, lineup, sponsors, team FROM parties");
   for (const row of rows) {
     const team = parseJsonArray<Record<string, unknown>>(row.team);
-    let changed = false;
-    const newTeam = team.map((m) => {
-      if (m && typeof m === "object" && Number(m.supplier_id) === supplierId) {
-        changed = true;
-        return { ...m, supplier_id: null };
-      }
-      return m;
-    });
-    if (changed) {
+    const newTeam = team.filter(
+      (m) => !(m && typeof m === "object" && Number(m.supplier_id) === supplierId)
+    );
+    if (newTeam.length !== team.length) {
       await db.execute(
         "UPDATE parties SET team = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
         [JSON.stringify(newTeam), row.id]
