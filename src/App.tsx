@@ -279,6 +279,9 @@ function MainApp() {
             import("@/modules/crm/api").then(({ autoPausePartnerships }) =>
               autoPausePartnerships()
             ),
+            import("@/modules/gigs/api").then(({ syncOverduePaymentTasks }) =>
+              syncOverduePaymentTasks()
+            ),
             import("@/modules/tasks/derived").then(({ syncDerivedTaskMarkers }) =>
               syncDerivedTaskMarkers()
             ),
