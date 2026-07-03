@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { currentUser, signIn, signOut, updatePassword } from "@/lib/supabase";
@@ -204,19 +205,21 @@ export function MobileSyncSettings() {
                 }}
               />
             </div>
-            <Button onClick={() => void handleLogin()} disabled={busy || !email || !password}>
-              {busy ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Cloud className="h-4 w-4" />
-              )}
-              Entrar
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              A conta fica vinculada a {docName ? <strong>{docName}</strong> : "este documento"}: ela viaja
-              dentro do arquivo .vistage, então abrir o mesmo arquivo em outro computador reconecta o celular
-              sem digitar a senha de novo.
-            </p>
+            <div className="flex items-center gap-1.5">
+              <Button onClick={() => void handleLogin()} disabled={busy || !email || !password}>
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Cloud className="h-4 w-4" />
+                )}
+                Entrar
+              </Button>
+              <InfoHint>
+                A conta fica vinculada a {docName ? <strong>{docName}</strong> : "este documento"}: ela viaja
+                dentro do arquivo .vistage, então abrir o mesmo arquivo em outro computador reconecta o celular
+                sem digitar a senha de novo.
+              </InfoHint>
+            </div>
           </>
         )}
       </CardContent>

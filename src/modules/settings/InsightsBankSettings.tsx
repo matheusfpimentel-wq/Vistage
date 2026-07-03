@@ -1,10 +1,10 @@
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { InfoHint } from "@/components/ui/tooltip";
 import { ProvocationsManager } from "@/modules/ideas/ProvocationsManager";
 import { CustomRulesSection } from "./CustomRulesSection";
 
@@ -18,11 +18,12 @@ export function InsightsBankSettings() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Provocações de insight</CardTitle>
-          <CardDescription>
-            Os textinhos que aparecem em Ideias pra estimular conexões. Oculte os
-            que não quer ver; exclua de vez os que vêm dos seus dados.
-          </CardDescription>
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-base">Provocações de insight</CardTitle>
+            <InfoHint>
+              Os textinhos que aparecem em Ideias pra estimular conexões. Oculte os que não quer ver; exclua de vez os que vêm dos seus dados.
+            </InfoHint>
+          </div>
         </CardHeader>
         <CardContent>
           <ProvocationsManager />

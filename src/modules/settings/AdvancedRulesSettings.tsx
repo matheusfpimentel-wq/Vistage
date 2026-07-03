@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { InfoHint } from "@/components/ui/tooltip";
 import {
   BUILTIN_RULES,
   SEVERITY_BUCKET_LABEL,
@@ -130,14 +131,14 @@ export function AdvancedRulesSettings() {
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardTitle className="text-base">Regras padrão</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Regras padrão</CardTitle>
+                <InfoHint>
+                  Todas podem ser desativadas; as marcadas com ⚠ (dinheiro/fisco) pedem uma confirmação a mais.
+                </InfoHint>
+              </div>
               <CardDescription>
-                {activeCount} de {BUILTIN_RULES.length} regras ativas. Todas podem
-                ser desativadas; as com{" "}
-                <span className="inline-flex items-center gap-0.5 align-middle">
-                  <AlertTriangle className="inline h-3 w-3 text-amber-500" />
-                </span>{" "}
-                (dinheiro/fisco) pedem uma confirmação a mais.
+                {activeCount} de {BUILTIN_RULES.length} regras ativas.
               </CardDescription>
             </div>
             <button
@@ -198,9 +199,7 @@ export function AdvancedRulesSettings() {
                             />
                           )}
                           <span className={cn(!on && "line-through")}>{r.message}</span>
-                        </p>
-                        <p className="text-xs leading-snug text-muted-foreground">
-                          Dispara quando: {r.trigger(triggerCfg)}
+                          <InfoHint>Dispara quando: {r.trigger(triggerCfg)}</InfoHint>
                         </p>
                         {r.id === "cooling" && (
                           <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
