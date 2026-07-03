@@ -347,7 +347,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const patchPartyLive = useCallback(
     async (
       updates: Partial<
-        Pick<FormState, "venue_id" | "venue_name" | "expected_capacity" | "actual_attendance">
+        Pick<FormState, "venue_id" | "venue_name" | "expected_capacity" | "actual_attendance" | "status">
       >
     ) => {
       setState((s) => ({ ...s, ...updates }));
@@ -981,6 +981,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                 expectedCapacity={state.expected_capacity}
                 partyTitle={state.title}
                 partyDate={state.date}
+                partyStatus={state.status}
                 team={state.team}
                 sponsors={state.sponsors}
                 lineup={state.lineup}
