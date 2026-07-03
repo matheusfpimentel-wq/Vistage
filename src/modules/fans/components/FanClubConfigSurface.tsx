@@ -487,7 +487,7 @@ function describeTrigger(t: FanRuleTrigger): string {
   }
 }
 
-function describeAction(a: FanRuleAction): string {
+function describeAction(a: FanRuleAction, actions?: FanClubAction[]): string {
   switch (a.type) {
     case "grant_perk":
       return `conceder perk "${a.perkName}" (${a.perkCategory})`;
@@ -495,6 +495,10 @@ function describeAction(a: FanRuleAction): string {
       return `registrar interação de ${a.interactionType}${a.note?.trim() ? ` ("${a.note.trim()}")` : ""}`;
     case "create_task":
       return `criar tarefa "${a.taskTitle}"`;
+    case "suggest_action": {
+      const label = actions?.find((x) => x.id === a.actionId)?.label;
+      return `sugerir ação${label ? ` "${label}"` : ""} em Próximas ações`;
+    }
   }
 }
 
@@ -515,6 +519,7 @@ type DraftRule = {
   interactionType: FanInteractionType;
   interactionNote: string;
   taskTitle: string;
+  suggestActionId: string;
 };
 
 function emptyDraft(): DraftRule {
@@ -532,6 +537,7 @@ function emptyDraft(): DraftRule {
     interactionType: "Interação",
     interactionNote: "",
     taskTitle: "",
+    suggestActionId: "",
   };
 }
 
@@ -561,6 +567,8 @@ function ruleToDraft(r: FanAutoRule): DraftRule {
     d.interactionNote = r.action.note ?? "";
   } else if (r.action.type === "create_task") {
     d.taskTitle = r.action.taskTitle;
+  } else if (r.action.type === "suggest_action") {
+    d.suggestActionId = r.action.actionId;
   }
   return d;
 }
@@ -590,9 +598,13 @@ function draftToRule(d: DraftRule): FanAutoRule | null {
       interactionType: d.interactionType,
       ...(d.interactionNote.trim() ? { note: d.interactionNote.trim() } : {}),
     };
-  } else {
+  } else if (d.actionType === "create_task") {
     if (!d.taskTitle.trim()) return null;
     action = { type: "create_task", taskTitle: d.taskTitle.trim() };
+  } else {
+    // suggest_action: precisa de uma ação escolhida do catálogo.
+    if (!d.suggestActionId) return null;
+    action = { type: "suggest_action", actionId: d.suggestActionId };
   }
 
   return {
@@ -607,6 +619,7 @@ function draftToRule(d: DraftRule): FanAutoRule | null {
 function AutoRulesPanel({ onDirtyChange }: { onDirtyChange: (v: boolean) => void }) {
   const [rules, setRules] = useState<FanAutoRule[]>([]);
   const [perks, setPerks] = useState<FanClubPerkTemplate[]>([]);
+  const [actions, setActions] = useState<FanClubAction[]>([]);
   const [saving, setSaving] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   // draft != null → editor aberto (nova regra ou edição de uma existente).
@@ -614,7 +627,7 @@ function AutoRulesPanel({ onDirtyChange }: { onDirtyChange: (v: boolean) => void
 
   useEffect(() => {
     void loadFanAutoRules().then(setRules);
-    void loadFanClubConfig().then((c) => setPerks(c.perks));
+    void loadFanClubConfig().then((c) => { setPerks(c.perks); setActions(c.actions); });
   }, []);
 
   // Conta como sujo tanto uma regra alterada/removida quanto um rascunho em
@@ -764,7 +777,7 @@ function AutoRulesPanel({ onDirtyChange }: { onDirtyChange: (v: boolean) => void
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {describeTrigger(r.trigger)} → {describeAction(r.action)}
+                    {describeTrigger(r.trigger)} → {describeAction(r.action, actions)}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
@@ -801,6 +814,7 @@ function AutoRulesPanel({ onDirtyChange }: { onDirtyChange: (v: boolean) => void
         <RuleEditor
           draft={draft}
           perks={perks}
+          actions={actions}
           onChange={setDraft}
           onCancel={() => setDraft(null)}
           onConfirm={commitDraft}
@@ -821,12 +835,14 @@ function AutoRulesPanel({ onDirtyChange }: { onDirtyChange: (v: boolean) => void
 function RuleEditor({
   draft,
   perks,
+  actions,
   onChange,
   onCancel,
   onConfirm,
 }: {
   draft: DraftRule;
   perks: FanClubPerkTemplate[];
+  actions: FanClubAction[];
   onChange: (d: DraftRule) => void;
   onCancel: () => void;
   onConfirm: () => void;
@@ -937,6 +953,7 @@ function RuleEditor({
               <SelectItem value="grant_perk">Conceder perk</SelectItem>
               <SelectItem value="log_interaction">Registrar interação</SelectItem>
               <SelectItem value="create_task">Criar tarefa</SelectItem>
+              <SelectItem value="suggest_action">Sugerir ação</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1027,6 +1044,31 @@ function RuleEditor({
               value={draft.taskTitle}
               onChange={(e) => set("taskTitle", e.target.value)}
             />
+          </div>
+        )}
+
+        {draft.actionType === "suggest_action" && (
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Ação sugerida</label>
+            {actions.length > 0 ? (
+              <Select value={draft.suggestActionId} onValueChange={(v) => set("suggestActionId", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar ação…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {actions.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Cadastre ações rápidas na aba <strong>Ações</strong> pra sugerir aqui.
+              </p>
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Vira um cartão em <strong>Próximas ações</strong> (com data de hoje).
+            </p>
           </div>
         )}
       </div>

@@ -642,6 +642,8 @@ export async function runFanAutoRules(): Promise<number> {
   if (rules.length === 0) return 0;
 
   const fans = await listFans();
+  // Config do clube — resolve a ação escolhida nas regras "sugerir ação".
+  const config = await loadFanClubConfig().catch(() => null);
   let fired = 0;
 
   for (const rule of rules) {
@@ -696,6 +698,28 @@ export async function runFanAutoRules(): Promise<number> {
           );
           if (dup.length > 0) continue;
           await createFanTask(fan.id, act.taskTitle, {
+            description: `Ação programada ${marker}`,
+          });
+          fired++;
+        } else if (act.type === "suggest_action") {
+          // Sugere uma ação rápida do clube: cria uma tarefa vinculada ao fã
+          // COM data (hoje). O due_date é o que faz a sugestão aparecer em
+          // "Próximas ações" (seção "Ações agendadas").
+          const action = config?.actions.find((a) => a.id === act.actionId);
+          if (!action) continue;
+          const dup = await db.select<{ id: number }[]>(
+            `SELECT t.id FROM tasks t
+               JOIN task_links tl ON tl.task_id = t.id
+              WHERE tl.entity_type = 'fan' AND tl.entity_id = $1
+                AND t.status NOT IN ('Concluída', 'Cancelada')
+                AND (t.title LIKE $2 OR t.description LIKE $2)
+              LIMIT 1`,
+            [fan.id, like]
+          );
+          if (dup.length > 0) continue;
+          const title = action.titleTemplate.replace(/\{nome\}/g, fan.name);
+          await createFanTask(fan.id, title, {
+            due_date: toLocalISODate(),
             description: `Ação programada ${marker}`,
           });
           fired++;
