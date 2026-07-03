@@ -26,7 +26,9 @@ const TAB_ICON: Record<Tab, JSX.Element> = {
 const TAB_LABEL: Record<Tab, string> = {
   hoje: "Hoje", foco: "Foco", brainstorm: "Brainstorm", buscar: "Pesquisa", tarefas: "Tarefas",
 };
-const TABS: Tab[] = ["hoje", "foco", "brainstorm", "buscar", "tarefas"];
+// Buscar saiu da tabbar (B.2) — acesso vira lupa no header. A rota e o tipo
+// continuam; só não ocupa mais um dos alvos permanentes da navegação.
+const TABS: Tab[] = ["hoje", "foco", "brainstorm", "tarefas"];
 
 // Atalhos de ícone (long-press no app): ./?go=foco abre direto a aba;
 // ./?go=capturar abre a captura rápida. Lido uma vez no boot.
@@ -101,6 +103,17 @@ export function App() {
           <span className="identity-chip-name">{header.artistName || "Sua identidade"}</span>
         </button>
         <div className="topbar-actions">
+          <button
+            className={"iconbtn" + (tab === "buscar" ? " active" : "")}
+            onClick={() => setTab("buscar")}
+            aria-label="Buscar"
+            title="Buscar"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
           <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Capturar" title="Capturar">
             <PlusIcon />
           </button>
