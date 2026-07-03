@@ -52,9 +52,24 @@ function durationFromTimes(start: string | null, end: string | null): number | n
   return ((b - a) % 1440 + 1440) % 1440;
 }
 
+/**
+ * Pendências com a casa: lista de itens serializada em JSON no campo
+ * `house_pending`. Aceita o formato antigo (texto livre) migrando cada linha
+ * num item, pra não perder o que já estava escrito.
+ */
+function parseHousePending(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const p = JSON.parse(raw);
+    if (Array.isArray(p)) return p.map((x) => String(x)).filter((s) => s.trim());
+  } catch { /* texto legado */ }
+  return raw.split("\n").map((s) => s.trim()).filter(Boolean);
+}
+
 export function OperacaoTab({ partyId, performers }: { partyId: number; performers: Performer[] }) {
   const [rows, setRows] = useState<PartyRunsheetItem[]>([]);
-  const [housePending, setHousePending] = useState("");
+  const [pendItems, setPendItems] = useState<string[]>([]);
+  const [newPend, setNewPend] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [anchorTime, setAnchorTime] = useState("");
 
@@ -90,7 +105,7 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
   const reload = useCallback(async () => {
     const [r, hp] = await Promise.all([listPartyRunsheet(partyId), getPartyHousePending(partyId)]);
     setRows(r);
-    setHousePending(hp ?? "");
+    setPendItems(parseHousePending(hp));
     setLoaded(true);
   }, [partyId]);
 
@@ -190,12 +205,30 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
     }
   }
 
-  async function saveHousePending() {
+  // Salva a lista como JSON (ou null quando vazia, pra regras de "campo vazio"
+  // continuarem valendo). Otimista: já reflete na tela antes do await.
+  async function savePend(items: string[]) {
+    setPendItems(items);
     try {
-      await setPartyHousePending(partyId, housePending.trim() || null);
+      await setPartyHousePending(partyId, items.length ? JSON.stringify(items) : null);
     } catch (e) {
       toast.error(`Não consegui salvar as pendências com a casa: ${String(e)}`);
     }
+  }
+  function addPend() {
+    const v = newPend.trim();
+    if (!v) return;
+    setNewPend("");
+    void savePend([...pendItems, v]);
+  }
+  function removePend(idx: number) {
+    void savePend(pendItems.filter((_, i) => i !== idx));
+  }
+  function editPend(idx: number, value: string) {
+    setPendItems((prev) => prev.map((s, i) => (i === idx ? value : s)));
+  }
+  function commitPend() {
+    void savePend(pendItems.map((s) => s.trim()).filter(Boolean));
   }
 
   return (
@@ -346,17 +379,47 @@ export function OperacaoTab({ partyId, performers }: { partyId: number; performe
         </div>
       )}
 
-      {/* Pendências com a casa */}
+      {/* Pendências com a casa — itens adicionados um a um. */}
       <section className="space-y-1.5">
         <h3 className="text-sm font-semibold">Pendências com a casa</h3>
-        <textarea
-          value={housePending}
-          onChange={(e) => setHousePending(e.target.value)}
-          onBlur={() => void saveHousePending()}
-          rows={3}
-          placeholder="Ex.: confirmar segurança extra, bar abre 22h, alvará até 4h…"
-          className="w-full resize-y rounded-md border bg-background p-2 text-sm"
-        />
+        {pendItems.length === 0 && (
+          <p className="text-xs text-muted-foreground">Nenhuma pendência ainda.</p>
+        )}
+        {pendItems.length > 0 && (
+          <ul className="space-y-1.5">
+            {pendItems.map((p, idx) => (
+              <li key={idx} className="flex items-center gap-2">
+                <input
+                  value={p}
+                  onChange={(e) => editPend(idx, e.target.value)}
+                  onBlur={commitPend}
+                  className="h-8 flex-1 rounded border bg-background px-2 text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+                  aria-label="Remover pendência"
+                  onClick={() => removePend(idx)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center gap-2">
+          <input
+            value={newPend}
+            onChange={(e) => setNewPend(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPend(); } }}
+            placeholder="Ex.: confirmar segurança extra, bar abre 22h…"
+            className="h-8 flex-1 rounded border bg-background px-2 text-sm"
+          />
+          <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={addPend}>
+            <Plus className="h-3.5 w-3.5" /> Adicionar
+          </Button>
+        </div>
       </section>
     </div>
   );
