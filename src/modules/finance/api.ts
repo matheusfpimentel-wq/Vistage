@@ -444,8 +444,11 @@ export async function syncPartyTransactions(partyId: number): Promise<void> {
     "SELECT COALESCE(SUM(price * quantity_sold), 0) as income FROM party_tickets WHERE party_id = $1",
     [partyId]
   );
+  // kind='receita' é dinheiro ENTRANDO (mesmo padrão do P&L em pnl.ts) — exclui
+  // daqui, senão uma receita lançada no Orçamento (ex.: bar, patrocínio migrado)
+  // vira uma despesa fantasma na transação sincronizada com o Financeiro.
   const expenseRows = await db.select<{ expense: number }[]>(
-    "SELECT COALESCE(SUM(actual_amount), 0) as expense FROM party_budget_items WHERE party_id = $1",
+    "SELECT COALESCE(SUM(actual_amount), 0) as expense FROM party_budget_items WHERE party_id = $1 AND (kind IS NULL OR kind <> 'receita')",
     [partyId]
   );
 

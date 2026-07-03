@@ -71,6 +71,7 @@ import {
   listPartyGuests,
   syncTeamBudgetItems,
   addPartyGuestsToFans,
+  migrateBarRevenueToBudgetItem,
 } from "../api";
 import { WorkflowTab } from "../components/WorkflowTab";
 import { OrcamentoTab } from "../components/OrcamentoTab";
@@ -312,6 +313,18 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       });
       void loadCandidates();
       void loadSubTabs();
+      // §2.5 — migração silenciosa e única: bar_revenue (campo aposentado da
+      // Info) vira um item de receita no Orçamento. Zera o local E o buffer na
+      // mesma leva, pra nunca somar as duas fontes numa mesma sessão do modal.
+      if (party.bar_revenue != null && party.bar_revenue > 0) {
+        const amount = party.bar_revenue;
+        void migrateBarRevenueToBudgetItem(party.id, amount)
+          .then(() => {
+            setState((s) => ({ ...s, bar_revenue: null }));
+            void loadSubTabs();
+          })
+          .catch((e) => toast.error(`Não consegui migrar a receita de bar: ${String(e)}`));
+      }
     } else {
       setState(EMPTY);
       setCandidates([]);
@@ -894,25 +907,6 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                       )
                     }
                   />
-                </Field>
-              )}
-              {isEdit && (
-                <Field
-                  label="Receita de bar (R$)"
-                  hint="A parte do bar que fica com você: entra na receita e no faturamento por cabeça."
-                >
-                  <div className="space-y-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      placeholder="0,00"
-                      value={state.bar_revenue ?? ""}
-                      onChange={(e) =>
-                        set("bar_revenue", e.target.value ? Number(e.target.value) : null)
-                      }
-                    />
-                  </div>
                 </Field>
               )}
               {isEdit && (

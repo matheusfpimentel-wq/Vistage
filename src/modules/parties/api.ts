@@ -928,6 +928,49 @@ export async function deletePartyBudgetItem(id: number): Promise<void> {
   } catch { /* não interrompe */ }
 }
 
+// Guarda de concorrência da migração (mesmo padrão do backfill do Marketing) —
+// evita criar a linha duas vezes se a festa for aberta duas vezes rápido antes
+// do UPDATE que zera bar_revenue persistir.
+const migratingBarRevenue = new Set<number>();
+
+/**
+ * §2.5 — `parties.bar_revenue` era um campo solto na Info: se o produtor também
+ * lançasse a receita de bar como item do Orçamento (kind='receita'), a mesma
+ * grana entrava duas vezes no P&L (soma de opts.barRevenue + soma dos itens de
+ * receita). Migra o valor pra um item de receita do Orçamento — a partir daqui
+ * "receita de bar" é só mais uma receita lançável, sem campo especial — e ZERA
+ * bar_revenue, fechando a segunda fonte de vez. Idempotente: uma vez zerado,
+ * reabrir a festa não vê valor pra migrar de novo.
+ */
+export async function migrateBarRevenueToBudgetItem(
+  partyId: number,
+  barRevenue: number
+): Promise<void> {
+  if (migratingBarRevenue.has(partyId)) return;
+  migratingBarRevenue.add(partyId);
+  try {
+    await createPartyBudgetItem({
+      party_id: partyId,
+      category: "Bar",
+      subcategory: null,
+      description: "Receita de bar (migrada da Info)",
+      projected_amount: barRevenue,
+      actual_amount: barRevenue,
+      supplier_note: null,
+      supplier_id: null,
+      status: "pago",
+      date_paid: null,
+      premissa: null,
+      nota_variancia: null,
+      kind: "receita",
+      contact_id: null,
+    });
+    await updateParty({ id: partyId, bar_revenue: null });
+  } finally {
+    migratingBarRevenue.delete(partyId);
+  }
+}
+
 /** Categoria usada para itens de orçamento gerados a partir da equipe de produção. */
 const TEAM_BUDGET_CATEGORY = "Produção/Equipe";
 
