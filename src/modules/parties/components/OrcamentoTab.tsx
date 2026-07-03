@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "@/components/ui/toaster";
 import { deleteWithUndo } from "@/lib/deleteWithUndo";
 import { cn } from "@/lib/utils";
@@ -17,7 +10,6 @@ import { EMPTY_VALUE, formatCurrency } from "@/lib/format";
 import { InfoHint } from "@/components/ui/tooltip";
 import {
   BUDGET_CATEGORIES,
-  type BudgetItemStatus,
   type PartyBudgetItem,
   type PartyDeserialized,
   type PartyGuest,
@@ -28,11 +20,11 @@ import {
   createPartyBudgetItem,
   deletePartyBudgetItem,
   syncPartyToFinanceiro,
-  updatePartyBudgetItem,
 } from "../api";
 import { computePartyPnL } from "../pnl";
 import { listSuppliers } from "@/modules/suppliers/api";
 import type { Supplier } from "@/modules/suppliers/types";
+import { BudgetItemDialog } from "./BudgetItemDialog";
 
 /** Mapeia as categorias da Viabilidade para as do Orçamento ao importar custos. */
 const VIAB_TO_BUDGET_CAT: Record<string, string> = {
@@ -55,6 +47,14 @@ function lineVariance(projected: number, actual: number | null): { abs: number; 
 function varianceLabel(v: { abs: number; pct: number }): string {
   const sign = v.abs >= 0 ? "+" : "−";
   return `${sign}${formatCurrency(Math.abs(v.abs))} · ${sign}${Math.abs(v.pct).toFixed(0)}%`;
+}
+
+/** Fornecedor exibido numa linha: cadastro (nome) ou nota livre. */
+function supplierLabel(item: PartyBudgetItem, suppliers: Supplier[]): string {
+  if (item.supplier_id != null) {
+    return suppliers.find((s) => s.id === item.supplier_id)?.name ?? item.supplier_note ?? EMPTY_VALUE;
+  }
+  return item.supplier_note?.trim() || EMPTY_VALUE;
 }
 
 export function OrcamentoTab({
@@ -147,16 +147,6 @@ export function OrcamentoTab({
     }
   }
 
-  const [newKind, setNewKind] = useState<"custo" | "receita">("custo");
-  const [newCategory, setNewCategory] = useState(Object.keys(BUDGET_CATEGORIES)[0]);
-  const [newSubcategory, setNewSubcategory] = useState("");
-  const [newDesc, setNewDesc] = useState("");
-  const [newPremissa, setNewPremissa] = useState("");
-  const [newProjected, setNewProjected] = useState("");
-  const [newActual, setNewActual] = useState("");
-  const [newSupplier, setNewSupplier] = useState("");
-  const [newSupplierId, setNewSupplierId] = useState("none");
-  const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   // Sub-aba do Financeiro (§2.5): Orçamento (projetado) | Execução (real) |
@@ -164,10 +154,10 @@ export function OrcamentoTab({
   const [sub, setSub] = useState<"orcamento" | "execucao" | "indicadores">("orcamento");
   // Limiar de materialidade (%): destaca só desvios acima disso (foco na atenção).
   const [materiality, setMateriality] = useState(10);
-  // Rascunhos controlados de premissa/nota — o valor reflete na hora (o realce da
-  // nota some ao digitar) e sobrevive a um reload sem precisar recarregar a lista.
-  const [premissaDraft, setPremissaDraft] = useState<Record<number, string>>({});
-  const [notaDraft, setNotaDraft] = useState<Record<number, string>>({});
+  // Edição/criação de item via diálogo (lápis) — sem edição direta na planilha.
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogItem, setDialogItem] = useState<PartyBudgetItem | null>(null);
+  const [dialogKind, setDialogKind] = useState<"custo" | "receita">("custo");
 
   useEffect(() => {
     void listSuppliers()
@@ -175,44 +165,14 @@ export function OrcamentoTab({
       .catch(() => undefined);
   }, []);
 
-  const subcats = BUDGET_CATEGORIES[newCategory] ?? [];
-
-  async function handleAdd() {
-    const projected = parseFloat(newProjected);
-    if (isNaN(projected) || projected < 0) {
-      toast.error("Informe um valor projetado válido");
-      return;
-    }
-    setAdding(true);
-    try {
-      await createPartyBudgetItem({
-        party_id: party.id,
-        category: newCategory,
-        subcategory: newSubcategory || null,
-        description: newDesc.trim() || null,
-        projected_amount: projected,
-        actual_amount: newActual && Number.isFinite(parseFloat(newActual)) ? parseFloat(newActual) : null,
-        supplier_note: newSupplier.trim() || null,
-        supplier_id: newSupplierId === "none" ? null : Number(newSupplierId),
-        status: "projetado",
-        date_paid: null,
-        premissa: newPremissa.trim() || null,
-        nota_variancia: null,
-        kind: newKind,
-      });
-      setNewDesc("");
-      setNewPremissa("");
-      setNewProjected("");
-      setNewActual("");
-      setNewSupplier("");
-      setNewSupplierId("none");
-      await onReload();
-      toast.success(newKind === "receita" ? "Receita adicionada" : "Item adicionado");
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setAdding(false);
-    }
+  function openAdd(kind: "custo" | "receita") {
+    setDialogItem(null);
+    setDialogKind(kind);
+    setDialogOpen(true);
+  }
+  function openEdit(item: PartyBudgetItem) {
+    setDialogItem(item);
+    setDialogOpen(true);
   }
 
   async function handleDelete(id: number) {
@@ -226,54 +186,6 @@ export function OrcamentoTab({
       },
       onChange: onReload,
     });
-  }
-
-  async function handleStatusChange(id: number, status: BudgetItemStatus) {
-    try {
-      await updatePartyBudgetItem(id, { status });
-      await onReload();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
-  }
-
-  async function handleSupplierChange(id: number, value: string) {
-    try {
-      await updatePartyBudgetItem(id, {
-        supplier_id: value === "none" ? null : Number(value),
-      });
-      await onReload();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
-  }
-
-  // Premissa e nota de variância: texto que não altera totais → salva direto,
-  // sem recarregar a lista (o input não-controlado mantém o valor digitado).
-  async function handleFieldSave(id: number, field: "premissa" | "nota_variancia", value: string) {
-    try {
-      await updatePartyBudgetItem(id, { [field]: value.trim() || null });
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
-  }
-
-  // Valor projetado/real de um item já lançado continua EDITÁVEL (§2.5). Recarrega
-  // pra o P&L refletir na hora. Real vazio = null (não lançado ainda).
-  async function handleAmountSave(id: number, field: "projected_amount" | "actual_amount", raw: string) {
-    const empty = raw.trim() === "";
-    const v = empty ? (field === "actual_amount" ? null : 0) : parseFloat(raw.replace(",", "."));
-    if (v != null && (!Number.isFinite(v) || v < 0)) {
-      toast.error("Valor inválido");
-      await onReload();
-      return;
-    }
-    try {
-      await updatePartyBudgetItem(id, { [field]: v });
-      await onReload();
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    }
   }
 
   async function handleSync() {
@@ -304,6 +216,13 @@ export function OrcamentoTab({
   const uncategorized = costItems.filter(
     (i) => !Object.keys(BUDGET_CATEGORIES).includes(i.category)
   );
+
+  // Totais: projetado (fim do Orçamento) e real/variância (Execução).
+  const projectedTotal = costItems.reduce((s, i) => s + i.projected_amount, 0);
+  const realTotal = costItems.reduce((s, i) => s + (i.actual_amount ?? 0), 0);
+  const varianceTotal = realTotal - projectedTotal;
+  // Nº de colunas da tabela (pra colSpan do vazio/rodapé).
+  const colCount = sub === "execucao" ? 9 : 6;
 
   return (
     <div className="space-y-4">
@@ -465,8 +384,11 @@ export function OrcamentoTab({
       {/* Receitas lançadas (kind='receita', ex.: Receita de bar, patrocínio avulso). */}
       {receitaItems.length > 0 && (
         <div className="overflow-hidden rounded-md border">
-          <div className="border-b bg-emerald-500/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-            Receitas lançadas
+          <div className="flex items-center justify-between border-b bg-emerald-500/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <span>Receitas lançadas</span>
+            <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => openAdd("receita")}>
+              <Plus className="h-3.5 w-3.5" /> Receita
+            </Button>
           </div>
           <ul className="divide-y">
             {receitaItems.map((r) => (
@@ -476,6 +398,15 @@ export function OrcamentoTab({
                 <span className="shrink-0 font-medium tabular-nums text-emerald-500">
                   {r.actual_amount != null ? formatCurrency(r.actual_amount) : EMPTY_VALUE}
                 </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  aria-label="Editar receita"
+                  onClick={() => openEdit(r)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -494,7 +425,7 @@ export function OrcamentoTab({
       {/* Limiar de materialidade — destaca só os desvios que merecem atenção. */}
       {sub === "execucao" && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Variância.</InfoHint></span>
+          <span className="flex items-center gap-1">Materialidade:<InfoHint>Desvios acima deste % ficam destacados na coluna Var.</InfoHint></span>
           <Input
             type="number"
             min={0}
@@ -511,21 +442,21 @@ export function OrcamentoTab({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2">Categoria</th>
-              <th className="px-3 py-2">Subcategoria</th>
-              <th className="px-3 py-2">Descrição</th>
-              <th className="px-3 py-2 text-right">Projetado</th>
-              {sub === "execucao" && <th className="px-3 py-2 text-right">Real</th>}
-              {sub === "execucao" && <th className="px-3 py-2 text-right">Variância</th>}
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">Fornecedor</th>
-              <th className="px-3 py-2" />
+              <th className="w-32 px-3 py-2">Categoria</th>
+              <th className="w-32 px-3 py-2">Subcategoria</th>
+              <th className="w-full px-3 py-2">Descrição</th>
+              <th className="w-20 px-3 py-2 text-right">Proj.</th>
+              {sub === "execucao" && <th className="w-24 px-3 py-2 text-right">Real</th>}
+              {sub === "execucao" && <th className="w-20 px-3 py-2 text-right">Var.</th>}
+              {sub === "execucao" && <th className="w-24 px-3 py-2">Status</th>}
+              <th className="w-40 px-3 py-2">Fornecedor</th>
+              <th className="w-16 px-3 py-2" />
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && (
+            {costItems.length === 0 && (
               <tr>
-                <td colSpan={sub === "execucao" ? 9 : 7} className="px-3 py-6 text-center text-muted-foreground">
+                <td colSpan={colCount} className="px-3 py-6 text-center text-muted-foreground">
                   Nenhum item de orçamento.
                 </td>
               </tr>
@@ -538,218 +469,98 @@ export function OrcamentoTab({
                   // Só é "material" um desvio DIFERENTE de zero (com limiar 0, uma
                   // linha em cima do orçamento — 0% — não é desvio material).
                   const material = v != null && v.pct !== 0 && Math.abs(v.pct) >= materiality;
-                  const notaVal = notaDraft[item.id] ?? item.nota_variancia ?? "";
                   const varTone = v == null ? "text-muted-foreground" : v.abs > 0 ? "text-red-400" : v.abs < 0 ? "text-emerald-500" : "text-muted-foreground";
+                  const statusTone = item.status === "pago" ? "text-emerald-500" : item.status === "confirmado" ? "text-sky-400" : "text-muted-foreground";
                   return (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.category}</td>
                       <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.subcategory ?? EMPTY_VALUE}</td>
-                      <td className="px-3 py-2 align-top">
-                        <div>{item.description ?? EMPTY_VALUE}</div>
-                        <Input
-                          value={premissaDraft[item.id] ?? item.premissa ?? ""}
-                          onChange={(e) => setPremissaDraft((d) => ({ ...d, [item.id]: e.target.value }))}
-                          onBlur={(e) => void handleFieldSave(item.id, "premissa", e.target.value)}
-                          placeholder="Premissa (por quê deste valor)"
-                          className="mt-1 h-7 text-xs"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right align-top">
-                        <Input
-                          key={`proj-${item.id}-${item.projected_amount}`}
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          defaultValue={item.projected_amount}
-                          onBlur={(e) => {
-                            if (Number(e.target.value) !== item.projected_amount)
-                              void handleAmountSave(item.id, "projected_amount", e.target.value);
-                          }}
-                          className="h-7 w-24 text-right text-xs tabular-nums"
-                        />
-                      </td>
+                      <td className="px-3 py-2 align-top">{item.description ?? EMPTY_VALUE}</td>
+                      <td className="px-3 py-2 text-right align-top tabular-nums">{formatCurrency(item.projected_amount)}</td>
                       {sub === "execucao" && (
                         <>
-                      <td className="px-3 py-2 text-right align-top">
-                        <Input
-                          key={`real-${item.id}-${item.actual_amount ?? "n"}`}
-                          type="number"
-                          min={0}
-                          step={0.01}
-                          defaultValue={item.actual_amount ?? ""}
-                          placeholder={EMPTY_VALUE}
-                          onBlur={(e) => {
-                            const cur = item.actual_amount ?? null;
-                            const nv = e.target.value.trim() === "" ? null : Number(e.target.value);
-                            if (nv !== cur) void handleAmountSave(item.id, "actual_amount", e.target.value);
-                          }}
-                          className="h-7 w-24 text-right text-xs tabular-nums"
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right align-top tabular-nums">
-                        {v == null ? (
-                          <span className="text-muted-foreground">{EMPTY_VALUE}</span>
-                        ) : (
-                          <>
-                            <div className={cn("inline-flex items-center justify-end gap-1", varTone, material && "font-semibold")}>
-                              {material && <AlertTriangle className="h-3 w-3" aria-label="Desvio material" />}
-                              {varianceLabel(v)}
-                            </div>
-                            <Input
-                              value={notaVal}
-                              onChange={(e) => setNotaDraft((d) => ({ ...d, [item.id]: e.target.value }))}
-                              onBlur={(e) => void handleFieldSave(item.id, "nota_variancia", e.target.value)}
-                              placeholder="Causa do desvio"
-                              className={cn("mt-1 h-7 text-left text-xs", material && !notaVal && "ring-1 ring-amber-500/50")}
-                            />
-                          </>
-                        )}
-                      </td>
+                          <td className="px-3 py-2 text-right align-top tabular-nums">
+                            {item.actual_amount != null ? formatCurrency(item.actual_amount) : <span className="text-muted-foreground">{EMPTY_VALUE}</span>}
+                          </td>
+                          <td className="px-3 py-2 text-right align-top tabular-nums">
+                            {v == null ? (
+                              <span className="text-muted-foreground">{EMPTY_VALUE}</span>
+                            ) : (
+                              <span className={cn("inline-flex items-center justify-end gap-1 whitespace-nowrap", varTone, material && "font-semibold")} title={item.nota_variancia ?? undefined}>
+                                {material && <AlertTriangle className="h-3 w-3" aria-label="Desvio material" />}
+                                {varianceLabel(v)}
+                              </span>
+                            )}
+                          </td>
+                          <td className={cn("px-3 py-2 align-top text-xs capitalize", statusTone)}>{item.status}</td>
                         </>
                       )}
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">{supplierLabel(item, suppliers)}</td>
                       <td className="px-3 py-2 align-top">
-                        <Select
-                          value={item.status}
-                          onValueChange={(val) => void handleStatusChange(item.id, val as BudgetItemStatus)}
-                        >
-                          <SelectTrigger className="h-7 text-xs w-28">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="projetado">Projetado</SelectItem>
-                            <SelectItem value="confirmado">Confirmado</SelectItem>
-                            <SelectItem value="pago">Pago</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <Select
-                          value={item.supplier_id != null ? String(item.supplier_id) : "none"}
-                          onValueChange={(val) => void handleSupplierChange(item.id, val)}
-                        >
-                          <SelectTrigger className="h-7 text-xs w-36">
-                            <SelectValue placeholder="Fornecedor" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhum</SelectItem>
-                            {suppliers.map((s) => (
-                              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {item.supplier_note && (
-                          <div className="mt-1 text-xs text-muted-foreground">{item.supplier_note}</div>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 align-top">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          aria-label="Excluir"
-                          onClick={() => void handleDelete(item.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            aria-label="Editar item"
+                            onClick={() => openEdit(item)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            aria-label="Excluir"
+                            onClick={() => void handleDelete(item.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
                 })
               )}
           </tbody>
+          {costItems.length > 0 && (
+            <tfoot>
+              <tr className="border-t bg-muted/30 text-xs font-medium">
+                <td className="px-3 py-2" colSpan={3}>{sub === "execucao" ? "Totais" : "Total projetado"}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(projectedTotal)}</td>
+                {sub === "execucao" && (
+                  <>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(realTotal)}</td>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", varianceTotal > 0 ? "text-red-400" : varianceTotal < 0 ? "text-emerald-500" : "")}>
+                      {varianceTotal >= 0 ? "+" : "−"}{formatCurrency(Math.abs(varianceTotal))}
+                    </td>
+                    <td className="px-3 py-2" />
+                  </>
+                )}
+                <td className="px-3 py-2" />
+                <td className="px-3 py-2" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
-      {sub === "orcamento" && (
-      <div className="rounded-md border p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Adicionar</span>
-          {/* Custo ou Receita lançável (ex.: Receita de bar) — §2.5. */}
-          <div className="inline-flex rounded-md border p-0.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setNewKind("custo")}
-              className={cn("rounded px-2 py-0.5 transition", newKind === "custo" ? "bg-red-500/15 font-medium text-red-400" : "text-muted-foreground")}
-            >
-              Custo
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewKind("receita")}
-              className={cn("rounded px-2 py-0.5 transition", newKind === "receita" ? "bg-emerald-500/15 font-medium text-emerald-500" : "text-muted-foreground")}
-            >
-              Receita
-            </button>
-          </div>
-          {newKind === "receita" && (
-            <span className="text-[11px] text-muted-foreground">Ex.: Receita de bar, patrocínio avulso.</span>
-          )}
-        </div>
-        <div className="grid gap-2 sm:grid-cols-4">
-          <Select value={newCategory} onValueChange={(v) => { setNewCategory(v); setNewSubcategory(""); }}>
-            <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
-            <SelectContent>
-              {Object.keys(BUDGET_CATEGORIES).map((c) => (
-                <SelectItem key={c} value={c}>{c}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={newSubcategory} onValueChange={setNewSubcategory}>
-            <SelectTrigger><SelectValue placeholder="Subcategoria" /></SelectTrigger>
-            <SelectContent>
-              {subcats.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            placeholder="Descrição"
-            value={newDesc}
-            onChange={(e) => setNewDesc(e.target.value)}
-          />
-          <Input
-            placeholder="Premissa (opcional)"
-            value={newPremissa}
-            onChange={(e) => setNewPremissa(e.target.value)}
-          />
-          <Input
-            type="number"
-            min={0}
-            step={0.01}
-            placeholder="Projetado (R$)"
-            value={newProjected}
-            onChange={(e) => setNewProjected(e.target.value)}
-          />
-          <Input
-            type="number"
-            min={0}
-            step={0.01}
-            placeholder="Real (R$)"
-            value={newActual}
-            onChange={(e) => setNewActual(e.target.value)}
-          />
-          <Input
-            placeholder="Fornecedor (nota livre)"
-            value={newSupplier}
-            onChange={(e) => setNewSupplier(e.target.value)}
-          />
-          <Select value={newSupplierId} onValueChange={setNewSupplierId}>
-            <SelectTrigger><SelectValue placeholder="Fornecedor (cadastro)" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Nenhum fornecedor</SelectItem>
-              {suppliers.map((s) => (
-                <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button size="sm" onClick={() => void handleAdd()} disabled={adding}>
-            <Plus className="h-3.5 w-3.5" /> Adicionar
-          </Button>
-        </div>
-      </div>
-      )}
+      <Button size="sm" variant="outline" onClick={() => openAdd("custo")}>
+        <Plus className="h-3.5 w-3.5" /> Adicionar item
+      </Button>
         </>
       )}
+
+      <BudgetItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        item={dialogItem}
+        partyId={party.id}
+        suppliers={suppliers}
+        mode={sub === "execucao" ? "execucao" : "orcamento"}
+        defaultKind={dialogKind}
+        onSaved={onReload}
+      />
     </div>
   );
 }

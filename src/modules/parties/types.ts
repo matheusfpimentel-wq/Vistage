@@ -88,13 +88,32 @@ export type RiderItem = { category: string; item: string; quantity: number; by: 
 /** Modelo de rider reutilizável entre festas (biblioteca de riders). */
 export type RiderTemplate = { id: number; name: string; items: string; created_at: string };
 
-export const BUDGET_CATEGORIES: Record<string, string[]> = {
+/** Categorias de CUSTO do orçamento (o que sai). */
+export const COST_CATEGORIES: Record<string, string[]> = {
   Pessoal: ["DJs","Seguranças","Promoters","Staff","Fotógrafo/Vídeo","MC/Apresentador","Outros"],
   Marketing: ["Tráfego pago","Flyers","Designer","Influencers","Assessoria de imprensa","Outros"],
   Infraestrutura: ["Som/Luz","Venue","Decoração","Estrutura","Geradores","Tendas","Outros"],
   Operacional: ["Transporte","Alimentação staff","Seguro","Aluguel equipamentos","Taxas/Impostos","Outros"],
   Outros: ["Geral"],
 };
+
+/** Categorias de RECEITA do orçamento (o que entra) — diferentes das de custo,
+ *  já que faturamento e despesa raramente compartilham a mesma taxonomia. */
+export const REVENUE_CATEGORIES: Record<string, string[]> = {
+  Bilheteria: ["Antecipado","Lote","Portaria","VIP","Outros"],
+  Bar: ["Bebidas","Comidas","Combos","Outros"],
+  Patrocínio: ["Cota","Permuta","Ativação","Outros"],
+  Outros: ["Geral"],
+};
+
+/** Retro-compat + agrupamento de custos: as categorias de custo continuam sendo
+ *  a lista padrão (importação da Viabilidade, agrupamento do orçamento). */
+export const BUDGET_CATEGORIES = COST_CATEGORIES;
+
+/** Lista de categorias conforme a natureza do item (custo × receita). */
+export function categoriesForKind(kind: "custo" | "receita" | undefined): Record<string, string[]> {
+  return kind === "receita" ? REVENUE_CATEGORIES : COST_CATEGORIES;
+}
 
 export type BudgetItemStatus = "projetado"|"confirmado"|"pago";
 /** Natureza do item de Orçamento: custo (sai) ou receita (entra). Fonte única de dinheiro. */
