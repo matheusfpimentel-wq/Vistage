@@ -676,6 +676,20 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       meta: { instagram: f.instagram, phone: f.phone, city: f.city },
     });
 
+  // §7.2 — Alunos pro sync opcional com a agenda do celular (nome/telefone).
+  const cstudents = await db.select<{ id: number; name: string; phone: string | null; instagram: string | null; city: string | null }[]>(
+    `SELECT id, name, phone, instagram, city FROM students ORDER BY name LIMIT 2000`,
+    []
+  );
+  for (const st of cstudents)
+    rows.push({
+      user_id: uid, kind: "student", source_id: String(st.id),
+      title: st.name,
+      subtitle: [st.city, st.instagram].filter(Boolean).join(" · ") || null,
+      search_text: lc(st.name, st.instagram, st.city),
+      meta: { phone: st.phone, instagram: st.instagram, city: st.city },
+    });
+
   // Festas — pesquisáveis e fonte do "Festas em planejamento" na Home (o mobile
   // filtra por status em aberto). Sem coluna nova: status/data vão no meta.
   const cparties = await db.select<{ id: number; title: string; date: string | null; venue_name: string | null; status: string }[]>(

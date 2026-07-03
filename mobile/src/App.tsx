@@ -8,6 +8,7 @@ import { IdentitySheet } from "./components/IdentitySheet";
 import { Login } from "./screens/Login";
 import { onResume } from "./native";
 import { isBiometricEnabled, biometricVerify, biometricOfferable } from "./lib/biometric";
+import { agendaSyncOfferable, isAgendaSyncEnabled, syncAgenda } from "./lib/contactsSync";
 
 // Telas sob demanda (code-split por aba): cada uma vira um chunk próprio,
 // tirando peso do bundle inicial — só a aba visível é baixada. Login fica
@@ -99,6 +100,13 @@ export function App() {
     lock();
     return onResume(lock);
   }, []);
+
+  // §7.2 — mantém a agenda nativa em dia com o Vistage (nativo + ligado), ao logar.
+  useEffect(() => {
+    if (!session) return;
+    if (!agendaSyncOfferable() || !isAgendaSyncEnabled()) return;
+    void syncAgenda();
+  }, [session]);
 
   if (!ready) {
     return (
