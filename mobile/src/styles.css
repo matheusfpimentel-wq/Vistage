@@ -59,7 +59,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; background: var(--bg); z-index: 5;
 }
-.brand { font-weight: 700; letter-spacing: 0.02em; }
 
 /* Header: identidade (isótipo + nome) à esquerda */
 .identity-chip {
@@ -79,12 +78,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 
 .topbar-actions { display: flex; align-items: center; gap: 0.35rem; }
 .bell-streak { display: flex; align-items: center; gap: 0.15rem; }
-.streak-chip {
-  display: inline-flex; align-items: center; gap: 0.2rem;
-  font-size: 0.78rem; font-weight: 700; white-space: nowrap;
-  padding: 0.1rem 0.4rem 0.1rem 0.3rem; border-radius: 999px;
-  background: color-mix(in srgb, #fb923c 18%, transparent); color: #fb923c;
-}
 
 /* Folha de identidade */
 .identity-sheet { display: flex; flex-direction: column; gap: 0.8rem; padding-bottom: 0.5rem; }
@@ -135,7 +128,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   background: var(--surface); border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
-.tabbar-4 { grid-template-columns: repeat(4, 1fr); }
 .tabbar button {
   background: none; border: none; color: var(--muted);
   padding: 0.85rem 0; font-size: 0.85rem; font-weight: 600;
@@ -208,8 +200,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .cat-label { flex: 1; min-width: 0; font-size: 0.98rem; font-weight: 700; }
-.cat-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
-.cat-text strong { font-size: 0.98rem; }
 .cat-text .muted { font-size: 0.8rem; }
 .cat-chevron { color: var(--muted); flex: 0 0 auto; }
 
@@ -231,9 +221,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .kind-ic.venue { color: #f472b6; background: color-mix(in srgb, #f472b6 14%, transparent); }
 .kind-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
 .kind-chevron { color: var(--muted); flex: 0 0 auto; align-self: center; }
-
-.bars { list-style: none; padding: 0; margin: 0.75rem 0 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.bars li { display: flex; justify-content: space-between; font-size: 0.85rem; }
 
 /* ── Inputs / botões ───────────────────────────── */
 input, select, textarea {
@@ -266,12 +253,8 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Palco (stage) ─────────────────────────────── */
 .foco .stage { width: 100%; border-color: var(--accent); }
-.stage-live { box-shadow: 0 0 0 1px var(--accent); }
-.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
 .stage-title { font-size: 1.3rem; display: block; margin-top: 0.15rem; }
 .stage-sub { font-size: 0.85rem; margin-bottom: 0.5rem; }
-.stage-timing { font-size: 0.72rem; font-weight: 700; color: var(--accent); white-space: nowrap; }
-.stage-timing.live { color: var(--pos); }
 .stage-rows { margin-top: 0.25rem; }
 
 /* Card de objetivos no palco: principal + oportunidades em cima, 2 colunas embaixo. */
@@ -305,7 +288,6 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ── Foco ──────────────────────────────────────── */
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }
-.big-btn { width: 100%; max-width: 320px; padding: 1.1rem; font-size: 1.1rem; }
 .foco .form { width: 100%; }
 
 /* Círculo do foco: anel de progresso + play/pause no centro. */
@@ -507,29 +489,6 @@ button { font-family: inherit; cursor: pointer; }
 .idea-cell.heat-4 { background: color-mix(in srgb, #f97316 11%, var(--surface)); border-color: color-mix(in srgb, #f97316 33%, var(--border)); }
 .idea-cell.heat-5 { background: color-mix(in srgb, #ef4444 13%, var(--surface)); border-color: color-mix(in srgb, #ef4444 38%, var(--border)); }
 
-/* ── Tela Hoje (redesenhada) ─────────────────────────────────────────── */
-.today-top { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 0.5rem; }
-.today-streak { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.1rem; text-align: center; }
-.streak-main { display: inline-flex; align-items: center; gap: 0.3rem; }
-.streak-flame { display: inline-flex; color: #fb923c; }
-.streak-num { font-size: 2.2rem; font-weight: 800; line-height: 1; color: var(--accent); }
-/* Sugestão quando a grade do dia está vazia (maior pendência primeiro). */
-.grid-suggest {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.4rem;
-  width: 100%; text-align: left; margin-top: 0.4rem;
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  border-radius: 10px; padding: 0.5rem 0.6rem;
-  color: var(--accent); font-weight: 600; font-size: 0.82rem;
-}
-.grid-suggest svg { flex: 0 0 auto; }
-.today-grid { display: flex; flex-direction: column; }
-.grid-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
-.grid-list li { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; min-width: 0; }
-.grid-time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); flex: 0 0 auto; }
-.grid-ic { color: var(--muted); flex: 0 0 auto; display: flex; }
-.grid-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
 /* Card grande de compromissos: degradê, borda menos arredondada */
 .today-commit {
   margin: 0.6rem 0 0.5rem; padding: 1rem; border-radius: 10px;
@@ -564,26 +523,8 @@ button { font-family: inherit; cursor: pointer; }
 .commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .commit-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); }
 .commit-empty { margin: 0; color: var(--muted); font-size: 0.9rem; }
-.commit-cta {
-  margin-top: 0.8rem; width: 100%; padding: 0.7rem;
-  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
-  border-radius: 10px; font-weight: 700; font-size: 0.92rem;
-  background: var(--accent); color: #fff; border: none;
-}
-.commit-cta:active { filter: brightness(0.93); }
-.commit-actions { display: flex; flex-direction: column; gap: 0.4rem; }
-.commit-cta-2 {
-  display: block; text-align: center; padding: 0.6rem; border-radius: 10px;
-  font-weight: 600; font-size: 0.85rem; text-decoration: none;
-  color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-/* Split inferior: contatos esfriando | última GIG */
-.today-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
 .mini-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; }
 .mini-list li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mini-title { display: block; margin-top: 0.2rem; font-size: 1rem; }
 
 /* "Esfriando" — linha com ícone do tipo (contato/fã/faixa/conteúdo) + nome + motivo */
 .cold-list .cold-row { white-space: normal; overflow: visible; }
@@ -597,10 +538,6 @@ button { font-family: inherit; cursor: pointer; }
 .cold-detail { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.2rem 0 0.6rem; }
 .cold-detail-kind { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }
 .cold-detail-actions { display: flex; flex-direction: column; gap: 0.5rem; }
-
-.today-motivation { display: flex; gap: 0.6rem; align-items: flex-start; border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
-.today-motivation p { margin: 0; font-size: 0.92rem; line-height: 1.4; }
-.motivation-spark { color: var(--accent); font-size: 1.1rem; line-height: 1.3; flex: 0 0 auto; }
 
 /* Tarefas — checkbox circular */
 .task-row { gap: 0.7rem; }
@@ -680,7 +617,6 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 20px; text-align: center; color: #fff; background: var(--accent);
   border: 1px solid var(--bg);
 }
-.lc-hint { font-size: 0.72rem; text-align: center; }
 
 /* Avaliação por estrelas no debrief (repertório/técnica/carisma, energia/foco). */
 .star-row { display: flex; flex-direction: column; gap: 0.3rem; }
@@ -788,7 +724,6 @@ button { font-family: inherit; cursor: pointer; }
 .ms-ic-err { color: var(--neg); }
 .ms-ic-hit { color: #fb923c; }
 .ms-ic-idea { color: #f5c83c; }
-.ms-hint { font-size: 0.72rem; }
 
 /* ── §4 Home de dia de GIG ─────────────────────────────────────────────────── */
 .gig-day {
@@ -845,33 +780,6 @@ button { font-family: inherit; cursor: pointer; }
 /* Cabeçalho de seção (escanear rápido) */
 .home-section { margin-top: 0.9rem; }
 .section-head { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-
-/* (1) Streak em destaque — porta de entrada do Foco */
-.streak-hero {
-  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
-  padding: 0.9rem 1rem; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--surface)), var(--surface));
-  color: var(--text);
-}
-.streak-hero:active { filter: brightness(0.96); }
-.streak-hero-flame { display: inline-flex; color: #fb923c; flex: 0 0 auto; }
-.streak-hero-body { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; flex: 1; }
-.streak-hero-num { font-size: 2rem; font-weight: 800; color: var(--accent); }
-.streak-hero-label { font-size: 0.82rem; color: var(--muted); }
-.streak-hero-cta {
-  display: inline-flex; align-items: center; gap: 0.3rem; flex: 0 0 auto;
-  padding: 0.4rem 0.7rem; border-radius: 999px; font-weight: 700; font-size: 0.85rem;
-  color: #fff; background: var(--accent);
-}
-
-/* Banner de insight */
-.insight-banner {
-  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
-  margin-top: 0.6rem; padding: 0.7rem 0.9rem; border-radius: 14px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--text);
-}
-.insight-banner:active { filter: brightness(0.96); }
-.insight-spark { flex: 0 0 auto; display: inline-flex; color: var(--accent); }
 .insight-text { flex: 1; font-size: 0.9rem; line-height: 1.35; min-width: 0; }
 .insight-banner.tone-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
 .insight-banner.tone-danger .insight-spark { color: var(--danger); }
@@ -880,14 +788,6 @@ button { font-family: inherit; cursor: pointer; }
 
 /* (2) O que vem / Em andamento */
 .coming-wrap { display: flex; flex-direction: column; gap: 0.7rem; }
-.coming-block { display: flex; flex-direction: column; gap: 0.3rem; }
-.coming-block-label { font-size: 0.74rem; color: var(--muted); font-weight: 600; }
-.coming-row {
-  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
-  padding: 0.55rem 0.7rem; border-radius: 12px; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); min-width: 0;
-}
-.coming-row:active { filter: brightness(0.96); }
 .coming-ic {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 9px; color: var(--muted);
