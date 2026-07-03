@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } fr
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
+import { localISO, fmtDate } from "../lib/dates";
 
 type Task = {
   source_id: string;
@@ -10,15 +11,6 @@ type Task = {
   due_date: string | null;
   category: string | null;
 };
-
-function localISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function fmtDue(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
 
 const GROUP_ORDER = ["Atrasadas", "Hoje", "Amanhã", "Próximos 7 dias", "Depois", "Sem data"] as const;
 type Group = (typeof GROUP_ORDER)[number];
@@ -138,7 +130,7 @@ function SwipeTask({ t, onComplete, onFocus }: { t: Task; onComplete: () => void
   const [dx, setDx] = useState(0);
   const startX = useRef<number | null>(null);
   const dragging = startX.current != null;
-  const due = fmtDue(t.due_date);
+  const due = fmtDate(t.due_date);
 
   function onTouchStart(e: TouchEvent) {
     startX.current = e.touches[0].clientX;

@@ -6,6 +6,7 @@ import { loadProvocations } from "../insights";
 import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
+import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -71,25 +72,6 @@ const TRACK_DONE_STAGE = "Pós-lançamento";
 // Festa "em aberto" = tudo menos Realizada/Cancelada.
 const PARTY_DONE = new Set(["Realizada", "Cancelada"]);
 
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function localDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function timeOf(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (d.getHours() === 0 && d.getMinutes() === 0) return null; // "dia inteiro"
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
-function fmtDate(d?: string): string {
-  if (!d) return "";
-  return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
 /** "hoje 22:00" / "12 jul 23:00" / "amanhã" — rótulo curto de quando. */
 function whenLabel(iso: string | null, today: string): string {
   if (!iso) return "";
