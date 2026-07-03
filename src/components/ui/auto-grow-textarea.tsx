@@ -1,6 +1,20 @@
 import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
+/** Ancestral rolável mais próximo (o diálogo/aba que rola), pra preservar seu
+ *  scroll ao redimensionar o textarea. null se nada rola acima dele. */
+function findScrollParent(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node) {
+    const oy = getComputedStyle(node).overflowY;
+    if ((oy === "auto" || oy === "scroll" || oy === "overlay") && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
 /**
  * Textarea que começa compacto e cresce com o conteúdo (auto-grow) — substitui os
  * textareas gigantes vazios e mostra o texto inteiro sem precisar arrastar/expandir.
@@ -35,8 +49,16 @@ export function AutoGrowTextarea({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Resetar height='auto' colapsa o textarea por um instante; se ele estiver
+    // acima do ponto de rolagem, o scroll-anchoring do navegador move a viewport
+    // e "a tela pula" a cada tecla. Salvamos o scroll do ancestral rolável antes
+    // e restauramos depois — assim editar um campo existente não pula (só ao
+    // criar linha nova, quando o próprio elemento entra na tela, há deslocamento).
+    const scroller = findScrollParent(el);
+    const prevTop = scroller ? scroller.scrollTop : 0;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+    if (scroller && scroller.scrollTop !== prevTop) scroller.scrollTop = prevTop;
   }, [value]);
 
   return (

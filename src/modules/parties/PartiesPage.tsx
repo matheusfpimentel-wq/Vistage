@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Loader2, PartyPopper, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/shared/EmptyState";
 import {
   Select,
   SelectContent,
@@ -145,12 +146,15 @@ export function PartiesPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : parties.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
-          <PartyPopper className="h-9 w-9 text-muted-foreground/60" />
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova produção
-          </Button>
-        </div>
+        <EmptyState
+          icon={PartyPopper}
+          title="Nenhuma produção ainda."
+          action={
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Nova produção
+            </Button>
+          }
+        />
       ) : (
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <div className="flex items-center justify-between gap-2">

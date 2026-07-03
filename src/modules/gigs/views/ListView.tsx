@@ -273,7 +273,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
     return (
       <EmptyState
         icon={CalendarRange}
-        title="Nenhuma GIG encontrada"
+        title="Nenhuma GIG encontrada."
         action={
           onCreate && (
             <Button size="sm" onClick={onCreate}>

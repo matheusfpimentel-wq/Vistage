@@ -44,6 +44,7 @@ import type {
   PartySponsor,
   PartyGuest,
   LineupStatus,
+  PartyStatus,
 } from "../types";
 
 const fmtCurrency = (n: number) =>
@@ -109,6 +110,7 @@ export function WorkflowTab({
   expectedCapacity,
   partyTitle,
   partyDate,
+  partyStatus,
   team,
   sponsors,
   lineup,
@@ -143,6 +145,8 @@ export function WorkflowTab({
   /** Título/data da festa — export do rider + prazo default das confirmações. */
   partyTitle: string;
   partyDate: string | null;
+  /** Status atual da festa — pra saber se concluir a Ideação deve avançar Ideia→Planejando. */
+  partyStatus: PartyStatus;
   /** Equipe (fonte única) — a Execução mostra confirmações destes registros. */
   team: PartyTeamMember[];
   sponsors: PartySponsor[];
@@ -152,8 +156,8 @@ export function WorkflowTab({
   guests: PartyGuest[];
   barRevenue: number | null;
   actualAttendance: number | null;
-  /** Atualiza campos da festa (venue/capacidade/público real) no buffer do form + persiste. */
-  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null; actual_attendance?: number | null }) => Promise<void>;
+  /** Atualiza campos da festa (venue/capacidade/público real/status) no buffer do form + persiste. */
+  onPatchParty: (updates: { venue_id?: number | null; venue_name?: string | null; expected_capacity?: number | null; actual_attendance?: number | null; status?: PartyStatus }) => Promise<void>;
   /** Persiste confirmação na Equipe (fonte única) via mapper sobre o valor mais
    * fresco — evita que dois toggles rápidos se sobrescrevam. */
   onPatchTeam: (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => void;
@@ -219,6 +223,12 @@ export function WorkflowTab({
         status: next,
         completed_at: next === "concluida" ? new Date().toISOString() : null,
       });
+      // Concluir a Ideação avança a festa de Ideia → Planejando (o conceito
+      // saiu do papel). Só quando ainda está em "Ideia" — não rebaixa status
+      // mais avançados.
+      if (stage.name === "Ideação" && next === "concluida" && partyStatus === "Ideia") {
+        await onPatchParty({ status: "Planejando" });
+      }
       await onReload();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);

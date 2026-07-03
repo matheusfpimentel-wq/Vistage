@@ -375,7 +375,7 @@ export function PessoasPage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Nenhuma pessoa encontrada"
+          title={persons.length === 0 ? "Nenhuma pessoa ainda." : "Nenhuma pessoa encontrada."}
           action={
             <Button size="sm" onClick={newContact}>
               <Plus className="h-4 w-4" /> Nova pessoa
