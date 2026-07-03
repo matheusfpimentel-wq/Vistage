@@ -7,12 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   BUILTIN_RULES,
   SEVERITY_BUCKET_LABEL,
   type AlertSeverity,
   type BuiltinRule,
+  type RuleTriggerConfig,
 } from "@/modules/revisao/alerts";
 import {
   getCoolingDays,
@@ -20,6 +28,8 @@ import {
   getDisabledRuleIds,
   getFestaSalesPct,
   getLoteSoldPct,
+  getOkrsLaggingDays,
+  getOkrsLaggingPct,
   getPackageHoursLeft,
   getPrepHours,
   restoreDefaultRules,
@@ -27,12 +37,21 @@ import {
   setCoolingHeat,
   setFestaSalesPct,
   setLoteSoldPct,
+  setOkrsLaggingDays,
+  setOkrsLaggingPct,
   setPackageHoursLeft,
   setPrepHours,
   toggleRuleDisabled,
 } from "@/modules/revisao/ruleConfig";
 import { COOLING_RULE_ID } from "@/modules/revisao/cooling";
+import { heatLabel, type IdeaHeat } from "@/modules/ideas/types";
 import { CustomRulesSection, Toggle } from "./CustomRulesSection";
+
+/** Rótulo do calor mínimo do "esfriando" — 0 é um estado especial (desliga a
+ * regra), o resto (1–5) é o mesmo vocabulário Fria..Quente usado em Ideias. */
+function coolingHeatLabel(h: number): string {
+  return h === 0 ? "Nenhum (desliga a regra)" : heatLabel(h as IdeaHeat);
+}
 
 /**
  * Editor dos ALERTAS padrão, organizado POR TIPO (Esfriamento no topo, depois
@@ -50,6 +69,22 @@ export function AdvancedRulesSettings() {
   const [coolingHeat, setCoolingHeatState] = useState(() => getCoolingHeat());
   const [prepHours, setPrepHoursState] = useState(() => getPrepHours());
   const [packageHours, setPackageHoursState] = useState(() => getPackageHoursLeft());
+  const [okrsLaggingPct, setOkrsLaggingPctState] = useState(() => getOkrsLaggingPct());
+  const [okrsLaggingDays, setOkrsLaggingDaysState] = useState(() => getOkrsLaggingDays());
+
+  // Alimenta o texto "Dispara quando" de cada regra com os limiares ATUAIS —
+  // nunca um "configurado"/"padrão X" genérico que pode já não bater com o
+  // valor efetivo (ver RuleTriggerConfig em revisao/alerts.ts).
+  const triggerCfg: RuleTriggerConfig = {
+    coolingDays,
+    coolingHeatLabel: coolingHeatLabel(coolingHeat),
+    prepHours,
+    packageHoursLeft: packageHours,
+    festaSalesPct,
+    loteSoldPct,
+    okrsLaggingPct,
+    okrsLaggingDays,
+  };
 
   function toggle(id: string) {
     const willDisable = !disabled.has(id);
@@ -154,7 +189,7 @@ export function AdvancedRulesSettings() {
                           <span className={cn(!on && "line-through")}>{r.message}</span>
                         </p>
                         <p className="text-xs leading-snug text-muted-foreground">
-                          Dispara quando: {r.trigger}
+                          Dispara quando: {r.trigger(triggerCfg)}
                         </p>
                         {r.id === "cooling" && (
                           <label className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -179,21 +214,25 @@ export function AdvancedRulesSettings() {
                         {r.id === COOLING_RULE_ID && (
                           <label className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                             <span>Calor mínimo (ideias):</span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={3}
-                              value={coolingHeat}
-                              onChange={(e) => {
-                                const n = parseInt(e.target.value, 10);
-                                if (!Number.isFinite(n)) return;
-                                const clamped = Math.max(0, Math.min(3, n));
-                                setCoolingHeatState(clamped);
-                                setCoolingHeat(clamped);
+                            <Select
+                              value={String(coolingHeat)}
+                              onValueChange={(v) => {
+                                const n = Number(v);
+                                setCoolingHeatState(n);
+                                setCoolingHeat(n);
                               }}
-                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
-                            />
-                            <span>(0 = desliga a regra)</span>
+                            >
+                              <SelectTrigger className="h-7 w-36 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[0, 1, 2, 3, 4, 5].map((h) => (
+                                  <SelectItem key={h} value={String(h)}>
+                                    {coolingHeatLabel(h)}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </label>
                         )}
                         {r.id === "gigs-unprepared" && (
@@ -214,6 +253,41 @@ export function AdvancedRulesSettings() {
                               className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
                             />
                             <span>horas</span>
+                          </label>
+                        )}
+                        {r.id === "okrs-lagging" && (
+                          <label className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Progresso abaixo de:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={okrsLaggingPct}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(0, Math.min(100, n));
+                                setOkrsLaggingPctState(clamped);
+                                setOkrsLaggingPct(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>% e menos de</span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={okrsLaggingDays}
+                              onChange={(e) => {
+                                const n = parseInt(e.target.value, 10);
+                                if (!Number.isFinite(n)) return;
+                                const clamped = Math.max(1, Math.min(365, n));
+                                setOkrsLaggingDaysState(clamped);
+                                setOkrsLaggingDays(clamped);
+                              }}
+                              className="h-7 w-16 rounded-md border bg-background px-2 text-center text-foreground"
+                            />
+                            <span>dias restantes no quarter</span>
                           </label>
                         )}
                         {r.id === "students-low-balance" && (
