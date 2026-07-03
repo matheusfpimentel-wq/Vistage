@@ -125,7 +125,7 @@ export function CareerTimelinePage() {
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Sparkles}
-          title="Nenhum marco ainda"
+          title="Nenhum marco ainda."
           description="Conclua uma GIG, lance uma música ou publique um conteúdo para começar a construir sua linha do tempo."
         />
       ) : (
