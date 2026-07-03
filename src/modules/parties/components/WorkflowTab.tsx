@@ -12,7 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -546,11 +545,11 @@ export function WorkflowTab({
                     <div key={fd.key} className="space-y-1">
                       <Label className="text-xs">{fd.label}</Label>
                       {fd.type === "text" ? (
-                        <Textarea
+                        <AutoGrowTextarea
                           rows={2}
                           value={String(editFields[fd.key] ?? "")}
-                          onChange={(e) =>
-                            setEditFields((f) => ({ ...f, [fd.key]: e.target.value || null }))
+                          onChange={(v) =>
+                            setEditFields((f) => ({ ...f, [fd.key]: v || null }))
                           }
                         />
                       ) : (
@@ -643,10 +642,10 @@ export function WorkflowTab({
             {(fieldDefs.length > 0 || (stage.notes ?? "").trim() !== "") && (
               <div className="space-y-1">
                 <Label className="text-xs">Notas</Label>
-                <Textarea
+                <AutoGrowTextarea
                   rows={3}
                   value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
+                  onChange={(v) => setEditNotes(v)}
                   placeholder="Observações sobre esta etapa…"
                 />
               </div>

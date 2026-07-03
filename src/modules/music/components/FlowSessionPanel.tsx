@@ -3,7 +3,7 @@ import { Play, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
@@ -78,10 +78,10 @@ export function FlowSessionPanel({ trackId }: { trackId: number }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Bloqueios / notas (opcional)</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={2}
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(v) => setNotes(v)}
               placeholder="O que travou? O que fluiu?"
             />
           </div>

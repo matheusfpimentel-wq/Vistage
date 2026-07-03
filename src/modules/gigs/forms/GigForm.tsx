@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -978,10 +978,10 @@ export function GigForm({
               label="Contexto"
               hint="O que o contratante pediu e por quê. Ajuda quando você revisita a GIG dias depois."
             >
-              <Textarea
+              <AutoGrowTextarea
                 rows={3}
                 value={state.briefing ?? ""}
-                onChange={(e) => set("briefing", e.target.value || null)}
+                onChange={(v) => set("briefing", v || null)}
               />
             </Field>
 
@@ -989,10 +989,10 @@ export function GigForm({
               label="Conceito do set"
               hint="Direção artística, vibe, narrativa. Ex: subida progressiva, melódico no início, peso no fim."
             >
-              <Textarea
+              <AutoGrowTextarea
                 rows={3}
                 value={state.set_concept ?? ""}
-                onChange={(e) => set("set_concept", e.target.value || null)}
+                onChange={(v) => set("set_concept", v || null)}
               />
             </Field>
 
@@ -1022,11 +1022,11 @@ export function GigForm({
             <Field
               label="Oportunidades"
             >
-              <Textarea
+              <AutoGrowTextarea
                 rows={3}
                 placeholder="Ex: Mandar release, manter o contato, produzir música, divulgar vídeo"
                 value={state.opportunities ?? ""}
-                onChange={(e) => set("opportunities", e.target.value || null)}
+                onChange={(v) => set("opportunities", v || null)}
               />
             </Field>
           </Section>
@@ -1073,20 +1073,20 @@ export function GigForm({
               label="Observações"
               hint="Anotações livres da preparação. Os insights da lâmpada do Modo Foco (Preparação) no celular caem aqui."
             >
-              <Textarea
+              <AutoGrowTextarea
                 rows={2}
                 value={state.prep_notes ?? ""}
-                onChange={(e) => set("prep_notes", e.target.value || null)}
+                onChange={(v) => set("prep_notes", v || null)}
               />
             </Field>
 
             <Field
               label="Equipamento da casa"
             >
-              <Textarea
+              <AutoGrowTextarea
                 rows={2}
                 value={state.equipment_provided ?? ""}
-                onChange={(e) => set("equipment_provided", e.target.value || null)}
+                onChange={(v) => set("equipment_provided", v || null)}
               />
             </Field>
 
@@ -1110,11 +1110,11 @@ export function GigForm({
             />
 
             <Field label="Observações">
-              <Textarea
+              <AutoGrowTextarea
                 rows={2}
                 placeholder="Dress code, estacionamento, etc."
                 value={state.general_notes ?? ""}
-                onChange={(e) => set("general_notes", e.target.value || null)}
+                onChange={(v) => set("general_notes", v || null)}
               />
             </Field>
 

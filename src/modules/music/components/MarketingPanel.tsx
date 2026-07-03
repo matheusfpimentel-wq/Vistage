@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -192,10 +192,10 @@ export function MarketingPanel({ projectId, trackId }: Props) {
 
       <div className="space-y-1.5">
         <Label className="text-xs">Press release (rascunho)</Label>
-        <Textarea
+        <AutoGrowTextarea
           rows={5}
           value={pressReleaseDraft}
-          onChange={(e) => setPressReleaseDraft(e.target.value)}
+          onChange={(v) => setPressReleaseDraft(v)}
           placeholder="Rascunho do press release..."
         />
       </div>
@@ -230,10 +230,10 @@ export function MarketingPanel({ projectId, trackId }: Props) {
 
       <div className="space-y-1.5">
         <Label className="text-xs">Parcerias confirmadas</Label>
-        <Textarea
+        <AutoGrowTextarea
           rows={3}
           value={partnershipsConfirmed}
-          onChange={(e) => setPartnershipsConfirmed(e.target.value)}
+          onChange={(v) => setPartnershipsConfirmed(v)}
           placeholder="Marcas, curadores, influencers confirmados..."
         />
       </div>

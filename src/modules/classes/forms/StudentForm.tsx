@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -246,11 +246,11 @@ export function StudentForm({ open, onOpenChange, student, onSaved }: Props) {
           </Field>
 
           <Field label="Notas">
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               placeholder="Objetivos do aluno, gosto musical, nível…"
               value={state.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value || null)}
+              onChange={(v) => set("notes", v || null)}
             />
           </Field>
         </div>

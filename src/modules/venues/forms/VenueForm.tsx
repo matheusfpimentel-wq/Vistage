@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { toast } from "@/components/ui/toaster";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { useUnsavedConfirm } from "@/lib/dirty";
@@ -399,11 +399,11 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
               Identidade do Espaço
             </div>
             <Field label="Conceito do espaço">
-              <Textarea
+              <AutoGrowTextarea
                 rows={2}
                 placeholder="Ex: underground techno, intimista, industrial…"
                 value={state.concept ?? ""}
-                onChange={(e) => set("concept", e.target.value || null)}
+                onChange={(v) => set("concept", v || null)}
               />
             </Field>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -423,18 +423,18 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
               </Field>
             </div>
             <Field label="Rider técnico disponível">
-              <Textarea
+              <AutoGrowTextarea
                 placeholder="Equipamento disponível na casa: PA, mesa, monitores, microfones, backline…"
                 value={state.rider_equipment ?? ""}
-                onChange={(e) => set("rider_equipment", e.target.value || null)}
+                onChange={(v) => set("rider_equipment", v || null)}
                 rows={3}
               />
             </Field>
             <Field label="DJs residentes">
-              <Textarea
+              <AutoGrowTextarea
                 placeholder="Um DJ por linha…"
                 value={state.djs_residentes ?? ""}
-                onChange={(e) => set("djs_residentes", e.target.value || null)}
+                onChange={(v) => set("djs_residentes", v || null)}
                 rows={3}
               />
             </Field>
@@ -502,10 +502,10 @@ export function VenueForm({ open, onOpenChange, venue, onSaved }: Props) {
           </div>
 
           <Field label="Notas">
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={state.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value || null)}
+              onChange={(v) => set("notes", v || null)}
               placeholder="Equipamento padrão, política de pagamento, dress code…"
             />
           </Field>

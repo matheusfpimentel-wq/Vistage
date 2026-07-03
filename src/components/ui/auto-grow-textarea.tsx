@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,6 +14,7 @@ export function AutoGrowTextarea({
   onChange,
   onBlur,
   onEnter,
+  onKeyDown,
   placeholder,
   className,
   rows = 1,
@@ -22,6 +23,9 @@ export function AutoGrowTextarea({
   onChange: (v: string) => void;
   onBlur?: () => void;
   onEnter?: () => void;
+  /** Passthrough do keydown (ex.: Cmd/Ctrl+Enter pra salvar). Roda antes do
+   * `onEnter`; se chamar preventDefault, o `onEnter` não dispara. */
+  onKeyDown?: (e: ReactKeyboardEvent<HTMLTextAreaElement>) => void;
   placeholder?: string;
   className?: string;
   rows?: number;
@@ -44,7 +48,8 @@ export function AutoGrowTextarea({
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       onKeyDown={(e) => {
-        if (onEnter && e.key === "Enter" && !e.shiftKey) {
+        onKeyDown?.(e);
+        if (onEnter && e.key === "Enter" && !e.shiftKey && !e.defaultPrevented) {
           e.preventDefault();
           onEnter();
         }

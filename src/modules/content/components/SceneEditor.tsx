@@ -24,7 +24,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { cn } from "@/lib/utils";
 import type { ContentSceneInput } from "../types";
 
@@ -124,11 +124,11 @@ function SceneRow({ id, scene, index, onUpdate, onRemove }: SceneRowProps) {
 
           <div className="space-y-1.5">
             <Label>O que acontece</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={scene.description ?? ""}
-              onChange={(e) =>
-                onUpdate(index, { description: e.target.value || null })
+              onChange={(v) =>
+                onUpdate(index, { description: v || null })
               }
               placeholder="O que acontece"
             />

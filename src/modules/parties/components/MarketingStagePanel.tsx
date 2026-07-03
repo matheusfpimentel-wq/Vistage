@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronUp, ExternalLink, Film, Plus, Trash2 } from 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -276,12 +276,12 @@ export function MarketingStagePanel({
           </div>
           <div className="space-y-1 sm:col-span-2">
             <label className="text-xs text-muted-foreground">Público & ângulo desta edição</label>
-            <Textarea
+            <AutoGrowTextarea
               rows={2}
               className="text-sm"
               placeholder="Pra quem é e qual o ângulo/posicionamento desta edição…"
               value={publicoAngulo}
-              onChange={(e) => setPublicoAngulo(e.target.value)}
+              onChange={(v) => setPublicoAngulo(v)}
               onBlur={() => void saveStageFields()}
             />
           </div>

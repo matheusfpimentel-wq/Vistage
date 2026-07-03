@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/toaster";
@@ -129,11 +129,11 @@ export function QuickCapture({ open, onOpenChange }: Props) {
               onKeyDown={onKeyDown}
             />
           </div>
-          <Textarea
+          <AutoGrowTextarea
             rows={4}
             placeholder="Mais detalhes (opcional)…"
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(v) => setBody(v)}
             onKeyDown={onKeyDown}
           />
         </div>

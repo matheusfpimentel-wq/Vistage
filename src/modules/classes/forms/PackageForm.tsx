@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Tabs,
   TabsContent,
@@ -162,11 +162,11 @@ function SyllabusRow({ id, idx, it, updateItem, removeItem }: SyllabusRowProps) 
       </div>
       <div className="space-y-1.5">
         <Label className="text-xs">Detalhamento</Label>
-        <Textarea
+        <AutoGrowTextarea
           rows={2}
           value={it.detail ?? ""}
-          onChange={(e) =>
-            updateItem(idx, { detail: e.target.value || null })
+          onChange={(v) =>
+            updateItem(idx, { detail: v || null })
           }
         />
       </div>
@@ -345,10 +345,10 @@ export function PackageForm({ open, onOpenChange, pkg, onSaved }: Props) {
 
             <div className="space-y-1.5">
               <Label>Descrição (resumo curto)</Label>
-              <Textarea
+              <AutoGrowTextarea
                 rows={2}
                 value={state.description ?? ""}
-                onChange={(e) => set("description", e.target.value || null)}
+                onChange={(v) => set("description", v || null)}
               />
             </div>
 

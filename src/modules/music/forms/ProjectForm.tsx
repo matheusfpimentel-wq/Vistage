@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import { toast } from "@/components/ui/toaster";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { onEnterSave } from "@/lib/formEnter";
@@ -106,11 +106,11 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label>Conceito do projeto</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={concept}
-              onChange={(e) => {
-                setConcept(e.target.value);
+              onChange={(v) => {
+                setConcept(v);
                 setDirty(true);
               }}
               placeholder="A ideia central que une as músicas: vibe, narrativa, estética..."
@@ -118,11 +118,11 @@ export function ProjectForm({ open, onOpenChange, project, onSaved }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label>Notas</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               value={notes}
-              onChange={(e) => {
-                setNotes(e.target.value);
+              onChange={(v) => {
+                setNotes(v);
                 setDirty(true);
               }}
             />

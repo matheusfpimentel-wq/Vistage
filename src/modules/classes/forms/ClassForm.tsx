@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -471,30 +471,30 @@ export function ClassForm({
 
           <div className="space-y-1.5">
             <Label>Matéria a ser passada</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               placeholder="Ex: Beatmatching avançado, transições harmônicas, treino de ouvido…"
               value={state.subject ?? ""}
-              onChange={(e) => set("subject", e.target.value || null)}
+              onChange={(v) => set("subject", v || null)}
             />
           </div>
 
           <div className="space-y-1.5">
             <Label>Feedback geral</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={3}
               placeholder="Como foi a aula, o que evoluir, o que reforçar na próxima…"
               value={state.feedback ?? ""}
-              onChange={(e) => set("feedback", e.target.value || null)}
+              onChange={(v) => set("feedback", v || null)}
             />
           </div>
 
           <div className="space-y-1.5">
             <Label>Notas internas</Label>
-            <Textarea
+            <AutoGrowTextarea
               rows={2}
               value={state.notes ?? ""}
-              onChange={(e) => set("notes", e.target.value || null)}
+              onChange={(v) => set("notes", v || null)}
             />
           </div>
         </div>

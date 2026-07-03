@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { AutoGrowTextarea } from "@/components/ui/auto-grow-textarea";
 import {
   Select,
   SelectContent,
@@ -548,18 +548,18 @@ export function TrackForm({
           {/* ===== CONCEITO ===== */}
           <TabsContent value="concept" className="space-y-4">
             <Field label="Restrições criativas">
-              <Textarea
+              <AutoGrowTextarea
                 rows={3}
                 value={state.constraints ?? ""}
-                onChange={(e) => set("constraints", e.target.value || null)}
+                onChange={(v) => set("constraints", v || null)}
               />
             </Field>
             <Field label="Narrativa do conceito">
-              <Textarea
+              <AutoGrowTextarea
                 rows={4}
                 value={state.concept_narrative ?? ""}
-                onChange={(e) =>
-                  set("concept_narrative", e.target.value || null)
+                onChange={(v) =>
+                  set("concept_narrative", v || null)
                 }
                 placeholder="A história/ideia por trás da track."
               />
@@ -708,18 +708,18 @@ export function TrackForm({
               </Field>
 
               <Field label="Notas do stage (mini-diário)">
-                <Textarea
+                <AutoGrowTextarea
                   rows={3}
                   value={state.stage_notes ?? ""}
-                  onChange={(e) => set("stage_notes", e.target.value || null)}
+                  onChange={(v) => set("stage_notes", v || null)}
                 />
               </Field>
               <Field label="Bloqueios criativos resolvidos (vira Insight)">
-                <Textarea
+                <AutoGrowTextarea
                   rows={3}
                   value={state.creative_block_notes ?? ""}
-                  onChange={(e) =>
-                    set("creative_block_notes", e.target.value || null)
+                  onChange={(v) =>
+                    set("creative_block_notes", v || null)
                   }
                   placeholder="O que estava travando e como destravou."
                 />
