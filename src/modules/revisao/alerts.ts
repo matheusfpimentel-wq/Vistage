@@ -173,6 +173,7 @@ export const BUILTIN_RULES: BuiltinRule[] = [
 
   // ── Avisos (info) ───────────────────────────────────────────────────────────
   { id: "crm-no-interaction-week", category: "Pessoas", severidade: "info", message: "Sem interações com contatos esta semana", trigger: () => "Semana sem nenhuma interação registrada com contatos" },
+  { id: "contact-birthdays-today", category: "Pessoas", severidade: "info", message: "Aniversário de contato hoje", trigger: () => "Contato do CRM com aniversário cadastrado na data de hoje" },
   { id: "no-upcoming-gigs", category: "GIGs", severidade: "info", message: "Nenhuma GIG à frente", trigger: () => "Não há nenhuma GIG futura agendada; clicar abre uma nova GIG" },
   { id: "funil-producao-vazio", category: "Produção", severidade: "info", message: "Nenhuma faixa sendo produzida", trigger: () => "Nenhuma faixa ativa em produção; clicar abre uma nova faixa" },
   { id: "no-parties-production", category: "Festas", severidade: "info", message: "Nenhuma festa sendo produzida", trigger: () => "Nenhuma festa no pipeline (fora realizadas/canceladas); clicar abre uma nova festa" },
@@ -394,6 +395,20 @@ export function computeAlerts(
       to: "/pessoas",
       critical: false,
       label: "Você não tem interações com contatos essa semana",
+    });
+  }
+
+  if (stats.contactBirthdaysToday > 0) {
+    const single = stats.contactBirthdaysTodayIds.length === 1 ? stats.contactBirthdaysTodayIds[0] : null;
+    alerts.push({
+      key: "contact-birthdays-today",
+      icon: "heart",
+      to: single ? `/pessoas?open=${single}` : "/pessoas",
+      critical: false,
+      label:
+        stats.contactBirthdaysToday === 1
+          ? "1 contato faz aniversário hoje"
+          : `${stats.contactBirthdaysToday} contatos fazem aniversário hoje`,
     });
   }
 

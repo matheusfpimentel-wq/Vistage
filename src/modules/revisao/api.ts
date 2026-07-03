@@ -40,6 +40,8 @@ export type WeekStats = {
   /** Limiares usados no cálculo acima — ecoados pro rótulo do alerta bater com a config atual. */
   okrsLaggingPct: number;
   okrsLaggingDaysThreshold: number;
+  contactBirthdaysToday: number; // contatos (CRM) com aniversário na data de hoje
+  contactBirthdaysTodayIds: number[];
   gigsUnpaidAfter48h: number; // GIGs concluídas com pagamento pendente (previsão vencida ou +72h)
   gigsUnpaidIds: number[]; // ids p/ link direto à GIG quando houver só uma
   tracksStandbyOverdue: { id: number; title: string }[]; // tracks com standby_until vencido
@@ -318,6 +320,25 @@ async function computeWeekStats(): Promise<WeekStats> {
     // não interrompe
   }
 
+  // Contatos (CRM) fazendo aniversário hoje — mesmo critério de data usado por
+  // syncBirthdayTasks (crm/api.ts), que já cria a tarefa; este alerta é o
+  // mesmo evento refletido no sininho, pra quem acompanha mais por lá.
+  let contactBirthdaysToday = 0;
+  let contactBirthdaysTodayIds: number[] = [];
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const dd = String(now.getDate()).padStart(2, "0");
+    const birthdayRows = await db.select<{ id: number }[]>(
+      `SELECT id FROM contacts WHERE birthday IS NOT NULL AND substr(birthday, 6, 5) = $1`,
+      [`${mm}-${dd}`]
+    );
+    contactBirthdaysToday = birthdayRows.length;
+    contactBirthdaysTodayIds = birthdayRows.map((r) => r.id);
+  } catch {
+    // não interrompe
+  }
+
   const nowMs = Date.now();
   // dias desde que a track entrou no stage atual (derivado do stage_history JSON)
   const daysInStage = (t: TrackRow): number | null => {
@@ -414,6 +435,8 @@ async function computeWeekStats(): Promise<WeekStats> {
     okrsLaggingIds,
     okrsLaggingPct: getOkrsLaggingPct(),
     okrsLaggingDaysThreshold: getOkrsLaggingDays(),
+    contactBirthdaysToday,
+    contactBirthdaysTodayIds,
     gigsUnpaidAfter48h: (gigsUnpaidRows as { id: number }[]).length,
     gigsUnpaidIds: (gigsUnpaidRows as { id: number }[]).map((r) => r.id),
     tracksStandbyOverdue: standbyOverdueRows as { id: number; title: string }[],
