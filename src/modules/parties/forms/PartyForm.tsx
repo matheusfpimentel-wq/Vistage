@@ -201,6 +201,11 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // §8.1 — hora do último auto-save AO VIVO (venue/capacidade/público, confirmações
+  // da Equipe…). O modal persiste essas mudanças na hora; mostrar "Rascunho salvo ·
+  // HH:MM" tira a dúvida de "salvou? carrega ao reabrir?". Os campos da Info
+  // continuam no Salvar explícito (dirty + aviso de não salvo).
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   // Venues
   const [venues, setVenues] = useState<Venue[]>([]);
@@ -272,6 +277,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   useEffect(() => {
     if (!open) return;
     setDirty(false);
+    setSavedAt(null);
     setSponsorName("");
     setSponsorAmount("");
 
@@ -335,6 +341,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
       if (!party) return;
       try {
         await updateParty({ id: party.id, ...updates });
+        setSavedAt(new Date());
       } catch (e) {
         toast.error(`Não consegui salvar: ${String(e)}`);
       }
@@ -352,7 +359,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
   function persistParty<K extends "team" | "sponsors" | "lineup_status">(key: K, next: FormState[K]) {
     stateRef.current = { ...stateRef.current, [key]: next };
     setState((s) => ({ ...s, [key]: next }));
-    if (party) void updateParty({ id: party.id, [key]: next }).catch((e) => toast.error(`Não consegui salvar: ${String(e)}`));
+    if (party) void updateParty({ id: party.id, [key]: next }).then(() => setSavedAt(new Date())).catch((e) => toast.error(`Não consegui salvar: ${String(e)}`));
   }
   const patchTeamLive = useCallback(
     (mapper: (prev: PartyTeamMember[]) => PartyTeamMember[]) => persistParty("team", mapper(stateRef.current.team)),
@@ -1352,18 +1359,33 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
 
         </Tabs>
 
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <Button
-            variant="outline"
-            onClick={() => confirmClose(false, () => onOpenChange(false))}
-            disabled={saving}
-          >
-            Fechar
-          </Button>
-          <Button onClick={() => void handleSubmit()} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {party ? "Salvar alterações" : "Criar festa"}
-          </Button>
+        <div className="flex items-center justify-between gap-2 border-t pt-4">
+          {/* §8.1 — estado do rascunho: as sub-abas salvam sozinhas ("Rascunho
+              salvo · HH:MM"); os campos da Info só no Salvar (aviso quando dirty). */}
+          <span className="min-w-0 truncate text-xs">
+            {dirty ? (
+              <span className="text-amber-600 dark:text-amber-500">
+                Alterações não salvas — clique em Salvar
+              </span>
+            ) : savedAt ? (
+              <span className="text-muted-foreground">
+                Rascunho salvo · {savedAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            ) : null}
+          </span>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => confirmClose(false, () => onOpenChange(false))}
+              disabled={saving}
+            >
+              Fechar
+            </Button>
+            <Button onClick={() => void handleSubmit()} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {party ? "Salvar alterações" : "Criar festa"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
 
