@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { clearFocusNotification, showFocusNotification } from "../push";
 import { haptic } from "../native";
 import { enqueueCapture } from "../queue";
+import { waLink } from "../links";
 
 // Tipos alinhados ao desktop (ActivityType) pra estatística e painel baterem.
 // Ordem do menu com dois separadores (— ) entre os grupos. Os valores seguem os
@@ -360,7 +361,7 @@ function StagePanel({ option, loading }: { option: StageGigOption | null; loadin
     : gig.start_time
       ? [{ start: gig.start_time, end: gig.end_time ?? "" }]
       : [];
-  const wa = gig.day_contact_phone ? `https://wa.me/${gig.day_contact_phone.replace(/\D/g, "")}` : null;
+  const wa = waLink(gig.day_contact_phone);
   const concretos = gig.concrete_goals ?? [];
   const alvos = gig.targets ?? [];
   const hasGoals = !!(gig.main_goal || gig.opportunities || concretos.length || alvos.length);

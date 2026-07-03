@@ -787,6 +787,9 @@ button { font-family: inherit; cursor: pointer; }
 
 /* tap-to-action: linha com vários links (telefone · WhatsApp) */
 .link-row { display: inline-flex; flex-wrap: wrap; gap: 0.1rem 0.7rem; align-items: baseline; }
+/* §7.1 — completar telefone de contato sem número (inline). */
+.add-phone { display: inline-flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.add-phone input { width: 11rem; max-width: 52vw; padding: 0.35rem 0.5rem; font-size: 0.9rem; }
 
 /* ── Home redesenhada ──────────────────────────────────────────────────────── */
 /* Pull-to-refresh + estado de sync */

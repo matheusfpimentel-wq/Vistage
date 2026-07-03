@@ -606,7 +606,9 @@ export function Hoje({
 function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void; onFocus: () => void }) {
   const kind = coldKind(item);
   const person = isPerson(item);
-  const digits = person && item.handle ? item.handle.replace(/\D/g, "") : "";
+  const phone = person ? item.handle : null;
+  const wapp = waLink(phone);
+  const tel = telLink(phone);
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -622,12 +624,14 @@ function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void
           </span>
           {item.reason && <p className="muted" style={{ margin: 0 }}>{item.reason}</p>}
           {person ? (
-            digits ? (
+            wapp || tel ? (
               <div className="cold-detail-actions">
-                <a className="primary full" style={{ marginTop: 0 }} href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">
-                  Reaquecer no WhatsApp
-                </a>
-                <a className="ghost full" style={{ marginTop: 0 }} href={`tel:${digits}`}>Ligar</a>
+                {wapp && (
+                  <a className="primary full" style={{ marginTop: 0 }} href={wapp} target="_blank" rel="noreferrer">
+                    Reaquecer no WhatsApp
+                  </a>
+                )}
+                {tel && <a className="ghost full" style={{ marginTop: 0 }} href={tel}>Ligar</a>}
               </div>
             ) : (
               <p className="muted small" style={{ margin: 0 }}>Abra no PC pra retomar de onde parou.</p>

@@ -1228,6 +1228,18 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         [s("at") ?? new Date().toISOString(), Math.max(1, Math.min(5, Math.round(lvl)))]
       );
     }
+  } else if (kind === "contact_update") {
+    // §7.1 — completa o telefone (que faltava pro WhatsApp) de um contato JÁ
+    // existente. Só preenche se estiver vazio: nunca sobrescreve o que o PC tem
+    // (fonte única preservada). source_id é o id do contato (String no espelho).
+    const id = Number(s("source_id"));
+    const phone = s("phone")?.trim();
+    if (Number.isFinite(id) && phone) {
+      await db.execute(
+        `UPDATE contacts SET phone = $1 WHERE id = $2 AND (phone IS NULL OR TRIM(phone) = '')`,
+        [phone, id]
+      );
+    }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }

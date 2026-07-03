@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
-import { telLink, waLink, mapsLink } from "../links";
+import { telLink, waLink, mapsLink, digits } from "../links";
 
 type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class" | "party";
 type Row = {
@@ -224,6 +224,37 @@ export function Buscar() {
   );
 }
 
+/** §7.1 — completar o telefone de um contato SEM número. Vai pro registro
+ * EXISTENTE no PC (contact_update), sem duplicar; só preenche se estiver vazio. */
+function AddPhone({ sourceId }: { sourceId: string }) {
+  const [phone, setPhone] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!digits(phone)) return;
+    setBusy(true);
+    try {
+      await sendCapture("contact_update", { source_id: sourceId, phone });
+      setSent(true);
+    } catch {
+      /* a fila reenvia sozinha */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) return <span className="muted small">Telefone enviado ✓ · sincroniza sozinho.</span>;
+  return (
+    <span className="add-phone">
+      <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Sem telefone — adicionar" />
+      <button className="link" disabled={busy || !digits(phone)} onClick={() => void submit()}>
+        Salvar
+      </button>
+    </span>
+  );
+}
+
 function Detail({ r }: { r: Row }) {
   const m = r.meta ?? {};
   const out: [string, ReactNode][] = [];
@@ -263,6 +294,10 @@ function Detail({ r }: { r: Row }) {
           {wapp && <a className="link" href={wapp} target="_blank" rel="noreferrer">WhatsApp</a>}
         </span>,
       ]);
+    } else {
+      // §7.1 — sem telefone, o WhatsApp não abre: dá pra completar o número aqui
+      // mesmo (vai pro contato EXISTENTE no PC, sem duplicar).
+      out.push(["Telefone", <AddPhone sourceId={r.source_id} />]);
     }
     if (str(m.email))
       out.push(["Email", <a className="link" href={`mailto:${str(m.email)}`}>{str(m.email)}</a>]);
