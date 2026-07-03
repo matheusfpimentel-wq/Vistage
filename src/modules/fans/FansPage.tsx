@@ -10,7 +10,6 @@ import {
   Heart,
   LayoutGrid,
   List,
-  Megaphone,
   Pencil,
   Play,
   Plus,
@@ -19,7 +18,6 @@ import {
   Trash2,
   User,
   Users,
-  Zap,
 } from "lucide-react";
 import {
   DndContext,
@@ -38,12 +36,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { deleteWithUndo } from "@/lib/deleteWithUndo";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,8 +49,7 @@ import { toast } from "@/components/ui/toaster";
 import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
-import { FanClubConfigDialog } from "./components/FanClubConfigDialog";
-import { FanAutoRulesDialog } from "./components/FanAutoRulesDialog";
+import { FanClubConfigSurface } from "./components/FanClubConfigSurface";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
@@ -77,22 +68,17 @@ import {
   listFanOrigens,
   listFanSegments,
   createFanSegment,
-  loadFanUpgradeRules,
   parseFanSegmentCriterios,
-  recomputeAllFanLevels,
   runFanAutoRules,
   removeFanGroupMember,
   updateFanGroup,
   listFanGroupStats,
-  saveFanUpgradeRules,
   type FanFilters,
 } from "./api";
 import { listGigs } from "@/modules/gigs/api";
 import { gigDisplayName } from "@/modules/gigs/displayName";
-import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanScoreThresholds, type FanScoringConfig, type FanSegment, type FanUpgradeRules } from "./types";
+import { FAN_LEVELS, type Fan, type FanGroup, type FanGroupMember, type FanLevel, type FanSegment } from "./types";
 import { EMPTY_VALUE, formatDate } from "@/lib/format";
-import { InfoHint } from "@/components/ui/tooltip";
-import { useUnsavedConfirm } from "@/lib/dirty";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
@@ -221,9 +207,6 @@ export function FansPage() {
   }, []);
   // "Próximas ações" (valor "hoje") é a aba PADRÃO do Clube de Fãs.
   const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "config">("hoje");
-  const [upgradeRulesOpen, setUpgradeRulesOpen] = useState(false);
-  const [clubConfigOpen, setClubConfigOpen] = useState(false);
-  const [autoRulesOpen, setAutoRulesOpen] = useState(false);
   // Linhas augmentadas com campos derivados pra ordenar Grupo/Contato/Interações
   // (que não mapeiam direto num campo do Fan). FanRow estende Fan, então o que
   // consome `sortedFans` como Fan[] (ex.: GroupedFansView) segue funcionando.
@@ -718,11 +701,7 @@ export function FansPage() {
         </TabsContent>
 
         <TabsContent value="config">
-          <FanClubConfigSurface
-            onEditScoring={() => setUpgradeRulesOpen(true)}
-            onEditActions={() => setClubConfigOpen(true)}
-            onEditAutoRules={() => setAutoRulesOpen(true)}
-          />
+          <FanClubConfigSurface />
         </TabsContent>
       </Tabs>
 
@@ -738,12 +717,6 @@ export function FansPage() {
         onOpenChange={setDetailOpen}
         fanId={detailId}
       />
-
-      <FanUpgradeRulesDialog open={upgradeRulesOpen} onOpenChange={setUpgradeRulesOpen} />
-
-      <FanClubConfigDialog open={clubConfigOpen} onOpenChange={setClubConfigOpen} />
-
-      <FanAutoRulesDialog open={autoRulesOpen} onOpenChange={setAutoRulesOpen} />
     </div>
   );
 }
@@ -909,67 +882,6 @@ function FanSavedFiltersMenu({
     </div>
   );
 }
-
-// Aba "Configurar clube" — consolida num lugar só os ajustes que antes ficavam
-// soltos na barra: pontuação/níveis e ações rápidas + catálogo de perks. Cada
-// cartão abre o editor correspondente.
-function FanClubConfigSurface({
-  onEditScoring,
-  onEditActions,
-  onEditAutoRules,
-}: {
-  onEditScoring: () => void;
-  onEditActions: () => void;
-  onEditAutoRules: () => void;
-}) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <button
-        type="button"
-        onClick={onEditScoring}
-        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Settings2 className="h-4 w-4" />
-        </span>
-        <span className="font-medium">Pontuação e níveis</span>
-        <span className="text-xs text-muted-foreground">
-          Pesos de cada sinal, decaimento (meia-vida) e limiares de nível. Recalcular todos os fãs.
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onEditActions}
-        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Megaphone className="h-4 w-4" />
-        </span>
-        <span className="font-medium">Ações rápidas e perks</span>
-        <span className="text-xs text-muted-foreground">
-          Botões que viram tarefa ({"{nome}"}) e o catálogo de perks/brindes de um clique.
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={onEditAutoRules}
-        className="flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition hover:border-primary hover:shadow-sm"
-      >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <Zap className="h-4 w-4" />
-        </span>
-        <span className="font-medium">Ações programadas</span>
-        <span className="text-xs text-muted-foreground">
-          Regras "se… então…" que rodam sozinhas: ao subir de nível, ser fã há X dias
-          ou ficar inativo, concede perk / registra interação / cria tarefa.
-        </span>
-      </button>
-    </div>
-  );
-}
-
 
 // Select rotulado pro painel de filtros (valores nunca vazios — sentinelas tratadas no onChange).
 function FilterSelect({
@@ -1798,222 +1710,5 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
         </div>
       )}
     </div>
-  );
-}
-
-type ScoringState = {
-  weightPresenca: string;
-  weightFeedback: string;
-  weightInteracao: string;
-  weightGig: string;
-  weightCompra: string;
-  weightIndicacao: string;
-  halfLifeDays: string;
-  thQuaseFa: string;
-  thFa: string;
-  thSuperfa: string;
-  thEmbaixador: string;
-};
-
-const emptyScoring = (): ScoringState => ({
-  weightPresenca: "",
-  weightFeedback: "",
-  weightInteracao: "",
-  weightGig: "",
-  weightCompra: "",
-  weightIndicacao: "",
-  halfLifeDays: "",
-  thQuaseFa: "",
-  thFa: "",
-  thSuperfa: "",
-  thEmbaixador: "",
-});
-
-function scoringToState(s?: FanScoringConfig): ScoringState {
-  const v = (n?: number) => (n != null ? String(n) : "");
-  return {
-    weightPresenca: v(s?.weightPresenca),
-    weightFeedback: v(s?.weightFeedback),
-    weightInteracao: v(s?.weightInteracao),
-    weightGig: v(s?.weightGig),
-    weightCompra: v(s?.weightCompra),
-    weightIndicacao: v(s?.weightIndicacao),
-    halfLifeDays: v(s?.halfLifeDays),
-    thQuaseFa: v(s?.thresholds?.quaseFa),
-    thFa: v(s?.thresholds?.fa),
-    thSuperfa: v(s?.thresholds?.superfa),
-    thEmbaixador: v(s?.thresholds?.embaixador),
-  };
-}
-
-function stateToScoring(s: ScoringState): FanScoringConfig {
-  const num = (x: string): number | undefined => {
-    const t = x.trim();
-    if (!t) return undefined;
-    const n = Number(t);
-    return Number.isFinite(n) ? n : undefined;
-  };
-  const scoring: FanScoringConfig = {};
-  const wp = num(s.weightPresenca); if (wp != null) scoring.weightPresenca = wp;
-  const wf = num(s.weightFeedback); if (wf != null) scoring.weightFeedback = wf;
-  const wi = num(s.weightInteracao); if (wi != null) scoring.weightInteracao = wi;
-  const wg = num(s.weightGig); if (wg != null) scoring.weightGig = wg;
-  const wc = num(s.weightCompra); if (wc != null) scoring.weightCompra = wc;
-  const wid = num(s.weightIndicacao); if (wid != null) scoring.weightIndicacao = wid;
-  const hl = num(s.halfLifeDays); if (hl != null) scoring.halfLifeDays = hl;
-  const thresholds: FanScoreThresholds = {};
-  const tq = num(s.thQuaseFa); if (tq != null) thresholds.quaseFa = tq;
-  const tf = num(s.thFa); if (tf != null) thresholds.fa = tf;
-  const ts = num(s.thSuperfa); if (ts != null) thresholds.superfa = ts;
-  const te = num(s.thEmbaixador); if (te != null) thresholds.embaixador = te;
-  if (Object.keys(thresholds).length) scoring.thresholds = thresholds;
-  return scoring;
-}
-
-function ScoreField({
-  label,
-  value,
-  placeholder,
-  onChange,
-  hint,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  onChange: (v: string) => void;
-  hint?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="flex items-center gap-1 text-sm font-medium">
-        {label}
-        {hint && <InfoHint>{hint}</InfoHint>}
-      </label>
-      <Input
-        type="number"
-        min={0}
-        placeholder={`padrão: ${placeholder}`}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </div>
-  );
-}
-
-function FanUpgradeRulesDialog({
-  open,
-  onOpenChange,
-}: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-}) {
-  const [s, setS] = useState<ScoringState>(emptyScoring());
-  const [saving, setSaving] = useState(false);
-  const [recalcing, setRecalcing] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const confirmClose = useUnsavedConfirm(dirty);
-
-  useEffect(() => {
-    if (!open) return;
-    void loadFanUpgradeRules().then((r: FanUpgradeRules) => setS(scoringToState(r.scoring)));
-    setDirty(false);
-  }, [open]);
-
-  const set = (key: keyof ScoringState) => (v: string) => {
-    setS((prev) => ({ ...prev, [key]: v }));
-    setDirty(true);
-  };
-
-  async function persist(): Promise<void> {
-    const current = await loadFanUpgradeRules();
-    await saveFanUpgradeRules({ ...current, scoring: stateToScoring(s) });
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await persist();
-      setDirty(false);
-      onOpenChange(false);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleRecalc() {
-    setRecalcing(true);
-    try {
-      await persist(); // recalcula já com os pesos atuais da tela
-      const changed = await recomputeAllFanLevels();
-      // Dispara as ações programadas logo após o recálculo, pra que regras de
-      // "atingiu nível X" reajam aos novos níveis na hora. Idempotente.
-      await runFanAutoRules().catch(() => 0);
-      toast.success(changed > 0 ? `${changed} nível(is) atualizado(s)` : "Nenhum nível mudou");
-    } catch (e) {
-      toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setRecalcing(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-1.5">
-            Pontuação de engajamento dos fãs
-            <InfoHint>
-              O nível de cada fã é calculado por uma pontuação que decai com o
-              tempo: cada sinal vale pontos e perde peso conforme envelhece. Campos
-              vazios usam o padrão.
-            </InfoHint>
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6 py-2">
-          <div className="space-y-3">
-            <div className="text-sm font-semibold">Pesos por sinal</div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <ScoreField label="Presença" value={s.weightPresenca} placeholder="3" onChange={set("weightPresenca")} />
-              <ScoreField label="Feedback" value={s.weightFeedback} placeholder="2" onChange={set("weightFeedback")} />
-              <ScoreField label="Interação" value={s.weightInteracao} placeholder="1" onChange={set("weightInteracao")} />
-              <ScoreField label="Presença em GIG" value={s.weightGig} placeholder="3" onChange={set("weightGig")} />
-              <ScoreField label="Compra (ingresso/merch)" value={s.weightCompra} placeholder="4" onChange={set("weightCompra")} />
-              <ScoreField label="Indicação" value={s.weightIndicacao} placeholder="3" onChange={set("weightIndicacao")} />
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-sm font-semibold">Decaimento</div>
-            <ScoreField
-              label="Meia-vida (dias)"
-              value={s.halfLifeDays}
-              placeholder="180"
-              onChange={set("halfLifeDays")}
-              hint="Um sinal com essa idade vale metade dos pontos."
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="text-sm font-semibold">Limiares (pontos para cada nível)</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ScoreField label="Fã" value={s.thFa} placeholder="5" onChange={set("thFa")} />
-              <ScoreField label="Superfã" value={s.thSuperfa} placeholder="12" onChange={set("thSuperfa")} />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Embaixador não entra na pontuação: é um destaque manual no cadastro do fã.
-            </p>
-          </div>
-
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={handleRecalc} disabled={recalcing || saving}>
-              {recalcing ? "Recalculando…" : "Recalcular todos agora"}
-            </Button>
-            <Button className="flex-1" onClick={handleSave} disabled={saving || recalcing}>
-              {saving ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
