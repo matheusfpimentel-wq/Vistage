@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadTotalGigs, updateArtistName, type HeaderInfo } from "../identity";
+import { isEnergyEnabled, setEnergyEnabled } from "../lib/energy";
 
 /**
  * Folha de identidade — abre ao tocar no isótipo/nome no header. Mostra isótipo,
@@ -27,6 +28,8 @@ export function IdentitySheet({
   const [gigs, setGigs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [energyOn, setEnergyOn] = useState(isEnergyEnabled());
+  const [energyHelp, setEnergyHelp] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +103,40 @@ export function IdentitySheet({
               </strong>
             </div>
           </div>
+
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Pergunta de energia
+              <button
+                type="button"
+                className="settings-hint"
+                onClick={() => setEnergyHelp((v) => !v)}
+                aria-label="O que é isso"
+                aria-expanded={energyHelp}
+              >
+                ?
+              </button>
+            </span>
+            <button
+              type="button"
+              className={"toggle" + (energyOn ? " on" : "")}
+              role="switch"
+              aria-checked={energyOn}
+              aria-label="Pergunta de energia"
+              onClick={() => {
+                const v = !energyOn;
+                setEnergyOn(v);
+                setEnergyEnabled(v);
+              }}
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+          {energyHelp && (
+            <p className="settings-note">
+              De vez em quando (no máx. 2×/dia) a Hoje pergunta seu nível de energia num toque. Responder no momento é mais preciso que lembrar depois — alimenta o mapa de energia por dia e horário no PC.
+            </p>
+          )}
 
           <div className="identity-actions">
             <button className="ghost full" onClick={onToggleTheme} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.45rem" }}>

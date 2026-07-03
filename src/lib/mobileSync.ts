@@ -1218,6 +1218,16 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         [stamped, gigId]
       );
     }
+  } else if (kind === "energy_log") {
+    // §3 EMA — energia avulsa (1–5) marcada no celular no momento. Vai pra
+    // energy_logs e entra no heatmap dia×hora do Modo Foco junto das sessões.
+    const lvl = n("level");
+    if (lvl != null) {
+      await db.execute(
+        `INSERT INTO energy_logs (logged_at, energy_level) VALUES ($1, $2)`,
+        [s("at") ?? new Date().toISOString(), Math.max(1, Math.min(5, Math.round(lvl)))]
+      );
+    }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }

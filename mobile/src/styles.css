@@ -96,6 +96,27 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .identity-actions { display: flex; flex-direction: column; gap: 0.5rem; }
 .identity-actions .full { margin-top: 0; }
+
+/* Linha de ajuste (rótulo + "?" + toggle) — reusável nos ajustes do celular. */
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; min-height: 44px; }
+.settings-row-label { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.92rem; }
+.settings-hint {
+  width: 20px; height: 20px; flex: 0 0 auto; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.72rem; font-weight: 800; line-height: 1;
+  background: none; border: 1px solid var(--border); color: var(--muted);
+}
+.settings-note { margin: 0.1rem 0 0; font-size: 0.8rem; color: var(--muted); line-height: 1.35; }
+.toggle {
+  width: 46px; height: 28px; flex: 0 0 auto; border-radius: 999px; border: none; padding: 0;
+  position: relative; background: var(--surface-2); transition: background 0.18s ease;
+}
+.toggle.on { background: var(--accent); }
+.toggle-knob {
+  position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; transition: transform 0.18s ease;
+}
+.toggle.on .toggle-knob { transform: translateX(18px); }
 .iconbtn {
   position: relative; display: flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 10px;
@@ -777,14 +798,37 @@ button { font-family: inherit; cursor: pointer; }
 .sync-dot.on { background: var(--pos); }
 .sync-dot.off { background: var(--warn); }
 
+/* §3 EMA — pergunta de energia (discreta, 1 toque). Dois níveis: pergunta+×
+   em cima, escala 1–5 embaixo (alvos ≥44px de altura). */
+.energy-chip {
+  display: flex; flex-direction: column; gap: 0.45rem;
+  margin: 0 0 0.7rem; padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+}
+.energy-chip-top { display: flex; align-items: center; justify-content: space-between; }
+.energy-chip-q { font-size: 0.85rem; color: var(--muted); }
+.energy-x {
+  width: 30px; height: 30px; flex: 0 0 auto; margin: -0.3rem -0.3rem -0.3rem 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--muted);
+}
+.energy-scale { display: flex; gap: 0.4rem; }
+.energy-dot {
+  flex: 1; height: 44px; border-radius: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.95rem; font-weight: 700;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+}
+.energy-dot:active {
+  transform: scale(0.96);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
 /* Cabeçalho de seção (escanear rápido) */
 .home-section { margin-top: 0.9rem; }
 .section-head { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 .insight-text { flex: 1; font-size: 0.9rem; line-height: 1.35; min-width: 0; }
-.insight-banner.tone-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
-.insight-banner.tone-danger .insight-spark { color: var(--danger); }
-.insight-banner.tone-accent { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
-.insight-banner .chev { color: var(--muted); flex: 0 0 auto; }
 
 /* (2) O que vem / Em andamento */
 .coming-wrap { display: flex; flex-direction: column; gap: 0.7rem; }

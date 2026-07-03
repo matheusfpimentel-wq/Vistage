@@ -2473,6 +2473,19 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE fans ADD COLUMN indicated_by_fan_id INTEGER;
     `,
   },
+  {
+    version: 176,
+    description:
+      "Energia (EMA) — energy_logs: registros avulsos de energia (1–5) capturados no celular no momento. Junto das sessões de trabalho, alimentam o heatmap dia×hora do Modo Foco. Tabela nova.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS energy_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logged_at TEXT NOT NULL,
+        energy_level INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 

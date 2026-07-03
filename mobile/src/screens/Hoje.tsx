@@ -7,6 +7,7 @@ import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push"
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
+import { EnergyChip } from "../components/EnergyChip";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -454,6 +455,9 @@ export function Hoje({
         <span className={"sync-dot " + (offline ? "off" : "on")} aria-hidden />
         <span className="sync-text">{offline ? "Offline · último sync" : "Sincronizado"}</span>
       </div>
+
+      {/* §3 EMA — pergunta de energia (1 toque, some sozinha fora da janela). */}
+      <EnergyChip />
 
       {/* (1) Streak (badge redondo, abre o Foco) + insight ao lado (dispensável). */}
       <div className="home-top">

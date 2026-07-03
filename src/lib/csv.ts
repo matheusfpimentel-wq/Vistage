@@ -38,6 +38,7 @@ export const CSV_ENTITIES = [
     table: "finance_categories",
   },
   { key: "work_sessions", label: "Sessões de trabalho", table: "work_sessions" },
+  { key: "energy_logs", label: "Logs de energia", table: "energy_logs" },
   { key: "highlights", label: "Highlights", table: "highlights" },
   { key: "performance_weak_points", label: "Apresentação: pontos fracos", table: "performance_weak_points" },
   { key: "performance_moments", label: "Apresentação: momentos", table: "performance_moments" },
