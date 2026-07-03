@@ -6,6 +6,8 @@ import { loadHeaderInfo, type HeaderInfo } from "./identity";
 import { NotificationBell } from "./components/NotificationBell";
 import { IdentitySheet } from "./components/IdentitySheet";
 import { Login } from "./screens/Login";
+import { onResume } from "./native";
+import { isBiometricEnabled, biometricVerify, biometricOfferable } from "./lib/biometric";
 
 // Telas sob demanda (code-split por aba): cada uma vira um chunk próprio,
 // tirando peso do bundle inicial — só a aba visível é baixada. Login fica
@@ -66,6 +68,7 @@ export function App() {
   const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });
   const [identityOpen, setIdentityOpen] = useState(false);
   const [signOutAsk, setSignOutAsk] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -86,6 +89,17 @@ export function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // §6 — bloqueio biométrico ao abrir/retomar (só nativo + ligado nos ajustes).
+  useEffect(() => {
+    if (!biometricOfferable() || !isBiometricEnabled()) return;
+    const lock = () => {
+      setLocked(true);
+      void biometricVerify().then((ok) => setLocked(!ok));
+    };
+    lock();
+    return onResume(lock);
+  }, []);
+
   if (!ready) {
     return (
       <div className="center">
@@ -94,6 +108,26 @@ export function App() {
     );
   }
   if (!session) return <Login />;
+
+  if (locked) {
+    return (
+      <div className="center lock-screen">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <strong style={{ fontSize: "1.05rem" }}>Vistage travado</strong>
+        <button
+          className="primary"
+          onClick={() => {
+            setLocked(true);
+            void biometricVerify().then((ok) => setLocked(!ok));
+          }}
+        >
+          Desbloquear
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="app">

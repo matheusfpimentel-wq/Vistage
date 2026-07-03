@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { loadTotalGigs, updateArtistName, type HeaderInfo } from "../identity";
 import { isEnergyEnabled, setEnergyEnabled } from "../lib/energy";
+import { isBiometricEnabled, setBiometricEnabled, biometricOfferable, biometricVerify } from "../lib/biometric";
 
 /**
  * Folha de identidade — abre ao tocar no isótipo/nome no header. Mostra isótipo,
@@ -30,6 +31,23 @@ export function IdentitySheet({
   const [saved, setSaved] = useState(false);
   const [energyOn, setEnergyOn] = useState(isEnergyEnabled());
   const [energyHelp, setEnergyHelp] = useState(false);
+  const [bioOn, setBioOn] = useState(isBiometricEnabled());
+  const [bioHelp, setBioHelp] = useState(false);
+
+  async function toggleBio() {
+    if (bioOn) {
+      setBioOn(false);
+      setBiometricEnabled(false);
+      return;
+    }
+    // Ao ligar, confirma que a biometria funciona antes de passar a trancar —
+    // evita ficar preso na tela de bloqueio depois.
+    const ok = await biometricVerify("Confirmar biometria");
+    if (ok) {
+      setBioOn(true);
+      setBiometricEnabled(true);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -136,6 +154,40 @@ export function IdentitySheet({
             <p className="settings-note">
               De vez em quando (no máx. 2×/dia) a Hoje pergunta seu nível de energia num toque. Responder no momento é mais preciso que lembrar depois — alimenta o mapa de energia por dia e horário no PC.
             </p>
+          )}
+
+          {biometricOfferable() && (
+            <>
+              <div className="settings-row">
+                <span className="settings-row-label">
+                  Exigir biometria ao abrir
+                  <button
+                    type="button"
+                    className="settings-hint"
+                    onClick={() => setBioHelp((v) => !v)}
+                    aria-label="O que é isso"
+                    aria-expanded={bioHelp}
+                  >
+                    ?
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  className={"toggle" + (bioOn ? " on" : "")}
+                  role="switch"
+                  aria-checked={bioOn}
+                  aria-label="Exigir biometria ao abrir"
+                  onClick={() => void toggleBio()}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+              {bioHelp && (
+                <p className="settings-note">
+                  Pede Face ID / digital ao abrir o app. A verificação é local — nada sai do aparelho.
+                </p>
+              )}
+            </>
           )}
 
           <div className="identity-actions">
