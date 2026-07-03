@@ -51,10 +51,11 @@ export function TaskKanbanView({ tasks, onEdit, onMove }: Props) {
   }));
 
   return (
-    // 4 colunas mesmo em janela menor (a partir de sm); colunas encolhem pra caber.
+    // §6 — sempre 4 colunas, mesmo em janela estreita: as colunas encolhem pra
+    // caber (min-w-0 nas colunas + gap menor no estreito) em vez de cair pra 2.
     <KanbanBoard
       onMove={(id, status) => onMove?.(id, status as TaskStatus)}
-      className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+      className="grid grid-cols-4 gap-2 sm:gap-3"
     >
       {columns.map((col) => (
         <Column
