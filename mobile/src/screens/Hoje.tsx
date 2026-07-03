@@ -53,12 +53,15 @@ type GigMeta = {
   day_contact_name?: string | null;
   day_contact_phone?: string | null;
   promoter_name?: string | null;
+  // §2 — pagamento do cachê (card "Cachê · Recebido?").
+  payment_status?: string | null;
+  cache_pending?: boolean;
   // Checklist de Preparação (aba Preparação): ids marcados. Alimenta o selo "prep pendente".
   prep_done?: string[];
 };
 type TrackMeta = { stage?: string | null; project?: string | null; genre?: string | null; bpm?: number | null; key?: string | null; concept?: string | null; deadline?: string | null };
 type PartyMeta = { status?: string | null; date?: string | null; venue_name?: string | null };
-type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null };
+type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null; start_time?: string | null; given?: boolean; amount?: number | null };
 
 type GigRow = { source_id: string; title: string; meta: GigMeta; search_text?: string };
 type TrackRow = { source_id: string; title: string; meta: TrackMeta };
@@ -569,6 +572,10 @@ export function Hoje({
         )}
       </section>
 
+      {/* §2 — Dinheiro no momento: aula de hoje dada/paga + cachê a receber */}
+      <AulaHojeCard classes={catClasses} today={today} />
+      <CacheReceberCard gigs={catGigs} today={today} />
+
       {/* §4 — Cadência de expansão: contatos mornos da semana (WhatsApp + feito) */}
       <WeekContactsCard items={weekContacts} />
 
@@ -693,6 +700,98 @@ function WeekContactsCard({ items }: { items: Cold[] }) {
             })}
           </ul>
         )}
+      </section>
+    </section>
+  );
+}
+
+/** §2 — Cachê a receber: GIGs passadas (até 60 dias) com cachê pendente.
+ * "Recebido" move o lançamento pra recebido no PC (payment_received). */
+function CacheReceberCard({ gigs, today }: { gigs: GigRow[]; today: string }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const items = gigs
+    .filter((g) => {
+      const d = g.meta?.date;
+      if (typeof d !== "string" || d >= today || daysUntil(d, today) < -60) return false;
+      if (!(g.meta.cache_pending && (g.meta.cache_amount ?? 0) > 0)) return false;
+      return !done.has(g.source_id);
+    })
+    .slice(0, 6);
+  if (items.length === 0) return null;
+
+  async function markReceived(g: GigRow) {
+    const gid = Number(g.source_id);
+    setDone((s) => new Set(s).add(g.source_id));
+    void haptic("medium");
+    try {
+      if (Number.isFinite(gid)) await sendCapture("payment_received", { gig_id: gid });
+    } catch {
+      /* a fila reenvia */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <h2 className="section-head">Cachê a receber</h2>
+      <section className="card">
+        <ul className="mini-list">
+          {items.map((g) => (
+            <li key={g.source_id} className="cash-row">
+              <span className="cash-body">
+                <span className="cold-name">{g.title}</span>
+                <span className="cold-sub">{[BRL.format(g.meta.cache_amount ?? 0), fmtDate(g.meta.date)].filter(Boolean).join(" · ")}</span>
+              </span>
+              <button className="cash-ok" onClick={() => void markReceived(g)}>Recebido</button>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </section>
+  );
+}
+
+/** §2 — Aula de hoje: aulas de hoje já passadas da hora e ainda não dadas.
+ * "Dada" / "Dada + paga" registram no PC (class_log). */
+function AulaHojeCard({ classes, today }: { classes: ClassRow[]; today: string }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const now = new Date();
+  const nowHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const items = classes.filter((c) => {
+    if (c.meta?.date !== today || c.meta.status !== "Agendada" || done.has(c.source_id)) return false;
+    const st = c.meta.start_time;
+    return !st || st <= nowHM; // sem hora, ou já passou da hora
+  });
+  if (items.length === 0) return null;
+
+  async function log(c: ClassRow, paga: boolean) {
+    const cid = Number(c.source_id);
+    setDone((s) => new Set(s).add(c.source_id));
+    void haptic("medium");
+    try {
+      if (Number.isFinite(cid)) await sendCapture("class_log", { class_id: cid, dada: true, paga });
+    } catch {
+      /* a fila reenvia */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <h2 className="section-head">Aula de hoje</h2>
+      <section className="card">
+        <ul className="mini-list">
+          {items.map((c) => (
+            <li key={c.source_id} className="aula-row">
+              <span className="cash-body">
+                <span className="cold-name">{c.title}</span>
+                <span className="cold-sub">{[c.meta.student_name, c.meta.start_time].filter(Boolean).join(" · ")}</span>
+              </span>
+              <div className="aula-actions">
+                <button className="aula-btn" onClick={() => void log(c, false)}>Dada</button>
+                <button className="aula-btn aula-paid" onClick={() => void log(c, true)}>Dada + paga</button>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     </section>
   );

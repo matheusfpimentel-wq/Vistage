@@ -557,9 +557,10 @@ export async function syncClassTransaction(classId: number): Promise<void> {
       student_name: string | null;
       class_number: number;
       student_package_id: number | null;
+      paid: number | null;
     }[]
   >(
-    `SELECT c.amount, c.status, c.date, c.subject, c.student_package_id, s.name AS student_name,
+    `SELECT c.amount, c.status, c.date, c.subject, c.student_package_id, c.paid, s.name AS student_name,
   (SELECT COUNT(*) FROM classes c2
    WHERE c2.student_id = c.student_id
      AND (c2.date < c.date OR (c2.date = c.date AND c2.id <= c.id))) as class_number
@@ -587,21 +588,24 @@ WHERE c.id = $1`,
 
   const num = c.class_number ?? 1;
   const desc = `Aula ${num}: ${c.student_name ?? "Aluno"} (${formatDateBR(c.date)})`;
+  // §2 — recebido? null (legado) e 1 = Recebido; só 0 explícito (dada mas não
+  // paga, marcado no celular) fica Previsto. Assim nenhuma aula antiga muda.
+  const payStatus = c.paid === 0 ? "Previsto" : "Recebido";
   if (existing.length > 0) {
     await db.execute(
       `UPDATE finance_transactions
-          SET amount = $1, date = $2, description = $3, status = 'Recebido',
+          SET amount = $1, date = $2, description = $3, status = $4,
               class_sync = 1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $4`,
-      [c.amount, c.date, desc, existing[0].id]
+        WHERE id = $5`,
+      [c.amount, c.date, desc, payStatus, existing[0].id]
     );
     return;
   }
   const categoryId = await classIncomeCategoryId();
   await db.execute(
     `INSERT INTO finance_transactions (kind, amount, date, description, category_id, class_id, class_sync, status)
-     VALUES ('income', $1, $2, $3, $4, $5, 1, 'Recebido')`,
-    [c.amount, c.date, desc, categoryId, classId]
+     VALUES ('income', $1, $2, $3, $4, $5, 1, $6)`,
+    [c.amount, c.date, desc, categoryId, classId, payStatus]
   );
 }
 

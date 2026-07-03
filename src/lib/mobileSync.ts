@@ -468,12 +468,14 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     id: number; date: string; start_time: string | null; end_time: string | null;
     venue_name: string; event_name: string | null; recurring_event_name: string | null;
     venue_city: string | null; venue_address: string | null; status: string; cache_amount: number | null;
+    payment_status: string | null; cache_paid_pct: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
     time_slots: string | null; gig_research: string | null; prep_state: string | null;
     main_goal: string | null; opportunities: string | null; concrete_goals: string | null; targets: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
-            g.venue_city, g.venue_address, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
+            g.venue_city, g.venue_address, g.status, g.cache_amount, g.payment_status, g.cache_paid_pct,
+            g.day_contact_name, g.day_contact_phone,
             pc.name AS promoter_name, g.time_slots, g.gig_research, g.prep_state,
             g.main_goal, g.opportunities, g.concrete_goals, g.targets
        FROM gigs g
@@ -495,6 +497,9 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // venue_name + endereço pro Maps cair no LOCAL certo (não no nome do evento).
         venue_name: g.venue_name, address: g.venue_address,
         status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
+        // §2 — pagamento do cachê, pro card "Cachê R$X · Recebido?" (passada a data).
+        payment_status: g.payment_status, cache_paid_pct: g.cache_paid_pct,
+        cache_pending: (g.cache_amount ?? 0) > 0 && g.payment_status !== "Pago integralmente",
         day_contact_name: g.day_contact_name, day_contact_phone: g.day_contact_phone,
         // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
         set_periods: parseMirrorSlots(g.time_slots, g.start_time, g.end_time),
@@ -623,8 +628,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     });
 
   // Aulas — pesquisáveis no celular (busca por aula/aluno).
-  const cclasses = await db.select<{ id: number; subject: string | null; date: string; status: string; student_name: string | null }[]>(
-    `SELECT c.id, c.subject, c.date, c.status, s.name AS student_name
+  const cclasses = await db.select<{ id: number; subject: string | null; date: string; start_time: string | null; status: string; amount: number | null; student_name: string | null }[]>(
+    `SELECT c.id, c.subject, c.date, c.start_time, c.status, c.amount, s.name AS student_name
        FROM classes c LEFT JOIN students s ON s.id = c.student_id
       ORDER BY c.date DESC LIMIT 500`,
     []
@@ -635,7 +640,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       title: cl.subject ?? "Aula",
       subtitle: [cl.student_name, cl.date].filter(Boolean).join(" · ") || null,
       search_text: lc(cl.subject, cl.student_name, cl.date, cl.status),
-      meta: { date: cl.date, status: cl.status, student_name: cl.student_name },
+      // §2 — start_time + given pro card "Aula dada · Paga?" (passada a hora).
+      meta: { date: cl.date, start_time: cl.start_time, status: cl.status, student_name: cl.student_name, given: cl.status === "Realizada", amount: cl.amount },
     });
 
   // Festas — pesquisáveis e fonte do "Festas em planejamento" na Home (o mobile
@@ -1299,6 +1305,24 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
     if (pid != null) {
       const { addInteraction } = await import("@/modules/crm/api");
       await addInteraction(pid, todayISO(), s("note")?.trim() || "Contato da semana (celular)");
+    }
+  } else if (kind === "payment_received") {
+    // §2 — cachê confirmado como recebido no celular. updateGig já cascateia
+    // pro financeiro (move o lançamento p/ Recebido) e cancela a cobrança.
+    const gigId = n("gig_id");
+    if (gigId != null) {
+      const { updateGig } = await import("@/modules/gigs/api");
+      await updateGig({ id: gigId, payment_status: "Pago integralmente", cache_paid_pct: 100 });
+    }
+  } else if (kind === "class_log") {
+    // §2 — aula dada (e paga?) marcada no celular. updateClass já registra no
+    // financeiro; paid=0 (dada, não paga) deixa o lançamento como Previsto.
+    const classId = n("class_id");
+    const dada = p["dada"] === true;
+    const paga = p["paga"] === true;
+    if (classId != null && dada) {
+      const { updateClass } = await import("@/modules/classes/api");
+      await updateClass({ id: classId, status: "Realizada", paid: paga ? 1 : 0 });
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

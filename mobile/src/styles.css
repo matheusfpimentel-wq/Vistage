@@ -574,6 +574,24 @@ button { font-family: inherit; cursor: pointer; }
 }
 .week-done:active { transform: scale(0.96); }
 
+/* §2 — Dinheiro no momento: cachê a receber + aula de hoje */
+.cash-row, .aula-row { display: flex; align-items: center; gap: 0.6rem; white-space: normal; overflow: visible; padding: 0.2rem 0; }
+.cash-body { min-width: 0; flex: 1; display: flex; flex-direction: column; line-height: 1.2; }
+.cash-ok {
+  flex: 0 0 auto; min-height: 44px; padding: 0 0.9rem; border-radius: 12px; font-weight: 700; font-size: 0.85rem;
+  color: var(--pos); background: color-mix(in srgb, var(--pos) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pos) 30%, transparent);
+}
+.cash-ok:active { transform: scale(0.96); }
+.aula-row { flex-wrap: wrap; }
+.aula-actions { display: flex; gap: 0.4rem; flex: 0 0 auto; }
+.aula-btn {
+  min-height: 44px; padding: 0 0.75rem; border-radius: 12px; font-weight: 700; font-size: 0.82rem;
+  color: var(--text); background: var(--surface-2); border: 1px solid var(--border);
+}
+.aula-btn:active { transform: scale(0.96); }
+.aula-paid { color: var(--pos); background: color-mix(in srgb, var(--pos) 14%, transparent); border-color: color-mix(in srgb, var(--pos) 30%, transparent); }
+
 /* Sheet de detalhe do esfriando (abre ao tocar o item) */
 .cold-detail { display: flex; flex-direction: column; gap: 0.7rem; padding: 0.2rem 0 0.6rem; }
 .cold-detail-kind { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }

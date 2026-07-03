@@ -2486,6 +2486,14 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 177,
+    description:
+      "Aulas — classes.paid: recebido? (null = legado/como hoje; 1 = pago; 0 = dada mas não paga). Permite o celular marcar 'aula dada' separado de 'paga' (§2). Coluna aditiva idempotente; null preserva o comportamento atual (Realizada = Recebido).",
+    sql: `
+      ALTER TABLE classes ADD COLUMN paid INTEGER;
+    `,
+  },
 ];
 
 
