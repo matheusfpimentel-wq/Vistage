@@ -23,6 +23,12 @@
   --border: #dcdce8;
   --text: #1b1b27;
   --muted: #6a6a80;
+  /* Cores semânticas legíveis como TEXTO sobre branco (A.3, contraste ≥4,5:1).
+     Os tons vivos do tema escuro não passam AA em texto claro. */
+  --pos: #15803d;
+  --neg: #b91c1c;
+  --warn: #b45309;
+  --accent: #6d28d9;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -182,7 +188,7 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .detail-rows dt { color: var(--muted); }
 .detail-rows dd { margin: 0; text-align: right; min-width: 0; }
 .anotar { display: flex; flex-direction: column; gap: 0.4rem; }
-.anotar textarea { font-size: 0.9rem; }
+.anotar textarea { font-size: 1rem; }
 .anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
 /* Prompt de categorias (Pesquisa) — ícone + texto, antes de digitar */
@@ -599,17 +605,27 @@ button { font-family: inherit; cursor: pointer; }
 /* Tarefas — checkbox circular */
 .task-row { gap: 0.7rem; }
 .check {
+  position: relative;
   flex: 0 0 auto; width: 22px; height: 22px; border-radius: 999px;
   border: 2px solid var(--muted); background: transparent;
 }
 .check:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
 /* "Play" pra focar na tarefa (à direita, não conflita com o check de concluir). */
 .task-focus {
+  position: relative;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 8px; border: none;
   color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .task-focus:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+/* A.1 — expande o alvo de toque desses ícones pequenos p/ ≥44px sem mudar o
+   visual (área invisível centralizada via ::before). */
+.check::before, .task-focus::before {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 44px; height: 44px; transform: translate(-50%, -50%);
+}
+.identity-chip { min-height: 44px; }
+.cold-tap { min-height: 44px; }
 
 /* Overlay de captura (sheet) */
 .overlay {
@@ -671,21 +687,23 @@ button { font-family: inherit; cursor: pointer; }
 .star-row > .label { font-size: 0.85rem; }
 .stars { display: flex; gap: 0.35rem; }
 .star {
-  background: none; border: none; padding: 0.1rem; cursor: pointer; line-height: 0;
+  background: none; border: none; padding: 6px; cursor: pointer; line-height: 0;
   color: var(--border); transition: transform 0.1s ease, color 0.12s ease;
 }
+/* A.1 — estrela maior (32px visual) + padding = alvo ≥44px por estrela. */
+.star svg, .star-wrap svg { width: 32px; height: 32px; }
 .star:active { transform: scale(0.88); }
 .star.on { color: #f5c83c; }
 
 /* Estrela com meia-estrela: metade esquerda = n−0.5, metade direita = n. */
 .star-wrap {
-  position: relative; display: inline-flex; line-height: 0; padding: 0.1rem;
+  position: relative; display: inline-flex; line-height: 0; padding: 6px;
   color: var(--border); transition: transform 0.1s ease;
 }
 .star-wrap.full { color: #f5c83c; }
 .star-wrap:active { transform: scale(0.9); }
 .star-wrap .star-fill {
-  position: absolute; top: 0.1rem; left: 0.1rem; bottom: 0.1rem;
+  position: absolute; top: 6px; left: 6px; bottom: 6px;
   width: 50%; overflow: hidden; color: #f5c83c; pointer-events: none;
 }
 .star-half {

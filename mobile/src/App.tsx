@@ -59,6 +59,7 @@ export function App() {
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
   const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });
   const [identityOpen, setIdentityOpen] = useState(false);
+  const [signOutAsk, setSignOutAsk] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -108,7 +109,7 @@ export function App() {
           </div>
           <button
             className="iconbtn"
-            onClick={() => void supabase.auth.signOut()}
+            onClick={() => setSignOutAsk(true)}
             aria-label="Sair"
             title="Sair"
           >
@@ -176,9 +177,38 @@ export function App() {
         onToggleTheme={() => setThemeState(toggleTheme())}
         onSignOut={() => {
           setIdentityOpen(false);
-          void supabase.auth.signOut();
+          setSignOutAsk(true);
         }}
       />
+
+      {/* A.4 — sair pede confirmação (ação rara e destrutiva de sessão). */}
+      {signOutAsk && (
+        <div className="overlay" onClick={() => setSignOutAsk(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-head">
+              <strong>Sair da conta?</strong>
+              <button className="iconbtn" onClick={() => setSignOutAsk(false)} aria-label="Fechar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="muted" style={{ margin: "0 0 1rem" }}>
+              Você vai precisar entrar de novo pra sincronizar com o computador.
+            </p>
+            <div style={{ display: "flex", gap: "0.6rem" }}>
+              <button className="ghost" style={{ flex: 1 }} onClick={() => setSignOutAsk(false)}>
+                Cancelar
+              </button>
+              <button
+                className="danger"
+                style={{ flex: 1 }}
+                onClick={() => { setSignOutAsk(false); void supabase.auth.signOut(); }}
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
