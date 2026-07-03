@@ -1246,7 +1246,6 @@ export type FanTodayBuckets = {
   parabenizar: FanTodayItem[];
   reativar: FanTodayItem[];
   aniversarios: FanTodayItem[];
-  boasVindas: FanTodayItem[];
   /** Esteve num show recente e ainda não foi convidado pra próxima GIG. */
   convidar: FanTodayItem[];
 };
@@ -1352,21 +1351,6 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
     )
     .catch(() => [] as (TodayRow & { last: string })[]);
 
-  // Boas-vindas: fã novo, sem nenhuma interação registrada e sem presença recente.
-  const boas = await db
-    .select<(TodayRow & { created_at: string })[]>(
-      `SELECT id AS fan_id, name, level, city, photo_path, created_at
-         FROM fans f
-        WHERE NOT EXISTS (SELECT 1 FROM fan_interactions fi WHERE fi.fan_id = f.id)
-          AND NOT EXISTS (
-            SELECT 1 FROM gig_fans gf JOIN gigs g ON g.id = gf.gig_id
-             WHERE gf.fan_id = f.id AND g.date >= date('now','-21 days')
-          )
-        ORDER BY created_at DESC
-        LIMIT 50`
-    )
-    .catch(() => [] as (TodayRow & { created_at: string })[]);
-
   // Convidar pro próximo show: esteve num show recente (mesma janela do
   // "Agradecer", presença nos últimos 21 dias) e ainda NÃO tem um convite
   // pendente — proxy: nenhuma tarefa aberta vinculada ao fã começando com
@@ -1409,7 +1393,6 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
     agradecer: agradecer.map((r) => ({ ...stripRow(r), detail: `esteve num show ${relDays(daysSinceISO(r.gig_date))}` })),
     parabenizar: parabenizar.map((r) => ({ ...stripRow(r), detail: `subiu para ${r.level}` })),
     reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
-    boasVindas: boas.map((r) => ({ ...stripRow(r), detail: "novo, sem interação ainda" })),
     convidar: convidar.map((r) => ({
       ...stripRow(r),
       detail: next ? `esteve num show ${relDays(daysSinceISO(r.gig_date))} · ${next.name}` : "",

@@ -1,7 +1,7 @@
 // Regras das SUGESTÕES automáticas que alimentam a aba "Próximas ações".
 // Não são tabela nem regras editáveis: são a lógica embutida que decide quem
 // aparece em cada balde (agradecer, convidar, parabenizar, reativar,
-// aniversários, boas-vindas). Ficam aqui como FONTE ÚNICA pra:
+// aniversários). Ficam aqui como FONTE ÚNICA pra:
 //  - a UI de Próximas ações (FanTodayView) rotular os baldes; e
 //  - o diálogo "Ações programadas" mostrar cada regra de forma explícita
 //    (transparência: o usuário vê o "se… então…" por trás de cada sugestão).
@@ -12,8 +12,7 @@ export type FanSuggestionKey =
   | "convidar"
   | "parabenizar"
   | "reativar"
-  | "aniversarios"
-  | "boasVindas";
+  | "aniversarios";
 
 export type FanSuggestionRule = {
   key: FanSuggestionKey;
@@ -57,11 +56,5 @@ export const FAN_SUGGESTION_RULES: FanSuggestionRule[] = [
     title: "Aniversários",
     when: "Aniversário nos próximos 7 dias (contato vinculado).",
     then: "Sugere mensagem de aniversário (vira tarefa).",
-  },
-  {
-    key: "boasVindas",
-    title: "Boas-vindas",
-    when: "Fã novo, sem nenhuma interação ainda.",
-    then: "Sugere dar boas-vindas (vira tarefa).",
   },
 ];
