@@ -20,7 +20,7 @@ import { PromptProvider } from "@/components/ui/prompt";
 import { useConfigStore } from "@/lib/config";
 import { useThemeStore } from "@/lib/theme";
 import { classifyDbError, closeDatabase, initDatabase } from "@/lib/db";
-import { buildBackup, clearDocumentData, hasAnyDocumentData, readBackupFromPath, restoreBackup, restoreBackupFiles, restoreBackupSession } from "@/lib/backup";
+import { buildBackup, clearDocumentData, hasAnyDocumentData, readMaybeEncrypted, restoreBackup, restoreBackupFiles, restoreBackupSession } from "@/lib/backup";
 import { useDocumentStore, SKIP_BLANK_WIPE_KEY, SYNC_INTEGRATIONS_KEY, isReopenLastEnabled } from "@/lib/document";
 import { peekUnsavedRecovery, unsavedSince, clearUnsavedWork } from "@/lib/recovery";
 import { RecoveryModal } from "@/components/shared/RecoveryModal";
@@ -228,24 +228,28 @@ function MainApp() {
             localStorage.removeItem("vistage.currentDocument");
             useDocumentStore.setState({ currentPath: null, currentName: null, dirty: false });
             // Reabrir último documento (opt-in): recarrega o .vistage no banco
-            // recém-zerado, sem reload. Cifrado/sumido/corrompido → segue em branco.
+            // recém-zerado, sem reload. Se o arquivo tiver senha, readMaybeEncrypted
+            // pede a senha (o PasswordPromptDialog já está montado no boot); se o
+            // usuário fechar o prompt, retorna null → segue em branco.
             if (isReopenLastEnabled() && lastDocPath) {
               try {
-                const backup = await readBackupFromPath(lastDocPath);
-                await restoreBackup(backup);
-                await restoreBackupFiles(backup);
-                // "Uma conta por arquivo": adota a conta de sync deste .vistage
-                // (não a que estava na máquina) — assim reabrir o arquivo numa
-                // máquina nova já reconecta o celular sem digitar a senha.
-                await restoreBackupSession(backup);
-                localStorage.setItem("vistage.currentDocument", lastDocPath);
-                useDocumentStore.setState({
-                  currentPath: lastDocPath,
-                  currentName: lastDocPath.split(/[\\/]/).pop() ?? null,
-                });
-                sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
+                const backup = await readMaybeEncrypted(lastDocPath);
+                if (backup) {
+                  await restoreBackup(backup);
+                  await restoreBackupFiles(backup);
+                  // "Uma conta por arquivo": adota a conta de sync deste .vistage
+                  // (não a que estava na máquina) — assim reabrir o arquivo numa
+                  // máquina nova já reconecta o celular sem digitar a senha.
+                  await restoreBackupSession(backup);
+                  localStorage.setItem("vistage.currentDocument", lastDocPath);
+                  useDocumentStore.setState({
+                    currentPath: lastDocPath,
+                    currentName: lastDocPath.split(/[\\/]/).pop() ?? null,
+                  });
+                  sessionStorage.setItem(SYNC_INTEGRATIONS_KEY, "1");
+                }
               } catch {
-                /* arquivo sumiu / cifrado / corrompido → segue em branco */
+                /* arquivo sumiu / corrompido → segue em branco */
               }
             }
           }
@@ -375,7 +379,17 @@ function MainApp() {
     );
   }
 
-  if (!dbReady) return <FullscreenLoader label="Conectando ao banco…" />;
+  if (!dbReady) {
+    // O prompt de senha precisa estar montado JÁ no boot: a reabertura de um
+    // arquivo cifrado pede a senha ANTES de dbReady. Sem isto, o prompt não tem
+    // onde abrir e o arquivo com senha nunca reabre sozinho.
+    return (
+      <>
+        <FullscreenLoader label="Conectando ao banco…" />
+        <PasswordPromptDialog />
+      </>
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={200}>
