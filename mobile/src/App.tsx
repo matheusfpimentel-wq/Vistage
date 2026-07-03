@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { currentTheme, loadAndApplyPrefs, toggleTheme } from "./theme";
@@ -6,12 +6,16 @@ import { loadHeaderInfo, type HeaderInfo } from "./identity";
 import { NotificationBell } from "./components/NotificationBell";
 import { IdentitySheet } from "./components/IdentitySheet";
 import { Login } from "./screens/Login";
-import { Hoje } from "./screens/Hoje";
-import { Buscar } from "./screens/Buscar";
-import { Foco } from "./screens/Foco";
-import { Capturar } from "./screens/Capturar";
-import { Brainstorming } from "./screens/Brainstorming";
-import { Tarefas } from "./screens/Tarefas";
+
+// Telas sob demanda (code-split por aba): cada uma vira um chunk próprio,
+// tirando peso do bundle inicial — só a aba visível é baixada. Login fica
+// eager por ser a porta de entrada. Export nomeado → mapeado pra default.
+const Hoje = lazy(() => import("./screens/Hoje").then((m) => ({ default: m.Hoje })));
+const Buscar = lazy(() => import("./screens/Buscar").then((m) => ({ default: m.Buscar })));
+const Foco = lazy(() => import("./screens/Foco").then((m) => ({ default: m.Foco })));
+const Capturar = lazy(() => import("./screens/Capturar").then((m) => ({ default: m.Capturar })));
+const Brainstorming = lazy(() => import("./screens/Brainstorming").then((m) => ({ default: m.Brainstorming })));
+const Tarefas = lazy(() => import("./screens/Tarefas").then((m) => ({ default: m.Tarefas })));
 
 type Tab = "hoje" | "foco" | "brainstorm" | "buscar" | "tarefas";
 
@@ -134,11 +138,13 @@ export function App() {
       </header>
 
       <main className="content">
-        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
-        {tab === "foco" && <Foco />}
-        {tab === "brainstorm" && <Brainstorming />}
-        {tab === "buscar" && <Buscar />}
-        {tab === "tarefas" && <Tarefas onGoFocus={() => setTab("foco")} />}
+        <Suspense fallback={<div className="center"><span className="spinner" /></div>}>
+          {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
+          {tab === "foco" && <Foco />}
+          {tab === "brainstorm" && <Brainstorming />}
+          {tab === "buscar" && <Buscar />}
+          {tab === "tarefas" && <Tarefas onGoFocus={() => setTab("foco")} />}
+        </Suspense>
       </main>
 
       <div className={"tabwrap" + (navHidden ? " hidden" : "")}>
@@ -176,7 +182,9 @@ export function App() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </div>
-            <Capturar />
+            <Suspense fallback={<div className="center"><span className="spinner" /></div>}>
+              <Capturar />
+            </Suspense>
           </div>
         </div>
       )}
