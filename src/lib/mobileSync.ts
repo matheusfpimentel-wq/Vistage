@@ -185,6 +185,17 @@ type CoolingRow = {
  * musical"); para contato/fã, `handle` segue sendo o telefone (WhatsApp/ligar).
  * Cada tipo é limitado (visão de relance); os alertas do desktop cobrem o todo.
  */
+/** Contato marcado com a tag "expansão" (tags é JSON de strings). */
+function hasExpansaoTag(tagsJson: string | null): boolean {
+  try {
+    const tags = tagsJson ? (JSON.parse(tagsJson) as unknown) : [];
+    if (!Array.isArray(tags)) return false;
+    return tags.some((t) => typeof t === "string" && (t.toLowerCase() === "expansão" || t.toLowerCase() === "expansao"));
+  } catch {
+    return false;
+  }
+}
+
 async function buildCooling(uid: string): Promise<CoolingRow[]> {
   const db = getDb();
   const today = toLocalISODate();
@@ -195,19 +206,24 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   const out: CoolingRow[] = [];
 
-  // Contatos sem interação (os mais frios primeiro).
-  const contacts = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
-    `SELECT id, name, phone, last_interaction_at FROM contacts
+  // Contatos sem interação (os mais frios primeiro). Expansão tem card próprio
+  // ("Contatos da semana"), então não repete aqui.
+  const contacts = await db.select<{ id: number; name: string; phone: string | null; tags: string | null; last_interaction_at: string }[]>(
+    `SELECT id, name, phone, tags, last_interaction_at FROM contacts
       WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-      ORDER BY last_interaction_at ASC LIMIT 4`,
+      ORDER BY last_interaction_at ASC LIMIT 12`,
     [cutoff]
   );
+  let coldContacts = 0;
   for (const c of contacts) {
+    if (coldContacts >= 4) break;
+    if (hasExpansaoTag(c.tags)) continue;
     out.push({
       user_id: uid, source_id: `contact:${c.id}`, name: c.name,
       reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
       handle: c.phone, due_date: today,
     });
+    coldContacts++;
   }
 
   // Fãs sem interação.
@@ -296,6 +312,41 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     });
   }
 
+  // §4 — cadência de expansão ("Contatos da semana"). Vai no mesmo espelho
+  // contact_today, com prefixo expansao: pro celular separar num card próprio.
+  out.push(...(await buildExpansaoWeek(uid)));
+
+  return out;
+}
+
+/**
+ * §4 — até 5 pessoas com tag "expansão" sem contato recente (7 dias), pra
+ * cadência semanal de prospecção morna. A elegibilidade é do desktop; o celular
+ * só exibe e envia o "feito". Rows entram no contact_today com prefixo expansao:.
+ */
+async function buildExpansaoWeek(uid: string): Promise<CoolingRow[]> {
+  const db = getDb();
+  const today = toLocalISODate();
+  const cut = new Date();
+  cut.setDate(cut.getDate() - 7);
+  const cutoff = toLocalISODate(cut);
+  // tags é JSON: filtra grosso no SQL (stem ASCII) e afina no JS.
+  const rows = await db.select<{ id: number; name: string; phone: string | null; city: string | null; tags: string | null; last_interaction_at: string | null }[]>(
+    `SELECT id, name, phone, city, tags, last_interaction_at FROM contacts
+      WHERE tags LIKE '%xpans%'
+        AND (last_interaction_at IS NULL OR substr(last_interaction_at, 1, 10) < $1)
+      ORDER BY (last_interaction_at IS NULL) DESC, last_interaction_at ASC`,
+    [cutoff]
+  );
+  const out: CoolingRow[] = [];
+  for (const c of rows) {
+    if (!hasExpansaoTag(c.tags)) continue;
+    out.push({
+      user_id: uid, source_id: `expansao:${c.id}`, name: c.name,
+      reason: c.city ?? "", handle: c.phone, due_date: today,
+    });
+    if (out.length >= 5) break;
+  }
   return out;
 }
 
@@ -1239,6 +1290,15 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         `UPDATE contacts SET phone = $1 WHERE id = $2 AND (phone IS NULL OR TRIM(phone) = '')`,
         [phone, id]
       );
+    }
+  } else if (kind === "outreach_done") {
+    // §4 — "feito" na cadência da semana: registra a interação no CRM (que já
+    // atualiza last_interaction_at). Se houver KR com métrica "expansion_touches",
+    // ele reconta sozinho no próximo carregamento dos OKRs.
+    const pid = n("person_id");
+    if (pid != null) {
+      const { addInteraction } = await import("@/modules/crm/api");
+      await addInteraction(pid, todayISO(), s("note")?.trim() || "Contato da semana (celular)");
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

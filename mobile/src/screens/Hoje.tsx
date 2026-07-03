@@ -8,6 +8,8 @@ import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
 import { EnergyChip } from "../components/EnergyChip";
+import { sendCapture } from "../capture";
+import { haptic } from "../native";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -402,7 +404,12 @@ export function Hoje({
   coming.sort((x, y) => (x.date !== y.date ? (x.date < y.date ? -1 : 1) : COMING_PRIORITY[x.kind] - COMING_PRIORITY[y.kind]));
   const comingTop = coming.slice(0, 8);
 
-  const coldPerson = cooling.find(isPerson) ?? null;
+  // §4 — cadência de expansão (prefixo expansao:) tem card próprio; o resto é
+  // o "Esfriando" de sempre.
+  const weekContacts = cooling.filter((c) => c.source_id.startsWith("expansao:"));
+  const coldList = cooling.filter((c) => !c.source_id.startsWith("expansao:"));
+
+  const coldPerson = coldList.find(isPerson) ?? null;
   const overdue = commitments.filter((i) => i.source === "task" && taskUrgency(i.start_at, today) === "danger");
 
   // ── Insight: pilha de mensagens acionáveis (atrasada → fã esfriando →
@@ -562,15 +569,18 @@ export function Hoje({
         )}
       </section>
 
+      {/* §4 — Cadência de expansão: contatos mornos da semana (WhatsApp + feito) */}
+      <WeekContactsCard items={weekContacts} />
+
       {/* (4) Relacionamento — esfriando (todas as criações, não só contatos) */}
       <section className="home-section">
         <h2 className="section-head">Esfriando</h2>
         <section className="card">
-          {cooling.length === 0 ? (
+          {coldList.length === 0 ? (
             <p className="muted small" style={{ margin: 0 }}>Tudo aquecido.</p>
           ) : (
             <ul className="mini-list cold-list">
-              {cooling.map((c) => (
+              {coldList.map((c) => (
                 <li key={c.id} className="cold-row">
                   <button type="button" className="cold-tap" onClick={() => setColdOpen(c)}>
                     <span className="cold-ic"><ColdIcon kind={coldKind(c)} /></span>
@@ -599,6 +609,92 @@ export function Hoje({
       {partyOpen && <PartySheet party={partyOpen} today={today} onClose={() => setPartyOpen(null)} />}
       {classOpen && <ClassSheet cls={classOpen} today={today} onClose={() => setClassOpen(null)} />}
     </div>
+  );
+}
+
+// §4 — progresso semanal da cadência (persistente por semana, âncora segunda).
+const OUTREACH_GOAL = 5;
+function outreachWeekKey(): string {
+  const d = new Date();
+  const mondayOffset = (d.getDay() + 6) % 7; // 0 = segunda
+  d.setDate(d.getDate() - mondayOffset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function readOutreachDone(): number {
+  try {
+    const raw = localStorage.getItem("vistage.outreach.week");
+    if (raw) {
+      const s = JSON.parse(raw) as { week: string; done: number };
+      if (s && s.week === outreachWeekKey() && typeof s.done === "number") return s.done;
+    }
+  } catch {
+    /* semana nova recomeça o contador */
+  }
+  return 0;
+}
+function bumpOutreachDone(): number {
+  const next = readOutreachDone() + 1;
+  try {
+    localStorage.setItem("vistage.outreach.week", JSON.stringify({ week: outreachWeekKey(), done: next }));
+  } catch {
+    /* storage indisponível */
+  }
+  return next;
+}
+
+/** §4 — Contatos da semana: até 5 pessoas de "expansão" pra aquecer, com
+ * WhatsApp em 1 toque e "feito" (registra a interação no PC e conta no OKR). */
+function WeekContactsCard({ items }: { items: Cold[] }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const [count, setCount] = useState(() => readOutreachDone());
+
+  const remaining = items.filter((c) => !done.has(c.source_id));
+  if (remaining.length === 0 && count === 0) return null;
+
+  async function markDone(c: Cold) {
+    const pid = Number(c.source_id.split(":")[1] ?? "");
+    setDone((s) => new Set(s).add(c.source_id));
+    setCount(bumpOutreachDone());
+    void haptic("light");
+    try {
+      if (Number.isFinite(pid)) await sendCapture("outreach_done", { person_id: pid });
+    } catch {
+      /* a fila reenvia sozinha */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <div className="week-head">
+        <h2 className="section-head" style={{ margin: 0 }}>Contatos da semana</h2>
+        <span className="week-progress">{Math.min(count, OUTREACH_GOAL)}/{OUTREACH_GOAL}</span>
+      </div>
+      <section className="card">
+        {remaining.length === 0 ? (
+          <p className="muted small" style={{ margin: 0 }}>Meta da semana batida 👊</p>
+        ) : (
+          <ul className="mini-list">
+            {remaining.map((c) => {
+              const wapp = waLink(c.handle);
+              return (
+                <li key={c.source_id} className="week-row">
+                  <span className="week-body">
+                    <span className="cold-name">{c.name}</span>
+                    {c.reason && <span className="cold-sub">{c.reason}</span>}
+                  </span>
+                  {wapp && (
+                    <a className="week-wa" href={wapp} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${c.name}`}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                    </a>
+                  )}
+                  <button className="week-done" onClick={() => void markDone(c)}>feito</button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </section>
   );
 }
 

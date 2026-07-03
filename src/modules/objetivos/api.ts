@@ -10,7 +10,8 @@ export type KeyResult = {
     | "gigs_completed"
     | "tracks_released"
     | "parties_executed"
-    | "content_published";
+    | "content_published"
+    | "expansion_touches";
   target: number;
   unit: string;
   current: number;
@@ -162,6 +163,25 @@ async function countsForRange(
       [qStart, qEnd]
     );
     counts.finance_revenue = Math.round(rows[0]?.total ?? 0);
+  }
+  if (needs.has("expansion_touches")) {
+    // §4 — nº de interações no trimestre com contatos marcados "expansão".
+    // tags é JSON: filtra grosso no SQL (stem ASCII) e afina no JS.
+    const rows = await db.select<{ tags: string | null }[]>(
+      `SELECT c.tags AS tags FROM contact_interactions ci
+         JOIN contacts c ON c.id = ci.contact_id
+        WHERE c.tags LIKE '%xpans%'
+          AND substr(ci.date, 1, 10) >= $1 AND substr(ci.date, 1, 10) <= $2`,
+      [qStart, qEnd]
+    );
+    counts.expansion_touches = rows.filter((r) => {
+      try {
+        const tags = r.tags ? (JSON.parse(r.tags) as unknown) : [];
+        return Array.isArray(tags) && tags.some((t) => typeof t === "string" && (t.toLowerCase() === "expansão" || t.toLowerCase() === "expansao"));
+      } catch {
+        return false;
+      }
+    }).length;
   }
 
   return counts;

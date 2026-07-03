@@ -44,6 +44,7 @@ const METRIC_SOURCES: { value: KeyResult["metric_source"]; label: string }[] = [
   { value: "tracks_released", label: "Tracks lançadas, auto" },
   { value: "parties_executed", label: "Festas realizadas, auto" },
   { value: "content_published", label: "Conteúdos publicados, auto" },
+  { value: "expansion_touches", label: "Contatos de expansão, auto" },
 ];
 
 function newKr(): KeyResult {
