@@ -1338,8 +1338,13 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
             <TabsContent value="operacao" forceMount hidden={tab !== "operacao"} className="pt-2">
               <OperacaoTab
                 partyId={party.id}
-                performers={contacts
-                  .filter((c) => state.lineup.includes(c.id))
+                // §8.4 — o line-up é a fonte da ordem: mapeia na ordem de
+                // state.lineup (definida no moveLineup da aba Equipe), não na
+                // ordem dos contatos. Assim os "Sets do line-up" nascem na
+                // sequência certa. Espelho unidirecional: a Operação lê daqui.
+                performers={state.lineup
+                  .map((id) => contacts.find((c) => c.id === id))
+                  .filter((c): c is Contact => !!c)
                   .map((c) => ({ id: c.id, name: c.name }))}
               />
             </TabsContent>
