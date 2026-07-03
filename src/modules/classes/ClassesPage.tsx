@@ -314,7 +314,12 @@ export function ClassesPage() {
                   {sortedClasses.map((c) => (
                     <tr
                       key={c.id}
-                      className="border-t transition-colors hover:bg-muted/40"
+                      className="cursor-pointer border-t transition-colors hover:bg-muted/40"
+                      onClick={() => {
+                        setEditingClass(c);
+                        setClassFormOpen(true);
+                      }}
+                      title="Clique pra editar"
                     >
                       <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
                         {classNumbers[c.id] ?? EMPTY_VALUE}
@@ -345,7 +350,7 @@ export function ClassesPage() {
                         {formatCurrency(c.amount)}
                       </td>
                       <td className="px-3 py-2">
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button
                             size="icon"
                             variant="ghost"
