@@ -602,6 +602,7 @@ export async function saveDebriefDraft(
        updated_at = CURRENT_TIMESTAMP`,
     [gigId, JSON.stringify(payload)]
   );
+  emitDataChanged();
 }
 
 export async function clearDebriefDraft(gigId: number): Promise<void> {
@@ -805,4 +806,5 @@ export async function createGigPrepTask(gig: Gig): Promise<number> {
 export async function updateGigCityForVenue(venueId: number, city: string | null): Promise<void> {
   const db = getDb();
   await db.execute("UPDATE gigs SET venue_city = $1 WHERE venue_id = $2", [city, venueId]);
+  emitDataChanged();
 }

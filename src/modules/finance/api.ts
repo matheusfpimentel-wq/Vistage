@@ -49,6 +49,7 @@ export async function createCategory(
     `INSERT INTO finance_categories (name, kind, is_default) VALUES ($1, $2, 0)`,
     [name.trim(), kind]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -58,6 +59,7 @@ export async function renameCategory(id: number, name: string): Promise<void> {
     name.trim(),
     id,
   ]);
+  emitDataChanged();
 }
 
 export async function deleteCategory(id: number): Promise<void> {
@@ -70,6 +72,7 @@ export async function deleteCategory(id: number): Promise<void> {
     throw new Error("Categoria fixa: não pode ser excluída.");
   }
   await db.execute("DELETE FROM finance_categories WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function countTransactionsForCategory(
@@ -700,12 +703,14 @@ export async function createRecurring(
     `INSERT INTO finance_recurring (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
 export async function deleteRecurring(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM finance_recurring WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function setRecurringActive(
@@ -717,6 +722,7 @@ export async function setRecurringActive(
     active ? 1 : 0,
     id,
   ]);
+  emitDataChanged();
 }
 
 /**
@@ -758,6 +764,7 @@ export async function generateRecurringForMonth(yearMonth: string): Promise<numb
     );
     created += 1;
   }
+  if (created > 0) emitDataChanged();
   return created;
 }
 
@@ -826,6 +833,7 @@ export async function createEquipment(
     `INSERT INTO equipment (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -843,11 +851,13 @@ export async function updateEquipment(
     `UPDATE equipment SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deleteEquipment(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM equipment WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ============================================================

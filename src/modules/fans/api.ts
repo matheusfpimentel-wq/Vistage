@@ -481,6 +481,9 @@ export async function addFanInteraction(
     // silently skip
   }
 
+  // Marca não salvo SEMPRE: recomputeFanLevel só emite quando o nível muda,
+  // mas registrar a interação é uma edição de documento independente disso.
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -796,6 +799,8 @@ export async function deleteFanInteraction(id: number): Promise<void> {
     // reconcilia o nível: apagar engajamento pode (corretamente) rebaixar o fã
     await recomputeFanLevel(fanId);
   }
+  // Marca não salvo SEMPRE (recomputeFanLevel só emite quando o nível muda).
+  emitDataChanged();
 }
 
 export type FanStats = {

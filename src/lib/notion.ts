@@ -1,5 +1,6 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { getDb } from "./db";
+import { emitDataChanged } from "./events";
 
 /**
  * Integração com o Notion — 1 VIA (Vistage → Notion). O Vistage cria um
@@ -351,6 +352,8 @@ export async function syncNotion(): Promise<NotionSyncResult> {
   }
 
   await setSetting(KEY_LAST_SYNC, new Date().toISOString());
+  // Gravou notion_page_id em ideias novas → mudou o documento (marca não salvo).
+  if (created > 0) emitDataChanged();
   return { created, updated, failed };
 }
 

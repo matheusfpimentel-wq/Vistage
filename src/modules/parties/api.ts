@@ -503,6 +503,7 @@ export async function addPartyVenueCandidate(
      VALUES ($1, $2, $3, $4, $5, $6)`,
     [partyId, venueId, extra?.capacity ?? null, extra?.deal_type ?? null, extra?.deal_terms ?? null, extra?.estimated_cost ?? null]
   );
+  emitDataChanged();
 }
 
 /** Update genérico de um candidato (capacidade, acordo, custo, líder…). */
@@ -516,6 +517,7 @@ export async function updatePartyVenueCandidate(
   const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
   values.push(id);
   await getDb().execute(`UPDATE party_venue_candidates SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
 }
 
 /** Marca UM candidato como líder (estrela) e zera os demais da festa. */
@@ -525,6 +527,7 @@ export async function setPartyVenueLeader(partyId: number, candidateId: number |
   if (candidateId != null) {
     await db.execute("UPDATE party_venue_candidates SET is_leader = 1 WHERE id = $1 AND party_id = $2", [candidateId, partyId]);
   }
+  emitDataChanged();
 }
 
 export async function removePartyVenueCandidate(partyId: number, venueId: number): Promise<void> {
@@ -533,6 +536,7 @@ export async function removePartyVenueCandidate(partyId: number, venueId: number
     "DELETE FROM party_venue_candidates WHERE party_id = $1 AND venue_id = $2",
     [partyId, venueId]
   );
+  emitDataChanged();
 }
 
 // ===== STAGES =====
@@ -552,6 +556,7 @@ export async function createPartyStage(partyId: number, name: string, position: 
     "INSERT INTO party_stages (party_id, name, position) VALUES ($1, $2, $3)",
     [partyId, name, position]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -573,11 +578,13 @@ export async function updatePartyStage(
     `UPDATE party_stages SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deletePartyStage(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM party_stages WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function initDefaultStages(partyId: number): Promise<void> {
@@ -883,6 +890,7 @@ export async function createPartyBudgetItem(
     const { syncPartyTransactions } = await import("@/modules/finance/api");
     await syncPartyTransactions(item.party_id);
   } catch { /* não interrompe */ }
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -911,6 +919,7 @@ export async function updatePartyBudgetItem(
       await syncPartyTransactions(rows[0].party_id);
     }
   } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 export async function deletePartyBudgetItem(id: number): Promise<void> {
@@ -926,6 +935,7 @@ export async function deletePartyBudgetItem(id: number): Promise<void> {
       await syncPartyTransactions(rows[0].party_id);
     }
   } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 // Guarda de concorrência da migração (mesmo padrão do backfill do Marketing) —
@@ -1045,6 +1055,7 @@ export async function createPartyTicket(
     const { syncPartyTransactions } = await import("@/modules/finance/api");
     await syncPartyTransactions(ticket.party_id);
   } catch { /* não interrompe */ }
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1073,6 +1084,7 @@ export async function updatePartyTicket(
       await syncPartyTransactions(rows[0].party_id);
     }
   } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 export async function deletePartyTicket(id: number): Promise<void> {
@@ -1088,6 +1100,7 @@ export async function deletePartyTicket(id: number): Promise<void> {
       await syncPartyTransactions(rows[0].party_id);
     }
   } catch { /* não interrompe */ }
+  emitDataChanged();
 }
 
 // ===== OPERAÇÃO / DIA D (run-of-show) =====
@@ -1111,6 +1124,7 @@ export async function createPartyRunsheetItem(
       item.duration_min ?? null,
     ]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1127,10 +1141,12 @@ export async function updatePartyRunsheetItem(
     `UPDATE party_runsheet SET ${sets} WHERE id = $${values.length}`,
     values
   );
+  emitDataChanged();
 }
 
 export async function deletePartyRunsheetItem(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_runsheet WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 /** Reordena o run-of-show gravando `position` pela posição na lista. */
@@ -1139,6 +1155,7 @@ export async function reorderPartyRunsheet(orderedIds: number[]): Promise<void> 
   for (let i = 0; i < orderedIds.length; i++) {
     await db.execute("UPDATE party_runsheet SET position = $1 WHERE id = $2", [i, orderedIds[i]]);
   }
+  emitDataChanged();
 }
 
 /** "Pendências com a casa" — campo único na festa (alvará/segurança/bar). */
@@ -1155,6 +1172,7 @@ export async function setPartyHousePending(partyId: number, value: string | null
     "UPDATE parties SET house_pending = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
     [value || null, partyId]
   );
+  emitDataChanged();
 }
 
 // ===== GUEST LIST / CORTESIAS =====
@@ -1174,6 +1192,7 @@ export async function createPartyGuest(
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [guest.party_id, guest.name, guest.reason ?? null, guest.quantity, guest.ref_price, guest.unit_cost ?? 0, guest.status]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1187,10 +1206,12 @@ export async function updatePartyGuest(
   const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
   values.push(id);
   await getDb().execute(`UPDATE party_guests SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
 }
 
 export async function deletePartyGuest(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_guests WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== PARTY TICKET SALES (curva de venda) =====
@@ -1210,11 +1231,13 @@ export async function createPartyTicketSale(
      VALUES ($1, $2, $3, $4)`,
     [sale.party_id, sale.sale_date, sale.cumulative_sold, sale.note ?? null]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
 export async function deletePartyTicketSale(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_ticket_sales WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== PARTY COMPLIANCE (licenças / obrigações) =====
@@ -1238,6 +1261,7 @@ export async function createPartyComplianceItem(
       item.responsavel ?? null, item.valor ?? null,
     ]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1251,10 +1275,12 @@ export async function updatePartyComplianceItem(
   const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
   values.push(id);
   await getDb().execute(`UPDATE party_compliance SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
 }
 
 export async function deletePartyComplianceItem(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_compliance WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== MARKETING — ARTES (peças) =====
@@ -1277,6 +1303,7 @@ export async function createPartyMarketingAsset(
       a.link ?? null, a.notes ?? null, a.content_id ?? null, a.position,
     ]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1290,10 +1317,12 @@ export async function updatePartyMarketingAsset(
   const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
   values.push(id);
   await getDb().execute(`UPDATE party_marketing_assets SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
 }
 
 export async function deletePartyMarketingAsset(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_marketing_assets WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 // ===== MARKETING — CANAIS (ações datadas) =====
@@ -1316,6 +1345,7 @@ export async function createPartyMarketingAction(
       a.done ? 1 : 0, a.tracking_code ?? null, a.position,
     ]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -1329,10 +1359,12 @@ export async function updatePartyMarketingAction(
   const values = cols.map((c) => (updates as Record<string, unknown>)[c]);
   values.push(id);
   await getDb().execute(`UPDATE party_marketing_actions SET ${sets} WHERE id = $${values.length}`, values);
+  emitDataChanged();
 }
 
 export async function deletePartyMarketingAction(id: number): Promise<void> {
   await getDb().execute("DELETE FROM party_marketing_actions WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 /**
@@ -1388,11 +1420,13 @@ export async function createRiderTemplate(name: string, items: string): Promise<
     "INSERT INTO rider_templates (name, items) VALUES ($1, $2)",
     [name, items]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
 export async function deleteRiderTemplate(id: number): Promise<void> {
   await getDb().execute("DELETE FROM rider_templates WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 /** Semeia os itens padrão de compliance que ainda não existem (por categoria+título). */
@@ -1493,6 +1527,7 @@ export async function createPartyTask(
       task.responsavel_contact_id ?? null,
     ]
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 

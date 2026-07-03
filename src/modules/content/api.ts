@@ -340,6 +340,7 @@ export async function addContentSnapshot(
   );
   // mantém os campos "atuais" do content com a captura mais recente
   await syncLatestSnapshotToContent(input.content_id);
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -351,6 +352,7 @@ export async function deleteContentSnapshot(id: number): Promise<void> {
   );
   await db.execute("DELETE FROM content_snapshots WHERE id = $1", [id]);
   if (rows[0]) await syncLatestSnapshotToContent(rows[0].content_id);
+  emitDataChanged();
 }
 
 // ============================================================

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type { AlertItem, AlertSeverity } from "./alerts";
 
 /**
@@ -724,6 +725,7 @@ export async function createCustomRule(input: CustomRuleInput): Promise<void> {
     [input.entity, lg.field, lg.operator, lg.value, input.message, input.severity,
       input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0]
   );
+  emitDataChanged();
 }
 export async function updateCustomRule(id: number, input: CustomRuleInput): Promise<void> {
   const lg = legacyCols(input);
@@ -735,6 +737,7 @@ export async function updateCustomRule(id: number, input: CustomRuleInput): Prom
     [input.entity, lg.field, lg.operator, lg.value, input.message, input.severity,
       input.severidade ?? "atencao", input.enabled ?? 1, JSON.stringify(input.conditions), input.match, input.dismissible ?? 0, id]
   );
+  emitDataChanged();
 }
 export async function setCustomRuleEnabled(id: number, enabled: boolean): Promise<void> {
   await getDb().execute(

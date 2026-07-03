@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { emitDataChanged } from "@/lib/events";
 import type { Gig } from "@/modules/gigs/types";
 import type {
   Venue,
@@ -34,6 +35,7 @@ export async function addVenueTechNote(
     "INSERT INTO venue_tech_notes (venue_id, gig_id, text) VALUES ($1, $2, $3)",
     [venueId, gigId, clean]
   );
+  emitDataChanged();
   return Number(res.lastInsertId ?? 0);
 }
 
@@ -49,6 +51,7 @@ export async function listVenueTechNotes(venueId: number): Promise<VenueTechNote
 export async function deleteVenueTechNote(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM venue_tech_notes WHERE id = $1", [id]);
+  emitDataChanged();
 }
 
 export async function listVenues(filters: VenueFilters = {}): Promise<Venue[]> {
@@ -91,6 +94,7 @@ export async function createVenue(input: VenueCreateInput): Promise<number> {
     `INSERT INTO venues (${cols.join(", ")}) VALUES (${placeholders})`,
     values
   );
+  emitDataChanged();
   return Number(res.lastInsertId);
 }
 
@@ -121,6 +125,7 @@ export async function updateVenue(input: VenueUpdateInput): Promise<void> {
       );
     }
   }
+  emitDataChanged();
 }
 
 export async function deleteVenue(id: number): Promise<void> {
@@ -131,6 +136,7 @@ export async function deleteVenue(id: number): Promise<void> {
   await db.execute("DELETE FROM venues WHERE id = $1", [id]);
   const { unlinkTasksFromEntity } = await import("@/modules/tasks/api");
   await unlinkTasksFromEntity("venue", id);
+  emitDataChanged();
 }
 
 export async function getVenueStats(venueId: number): Promise<VenueStats> {
@@ -205,4 +211,5 @@ export async function saveVenueCoords(
     "UPDATE venues SET lat = $1, lng = $2, geocoded_at = CURRENT_TIMESTAMP WHERE id = $3",
     [lat, lng, id]
   );
+  emitDataChanged();
 }
