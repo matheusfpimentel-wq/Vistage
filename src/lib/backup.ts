@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { useConfigStore } from "./config";
 import { getPortableSession, restorePortableSession, type PortableSession } from "./supabase";
 import { persistAppearanceToDocument } from "./theme";
-import { persistViewPrefsToDocument } from "./docSettings";
+import { persistViewPrefsToDocument, isViewPreferenceKey } from "./docSettings";
 import {
   decryptString,
   isEncryptedRaw,
@@ -564,6 +564,15 @@ export async function hasAnyDocumentData(): Promise<boolean> {
   for (const t of TABLES) {
     if (MACHINE_TABLES.includes(t)) continue;
     try {
+      if (t === "document_settings") {
+        // Preferências de tela (tema, colunas, filtros...) não contam como
+        // "documento com dados" — só CONTEÚDO real (SWOT, config de fãs etc.),
+        // senão só abrir a página de Aparência numa réplica em branco já
+        // dispararia o aviso de "alterações não salvas".
+        const rows = await db.select<{ key: string }[]>(`SELECT key FROM document_settings`);
+        if (rows.some((r) => !isViewPreferenceKey(r.key))) return true;
+        continue;
+      }
       const r = await db.select<{ n: number }[]>(`SELECT EXISTS(SELECT 1 FROM ${t}) as n`);
       if ((r[0]?.n ?? 0) > 0) return true;
     } catch {
