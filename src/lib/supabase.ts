@@ -105,3 +105,33 @@ export async function adoptPortableSession(
     return false;
   }
 }
+
+// ── Relay de mídia (Storage) — §5 ────────────────────────────────────────────
+// Ponte EFÊMERA pra mídia da GIG: o celular sobe a foto/clipe comprimido pro
+// bucket; o PC baixa na revisão de capturas, grava em uploads/ e APAGA o objeto
+// (o relay não guarda mídia — só transporta). Bucket privado, RLS por auth.uid().
+// O provisionamento (bucket + policies) mora no supabase/schema.sql.
+export const RELAY_MEDIA_BUCKET = "gig-media";
+
+/** Baixa o objeto do relay como bytes (ou null se falhar/expirou). */
+export async function relayDownload(path: string): Promise<Uint8Array | null> {
+  try {
+    const { data, error } = await supabase.storage
+      .from(RELAY_MEDIA_BUCKET)
+      .download(path);
+    if (error || !data) return null;
+    return new Uint8Array(await data.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/** Apaga objetos do relay (best-effort — o transporte já cumpriu seu papel). */
+export async function relayRemove(paths: string[]): Promise<void> {
+  if (!paths.length) return;
+  try {
+    await supabase.storage.from(RELAY_MEDIA_BUCKET).remove(paths);
+  } catch {
+    /* best-effort: objeto órfão é limpo depois; não trava a ingestão */
+  }
+}

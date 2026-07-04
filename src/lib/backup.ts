@@ -97,6 +97,7 @@ const TABLES = [
   "gig_setlists",            // gig_id → gigs
   "gig_tracks",              // gig_id → gigs, track_id → tracks
   "gig_fans",                // gig_id → gigs, fan_id → fans
+  "content_raw_media",       // gig_id → gigs (anulável), content_id → content (anulável) — §5 matéria-prima
   "fan_lists",               // gig_id → gigs (anulável → DEFERRED_FK)
   "fan_list_members",        // list_id → fan_lists (CASCADE), fan_id → fans (anulável)
   "tasks",                   // gig_id → gigs, contact_id → contacts

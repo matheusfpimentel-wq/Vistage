@@ -126,6 +126,49 @@ export type ContentSceneInput = {
   scenery: string | null;
 };
 
+export const CONTENT_RAW_MEDIA_KINDS = ["photo", "clip"] as const;
+export type ContentRawMediaKind = (typeof CONTENT_RAW_MEDIA_KINDS)[number];
+
+export const CONTENT_RAW_MEDIA_STATUSES = ["novo", "usado", "arquivado"] as const;
+export type ContentRawMediaStatus = (typeof CONTENT_RAW_MEDIA_STATUSES)[number];
+
+/**
+ * Matéria-prima de mídia — foto/clipe capturado no celular durante a GIG e
+ * trazido pro inbox do Conteúdo (semente de aftermovie/stories). O binário mora
+ * em uploads/ (file_path); aqui ficam só os metadados. Chega pela revisão de
+ * capturas (o PC baixa do relay, grava em uploads/ e insere a linha).
+ */
+export type ContentRawMedia = {
+  id: number;
+  gig_id: number | null;
+  media_kind: ContentRawMediaKind;
+  file_path: string;
+  mime: string | null;
+  caption: string | null;
+  captured_at: string | null;
+  origin: string;
+  content_id: number | null;
+  status: ContentRawMediaStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+/** Linha de matéria-prima já com o rótulo da GIG de origem (para exibição). */
+export type ContentRawMediaWithGig = ContentRawMedia & {
+  gig_venue: string | null;
+  gig_date: string | null;
+};
+
+export type ContentRawMediaCreateInput = {
+  gig_id?: number | null;
+  media_kind: ContentRawMediaKind;
+  file_path: string;
+  mime?: string | null;
+  caption?: string | null;
+  captured_at?: string | null;
+  origin?: string;
+};
+
 export function contentStatusVariant(s: ContentStatus):
   | "default"
   | "secondary"

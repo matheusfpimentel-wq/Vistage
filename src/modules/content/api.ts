@@ -6,6 +6,10 @@ import type {
   ContentCreateInput,
   ContentFormat,
   ContentNetwork,
+  ContentRawMedia,
+  ContentRawMediaCreateInput,
+  ContentRawMediaStatus,
+  ContentRawMediaWithGig,
   ContentScene,
   ContentSceneInput,
   ContentSnapshot,
@@ -13,6 +17,7 @@ import type {
   ContentStatus,
   ContentUpdateInput,
 } from "./types";
+import { deleteAttachment } from "@/lib/uploads";
 
 type ContentRow = Omit<Content, "networks"> & { networks: string | null };
 
@@ -435,4 +440,143 @@ async function syncLatestSnapshotToContent(contentId: number): Promise<void> {
       contentId,
     ]
   );
+}
+
+// ============================================================
+// Matéria-prima de mídia (foto/clipe da GIG → inbox do Conteúdo) — §5
+// ============================================================
+
+/**
+ * Lista a matéria-prima, já com o rótulo da GIG de origem. Sem filtro de status
+ * traz tudo (novo/usado/arquivado); o inbox usa `status: "novo"`.
+ */
+export async function listRawMedia(filters: {
+  status?: ContentRawMediaStatus;
+  gigId?: number;
+} = {}): Promise<ContentRawMediaWithGig[]> {
+  const db = getDb();
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (filters.status) {
+    params.push(filters.status);
+    where.push(`m.status = $${params.length}`);
+  }
+  if (typeof filters.gigId === "number") {
+    params.push(filters.gigId);
+    where.push(`m.gig_id = $${params.length}`);
+  }
+  const sql =
+    `SELECT m.*, g.venue_name AS gig_venue, g.date AS gig_date
+       FROM content_raw_media m
+       LEFT JOIN gigs g ON g.id = m.gig_id` +
+    (where.length ? ` WHERE ${where.join(" AND ")}` : "") +
+    ` ORDER BY COALESCE(m.captured_at, m.created_at) DESC, m.id DESC`;
+  return db.select<ContentRawMediaWithGig[]>(sql, params);
+}
+
+/** Quantos itens de matéria-prima ainda esperam na caixa de entrada. */
+export async function countRawMediaNovo(): Promise<number> {
+  const db = getDb();
+  const rows = await db.select<{ n: number }[]>(
+    "SELECT COUNT(*) as n FROM content_raw_media WHERE status = 'novo'"
+  );
+  return rows[0]?.n ?? 0;
+}
+
+/** Insere uma peça de matéria-prima (usado pela ingestão da captura do celular). */
+export async function createRawMedia(
+  input: ContentRawMediaCreateInput
+): Promise<number> {
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO content_raw_media
+       (gig_id, media_kind, file_path, mime, caption, captured_at, origin)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      input.gig_id ?? null,
+      input.media_kind,
+      input.file_path,
+      input.mime ?? null,
+      input.caption ?? null,
+      input.captured_at ?? null,
+      input.origin ?? "mobile",
+    ]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function setRawMediaStatus(
+  id: number,
+  status: ContentRawMediaStatus
+): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    "UPDATE content_raw_media SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [status, id]
+  );
+  emitDataChanged();
+}
+
+/** Remove a peça e apaga o arquivo do disco (best-effort). */
+export async function deleteRawMedia(id: number): Promise<void> {
+  const db = getDb();
+  const rows = await db.select<{ file_path: string | null }[]>(
+    "SELECT file_path FROM content_raw_media WHERE id = $1",
+    [id]
+  );
+  await db.execute("DELETE FROM content_raw_media WHERE id = $1", [id]);
+  await deleteAttachment(rows[0]?.file_path).catch(() => {});
+  emitDataChanged();
+}
+
+/**
+ * Promove a matéria-prima a um Conteúdo de verdade (semente): cria o Content,
+ * vincula de volta (content_id) e marca a peça como "usado". Retorna o id do
+ * Conteúdo criado, pra abrir o editor em seguida.
+ */
+export async function rawMediaToContent(id: number): Promise<number> {
+  const db = getDb();
+  const rows = await db.select<ContentRawMedia[]>(
+    "SELECT * FROM content_raw_media WHERE id = $1",
+    [id]
+  );
+  const m = rows[0];
+  if (!m) throw new Error("Matéria-prima não encontrada.");
+  const gig = m.gig_id
+    ? (
+        await db.select<{ venue_name: string | null }[]>(
+          "SELECT venue_name FROM gigs WHERE id = $1",
+          [m.gig_id]
+        )
+      )[0]
+    : null;
+  const title =
+    m.caption?.trim() ||
+    `Material da GIG${gig?.venue_name ? `: ${gig.venue_name}` : ""}`;
+  const contentId = await createContent({
+    title,
+    script: null,
+    networks: [],
+    format: m.media_kind === "clip" ? "Reels" : "Story",
+    purpose: "A partir de material capturado na GIG",
+    status: "Ideia",
+    due_date: null,
+    publish_date: null,
+    published_at: null,
+    post_url: null,
+    metric_views: null,
+    metric_likes: null,
+    metric_comments: null,
+    metric_shares: null,
+    metric_saves: null,
+    notes: null,
+    task_id: null,
+  });
+  await db.execute(
+    "UPDATE content_raw_media SET content_id = $1, status = 'usado', updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [contentId, id]
+  );
+  emitDataChanged();
+  return contentId;
 }

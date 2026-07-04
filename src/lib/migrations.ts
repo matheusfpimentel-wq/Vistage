@@ -2502,6 +2502,29 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE fan_list_members ADD COLUMN arrived_at TEXT;
     `,
   },
+  {
+    version: 179,
+    description:
+      "Conteúdo — content_raw_media: matéria-prima de mídia (foto/clipe) capturada no celular durante a GIG e trazida pro inbox do Conteúdo (semente de aftermovie/stories). O binário mora em uploads/ (file_path); aqui ficam só os metadados. gig_id/content_id anuláveis (ON DELETE SET NULL). §5.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS content_raw_media (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gig_id INTEGER REFERENCES gigs(id) ON DELETE SET NULL,
+        media_kind TEXT NOT NULL DEFAULT 'photo',   -- 'photo' | 'clip'
+        file_path TEXT NOT NULL,                     -- relativo a uploads/
+        mime TEXT,
+        caption TEXT,
+        captured_at TEXT,
+        origin TEXT NOT NULL DEFAULT 'mobile',
+        content_id INTEGER REFERENCES content(id) ON DELETE SET NULL,
+        status TEXT NOT NULL DEFAULT 'novo',         -- 'novo' | 'usado' | 'arquivado'
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_raw_media_gig ON content_raw_media(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_content_raw_media_status ON content_raw_media(status);
+    `,
+  },
 ];
 
 
