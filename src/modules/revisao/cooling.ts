@@ -28,7 +28,7 @@ const ACK_DB_KEY = "cooling.acked";
 type ColdItem = { ref: string; id: number; name: string; lastFed: string };
 
 // app_settings: { "<entity>:<id>": "<ISO date do ack>" }
-async function loadAcks(): Promise<Record<string, string>> {
+export async function loadAcks(): Promise<Record<string, string>> {
   try {
     const db = getDb();
     const rows = await db.select<{ value: string }[]>(
@@ -72,7 +72,7 @@ export async function ackCooling(refs: string[]): Promise<void> {
 // Um item está oculto se foi aceito (ack) numa data >= a da sua última atividade:
 // o ack só vale enquanto o item não se mexe. Se ele foi tocado DEPOIS do ack
 // (lastFed > ackDate), o ack expira e ele volta a esfriar normalmente.
-function isAcked(acks: Record<string, string>, ref: string, lastFed: string): boolean {
+export function isAcked(acks: Record<string, string>, ref: string, lastFed: string): boolean {
   const ack = acks[ref];
   return !!ack && ack >= lastFed.slice(0, 10);
 }
