@@ -11,6 +11,7 @@ import { EnergyChip } from "../components/EnergyChip";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
 import { Checkin, type Vip } from "./Checkin";
+import { GigMediaSheet } from "./GigMediaSheet";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -221,6 +222,7 @@ export function Hoje({
   const [partyOpen, setPartyOpen] = useState<PartyRow | null>(null);
   const [classOpen, setClassOpen] = useState<ClassRow | null>(null);
   const [checkinOpen, setCheckinOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [catGigs, setCatGigs] = useState<GigRow[]>([]);
   const [catTracks, setCatTracks] = useState<TrackRow[]>([]);
   const [catParties, setCatParties] = useState<PartyRow[]>([]);
@@ -492,7 +494,7 @@ export function Hoje({
       </div>
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
-      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} />}
+      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} onMedia={() => setMediaOpen(true)} />}
 
       {/* (2) O que vem — lista única animada (cada item surge da esquerda). */}
       <section className="home-section">
@@ -625,6 +627,13 @@ export function Hoje({
           gigTitle={todayGig.title}
           vips={todayGig.meta.vips ?? []}
           onClose={() => setCheckinOpen(false)}
+        />
+      )}
+      {mediaOpen && todayGig && (
+        <GigMediaSheet
+          gigId={Number.isFinite(Number(todayGig.source_id)) ? Number(todayGig.source_id) : null}
+          gigTitle={todayGig.title}
+          onClose={() => setMediaOpen(false)}
         />
       )}
     </div>
@@ -973,7 +982,7 @@ function ClassSheet({ cls, today, onClose }: { cls: ClassRow; today: string; onC
 }
 
 /** §4: card-herói do dia de GIG — lidera com a noite (set, cachê, contato, mapa). */
-function GigDayHero({ gig, onFocus, onCheckin }: { gig: CatalogGig; onFocus: () => void; onCheckin: () => void }) {
+function GigDayHero({ gig, onFocus, onCheckin, onMedia }: { gig: CatalogGig; onFocus: () => void; onCheckin: () => void; onMedia: () => void }) {
   const m = gig.meta;
   const periods =
     m.set_periods && m.set_periods.length > 0
@@ -1014,28 +1023,30 @@ function GigDayHero({ gig, onFocus, onCheckin }: { gig: CatalogGig; onFocus: () 
         )}
       </dl>
 
-      {(tel || wapp || map) && (
-        <div className="gig-day-actions">
-          {tel && (
-            <a className="gig-act" href={tel}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
-              Ligar{contactFirst ? ` · ${contactFirst}` : ""}
-            </a>
-          )}
-          {wapp && (
-            <a className="gig-act" href={wapp} target="_blank" rel="noreferrer">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
-              WhatsApp
-            </a>
-          )}
-          {map && (
-            <a className="gig-act" href={map} target="_blank" rel="noreferrer">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>
-              Maps
-            </a>
-          )}
-        </div>
-      )}
+      <div className="gig-day-actions">
+        {tel && (
+          <a className="gig-act" href={tel}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+            Ligar{contactFirst ? ` · ${contactFirst}` : ""}
+          </a>
+        )}
+        {wapp && (
+          <a className="gig-act" href={wapp} target="_blank" rel="noreferrer">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+            WhatsApp
+          </a>
+        )}
+        {map && (
+          <a className="gig-act" href={map} target="_blank" rel="noreferrer">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>
+            Maps
+          </a>
+        )}
+        <button type="button" className="gig-act" onClick={onMedia}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+          Foto/clipe
+        </button>
+      </div>
 
       <div className="gig-day-cta">
         <button className="gig-day-checkin" onClick={onCheckin}>Check-in</button>
