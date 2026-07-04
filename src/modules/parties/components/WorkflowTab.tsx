@@ -184,7 +184,7 @@ export function WorkflowTab({
   const [addingTask, setAddingTask] = useState<number | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
-  useEffect(() => { void listSuppliers().then(setSuppliers); }, []);
+  useEffect(() => { void listSuppliers({ withProfile: true }).then(setSuppliers); }, []);
   useEffect(() => { void listContacts().then(setContacts); }, []);
   const contactName = useMemo(() => {
     const m = new Map<number, string>();

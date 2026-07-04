@@ -11,6 +11,12 @@ import type {
 export type SupplierFilters = {
   search?: string;
   category?: SupplierCategory | "Todos";
+  /**
+   * Só fornecedores com perfil de verdade: standalone (sem contato) OU espelho de
+   * contato com ≥1 serviço. Exclui o espelho vazio — contato com o papel
+   * "Fornecedor" ligado mas sem nenhum serviço — que vazava nos pickers da festa.
+   */
+  withProfile?: boolean;
 };
 
 /**
@@ -67,6 +73,12 @@ export async function listSuppliers(filters: SupplierFilters = {}): Promise<Supp
   if (filters.category && filters.category !== "Todos") {
     params.push(filters.category);
     where.push(`category = $${params.length}`);
+  }
+
+  if (filters.withProfile) {
+    where.push(
+      "(contact_id IS NULL OR EXISTS (SELECT 1 FROM supplier_services ss WHERE ss.supplier_id = suppliers.id))"
+    );
   }
 
   const sql =
