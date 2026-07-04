@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { currentTheme, loadAndApplyPrefs, toggleTheme } from "./theme";
@@ -6,12 +6,19 @@ import { loadHeaderInfo, type HeaderInfo } from "./identity";
 import { NotificationBell } from "./components/NotificationBell";
 import { IdentitySheet } from "./components/IdentitySheet";
 import { Login } from "./screens/Login";
-import { Hoje } from "./screens/Hoje";
-import { Buscar } from "./screens/Buscar";
-import { Foco } from "./screens/Foco";
-import { Capturar } from "./screens/Capturar";
-import { Brainstorming } from "./screens/Brainstorming";
-import { Tarefas } from "./screens/Tarefas";
+import { onResume } from "./native";
+import { isBiometricEnabled, biometricVerify, biometricOfferable } from "./lib/biometric";
+import { agendaSyncOfferable, isAgendaSyncEnabled, syncAgenda } from "./lib/contactsSync";
+
+// Telas sob demanda (code-split por aba): cada uma vira um chunk próprio,
+// tirando peso do bundle inicial — só a aba visível é baixada. Login fica
+// eager por ser a porta de entrada. Export nomeado → mapeado pra default.
+const Hoje = lazy(() => import("./screens/Hoje").then((m) => ({ default: m.Hoje })));
+const Buscar = lazy(() => import("./screens/Buscar").then((m) => ({ default: m.Buscar })));
+const Foco = lazy(() => import("./screens/Foco").then((m) => ({ default: m.Foco })));
+const Capturar = lazy(() => import("./screens/Capturar").then((m) => ({ default: m.Capturar })));
+const Brainstorming = lazy(() => import("./screens/Brainstorming").then((m) => ({ default: m.Brainstorming })));
+const Tarefas = lazy(() => import("./screens/Tarefas").then((m) => ({ default: m.Tarefas })));
 
 type Tab = "hoje" | "foco" | "brainstorm" | "buscar" | "tarefas";
 
@@ -26,7 +33,9 @@ const TAB_ICON: Record<Tab, JSX.Element> = {
 const TAB_LABEL: Record<Tab, string> = {
   hoje: "Hoje", foco: "Foco", brainstorm: "Brainstorm", buscar: "Pesquisa", tarefas: "Tarefas",
 };
-const TABS: Tab[] = ["hoje", "foco", "brainstorm", "buscar", "tarefas"];
+// Buscar saiu da tabbar (B.2) — acesso vira lupa no header. A rota e o tipo
+// continuam; só não ocupa mais um dos alvos permanentes da navegação.
+const TABS: Tab[] = ["hoje", "foco", "brainstorm", "tarefas"];
 
 // Atalhos de ícone (long-press no app): ./?go=foco abre direto a aba;
 // ./?go=capturar abre a captura rápida. Lido uma vez no boot.
@@ -59,6 +68,8 @@ export function App() {
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
   const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });
   const [identityOpen, setIdentityOpen] = useState(false);
+  const [signOutAsk, setSignOutAsk] = useState(false);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -79,6 +90,24 @@ export function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // §6 — bloqueio biométrico ao abrir/retomar (só nativo + ligado nos ajustes).
+  useEffect(() => {
+    if (!biometricOfferable() || !isBiometricEnabled()) return;
+    const lock = () => {
+      setLocked(true);
+      void biometricVerify().then((ok) => setLocked(!ok));
+    };
+    lock();
+    return onResume(lock);
+  }, []);
+
+  // §7.2 — mantém a agenda nativa em dia com o Vistage (nativo + ligado), ao logar.
+  useEffect(() => {
+    if (!session) return;
+    if (!agendaSyncOfferable() || !isAgendaSyncEnabled()) return;
+    void syncAgenda();
+  }, [session]);
+
   if (!ready) {
     return (
       <div className="center">
@@ -87,6 +116,26 @@ export function App() {
     );
   }
   if (!session) return <Login />;
+
+  if (locked) {
+    return (
+      <div className="center lock-screen">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <strong style={{ fontSize: "1.05rem" }}>Vistage travado</strong>
+        <button
+          className="primary"
+          onClick={() => {
+            setLocked(true);
+            void biometricVerify().then((ok) => setLocked(!ok));
+          }}
+        >
+          Desbloquear
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -100,6 +149,17 @@ export function App() {
           <span className="identity-chip-name">{header.artistName || "Sua identidade"}</span>
         </button>
         <div className="topbar-actions">
+          <button
+            className={"iconbtn" + (tab === "buscar" ? " active" : "")}
+            onClick={() => setTab("buscar")}
+            aria-label="Buscar"
+            title="Buscar"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
           <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Capturar" title="Capturar">
             <PlusIcon />
           </button>
@@ -108,7 +168,7 @@ export function App() {
           </div>
           <button
             className="iconbtn"
-            onClick={() => void supabase.auth.signOut()}
+            onClick={() => setSignOutAsk(true)}
             aria-label="Sair"
             title="Sair"
           >
@@ -120,11 +180,13 @@ export function App() {
       </header>
 
       <main className="content">
-        {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
-        {tab === "foco" && <Foco />}
-        {tab === "brainstorm" && <Brainstorming />}
-        {tab === "buscar" && <Buscar />}
-        {tab === "tarefas" && <Tarefas onGoFocus={() => setTab("foco")} />}
+        <Suspense fallback={<div className="center"><span className="spinner" /></div>}>
+          {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
+          {tab === "foco" && <Foco />}
+          {tab === "brainstorm" && <Brainstorming />}
+          {tab === "buscar" && <Buscar />}
+          {tab === "tarefas" && <Tarefas onGoFocus={() => setTab("foco")} />}
+        </Suspense>
       </main>
 
       <div className={"tabwrap" + (navHidden ? " hidden" : "")}>
@@ -162,7 +224,9 @@ export function App() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
               </button>
             </div>
-            <Capturar />
+            <Suspense fallback={<div className="center"><span className="spinner" /></div>}>
+              <Capturar />
+            </Suspense>
           </div>
         </div>
       )}
@@ -176,9 +240,38 @@ export function App() {
         onToggleTheme={() => setThemeState(toggleTheme())}
         onSignOut={() => {
           setIdentityOpen(false);
-          void supabase.auth.signOut();
+          setSignOutAsk(true);
         }}
       />
+
+      {/* A.4 — sair pede confirmação (ação rara e destrutiva de sessão). */}
+      {signOutAsk && (
+        <div className="overlay" onClick={() => setSignOutAsk(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-head">
+              <strong>Sair da conta?</strong>
+              <button className="iconbtn" onClick={() => setSignOutAsk(false)} aria-label="Fechar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="muted" style={{ margin: "0 0 1rem" }}>
+              Você vai precisar entrar de novo pra sincronizar com o computador.
+            </p>
+            <div style={{ display: "flex", gap: "0.6rem" }}>
+              <button className="ghost" style={{ flex: 1 }} onClick={() => setSignOutAsk(false)}>
+                Cancelar
+              </button>
+              <button
+                className="danger"
+                style={{ flex: 1 }}
+                onClick={() => { setSignOutAsk(false); void supabase.auth.signOut(); }}
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

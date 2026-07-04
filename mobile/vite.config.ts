@@ -6,4 +6,9 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  build: {
+    // Sem sourcemaps em produção (explícito) — não vazam código nem incham o
+    // bundle. É o padrão do Vite; fixado aqui pra não ligar sem querer.
+    sourcemap: false,
+  },
 });

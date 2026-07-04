@@ -10,15 +10,29 @@ export function digits(phone: unknown): string | null {
   return d.length >= 8 ? d : null;
 }
 
+/**
+ * Número no formato E.164 (só dígitos, com código de país) pro wa.me. O app é
+ * BR: um número nacional (10–11 dígitos: DDD + linha) ganha o "55" na frente; se
+ * já vier com o país (12–13 dígitos começando com 55), fica como está. Fora
+ * desses casos, melhor esforço com os dígitos como vieram.
+ */
+export function e164(phone: unknown, country = "55"): string | null {
+  const d = digits(phone);
+  if (!d) return null;
+  if (d.startsWith(country) && (d.length === 12 || d.length === 13)) return d;
+  if (d.length === 10 || d.length === 11) return country + d;
+  return d;
+}
+
 /** Link de ligação direta (tel:). */
 export function telLink(phone: unknown): string | null {
   const d = digits(phone);
   return d ? `tel:${d}` : null;
 }
 
-/** Link de WhatsApp (wa.me). */
+/** Link de WhatsApp (wa.me) com número normalizado em E.164. */
 export function waLink(phone: unknown): string | null {
-  const d = digits(phone);
+  const d = e164(phone);
   return d ? `https://wa.me/${d}` : null;
 }
 

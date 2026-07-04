@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react";
 import { loadTotalGigs, updateArtistName, type HeaderInfo } from "../identity";
+import { isEnergyEnabled, setEnergyEnabled } from "../lib/energy";
+import { isBiometricEnabled, setBiometricEnabled, biometricOfferable, biometricVerify } from "../lib/biometric";
+import {
+  isAgendaSyncEnabled,
+  setAgendaSyncEnabled,
+  getScopes,
+  setScopes as persistScopes,
+  agendaSyncOfferable,
+  syncAgenda,
+  removeAgendaContacts,
+  type AgendaScope,
+} from "../lib/contactsSync";
+
+const SCOPE_LABEL: Record<AgendaScope, string> = { fan: "Fãs", contact: "Contatos", student: "Alunos" };
 
 /**
  * Folha de identidade — abre ao tocar no isótipo/nome no header. Mostra isótipo,
@@ -27,6 +41,48 @@ export function IdentitySheet({
   const [gigs, setGigs] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [energyOn, setEnergyOn] = useState(isEnergyEnabled());
+  const [energyHelp, setEnergyHelp] = useState(false);
+  const [bioOn, setBioOn] = useState(isBiometricEnabled());
+  const [bioHelp, setBioHelp] = useState(false);
+  const [agendaOn, setAgendaOn] = useState(isAgendaSyncEnabled());
+  const [agendaHelp, setAgendaHelp] = useState(false);
+  const [scopes, setScopes] = useState(getScopes());
+  const [askRemove, setAskRemove] = useState(false);
+
+  async function toggleAgenda() {
+    if (agendaOn) {
+      setAgendaOn(false);
+      setAgendaSyncEnabled(false);
+      setAskRemove(true); // desligar oferece remover o que criamos
+      return;
+    }
+    setAgendaOn(true);
+    setAgendaSyncEnabled(true);
+    setAskRemove(false);
+    void syncAgenda();
+  }
+  function toggleScope(s: AgendaScope) {
+    const next = { ...scopes, [s]: !scopes[s] };
+    setScopes(next);
+    persistScopes(next);
+    if (agendaOn) void syncAgenda();
+  }
+
+  async function toggleBio() {
+    if (bioOn) {
+      setBioOn(false);
+      setBiometricEnabled(false);
+      return;
+    }
+    // Ao ligar, confirma que a biometria funciona antes de passar a trancar —
+    // evita ficar preso na tela de bloqueio depois.
+    const ok = await biometricVerify("Confirmar biometria");
+    if (ok) {
+      setBioOn(true);
+      setBiometricEnabled(true);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -100,6 +156,136 @@ export function IdentitySheet({
               </strong>
             </div>
           </div>
+
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Pergunta de energia
+              <button
+                type="button"
+                className="settings-hint"
+                onClick={() => setEnergyHelp((v) => !v)}
+                aria-label="O que é isso"
+                aria-expanded={energyHelp}
+              >
+                ?
+              </button>
+            </span>
+            <button
+              type="button"
+              className={"toggle" + (energyOn ? " on" : "")}
+              role="switch"
+              aria-checked={energyOn}
+              aria-label="Pergunta de energia"
+              onClick={() => {
+                const v = !energyOn;
+                setEnergyOn(v);
+                setEnergyEnabled(v);
+              }}
+            >
+              <span className="toggle-knob" />
+            </button>
+          </div>
+          {energyHelp && (
+            <p className="settings-note">
+              De vez em quando (no máx. 2×/dia) a Hoje pergunta seu nível de energia num toque. Responder no momento é mais preciso que lembrar depois — alimenta o mapa de energia por dia e horário no PC.
+            </p>
+          )}
+
+          {biometricOfferable() && (
+            <>
+              <div className="settings-row">
+                <span className="settings-row-label">
+                  Exigir biometria ao abrir
+                  <button
+                    type="button"
+                    className="settings-hint"
+                    onClick={() => setBioHelp((v) => !v)}
+                    aria-label="O que é isso"
+                    aria-expanded={bioHelp}
+                  >
+                    ?
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  className={"toggle" + (bioOn ? " on" : "")}
+                  role="switch"
+                  aria-checked={bioOn}
+                  aria-label="Exigir biometria ao abrir"
+                  onClick={() => void toggleBio()}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+              {bioHelp && (
+                <p className="settings-note">
+                  Pede Face ID / digital ao abrir o app. A verificação é local — nada sai do aparelho.
+                </p>
+              )}
+            </>
+          )}
+
+          {agendaSyncOfferable() && (
+            <>
+              <div className="settings-row">
+                <span className="settings-row-label">
+                  Adicionar contatos à agenda
+                  <button
+                    type="button"
+                    className="settings-hint"
+                    onClick={() => setAgendaHelp((v) => !v)}
+                    aria-label="O que é isso"
+                    aria-expanded={agendaHelp}
+                  >
+                    ?
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  className={"toggle" + (agendaOn ? " on" : "")}
+                  role="switch"
+                  aria-checked={agendaOn}
+                  aria-label="Adicionar contatos à agenda"
+                  onClick={() => void toggleAgenda()}
+                >
+                  <span className="toggle-knob" />
+                </button>
+              </div>
+              {agendaHelp && (
+                <p className="settings-note">
+                  Cria e atualiza na agenda do celular só os contatos que o Vistage gerencia (mão única, marcados como “MAZIK · Vistage”). Aí WhatsApp e ligações mostram o nome. Tudo local — nada sai do aparelho.
+                </p>
+              )}
+              {agendaOn && (
+                <div className="scope-chips">
+                  {(["fan", "contact", "student"] as AgendaScope[]).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={"scope-chip" + (scopes[s] ? " on" : "")}
+                      aria-pressed={scopes[s]}
+                      onClick={() => toggleScope(s)}
+                    >
+                      {SCOPE_LABEL[s]}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {askRemove && (
+                <div className="settings-note">
+                  Remover da agenda os contatos que o Vistage criou?
+                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.45rem" }}>
+                    <button className="ghost" style={{ flex: 1 }} onClick={() => setAskRemove(false)}>
+                      Manter
+                    </button>
+                    <button className="danger" style={{ flex: 1 }} onClick={() => { setAskRemove(false); void removeAgendaContacts(); }}>
+                      Remover
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           <div className="identity-actions">
             <button className="ghost full" onClick={onToggleTheme} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.45rem" }}>

@@ -185,6 +185,17 @@ type CoolingRow = {
  * musical"); para contato/fã, `handle` segue sendo o telefone (WhatsApp/ligar).
  * Cada tipo é limitado (visão de relance); os alertas do desktop cobrem o todo.
  */
+/** Contato marcado com a tag "expansão" (tags é JSON de strings). */
+function hasExpansaoTag(tagsJson: string | null): boolean {
+  try {
+    const tags = tagsJson ? (JSON.parse(tagsJson) as unknown) : [];
+    if (!Array.isArray(tags)) return false;
+    return tags.some((t) => typeof t === "string" && (t.toLowerCase() === "expansão" || t.toLowerCase() === "expansao"));
+  } catch {
+    return false;
+  }
+}
+
 async function buildCooling(uid: string): Promise<CoolingRow[]> {
   const db = getDb();
   const today = toLocalISODate();
@@ -195,19 +206,24 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   const out: CoolingRow[] = [];
 
-  // Contatos sem interação (os mais frios primeiro).
-  const contacts = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
-    `SELECT id, name, phone, last_interaction_at FROM contacts
+  // Contatos sem interação (os mais frios primeiro). Expansão tem card próprio
+  // ("Contatos da semana"), então não repete aqui.
+  const contacts = await db.select<{ id: number; name: string; phone: string | null; tags: string | null; last_interaction_at: string }[]>(
+    `SELECT id, name, phone, tags, last_interaction_at FROM contacts
       WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-      ORDER BY last_interaction_at ASC LIMIT 4`,
+      ORDER BY last_interaction_at ASC LIMIT 12`,
     [cutoff]
   );
+  let coldContacts = 0;
   for (const c of contacts) {
+    if (coldContacts >= 4) break;
+    if (hasExpansaoTag(c.tags)) continue;
     out.push({
       user_id: uid, source_id: `contact:${c.id}`, name: c.name,
       reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
       handle: c.phone, due_date: today,
     });
+    coldContacts++;
   }
 
   // Fãs sem interação.
@@ -296,6 +312,41 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     });
   }
 
+  // §4 — cadência de expansão ("Contatos da semana"). Vai no mesmo espelho
+  // contact_today, com prefixo expansao: pro celular separar num card próprio.
+  out.push(...(await buildExpansaoWeek(uid)));
+
+  return out;
+}
+
+/**
+ * §4 — até 5 pessoas com tag "expansão" sem contato recente (7 dias), pra
+ * cadência semanal de prospecção morna. A elegibilidade é do desktop; o celular
+ * só exibe e envia o "feito". Rows entram no contact_today com prefixo expansao:.
+ */
+async function buildExpansaoWeek(uid: string): Promise<CoolingRow[]> {
+  const db = getDb();
+  const today = toLocalISODate();
+  const cut = new Date();
+  cut.setDate(cut.getDate() - 7);
+  const cutoff = toLocalISODate(cut);
+  // tags é JSON: filtra grosso no SQL (stem ASCII) e afina no JS.
+  const rows = await db.select<{ id: number; name: string; phone: string | null; city: string | null; tags: string | null; last_interaction_at: string | null }[]>(
+    `SELECT id, name, phone, city, tags, last_interaction_at FROM contacts
+      WHERE tags LIKE '%xpans%'
+        AND (last_interaction_at IS NULL OR substr(last_interaction_at, 1, 10) < $1)
+      ORDER BY (last_interaction_at IS NULL) DESC, last_interaction_at ASC`,
+    [cutoff]
+  );
+  const out: CoolingRow[] = [];
+  for (const c of rows) {
+    if (!hasExpansaoTag(c.tags)) continue;
+    out.push({
+      user_id: uid, source_id: `expansao:${c.id}`, name: c.name,
+      reason: c.city ?? "", handle: c.phone, due_date: today,
+    });
+    if (out.length >= 5) break;
+  }
   return out;
 }
 
@@ -417,12 +468,14 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     id: number; date: string; start_time: string | null; end_time: string | null;
     venue_name: string; event_name: string | null; recurring_event_name: string | null;
     venue_city: string | null; venue_address: string | null; status: string; cache_amount: number | null;
+    payment_status: string | null; cache_paid_pct: number | null;
     day_contact_name: string | null; day_contact_phone: string | null; promoter_name: string | null;
     time_slots: string | null; gig_research: string | null; prep_state: string | null;
     main_goal: string | null; opportunities: string | null; concrete_goals: string | null; targets: string | null;
   }[]>(
     `SELECT g.id, g.date, g.start_time, g.end_time, g.venue_name, g.event_name, g.recurring_event_name,
-            g.venue_city, g.venue_address, g.status, g.cache_amount, g.day_contact_name, g.day_contact_phone,
+            g.venue_city, g.venue_address, g.status, g.cache_amount, g.payment_status, g.cache_paid_pct,
+            g.day_contact_name, g.day_contact_phone,
             pc.name AS promoter_name, g.time_slots, g.gig_research, g.prep_state,
             g.main_goal, g.opportunities, g.concrete_goals, g.targets
        FROM gigs g
@@ -430,6 +483,22 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       ORDER BY g.date DESC LIMIT 800`,
     []
   );
+  // §1 — VIPs por GIG (fan_lists + membros) pro check-in no celular. Uma query só,
+  // agrupada por gig_id; `arrived` vem do arrived_at (marcado na porta).
+  const vipRows = await db.select<{ gig_id: number; member_id: number; name: string | null; fan_name: string | null; arrived_at: string | null }[]>(
+    `SELECT fl.gig_id AS gig_id, m.id AS member_id, m.name AS name, f.name AS fan_name, m.arrived_at AS arrived_at
+       FROM fan_list_members m
+       JOIN fan_lists fl ON fl.id = m.list_id
+       LEFT JOIN fans f ON f.id = m.fan_id
+      WHERE fl.gig_id IS NOT NULL`,
+    []
+  );
+  const vipsByGig = new Map<number, { ref_id: number; name: string; arrived: boolean }[]>();
+  for (const v of vipRows) {
+    const arr = vipsByGig.get(v.gig_id) ?? [];
+    arr.push({ ref_id: v.member_id, name: v.name || v.fan_name || "Convidado", arrived: !!v.arrived_at });
+    vipsByGig.set(v.gig_id, arr);
+  }
   for (const g of gigs) {
     // Título da festa (recorrente - edição / evento), com fallback pro venue —
     // mesmo padrão do desktop (gigDisplayName). Antes ia só o venue.
@@ -444,6 +513,9 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // venue_name + endereço pro Maps cair no LOCAL certo (não no nome do evento).
         venue_name: g.venue_name, address: g.venue_address,
         status: g.status, cache_amount: g.cache_amount, promoter_name: g.promoter_name,
+        // §2 — pagamento do cachê, pro card "Cachê R$X · Recebido?" (passada a data).
+        payment_status: g.payment_status, cache_paid_pct: g.cache_paid_pct,
+        cache_pending: (g.cache_amount ?? 0) > 0 && g.payment_status !== "Pago integralmente",
         day_contact_name: g.day_contact_name, day_contact_phone: g.day_contact_phone,
         // Modo foco/palco no celular: períodos de set + ideias de música da GIG.
         set_periods: parseMirrorSlots(g.time_slots, g.start_time, g.end_time),
@@ -451,6 +523,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
         // Checklist de Preparação (da aba Preparação): ids dos itens já marcados.
         // A estrutura (grupos/itens) é fixa e replicada no celular (PREP_GROUPS).
         prep_done: Object.keys(parsePrepState(g.prep_state)),
+        // §1 — lista VIP pro check-in ao vivo (chegada marcada na porta).
+        vips: vipsByGig.get(g.id) ?? [],
         // Objetivos da GIG (aba Briefing) pro card de objetivos no palco.
         main_goal: g.main_goal,
         opportunities: g.opportunities,
@@ -572,8 +646,8 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
     });
 
   // Aulas — pesquisáveis no celular (busca por aula/aluno).
-  const cclasses = await db.select<{ id: number; subject: string | null; date: string; status: string; student_name: string | null }[]>(
-    `SELECT c.id, c.subject, c.date, c.status, s.name AS student_name
+  const cclasses = await db.select<{ id: number; subject: string | null; date: string; start_time: string | null; status: string; amount: number | null; student_name: string | null }[]>(
+    `SELECT c.id, c.subject, c.date, c.start_time, c.status, c.amount, s.name AS student_name
        FROM classes c LEFT JOIN students s ON s.id = c.student_id
       ORDER BY c.date DESC LIMIT 500`,
     []
@@ -584,7 +658,36 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       title: cl.subject ?? "Aula",
       subtitle: [cl.student_name, cl.date].filter(Boolean).join(" · ") || null,
       search_text: lc(cl.subject, cl.student_name, cl.date, cl.status),
-      meta: { date: cl.date, status: cl.status, student_name: cl.student_name },
+      // §2 — start_time + given pro card "Aula dada · Paga?" (passada a hora).
+      meta: { date: cl.date, start_time: cl.start_time, status: cl.status, student_name: cl.student_name, given: cl.status === "Realizada", amount: cl.amount },
+    });
+
+  // §1 — Fãs pro check-in de GIG (busca rápida na porta). Nome/instagram/telefone.
+  const cfans = await db.select<{ id: number; name: string; instagram: string | null; phone: string | null; city: string | null }[]>(
+    `SELECT id, name, instagram, phone, city FROM fans ORDER BY name LIMIT 2000`,
+    []
+  );
+  for (const f of cfans)
+    rows.push({
+      user_id: uid, kind: "fan", source_id: String(f.id),
+      title: f.name,
+      subtitle: [f.city, f.instagram].filter(Boolean).join(" · ") || null,
+      search_text: lc(f.name, f.instagram, f.city),
+      meta: { instagram: f.instagram, phone: f.phone, city: f.city },
+    });
+
+  // §7.2 — Alunos pro sync opcional com a agenda do celular (nome/telefone).
+  const cstudents = await db.select<{ id: number; name: string; phone: string | null; instagram: string | null; city: string | null }[]>(
+    `SELECT id, name, phone, instagram, city FROM students ORDER BY name LIMIT 2000`,
+    []
+  );
+  for (const st of cstudents)
+    rows.push({
+      user_id: uid, kind: "student", source_id: String(st.id),
+      title: st.name,
+      subtitle: [st.city, st.instagram].filter(Boolean).join(" · ") || null,
+      search_text: lc(st.name, st.instagram, st.city),
+      meta: { phone: st.phone, instagram: st.instagram, city: st.city },
     });
 
   // Festas — pesquisáveis e fonte do "Festas em planejamento" na Home (o mobile
@@ -934,6 +1037,33 @@ export async function deleteCaptures(ids: string[]): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * §1 — marca um fã como presente na GIG no `gigs.fans_present` (JSON de ids), que
+ * é a fonte que pré-preenche o picker de "Fãs presentes" no debrief do desktop.
+ * Idempotente. O sinal de scoring vem à parte do gig_fans (addGigFan).
+ */
+async function addFanPresent(db: Db, gigId: number, fanId: number): Promise<void> {
+  const rows = await db.select<{ fans_present: string | null }[]>(
+    `SELECT fans_present FROM gigs WHERE id = $1`,
+    [gigId]
+  );
+  let ids: number[] = [];
+  try {
+    const raw = rows[0]?.fans_present;
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    if (Array.isArray(parsed)) ids = parsed.filter((x): x is number => typeof x === "number");
+  } catch {
+    ids = [];
+  }
+  if (!ids.includes(fanId)) {
+    ids.push(fanId);
+    await db.execute(
+      `UPDATE gigs SET fans_present = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [JSON.stringify(ids), gigId]
+    );
+  }
+}
+
 async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: IngestOpts): Promise<void> {
   const s = (k: string): string | null => (typeof p[k] === "string" ? (p[k] as string) : null);
   const n = (k: string): number | null => (typeof p[k] === "number" ? (p[k] as number) : null);
@@ -1217,6 +1347,109 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
         `UPDATE gigs SET prep_notes = TRIM(COALESCE(prep_notes || char(10), '') || $1) WHERE id = $2`,
         [stamped, gigId]
       );
+    }
+  } else if (kind === "energy_log") {
+    // §3 EMA — energia avulsa (1–5) marcada no celular no momento. Vai pra
+    // energy_logs e entra no heatmap dia×hora do Modo Foco junto das sessões.
+    const lvl = n("level");
+    if (lvl != null) {
+      await db.execute(
+        `INSERT INTO energy_logs (logged_at, energy_level) VALUES ($1, $2)`,
+        [s("at") ?? new Date().toISOString(), Math.max(1, Math.min(5, Math.round(lvl)))]
+      );
+    }
+  } else if (kind === "contact_update") {
+    // §7.1 — completa o telefone (que faltava pro WhatsApp) de um contato JÁ
+    // existente. Só preenche se estiver vazio: nunca sobrescreve o que o PC tem
+    // (fonte única preservada). source_id é o id do contato (String no espelho).
+    const id = Number(s("source_id"));
+    const phone = s("phone")?.trim();
+    if (Number.isFinite(id) && phone) {
+      await db.execute(
+        `UPDATE contacts SET phone = $1 WHERE id = $2 AND (phone IS NULL OR TRIM(phone) = '')`,
+        [phone, id]
+      );
+    }
+  } else if (kind === "outreach_done") {
+    // §4 — "feito" na cadência da semana: registra a interação no CRM (que já
+    // atualiza last_interaction_at). Se houver KR com métrica "expansion_touches",
+    // ele reconta sozinho no próximo carregamento dos OKRs.
+    const pid = n("person_id");
+    if (pid != null) {
+      const { addInteraction } = await import("@/modules/crm/api");
+      await addInteraction(pid, todayISO(), s("note")?.trim() || "Contato da semana (celular)");
+    }
+  } else if (kind === "payment_received") {
+    // §2 — cachê confirmado como recebido no celular. updateGig já cascateia
+    // pro financeiro (move o lançamento p/ Recebido) e cancela a cobrança.
+    const gigId = n("gig_id");
+    if (gigId != null) {
+      const { updateGig } = await import("@/modules/gigs/api");
+      await updateGig({ id: gigId, payment_status: "Pago integralmente", cache_paid_pct: 100 });
+    }
+  } else if (kind === "class_log") {
+    // §2 — aula dada (e paga?) marcada no celular. updateClass já registra no
+    // financeiro; paid=0 (dada, não paga) deixa o lançamento como Previsto.
+    const classId = n("class_id");
+    const dada = p["dada"] === true;
+    const paga = p["paga"] === true;
+    if (classId != null && dada) {
+      const { updateClass } = await import("@/modules/classes/api");
+      await updateClass({ id: classId, status: "Realizada", paid: paga ? 1 : 0 });
+    }
+  } else if (kind === "gig_checkin") {
+    // §1 — chegada marcada na porta. vip: marca arrived_at do membro da lista (e,
+    // se for fã, conta presença no scoring); fan: marca o fã presente na GIG.
+    const gigId = n("gig_id");
+    const refId = n("ref_id");
+    const ck = s("kind");
+    if (gigId != null && refId != null) {
+      const { addGigFan, recomputeFanLevel } = await import("@/modules/fans/api");
+      if (ck === "vip") {
+        const mem = await db.select<{ fan_id: number | null }[]>(
+          `SELECT fan_id FROM fan_list_members WHERE id = $1`,
+          [refId]
+        );
+        await db.execute(
+          `UPDATE fan_list_members SET arrived_at = $1 WHERE id = $2 AND arrived_at IS NULL`,
+          [new Date().toISOString(), refId]
+        );
+        const fid = mem[0]?.fan_id ?? null;
+        if (fid != null) {
+          await addGigFan(gigId, fid);
+          await addFanPresent(db, gigId, fid);
+          await recomputeFanLevel(fid).catch(() => {});
+        }
+      } else {
+        await addGigFan(gigId, refId); // ref_id = fan_id
+        await addFanPresent(db, gigId, refId);
+        await recomputeFanLevel(refId).catch(() => {});
+      }
+    }
+  } else if (kind === "fan_quick_add") {
+    // §1 — fã novo cadastrado na porta, já nasce presente na GIG de hoje.
+    const gigId = n("gig_id");
+    const nome = s("nome")?.trim();
+    if (gigId != null && nome) {
+      const { createFan, addGigFan, recomputeFanLevel } = await import("@/modules/fans/api");
+      const fid = await createFan({
+        name: nome,
+        level: "Possível fã",
+        is_ambassador: 0,
+        instagram: s("instagram"),
+        email: null,
+        phone: null,
+        city: null,
+        tags: [],
+        notes: null,
+        photo_path: null,
+        contact_id: null,
+        indicated_by_fan_id: null,
+        origem: "GIG (check-in)",
+      });
+      await addGigFan(gigId, fid);
+      await addFanPresent(db, gigId, fid);
+      await recomputeFanLevel(fid).catch(() => {});
     }
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);

@@ -587,7 +587,7 @@ function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-1.5 text-base">
           Heatmap de energia
-          <InfoHint>Dia da semana × horário: intensidade = energia média.</InfoHint>
+          <InfoHint>Dia da semana × horário: intensidade = energia média (sessões de trabalho + registros avulsos do celular).</InfoHint>
         </CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto">

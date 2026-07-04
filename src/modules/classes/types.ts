@@ -91,6 +91,9 @@ export type ClassSession = {
   status: ClassStatus;
   feedback: string | null;
   amount: number | null;
+  // Recebido? null = legado (tratado como recebido ao virar Realizada); 1 = pago;
+  // 0 = dada mas não paga (o celular pode marcar "dada" sem "paga"). §2.
+  paid?: number | null;
   notes: string | null;
   task_id?: number | null;
   gcal_event_id?: string | null;

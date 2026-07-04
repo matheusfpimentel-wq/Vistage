@@ -3,11 +3,10 @@ import { sendCapture } from "../capture";
 import { pendingCount } from "../queue";
 import { addLocalGig } from "../localGigs";
 
-type Kind = "highlight" | "task" | "note" | "contact" | "gig";
+type Kind = "note" | "task" | "contact" | "gig";
 const KINDS: { id: Kind; label: string }[] = [
-  { id: "highlight", label: "Destaque" },
-  { id: "task", label: "Tarefa" },
   { id: "note", label: "Nota" },
+  { id: "task", label: "Tarefa" },
   { id: "contact", label: "Pessoa" },
   { id: "gig", label: "GIG" },
 ];
@@ -30,7 +29,7 @@ const EMPTY: Form = {
 };
 
 export function Capturar() {
-  const [kind, setKind] = useState<Kind>("highlight");
+  const [kind, setKind] = useState<Kind>("note");
   const [f, setF] = useState<Form>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -38,18 +37,17 @@ export function Capturar() {
   const set = (patch: Partial<Form>) => setF((cur) => ({ ...cur, ...patch }));
 
   function canSend(): boolean {
-    if (kind === "note") return f.body.trim().length > 0;
+    // Nota funde o antigo "Destaque": título OU corpo, pelo menos um.
+    if (kind === "note") return f.title.trim().length > 0 || f.body.trim().length > 0;
     if (kind === "contact") return f.name.trim().length > 0;
     if (kind === "gig") return f.venue_name.trim().length > 0;
-    return f.title.trim().length > 0; // highlight, task
+    return f.title.trim().length > 0; // task
   }
 
   function buildPayload(): Record<string, unknown> {
     switch (kind) {
       case "task":
         return { title: f.title, description: f.body || null };
-      case "note":
-        return { body: f.body };
       case "contact":
         return {
           name: f.name,
@@ -67,8 +65,9 @@ export function Capturar() {
           cache_amount: f.cache ? Number(f.cache) : null,
           notes: f.body || null,
         };
-      default: // highlight
-        return { title: f.title, body: f.body || null };
+      default: // note — funde o antigo "Destaque": título e/ou corpo.
+        // f.title || null: título vazio vira null p/ o desktop cair no fallback "Nota".
+        return { title: f.title || null, body: f.body || null };
     }
   }
 
@@ -118,13 +117,13 @@ export function Capturar() {
       </div>
 
       <section className="card form">
-        {(kind === "highlight" || kind === "task") && (
+        {(kind === "note" || kind === "task") && (
           <label>
             Título
             <input
               value={f.title}
               onChange={(e) => set({ title: e.target.value })}
-              placeholder={kind === "task" ? "O que fazer" : "Título"}
+              placeholder={kind === "task" ? "O que fazer" : "Título (opcional)"}
             />
           </label>
         )}
@@ -176,12 +175,12 @@ export function Capturar() {
         )}
 
         <label>
-          {kind === "note" ? "Nota" : kind === "contact" || kind === "gig" ? "Observações" : "Detalhe"}
+          {kind === "contact" || kind === "gig" ? "Observações" : "Detalhe"}
           <textarea
             value={f.body}
             onChange={(e) => set({ body: e.target.value })}
             rows={kind === "note" ? 5 : 3}
-            placeholder={kind === "note" ? "" : "Opcional"}
+            placeholder="Opcional"
           />
         </label>
 

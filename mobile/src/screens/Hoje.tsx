@@ -6,6 +6,11 @@ import { loadProvocations } from "../insights";
 import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
+import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
+import { EnergyChip } from "../components/EnergyChip";
+import { sendCapture } from "../capture";
+import { haptic } from "../native";
+import { Checkin, type Vip } from "./Checkin";
 
 // ── Tipos base ──────────────────────────────────────────────────────────────
 // Compromisso (agenda_mirror): GIG/aula/reunião futura + tarefa (inclui atrasada).
@@ -49,12 +54,17 @@ type GigMeta = {
   day_contact_name?: string | null;
   day_contact_phone?: string | null;
   promoter_name?: string | null;
+  // §2 — pagamento do cachê (card "Cachê · Recebido?").
+  payment_status?: string | null;
+  cache_pending?: boolean;
+  // §1 — lista VIP pro check-in ao vivo.
+  vips?: Vip[];
   // Checklist de Preparação (aba Preparação): ids marcados. Alimenta o selo "prep pendente".
   prep_done?: string[];
 };
 type TrackMeta = { stage?: string | null; project?: string | null; genre?: string | null; bpm?: number | null; key?: string | null; concept?: string | null; deadline?: string | null };
 type PartyMeta = { status?: string | null; date?: string | null; venue_name?: string | null };
-type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null };
+type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null; start_time?: string | null; given?: boolean; amount?: number | null };
 
 type GigRow = { source_id: string; title: string; meta: GigMeta; search_text?: string };
 type TrackRow = { source_id: string; title: string; meta: TrackMeta };
@@ -71,25 +81,6 @@ const TRACK_DONE_STAGE = "Pós-lançamento";
 // Festa "em aberto" = tudo menos Realizada/Cancelada.
 const PARTY_DONE = new Set(["Realizada", "Cancelada"]);
 
-function localToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function localDateOf(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function timeOf(iso: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (d.getHours() === 0 && d.getMinutes() === 0) return null; // "dia inteiro"
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-}
-function fmtDate(d?: string): string {
-  if (!d) return "";
-  return new Date(`${d}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
-}
 /** "hoje 22:00" / "12 jul 23:00" / "amanhã" — rótulo curto de quando. */
 function whenLabel(iso: string | null, today: string): string {
   if (!iso) return "";
@@ -229,6 +220,7 @@ export function Hoje({
   const [trackOpen, setTrackOpen] = useState<TrackRow | null>(null);
   const [partyOpen, setPartyOpen] = useState<PartyRow | null>(null);
   const [classOpen, setClassOpen] = useState<ClassRow | null>(null);
+  const [checkinOpen, setCheckinOpen] = useState(false);
   const [catGigs, setCatGigs] = useState<GigRow[]>([]);
   const [catTracks, setCatTracks] = useState<TrackRow[]>([]);
   const [catParties, setCatParties] = useState<PartyRow[]>([]);
@@ -419,7 +411,12 @@ export function Hoje({
   coming.sort((x, y) => (x.date !== y.date ? (x.date < y.date ? -1 : 1) : COMING_PRIORITY[x.kind] - COMING_PRIORITY[y.kind]));
   const comingTop = coming.slice(0, 8);
 
-  const coldPerson = cooling.find(isPerson) ?? null;
+  // §4 — cadência de expansão (prefixo expansao:) tem card próprio; o resto é
+  // o "Esfriando" de sempre.
+  const weekContacts = cooling.filter((c) => c.source_id.startsWith("expansao:"));
+  const coldList = cooling.filter((c) => !c.source_id.startsWith("expansao:"));
+
+  const coldPerson = coldList.find(isPerson) ?? null;
   const overdue = commitments.filter((i) => i.source === "task" && taskUrgency(i.start_at, today) === "danger");
 
   // ── Insight: pilha de mensagens acionáveis (atrasada → fã esfriando →
@@ -473,6 +470,9 @@ export function Hoje({
         <span className="sync-text">{offline ? "Offline · último sync" : "Sincronizado"}</span>
       </div>
 
+      {/* §3 EMA — pergunta de energia (1 toque, some sozinha fora da janela). */}
+      <EnergyChip />
+
       {/* (1) Streak (badge redondo, abre o Foco) + insight ao lado (dispensável). */}
       <div className="home-top">
         <button className="streak-badge" onClick={goFocus} aria-label={`${streak} ${streak === 1 ? "dia" : "dias"} de foco · abrir Modo Foco`}>
@@ -492,7 +492,7 @@ export function Hoje({
       </div>
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
-      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} />}
+      {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} />}
 
       {/* (2) O que vem — lista única animada (cada item surge da esquerda). */}
       <section className="home-section">
@@ -576,15 +576,22 @@ export function Hoje({
         )}
       </section>
 
+      {/* §2 — Dinheiro no momento: aula de hoje dada/paga + cachê a receber */}
+      <AulaHojeCard classes={catClasses} today={today} />
+      <CacheReceberCard gigs={catGigs} today={today} />
+
+      {/* §4 — Cadência de expansão: contatos mornos da semana (WhatsApp + feito) */}
+      <WeekContactsCard items={weekContacts} />
+
       {/* (4) Relacionamento — esfriando (todas as criações, não só contatos) */}
       <section className="home-section">
         <h2 className="section-head">Esfriando</h2>
         <section className="card">
-          {cooling.length === 0 ? (
+          {coldList.length === 0 ? (
             <p className="muted small" style={{ margin: 0 }}>Tudo aquecido.</p>
           ) : (
             <ul className="mini-list cold-list">
-              {cooling.map((c) => (
+              {coldList.map((c) => (
                 <li key={c.id} className="cold-row">
                   <button type="button" className="cold-tap" onClick={() => setColdOpen(c)}>
                     <span className="cold-ic"><ColdIcon kind={coldKind(c)} /></span>
@@ -612,7 +619,193 @@ export function Hoje({
       {trackOpen && <TrackSheet track={trackOpen} onClose={() => setTrackOpen(null)} />}
       {partyOpen && <PartySheet party={partyOpen} today={today} onClose={() => setPartyOpen(null)} />}
       {classOpen && <ClassSheet cls={classOpen} today={today} onClose={() => setClassOpen(null)} />}
+      {checkinOpen && todayGig && (
+        <Checkin
+          gigId={Number(todayGig.source_id)}
+          gigTitle={todayGig.title}
+          vips={todayGig.meta.vips ?? []}
+          onClose={() => setCheckinOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// §4 — progresso semanal da cadência (persistente por semana, âncora segunda).
+const OUTREACH_GOAL = 5;
+function outreachWeekKey(): string {
+  const d = new Date();
+  const mondayOffset = (d.getDay() + 6) % 7; // 0 = segunda
+  d.setDate(d.getDate() - mondayOffset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function readOutreachDone(): number {
+  try {
+    const raw = localStorage.getItem("vistage.outreach.week");
+    if (raw) {
+      const s = JSON.parse(raw) as { week: string; done: number };
+      if (s && s.week === outreachWeekKey() && typeof s.done === "number") return s.done;
+    }
+  } catch {
+    /* semana nova recomeça o contador */
+  }
+  return 0;
+}
+function bumpOutreachDone(): number {
+  const next = readOutreachDone() + 1;
+  try {
+    localStorage.setItem("vistage.outreach.week", JSON.stringify({ week: outreachWeekKey(), done: next }));
+  } catch {
+    /* storage indisponível */
+  }
+  return next;
+}
+
+/** §4 — Contatos da semana: até 5 pessoas de "expansão" pra aquecer, com
+ * WhatsApp em 1 toque e "feito" (registra a interação no PC e conta no OKR). */
+function WeekContactsCard({ items }: { items: Cold[] }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const [count, setCount] = useState(() => readOutreachDone());
+
+  const remaining = items.filter((c) => !done.has(c.source_id));
+  if (remaining.length === 0 && count === 0) return null;
+
+  async function markDone(c: Cold) {
+    const pid = Number(c.source_id.split(":")[1] ?? "");
+    setDone((s) => new Set(s).add(c.source_id));
+    setCount(bumpOutreachDone());
+    void haptic("light");
+    try {
+      if (Number.isFinite(pid)) await sendCapture("outreach_done", { person_id: pid });
+    } catch {
+      /* a fila reenvia sozinha */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <div className="week-head">
+        <h2 className="section-head" style={{ margin: 0 }}>Contatos da semana</h2>
+        <span className="week-progress">{Math.min(count, OUTREACH_GOAL)}/{OUTREACH_GOAL}</span>
+      </div>
+      <section className="card">
+        {remaining.length === 0 ? (
+          <p className="muted small" style={{ margin: 0 }}>Meta da semana batida 👊</p>
+        ) : (
+          <ul className="mini-list">
+            {remaining.map((c) => {
+              const wapp = waLink(c.handle);
+              return (
+                <li key={c.source_id} className="week-row">
+                  <span className="week-body">
+                    <span className="cold-name">{c.name}</span>
+                    {c.reason && <span className="cold-sub">{c.reason}</span>}
+                  </span>
+                  {wapp && (
+                    <a className="week-wa" href={wapp} target="_blank" rel="noreferrer" aria-label={`WhatsApp de ${c.name}`}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+                    </a>
+                  )}
+                  <button className="week-done" onClick={() => void markDone(c)}>feito</button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </section>
+  );
+}
+
+/** §2 — Cachê a receber: GIGs passadas (até 60 dias) com cachê pendente.
+ * "Recebido" move o lançamento pra recebido no PC (payment_received). */
+function CacheReceberCard({ gigs, today }: { gigs: GigRow[]; today: string }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const items = gigs
+    .filter((g) => {
+      const d = g.meta?.date;
+      if (typeof d !== "string" || d >= today || daysUntil(d, today) < -60) return false;
+      if (!(g.meta.cache_pending && (g.meta.cache_amount ?? 0) > 0)) return false;
+      return !done.has(g.source_id);
+    })
+    .slice(0, 6);
+  if (items.length === 0) return null;
+
+  async function markReceived(g: GigRow) {
+    const gid = Number(g.source_id);
+    setDone((s) => new Set(s).add(g.source_id));
+    void haptic("medium");
+    try {
+      if (Number.isFinite(gid)) await sendCapture("payment_received", { gig_id: gid });
+    } catch {
+      /* a fila reenvia */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <h2 className="section-head">Cachê a receber</h2>
+      <section className="card">
+        <ul className="mini-list">
+          {items.map((g) => (
+            <li key={g.source_id} className="cash-row">
+              <span className="cash-body">
+                <span className="cold-name">{g.title}</span>
+                <span className="cold-sub">{[BRL.format(g.meta.cache_amount ?? 0), fmtDate(g.meta.date)].filter(Boolean).join(" · ")}</span>
+              </span>
+              <button className="cash-ok" onClick={() => void markReceived(g)}>Recebido</button>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </section>
+  );
+}
+
+/** §2 — Aula de hoje: aulas de hoje já passadas da hora e ainda não dadas.
+ * "Dada" / "Dada + paga" registram no PC (class_log). */
+function AulaHojeCard({ classes, today }: { classes: ClassRow[]; today: string }) {
+  const [done, setDone] = useState<Set<string>>(new Set());
+  const now = new Date();
+  const nowHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const items = classes.filter((c) => {
+    if (c.meta?.date !== today || c.meta.status !== "Agendada" || done.has(c.source_id)) return false;
+    const st = c.meta.start_time;
+    return !st || st <= nowHM; // sem hora, ou já passou da hora
+  });
+  if (items.length === 0) return null;
+
+  async function log(c: ClassRow, paga: boolean) {
+    const cid = Number(c.source_id);
+    setDone((s) => new Set(s).add(c.source_id));
+    void haptic("medium");
+    try {
+      if (Number.isFinite(cid)) await sendCapture("class_log", { class_id: cid, dada: true, paga });
+    } catch {
+      /* a fila reenvia */
+    }
+  }
+
+  return (
+    <section className="home-section">
+      <h2 className="section-head">Aula de hoje</h2>
+      <section className="card">
+        <ul className="mini-list">
+          {items.map((c) => (
+            <li key={c.source_id} className="aula-row">
+              <span className="cash-body">
+                <span className="cold-name">{c.title}</span>
+                <span className="cold-sub">{[c.meta.student_name, c.meta.start_time].filter(Boolean).join(" · ")}</span>
+              </span>
+              <div className="aula-actions">
+                <button className="aula-btn" onClick={() => void log(c, false)}>Dada</button>
+                <button className="aula-btn aula-paid" onClick={() => void log(c, true)}>Dada + paga</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </section>
   );
 }
 
@@ -620,7 +813,9 @@ export function Hoje({
 function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void; onFocus: () => void }) {
   const kind = coldKind(item);
   const person = isPerson(item);
-  const digits = person && item.handle ? item.handle.replace(/\D/g, "") : "";
+  const phone = person ? item.handle : null;
+  const wapp = waLink(phone);
+  const tel = telLink(phone);
   return (
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
@@ -636,12 +831,14 @@ function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void
           </span>
           {item.reason && <p className="muted" style={{ margin: 0 }}>{item.reason}</p>}
           {person ? (
-            digits ? (
+            wapp || tel ? (
               <div className="cold-detail-actions">
-                <a className="primary full" style={{ marginTop: 0 }} href={`https://wa.me/${digits}`} target="_blank" rel="noreferrer">
-                  Reaquecer no WhatsApp
-                </a>
-                <a className="ghost full" style={{ marginTop: 0 }} href={`tel:${digits}`}>Ligar</a>
+                {wapp && (
+                  <a className="primary full" style={{ marginTop: 0 }} href={wapp} target="_blank" rel="noreferrer">
+                    Reaquecer no WhatsApp
+                  </a>
+                )}
+                {tel && <a className="ghost full" style={{ marginTop: 0 }} href={tel}>Ligar</a>}
               </div>
             ) : (
               <p className="muted small" style={{ margin: 0 }}>Abra no PC pra retomar de onde parou.</p>
@@ -776,7 +973,7 @@ function ClassSheet({ cls, today, onClose }: { cls: ClassRow; today: string; onC
 }
 
 /** §4: card-herói do dia de GIG — lidera com a noite (set, cachê, contato, mapa). */
-function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) {
+function GigDayHero({ gig, onFocus, onCheckin }: { gig: CatalogGig; onFocus: () => void; onCheckin: () => void }) {
   const m = gig.meta;
   const periods =
     m.set_periods && m.set_periods.length > 0
@@ -840,9 +1037,10 @@ function GigDayHero({ gig, onFocus }: { gig: CatalogGig; onFocus: () => void }) 
         </div>
       )}
 
-      <button className="gig-day-focus" onClick={onFocus}>
-        ▶ Ativar Modo Foco
-      </button>
+      <div className="gig-day-cta">
+        <button className="gig-day-checkin" onClick={onCheckin}>Check-in</button>
+        <button className="gig-day-focus" onClick={onFocus}>▶ Modo Foco</button>
+      </div>
     </section>
   );
 }

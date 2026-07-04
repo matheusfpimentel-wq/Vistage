@@ -40,6 +40,7 @@ const TABLES = [
   "finance_categories",
   "equipment",
   "work_sessions",
+  "energy_logs",
   "highlights",
   // Modo Foco ao vivo — marcadores capturados no celular. gig_id → gigs é anulável
   // (ON DELETE SET NULL) e fica adiado p/ a 2ª passagem (gigs é restaurada depois).

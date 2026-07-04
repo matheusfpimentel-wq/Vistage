@@ -535,15 +535,26 @@ export type HeatmapCell = {
 
 export async function loadHeatmap(): Promise<HeatmapCell[]> {
   const db = getDb();
+  // Agrega DUAS fontes na mesma escala 1–5 e no mesmo bucket dia-da-semana×hora,
+  // em fuso LOCAL ('localtime' — o timestamp é gravado em UTC): as sessões de
+  // trabalho (com energia e foco) e os registros avulsos de energia do celular
+  // (EMA, sem foco). Média e contagem são sobre o conjunto; avg_focus vem só das
+  // sessões — o AVG ignora os NULLs dos logs avulsos.
   return db.select<HeatmapCell[]>(`
     SELECT
-      CAST(strftime('%w', started_at) AS INTEGER) as day,
-      CAST(strftime('%H', started_at) AS INTEGER) as hour,
-      AVG(energy_level) as avg_energy,
-      AVG(focus_level) as avg_focus,
+      CAST(strftime('%w', ts, 'localtime') AS INTEGER) as day,
+      CAST(strftime('%H', ts, 'localtime') AS INTEGER) as hour,
+      AVG(energy) as avg_energy,
+      AVG(focus) as avg_focus,
       COUNT(*) as count
-    FROM work_sessions
-    WHERE ended_at IS NOT NULL AND energy_level IS NOT NULL
+    FROM (
+      SELECT started_at AS ts, energy_level AS energy, focus_level AS focus
+      FROM work_sessions
+      WHERE ended_at IS NOT NULL AND energy_level IS NOT NULL
+      UNION ALL
+      SELECT logged_at AS ts, energy_level AS energy, NULL AS focus
+      FROM energy_logs
+    )
     GROUP BY day, hour
   `);
 }

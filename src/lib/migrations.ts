@@ -2473,6 +2473,35 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE fans ADD COLUMN indicated_by_fan_id INTEGER;
     `,
   },
+  {
+    version: 176,
+    description:
+      "Energia (EMA) — energy_logs: registros avulsos de energia (1–5) capturados no celular no momento. Junto das sessões de trabalho, alimentam o heatmap dia×hora do Modo Foco. Tabela nova.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS energy_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        logged_at TEXT NOT NULL,
+        energy_level INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
+  {
+    version: 177,
+    description:
+      "Aulas — classes.paid: recebido? (null = legado/como hoje; 1 = pago; 0 = dada mas não paga). Permite o celular marcar 'aula dada' separado de 'paga' (§2). Coluna aditiva idempotente; null preserva o comportamento atual (Realizada = Recebido).",
+    sql: `
+      ALTER TABLE classes ADD COLUMN paid INTEGER;
+    `,
+  },
+  {
+    version: 178,
+    description:
+      "Check-in de GIG — fan_list_members.arrived_at: quando o convidado VIP chegou (marcado no celular, na porta). null = ainda não chegou. Coluna aditiva idempotente (§1).",
+    sql: `
+      ALTER TABLE fan_list_members ADD COLUMN arrived_at TEXT;
+    `,
+  },
 ];
 
 
