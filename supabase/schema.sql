@@ -330,3 +330,39 @@ alter table public.provocations_mirror enable row level security;
 drop policy if exists "own rows" on public.provocations_mirror;
 create policy "own rows" on public.provocations_mirror
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ============================================================================
+-- §5 — Relay de MÍDIA da GIG (Storage). Ponte EFÊMERA: o celular sobe a
+-- foto/clipe comprimido pra cá; o PC baixa na revisão de capturas, grava em
+-- uploads/ e APAGA o objeto (o relay não guarda mídia — só transporta). Por isso
+-- o custo de Storage fica baixo: os objetos vivem só até o PC consumir.
+-- Bucket PRIVADO; a RLS deixa cada conta mexer só na PRÓPRIA pasta — o path é
+-- `{auth.uid()}/{ref}.{ext}`, então a 1ª pasta do nome tem que bater com o uid.
+-- Idempotente: bucket via on conflict; policies via drop if exists + create.
+-- ============================================================================
+insert into storage.buckets (id, name, public)
+  values ('gig-media', 'gig-media', false)
+  on conflict (id) do nothing;
+
+drop policy if exists "gig-media own read"   on storage.objects;
+drop policy if exists "gig-media own insert" on storage.objects;
+drop policy if exists "gig-media own update" on storage.objects;
+drop policy if exists "gig-media own delete" on storage.objects;
+
+create policy "gig-media own read" on storage.objects
+  for select to authenticated
+  using (bucket_id = 'gig-media' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "gig-media own insert" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'gig-media' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- upsert do upload (retry pós-queda) faz UPDATE do objeto existente.
+create policy "gig-media own update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'gig-media' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'gig-media' and (storage.foldername(name))[1] = auth.uid()::text);
+
+create policy "gig-media own delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'gig-media' and (storage.foldername(name))[1] = auth.uid()::text);
