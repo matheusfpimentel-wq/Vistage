@@ -29,6 +29,7 @@ const KIND_LABEL: Record<string, string> = {
   weak_point: "Ponto fraco (Modo Foco)",
   moment: "Momento marcante (Modo Foco)",
   focus_idea: "Ideia (Modo Foco)",
+  gig_media: "Mídia da GIG",
 };
 
 /** Marcadores ao vivo do Modo Foco: tipo do ponto fraco → rótulo legível. */
@@ -46,6 +47,11 @@ export function summarizeCapture(c: PendingCapture): string {
   if (c.kind === "weak_point") {
     const tipo = t("tipo");
     return tipo ? `${label}: ${WEAK_TIPO_LABEL[tipo] ?? tipo}` : label;
+  }
+  if (c.kind === "gig_media") {
+    const mk = t("media_kind") === "clip" ? "Clipe" : "Foto";
+    const cap = t("caption");
+    return cap ? `${label}: ${mk} · ${cap}` : `${label}: ${mk}`;
   }
   const detail = t("title") ?? t("body") ?? t("text") ?? t("name") ?? t("venue_name") ?? t("activity_type") ?? "";
   return detail ? `${label}: ${detail}` : label;

@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { getDb, type Db } from "./db";
-import { supabase, currentUser } from "./supabase";
+import { supabase, currentUser, relayDownload, relayRemove } from "./supabase";
 import { emitDataChanged } from "./events";
 import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
@@ -1033,6 +1033,21 @@ export async function recoverCaptures(ids: string[]): Promise<number> {
 /** Exclui de vez (hard delete) as capturas descartadas — sem recuperação. */
 export async function deleteCaptures(ids: string[]): Promise<void> {
   if (!ids.length) return;
+  // §5 — antes de apagar de vez, limpa do relay os objetos de mídia órfãos
+  // (gig_media descartada que nunca foi fundida). Best-effort.
+  try {
+    const { data } = await supabase
+      .from("capture_inbox")
+      .select("kind, payload")
+      .in("id", ids);
+    const paths = ((data ?? []) as { kind: string; payload: Record<string, unknown> | null }[])
+      .filter((r) => r.kind === "gig_media")
+      .map((r) => r.payload?.storage_path)
+      .filter((p): p is string => typeof p === "string");
+    await relayRemove(paths);
+  } catch {
+    /* best-effort: objeto órfão não trava a exclusão */
+  }
   const { error } = await supabase.from("capture_inbox").delete().in("id", ids);
   if (error) throw error;
 }
@@ -1451,6 +1466,31 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
       await addFanPresent(db, gigId, fid);
       await recomputeFanLevel(fid).catch(() => {});
     }
+  } else if (kind === "gig_media") {
+    // §5 — foto/clipe capturado na GIG. O binário viajou pelo relay (Storage):
+    // o PC baixa, grava em uploads/ e insere a matéria-prima no Conteúdo; depois
+    // apaga o objeto do relay (transporte efêmero). Se o download falhar
+    // (offline / objeto sumiu), lança — a captura fica pendente e tenta de novo
+    // numa próxima revisão (a ingestão é disparada pela pessoa, sem loop).
+    const path = s("storage_path");
+    if (!path) throw new Error("gig_media sem storage_path");
+    const bytes = await relayDownload(path);
+    if (!bytes) throw new Error("gig_media: falha ao baixar do relay");
+    const mediaKind = s("media_kind") === "clip" ? "clip" : "photo";
+    const ext = s("ext") || (mediaKind === "clip" ? "mp4" : "jpg");
+    const { saveBytesToUploads } = await import("./uploads");
+    const dest = await saveBytesToUploads(bytes, "content/gig-media", ext);
+    const { createRawMedia } = await import("@/modules/content/api");
+    await createRawMedia({
+      gig_id: n("gig_id"),
+      media_kind: mediaKind,
+      file_path: dest,
+      mime: s("mime"),
+      caption: s("caption"),
+      captured_at: s("captured_at"),
+      origin: "mobile",
+    });
+    await relayRemove([path]);
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }

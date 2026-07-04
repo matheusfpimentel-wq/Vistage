@@ -119,6 +119,42 @@ export async function saveAttachment(
   return dest;
 }
 
+/**
+ * Grava BYTES já em memória num arquivo dentro de `uploadsDir/<subdir>` e devolve
+ * o caminho ABSOLUTO. Igual ao saveAttachment, mas a fonte são bytes (ex.: mídia
+ * da GIG baixada do relay do celular), não um arquivo local. Faz o mesmo backup
+ * best-effort no Drive pra mídia pesada.
+ */
+export async function saveBytesToUploads(
+  bytes: Uint8Array,
+  subdir: string,
+  ext: string
+): Promise<string> {
+  const cfg = useConfigStore.getState().config;
+  if (!cfg?.uploadsDir) throw new Error("Pasta de uploads não configurada.");
+  const dir = joinPath(cfg.uploadsDir, subdir);
+  if (!(await exists(dir))) await mkdir(dir, { recursive: true });
+  const safeExt = (ext || "bin").replace(/[^a-z0-9]/gi, "").toLowerCase() || "bin";
+  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const filename = `${stamp}.${safeExt}`;
+  const dest = joinPath(dir, filename);
+  await writeFile(dest, bytes);
+
+  const rel = `${subdir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")}/${filename}`;
+  if (isDriveMedia(rel)) {
+    void (async () => {
+      try {
+        if (!(await isDriveConnected())) return;
+        const mime = MIME_BY_EXT[safeExt] ?? "application/octet-stream";
+        await uploadMediaToDrive(rel, bytesToBase64(bytes), mime);
+      } catch {
+        /* fica só local */
+      }
+    })();
+  }
+  return dest;
+}
+
 /** Uint8Array → base64 (em blocos, pra não estourar a pilha com arquivos grandes). */
 export function bytesToBase64(bytes: Uint8Array): string {
   let bin = "";

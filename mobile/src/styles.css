@@ -817,6 +817,27 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
 }
 .gig-act:active { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+button.gig-act { cursor: pointer; font-family: inherit; }
+
+/* §5 — folha de foto/clipe da GIG (matéria-prima do Conteúdo) */
+.media-sheet { display: flex; flex-direction: column; gap: 0.6rem; }
+.media-hint { display: flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 0.95rem; }
+.media-pick { display: flex; gap: 0.6rem; }
+.media-pick-btn {
+  flex: 1; min-height: 84px; border-radius: 14px; font-size: 1rem; font-weight: 700;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem;
+}
+.media-pick-btn:active { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.media-stage { display: flex; flex-direction: column; gap: 0.6rem; }
+.media-preview {
+  width: 100%; max-height: 46vh; border-radius: 12px; overflow: hidden;
+  background: var(--surface-2); display: flex; align-items: center; justify-content: center;
+}
+.media-preview img, .media-preview video { width: 100%; max-height: 46vh; object-fit: contain; display: block; }
+.media-actions { display: flex; gap: 0.6rem; }
+.media-actions .ghost, .media-actions .primary { flex: 1; }
+.media-err { margin: 0; color: var(--danger, #d64545); font-size: 0.9rem; }
 .gig-day-cta { display: flex; gap: 0.5rem; margin-top: 0.2rem; }
 .gig-day-focus {
   flex: 1; padding: 0.75rem; border-radius: 14px; border: none;

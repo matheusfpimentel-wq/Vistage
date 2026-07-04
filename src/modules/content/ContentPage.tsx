@@ -22,7 +22,8 @@ import { ContentForm } from "./forms/ContentForm";
 import { ContentList } from "./views/ContentList";
 import { ContentKanban } from "./views/ContentKanban";
 import { ContentCalendar } from "./views/ContentCalendar";
-import { deleteContent, listContent, updateContent, type ContentFilters } from "./api";
+import { ContentRawMediaView } from "./views/ContentRawMediaView";
+import { countRawMediaNovo, deleteContent, listContent, updateContent, type ContentFilters } from "./api";
 import { updateTask } from "@/modules/tasks/api";
 import {
   CONTENT_FORMATS,
@@ -46,6 +47,7 @@ type NetworkFilter = ContentNetwork | "Todas";
 export function ContentPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<Content[]>([]);
+  const [rawCount, setRawCount] = useState(0);
   const [filters, setFilters] = useState<{
     status: StatusFilter;
     format: FormatFilter;
@@ -72,12 +74,32 @@ export function ContentPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await listContent(queryFilters);
+      const [data, rc] = await Promise.all([
+        listContent(queryFilters),
+        countRawMediaNovo(),
+      ]);
       setItems(data);
+      setRawCount(rc);
     } catch (e) {
       toast.error(`Erro ao carregar conteúdos: ${String(e)}`);
     }
   }, [queryFilters]);
+
+  const refreshRawCount = useCallback(async () => {
+    try {
+      setRawCount(await countRawMediaNovo());
+    } catch {
+      /* mantém o número anterior */
+    }
+  }, []);
+
+  async function handlePromoted(contentId: number) {
+    setView("list");
+    const list = await listContent(queryFilters);
+    setItems(list);
+    const c = list.find((x) => x.id === contentId);
+    if (c) openEdit(c);
+  }
 
   useEffect(() => {
     void refresh();
@@ -229,7 +251,7 @@ export function ContentPage() {
         }
       />
 
-      {items.length === 0 && (
+      {items.length === 0 && rawCount === 0 && (
         <EmptyState
           icon={Film}
           title="Nenhum conteúdo ainda."
@@ -241,13 +263,16 @@ export function ContentPage() {
         />
       )}
 
-      {items.length > 0 && (
+      {(items.length > 0 || rawCount > 0) && (
         <Tabs value={view} onValueChange={setView}>
           <div className="flex items-center justify-between gap-2">
             <TabsList>
               <TabsTrigger value="list">Lista</TabsTrigger>
               <TabsTrigger value="calendar">Calendário editorial</TabsTrigger>
               <TabsTrigger value="kanban">Kanban</TabsTrigger>
+              <TabsTrigger value="raw">
+                Matéria-prima{rawCount > 0 ? ` (${rawCount})` : ""}
+              </TabsTrigger>
             </TabsList>
             {view === "list" && (
               <ListDensityToggle value={density} onChange={setDensity} />
@@ -255,12 +280,24 @@ export function ContentPage() {
           </div>
 
           <TabsContent value="list">
-            <ContentList
-              items={items}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-              density={density}
-            />
+            {items.length > 0 ? (
+              <ContentList
+                items={items}
+                onEdit={openEdit}
+                onDelete={handleDelete}
+                density={density}
+              />
+            ) : (
+              <EmptyState
+                icon={Film}
+                title="Nenhum conteúdo ainda."
+                action={
+                  <Button size="sm" onClick={openCreate}>
+                    <Plus className="h-4 w-4" /> Novo conteúdo
+                  </Button>
+                }
+              />
+            )}
           </TabsContent>
 
           <TabsContent value="calendar">
@@ -269,6 +306,10 @@ export function ContentPage() {
 
           <TabsContent value="kanban">
             <ContentKanban items={items} onEdit={openEdit} onMove={handleMove} />
+          </TabsContent>
+
+          <TabsContent value="raw">
+            <ContentRawMediaView onPromoted={handlePromoted} onChanged={refreshRawCount} />
           </TabsContent>
         </Tabs>
       )}
