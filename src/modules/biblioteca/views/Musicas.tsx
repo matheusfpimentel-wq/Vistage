@@ -146,6 +146,9 @@ export function Musicas() {
   // Bump quando uma gravação de célula falha: força a célula (input não-controlado)
   // a re-hidratar com o valor real do banco, em vez de manter o texto que não salvou.
   const [cellRev, setCellRev] = useState(0);
+  // Seleção múltipla para exclusão em massa (id da faixa). Vive no componente pai
+  // porque as linhas são virtualizadas (desmontam/remontam ao rolar).
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   // Linhas editadas nesta sessão (e se o COMENTÁRIO foi tocado) → guiam "Gravar tags".
   const edited = useRef<Set<number>>(new Set());
   const commentEdited = useRef<Set<number>>(new Set());
@@ -182,7 +185,7 @@ export function Musicas() {
   );
 
   const gridTemplate = useMemo(
-    () => `48px ${visibleCols.map((c) => c.width).join(" ")} 36px`,
+    () => `32px 48px ${visibleCols.map((c) => c.width).join(" ")} 36px`,
     [visibleCols]
   );
 
@@ -203,6 +206,12 @@ export function Musicas() {
     }
     return rows;
   }, [tracks, filter, prefs.sort]);
+
+  // Todas as faixas visíveis (respeitando o filtro) estão marcadas?
+  const allSelected = useMemo(
+    () => filtered.length > 0 && filtered.every((t) => selected.has(t.id)),
+    [filtered, selected]
+  );
 
   const virtualizer = useVirtualizer({
     count: filtered.length,
@@ -347,6 +356,48 @@ export function Musicas() {
     void refresh();
   }
 
+  function toggleSel(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAllSel() {
+    setSelected(allSelected ? new Set() : new Set(filtered.map((t) => t.id)));
+  }
+  async function doDeleteSelected() {
+    if (selected.size === 0) return;
+    if (
+      !(await confirmDialog({
+        title: "Excluir faixas",
+        description: `Excluir ${selected.size} faixa(s) da biblioteca? As que estiverem no setlist de alguma GIG são arquivadas em vez de excluídas.`,
+        confirmLabel: "Excluir",
+        destructive: true,
+      }))
+    )
+      return;
+    let archived = 0;
+    let deleted = 0;
+    for (const id of [...selected]) {
+      try {
+        const r = await deleteTrack(id);
+        if (r === "archived") archived++;
+        else deleted++;
+      } catch {
+        /* faixa ausente — segue */
+      }
+    }
+    setSelected(new Set());
+    toast.success(
+      archived > 0
+        ? `${deleted} excluída(s), ${archived} arquivada(s) (em setlist de GIG).`
+        : `${deleted} faixa(s) excluída(s).`
+    );
+    void refresh();
+  }
+
   return (
     <div className="space-y-3">
       {/* Toolbar */}
@@ -372,6 +423,11 @@ export function Musicas() {
         <Button size="sm" variant="outline" onClick={() => void doWriteTags()}>
           <Save className="mr-1.5 h-4 w-4" /> Gravar tags nos arquivos
         </Button>
+        {selected.size > 0 && (
+          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => void doDeleteSelected()}>
+            <Trash2 className="mr-1.5 h-4 w-4" /> Excluir ({selected.size})
+          </Button>
+        )}
 
         {/* Seletor de colunas */}
         <div className="relative">
@@ -426,6 +482,9 @@ export function Musicas() {
       <div className="overflow-hidden rounded-md border">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <div className="grid-music grid-music-head" style={{ gridTemplateColumns: gridTemplate }}>
+            <span className="sel">
+              <input type="checkbox" aria-label="Selecionar todas" checked={allSelected} onChange={toggleAllSel} />
+            </span>
             <span>Correl.</span>
             <SortableContext items={visibleCols.map((c) => c.id)} strategy={horizontalListSortingStrategy}>
               {visibleCols.map((c) => (
@@ -460,6 +519,9 @@ export function Musicas() {
                     className={cn("grid-music grid-music-row", t.file_missing && "is-missing")}
                     style={{ gridTemplateColumns: gridTemplate, position: "absolute", top: 0, left: 0, width: "100%", height: ROW_H, transform: `translateY(${vi.start}px)` }}
                   >
+                    <span className="sel">
+                      <input type="checkbox" aria-label="Selecionar faixa" checked={selected.has(t.id)} onChange={() => toggleSel(t.id)} />
+                    </span>
                     {/* Correlação */}
                     <span className="corr">
                       {t.file_path ? (
