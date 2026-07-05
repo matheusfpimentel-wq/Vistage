@@ -3,6 +3,7 @@ import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
 import { localISO, fmtDate } from "../lib/dates";
+import { addAcked, readAcked, removeAcked } from "../lib/ackedLocal";
 
 type Task = {
   source_id: string;
@@ -28,7 +29,9 @@ function bucketOf(due: string | null, today: string, tomorrow: string, weekEnd: 
 export function Tarefas({ onGoFocus }: { onGoFocus: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [done, setDone] = useState<Set<string>>(new Set());
+  // Persistido no aparelho: o espelho ainda lista a tarefa até o PC ingerir a
+  // captura — sem persistir, ela reaparecia como pendente a cada visita.
+  const [done, setDone] = useState<Set<string>>(() => readAcked("vistage.acked.task", 14));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,16 +49,13 @@ export function Tarefas({ onGoFocus }: { onGoFocus: () => void }) {
 
   const complete = useCallback(async (t: Task) => {
     // Marca otimista; a conclusão real acontece quando o PC sincronizar.
-    setDone((s) => new Set(s).add(t.source_id));
+    setDone(addAcked("vistage.acked.task", t.source_id, 14));
     void haptic("medium");
     try {
       await sendCapture("task_done", { task_id: Number(t.source_id) });
     } catch {
-      setDone((s) => {
-        const n = new Set(s);
-        n.delete(t.source_id);
-        return n;
-      });
+      // Nem chegou a enfileirar (storage cheio) — desfaz pra não sumir sem enviar.
+      setDone(removeAcked("vistage.acked.task", t.source_id, 14));
     }
   }, []);
 

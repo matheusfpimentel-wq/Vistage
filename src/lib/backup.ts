@@ -156,6 +156,10 @@ const FILE_PATH_COLS: Partial<Record<TableName, string[]>> = {
   tracks:               ["daw_project_path", "stems_path", "final_files_path"],
   artist_identity:      ["logo_path", "isotype_path", "presskit_path", "brand_manual_path"],
   artist_templates:     ["file_path", "thumbnail_path"],
+  // Matéria-prima da GIG (§5): o binário mora em uploads/content/gig-media —
+  // sem esta linha, a foto/clipe ficava FORA do .vistage (linha restaurada com
+  // caminho quebrado em outra máquina).
+  content_raw_media:    ["file_path"],
 };
 
 /** Colunas cujo valor é um JSON array de caminhos. */

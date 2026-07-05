@@ -160,7 +160,17 @@ export function Musicas() {
     try {
       const rows = await listTracks();
       // Commit não-urgente: em bibliotecas grandes evita travar a UV ao montar.
-      startTransition(() => setTracks(rows));
+      startTransition(() => {
+        setTracks(rows);
+        // Poda a seleção: id excluído/arquivado não pode continuar contando no
+        // "Excluir (N)" nem entrar numa exclusão em massa posterior.
+        setSelected((prev) => {
+          if (prev.size === 0) return prev;
+          const alive = new Set(rows.map((t) => t.id));
+          const next = new Set([...prev].filter((id) => alive.has(id)));
+          return next.size === prev.size ? prev : next;
+        });
+      });
     } finally {
       setLoading(false);
     }

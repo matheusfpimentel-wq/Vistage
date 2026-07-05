@@ -4,6 +4,7 @@ import { clearFocusNotification, showFocusNotification } from "../push";
 import { haptic } from "../native";
 import { enqueueCapture } from "../queue";
 import { waLink } from "../links";
+import { localToday } from "../lib/dates";
 
 // Tipos alinhados ao desktop (ActivityType) pra estatística e painel baterem.
 // Ordem do menu com dois separadores (— ) entre os grupos. Os valores seguem os
@@ -51,8 +52,10 @@ function fmtPlanned(min: number): string {
   return `${min}min`;
 }
 
+// Dia LOCAL (não UTC): depois das 21h em -03 o toISOString() já virou o dia
+// seguinte e a GIG de hoje sumia do picker / virava "No palco" (passada).
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localToday();
 }
 
 // ── Círculo do foco (anel + play/pause NO CENTRO + contador embaixo) ──────────
@@ -216,6 +219,10 @@ type Persisted = {
   plannedStr: string;
   sessionId: string | null;
   markers: Marker[];
+  // GIG/vínculo escolhidos no picker: sem eles, o restore voltava pro padrão
+  // (a GIG mais próxima) e o debrief podia ir pra GIG ERRADA.
+  stageGigId?: number | null;
+  ctxId?: number | null;
 };
 function loadSession(): Persisted | null {
   try {
@@ -1154,6 +1161,10 @@ export function Foco() {
   const stageGigRef = useRef<StageGigOption | null>(null);
   const [gigOptions, setGigOptions] = useState<StageGigOption[]>([]);
   const [gigsReady, setGigsReady] = useState(true);
+  // Ids vindos de uma sessão restaurada (one-shot): os efeitos de carga preferem
+  // eles ao padrão "mais próxima" — senão o restore trocaria a escolha do usuário.
+  const restoreGigIdRef = useRef<number | null>(null);
+  const restoreCtxIdRef = useRef<number | null>(null);
   // Vínculo opcional (Criação musical→faixa, Produção de festa→festa, Comunicação
   // →reunião). Padrão: sem vínculo. O ref alimenta o save() sem closure velha.
   const [ctxOptions, setCtxOptions] = useState<CtxOption[]>([]);
@@ -1207,6 +1218,8 @@ export function Foco() {
       plannedStr,
       sessionId: sessionIdRef.current,
       markers: markersRef.current,
+      stageGigId: stageGigRef.current?.id ?? null,
+      ctxId: ctxSelRef.current?.id ?? null,
     });
   }
 
@@ -1326,6 +1339,10 @@ export function Foco() {
       sessionIdRef.current = s.sessionId ?? crypto.randomUUID();
       markersRef.current = Array.isArray(s.markers) ? s.markers : [];
       setMarkers(markersRef.current);
+      // GIG/vínculo escolhidos antes do restart: os efeitos de carga preferem
+      // esses ids ao padrão (one-shot) — o debrief continua indo pra GIG certa.
+      restoreGigIdRef.current = typeof s.stageGigId === "number" ? s.stageGigId : null;
+      restoreCtxIdRef.current = typeof s.ctxId === "number" ? s.ctxId : null;
       const ms = computeElapsed();
       setElapsedMs(ms);
       if (plannedMsRef.current && ms >= plannedMsRef.current) {
@@ -1376,7 +1393,9 @@ export function Foco() {
         if (!active) return;
         const opts = eligibleStageGigs((data ?? []) as { source_id: string; title: string; meta: GigMeta }[], activity);
         setGigOptions(opts);
-        const def = opts[0] ?? null;
+        const restored = restoreGigIdRef.current != null ? opts.find((o) => o.id === restoreGigIdRef.current) ?? null : null;
+        restoreGigIdRef.current = null;
+        const def = restored ?? opts[0] ?? null;
         setStageGig(def);
         stageGigRef.current = def;
         setGigsReady(true);
@@ -1419,7 +1438,15 @@ export function Foco() {
             return da < db2 ? 1 : da > db2 ? -1 : 0; // mais recentes primeiro
           });
         }
-        setCtxOptions(filtered.slice(0, 40).map((r) => ({ id: Number(r.source_id), title: r.title, sub: ctxSub(kind, r.meta) })));
+        const opts = filtered.slice(0, 40).map((r) => ({ id: Number(r.source_id), title: r.title, sub: ctxSub(kind, r.meta) }));
+        setCtxOptions(opts);
+        // Sessão restaurada: devolve o vínculo que o usuário tinha escolhido.
+        const restored = restoreCtxIdRef.current != null ? opts.find((o) => o.id === restoreCtxIdRef.current) ?? null : null;
+        restoreCtxIdRef.current = null;
+        if (restored) {
+          setCtxSel(restored);
+          ctxSelRef.current = restored;
+        }
         setCtxReady(true);
       });
     return () => {
@@ -1427,10 +1454,12 @@ export function Foco() {
     };
   }, [activity]);
 
-  // Troca manual da GIG no picker — atualiza estado e ref (debrief/marcadores).
+  // Troca manual da GIG no picker — atualiza estado e ref (debrief/marcadores) e
+  // persiste: se o app cair agora, o restore mantém ESTA GIG, não o padrão.
   function selectStageGig(o: StageGigOption) {
     setStageGig(o);
     stageGigRef.current = o;
+    persist();
   }
 
   // Semeia o checklist de Preparação com o que já está marcado na GIG (meta).
@@ -1602,7 +1631,7 @@ export function Foco() {
               noneLabel={activity === "Comunicação" ? "Sem reunião (vira ideia)" : "Sem vínculo"}
               options={ctxOptions}
               selectedId={ctxSel?.id ?? null}
-              onSelect={(o) => { setCtxSel(o); ctxSelRef.current = o; }}
+              onSelect={(o) => { setCtxSel(o); ctxSelRef.current = o; persist(); }}
               loading={!ctxReady}
             />
           )}

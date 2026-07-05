@@ -101,12 +101,15 @@ export function App() {
     return onResume(lock);
   }, []);
 
-  // §7.2 — mantém a agenda nativa em dia com o Vistage (nativo + ligado), ao logar.
+  // §7.2 — mantém a agenda nativa em dia com o Vistage (nativo + ligado), ao
+  // logar. Dependência é o ID do usuário (não o objeto de sessão): o refresh de
+  // token troca a referência a cada ~1h e re-varreria a agenda inteira à toa.
+  const userId = session?.user?.id ?? null;
   useEffect(() => {
-    if (!session) return;
+    if (!userId) return;
     if (!agendaSyncOfferable() || !isAgendaSyncEnabled()) return;
     void syncAgenda();
-  }, [session]);
+  }, [userId]);
 
   if (!ready) {
     return (
@@ -132,6 +135,12 @@ export function App() {
           }}
         >
           Desbloquear
+        </button>
+        <button
+          className="ghost"
+          onClick={() => { void supabase.auth.signOut(); setLocked(false); }}
+        >
+          Sair da conta
         </button>
       </div>
     );

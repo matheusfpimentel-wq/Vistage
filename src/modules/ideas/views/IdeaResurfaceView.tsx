@@ -3,6 +3,7 @@ import { Archive, Coffee, Combine, Flame, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { confirmDialog } from "@/components/ui/confirm";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { archiveIdea, createTaskFromIdea, touchIdea } from "../api";
@@ -97,10 +98,13 @@ export function IdeaResurfaceView({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        Ideias que andavam quentes e esfriaram. Reaqueça, vire tarefa ou arquive de vez; um olhar
-        fresco depois de um tempo costuma render mais que uma ideia nova.
-      </p>
+      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+        Ideias que andavam quentes e esfriaram
+        <InfoHint>
+          Reaqueça, vire tarefa ou arquive de vez — um olhar fresco depois de um tempo costuma
+          render mais que uma ideia nova.
+        </InfoHint>
+      </div>
       {items.map((i) => {
         const hb = heatBucket(i.currentHeat ?? i.heat);
         return (

@@ -13,12 +13,18 @@ export function digits(phone: unknown): string | null {
 /**
  * Número no formato E.164 (só dígitos, com código de país) pro wa.me. O app é
  * BR: um número nacional (10–11 dígitos: DDD + linha) ganha o "55" na frente; se
- * já vier com o país (12–13 dígitos começando com 55), fica como está. Fora
- * desses casos, melhor esforço com os dígitos como vieram.
+ * já vier com o país (12–13 dígitos começando com 55), fica como está. Número
+ * com "+" é internacional explícito (vale o que veio — nunca ganha 55). O zero
+ * de tronco ("0" + DDD) é descartado antes de completar. Fora desses casos,
+ * melhor esforço com os dígitos como vieram.
  */
 export function e164(phone: unknown, country = "55"): string | null {
-  const d = digits(phone);
+  let d = digits(phone);
   if (!d) return null;
+  // "+" = país explícito: prefixar 55 num +1 415… mandaria pro número errado.
+  if (typeof phone === "string" && phone.trim().startsWith("+")) return d;
+  // Zero de tronco nacional (0 + DDD + linha): cai fora antes de completar.
+  if (d.startsWith("0") && (d.length === 11 || d.length === 12)) d = d.slice(1);
   if (d.startsWith(country) && (d.length === 12 || d.length === 13)) return d;
   if (d.length === 10 || d.length === 11) return country + d;
   return d;

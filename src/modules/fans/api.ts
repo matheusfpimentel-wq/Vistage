@@ -1322,7 +1322,10 @@ export async function listScheduledFanActions(): Promise<ScheduledFanAction[]> {
 }
 
 function daysSinceISO(iso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+  // String só-data ancora em meia-noite LOCAL (não UTC): em -03, "2026-07-01"
+  // como UTC vira 21h do dia anterior e o "há Nd" lia um dia a mais.
+  const d = new Date(iso.includes("T") ? iso : iso + "T00:00:00");
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
 }
 function relDays(n: number): string {
   return n <= 0 ? "hoje" : n === 1 ? "ontem" : `há ${n}d`;

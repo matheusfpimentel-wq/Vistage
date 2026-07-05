@@ -44,8 +44,17 @@ export async function biometricAvailable(): Promise<boolean> {
 /** Pede a biometria. No PWA devolve true (não tranca); no nativo, true só se passar. */
 export async function biometricVerify(reason = "Desbloquear o Vistage"): Promise<boolean> {
   if (!isNative()) return true;
+  // Plugin indisponível (build sem ele / removido em update) é estado QUEBRADO,
+  // não biometria reprovada: destranca (fail-open) em vez de prender o usuário
+  // numa tela sem saída — o cadeado é conveniência local; o dado real continua
+  // atrás do login.
+  let BiometricAuth;
   try {
-    const { BiometricAuth } = await import("@aparajita/capacitor-biometric-auth");
+    ({ BiometricAuth } = await import("@aparajita/capacitor-biometric-auth"));
+  } catch {
+    return true;
+  }
+  try {
     await BiometricAuth.authenticate({ reason, cancelTitle: "Cancelar", allowDeviceCredential: true });
     return true;
   } catch {

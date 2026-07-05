@@ -9,6 +9,7 @@ import { telLink, waLink, mapsLink } from "../links";
 import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
 import { EnergyChip } from "../components/EnergyChip";
 import { sendCapture } from "../capture";
+import { addAcked, readAcked } from "../lib/ackedLocal";
 import { haptic } from "../native";
 import { Checkin, type Vip } from "./Checkin";
 import { GigMediaSheet } from "./GigMediaSheet";
@@ -687,7 +688,10 @@ function bumpOutreachDone(): number {
 /** §4 — Contatos da semana: até 5 pessoas de "expansão" pra aquecer, com
  * WhatsApp em 1 toque e "feito" (registra a interação no PC e conta no OKR). */
 function WeekContactsCard({ items }: { items: Cold[] }) {
-  const [done, setDone] = useState<Set<string>>(new Set());
+  // "feito" persistido no aparelho: o espelho só some com a pessoa quando o PC
+  // ingere a captura — sem persistir, o card reaparecia e um segundo toque
+  // duplicava a interação no CRM (e o contador do OKR).
+  const [done, setDone] = useState<Set<string>>(() => readAcked("vistage.acked.outreach", 14));
   const [count, setCount] = useState(() => readOutreachDone());
 
   const remaining = items.filter((c) => !done.has(c.source_id));
@@ -695,11 +699,12 @@ function WeekContactsCard({ items }: { items: Cold[] }) {
 
   async function markDone(c: Cold) {
     const pid = Number(c.source_id.split(":")[1] ?? "");
-    setDone((s) => new Set(s).add(c.source_id));
+    if (!Number.isFinite(pid)) return; // sem id não há captura — não conta no OKR
+    setDone(addAcked("vistage.acked.outreach", c.source_id, 14));
     setCount(bumpOutreachDone());
     void haptic("light");
     try {
-      if (Number.isFinite(pid)) await sendCapture("outreach_done", { person_id: pid });
+      await sendCapture("outreach_done", { person_id: pid });
     } catch {
       /* a fila reenvia sozinha */
     }
@@ -743,7 +748,9 @@ function WeekContactsCard({ items }: { items: Cold[] }) {
 /** §2 — Cachê a receber: GIGs passadas (até 60 dias) com cachê pendente.
  * "Recebido" move o lançamento pra recebido no PC (payment_received). */
 function CacheReceberCard({ gigs, today }: { gigs: GigRow[]; today: string }) {
-  const [done, setDone] = useState<Set<string>>(new Set());
+  // Persistido: até o PC ingerir o payment_received, o espelho ainda lista a
+  // GIG como pendente — sem persistir, "Recebido" reaparecia a cada visita.
+  const [done, setDone] = useState<Set<string>>(() => readAcked("vistage.acked.cache", 90));
   const items = gigs
     .filter((g) => {
       const d = g.meta?.date;
@@ -756,7 +763,7 @@ function CacheReceberCard({ gigs, today }: { gigs: GigRow[]; today: string }) {
 
   async function markReceived(g: GigRow) {
     const gid = Number(g.source_id);
-    setDone((s) => new Set(s).add(g.source_id));
+    setDone(addAcked("vistage.acked.cache", g.source_id, 90));
     void haptic("medium");
     try {
       if (Number.isFinite(gid)) await sendCapture("payment_received", { gig_id: gid });
@@ -788,7 +795,7 @@ function CacheReceberCard({ gigs, today }: { gigs: GigRow[]; today: string }) {
 /** §2 — Aula de hoje: aulas de hoje já passadas da hora e ainda não dadas.
  * "Dada" / "Dada + paga" registram no PC (class_log). */
 function AulaHojeCard({ classes, today }: { classes: ClassRow[]; today: string }) {
-  const [done, setDone] = useState<Set<string>>(new Set());
+  const [done, setDone] = useState<Set<string>>(() => readAcked("vistage.acked.aula", 7));
   const now = new Date();
   const nowHM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const items = classes.filter((c) => {
@@ -800,7 +807,7 @@ function AulaHojeCard({ classes, today }: { classes: ClassRow[]; today: string }
 
   async function log(c: ClassRow, paga: boolean) {
     const cid = Number(c.source_id);
-    setDone((s) => new Set(s).add(c.source_id));
+    setDone(addAcked("vistage.acked.aula", c.source_id, 7));
     void haptic("medium");
     try {
       if (Number.isFinite(cid)) await sendCapture("class_log", { class_id: cid, dada: true, paga });
