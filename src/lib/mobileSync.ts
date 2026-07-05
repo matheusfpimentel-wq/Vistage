@@ -17,8 +17,10 @@ import { parsePrepState } from "@/modules/gigs/prep";
 import { loadIdentity } from "@/modules/identity/api";
 import { loadFocusStreak } from "@/modules/foco/api";
 import { loadWeekStats } from "@/modules/revisao/api";
-import { computeAlerts } from "@/modules/revisao/alerts";
+import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
 import { getCoolingDays, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { loadCoolingAlerts, ackCooling, loadAcks, isAcked } from "@/modules/revisao/cooling";
+import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
 import { filterDismissed, filterSnoozed } from "@/modules/revisao/snooze";
@@ -204,6 +206,9 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
   const cutoff = toLocalISODate(cut);
   const daysSince = (iso: string): number =>
     Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+  // "Deixar esfriar" (ack do desktop, em app_settings) vale aqui também: item
+  // aceito não volta pro celular — mesma regra do sininho/tela de Alertas do PC.
+  const acks = await loadAcks();
   const out: CoolingRow[] = [];
 
   // Contatos sem interação (os mais frios primeiro). Expansão tem card próprio
@@ -218,6 +223,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
   for (const c of contacts) {
     if (coldContacts >= 4) break;
     if (hasExpansaoTag(c.tags)) continue;
+    if (isAcked(acks, `contact:${c.id}`, c.last_interaction_at)) continue;
     out.push({
       user_id: uid, source_id: `contact:${c.id}`, name: c.name,
       reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
@@ -234,6 +240,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     [cutoff]
   );
   for (const f of fans) {
+    if (isAcked(acks, `fan:${f.id}`, f.last_interaction_at)) continue;
     out.push({
       user_id: uid, source_id: `fan:${f.id}`, name: f.name,
       reason: `Sem interação há ${daysSince(f.last_interaction_at)} dias`,
@@ -250,6 +257,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     [cutoff]
   );
   for (const t of tracks) {
+    if (isAcked(acks, `track:${t.id}`, t.updated_at)) continue;
     out.push({
       user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
       reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
@@ -266,6 +274,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     [cutoff]
   );
   for (const ct of content) {
+    if (isAcked(acks, `content:${ct.id}`, ct.updated_at)) continue;
     out.push({
       user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
       reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
@@ -289,6 +298,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     [cutoff]
   );
   for (const i of ideas) {
+    if (isAcked(acks, `idea:${i.id}`, i.touched)) continue;
     out.push({
       user_id: uid, source_id: `idea:${i.id}`, name: i.title,
       reason: `Ideia parada há ${daysSince(i.touched)} dias`,
@@ -305,6 +315,7 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     [cutoff]
   );
   for (const t of coldTasks) {
+    if (isAcked(acks, `task:${t.id}`, t.updated_at)) continue;
     out.push({
       user_id: uid, source_id: `task:${t.id}`, name: t.title,
       reason: `Tarefa parada há ${daysSince(t.updated_at)} dias`,
@@ -879,8 +890,21 @@ async function buildAlerts(uid: string): Promise<
   { user_id: string; key: string; label: string; route: string | null; critical: boolean; icon: string }[]
 > {
   try {
-    const [stats, extra] = await Promise.all([loadWeekStats(), loadExtraStats()]);
-    const all = [...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()), ...(await evaluateCustomRules())];
+    const [stats, extra, custom, cooling, partyFin] = await Promise.all([
+      loadWeekStats(),
+      loadExtraStats(),
+      evaluateCustomRules().catch(() => [] as AlertItem[]),
+      loadCoolingAlerts().catch(() => [] as AlertItem[]),
+      loadPartyFinanceAlerts().catch(() => [] as AlertItem[]),
+    ]);
+    // MESMA lista do sininho do PC: financeiro/festas + esfriando + núcleo + custom.
+    // Antes o celular pulava o "esfriando" e o financeiro/festas — agora bate.
+    const all = [
+      ...partyFin,
+      ...cooling,
+      ...computeAlerts(stats, extra, getDisabledRuleIds(), getHiddenModules()),
+      ...custom,
+    ];
     // Respeita as dispensas do PC: o que foi dispensado (X "até mudar") ou adiado
     // (snooze) no desktop também some do sininho do celular.
     const items = await filterDismissed(await filterSnoozed(all));
@@ -938,7 +962,9 @@ export const useMobileChanges = create<{
   setPending: (pending) => set({ pending }),
   refresh: async () => {
     try {
-      set({ pending: await fetchPendingCaptures() });
+      // cooling_ack ("deixar esfriar" do celular) aplica sozinho no sync — não é
+      // item de revisão, então não entra na lista de fundir/descartar.
+      set({ pending: (await fetchPendingCaptures()).filter((c) => c.kind !== "cooling_ack") });
     } catch {
       /* sem login / offline → ignora */
     }
@@ -1491,6 +1517,16 @@ async function ingest(db: Db, kind: string, p: Record<string, unknown>, opts?: I
       origin: "mobile",
     });
     await relayRemove([path]);
+  } else if (kind === "cooling_ack") {
+    // "Deixar esfriar" feito no celular → aplica o MESMO ack do desktop
+    // (app_settings["cooling.acked"]): o item some do Esfriando e do sininho nos
+    // dois lados. Aceita `ref` único (ex.: "contact:12") ou lista `refs`.
+    const ref = s("ref");
+    const refs = Array.isArray(p.refs)
+      ? (p.refs as unknown[]).filter((r): r is string => typeof r === "string")
+      : [];
+    const all = ref ? [ref, ...refs] : refs;
+    if (all.length) await ackCooling(all);
   } else {
     throw new Error("Tipo de captura desconhecido: " + kind);
   }
@@ -1513,7 +1549,25 @@ async function resolveSessionGig(db: Db, fsid: string | null): Promise<number | 
 // ── Orquestração ────────────────────────────────────────────────────────────
 // Sobe o espelho e atualiza a contagem de capturas aguardando revisão — NÃO
 // aplica nada sozinho: quem decide fundir/descartar é o usuário pelo diálogo.
+/**
+ * "Deixar esfriar" feito no celular é preferência de baixo risco (não cria nem
+ * edita dado): aplica sozinho, sem passar pela revisão fundir/descartar. Roda
+ * ANTES do pushMirror pra o espelho (Esfriando + sininho) já sair sem os itens
+ * aceitos — some dos dois lados no mesmo sync, sem esperar revisão no PC.
+ */
+async function autoApplyCoolingAcks(): Promise<void> {
+  try {
+    const ids = (await fetchPendingCaptures())
+      .filter((c) => c.kind === "cooling_ack")
+      .map((c) => c.id);
+    if (ids.length) await ingestCaptures(ids);
+  } catch {
+    /* offline / sem login — tenta no próximo tick */
+  }
+}
+
 export async function syncNow(): Promise<{ pending: number }> {
+  await autoApplyCoolingAcks();
   await pushMirror();
   await setSetting(K.lastSyncAt, new Date().toISOString());
   await useMobileChanges.getState().refresh();

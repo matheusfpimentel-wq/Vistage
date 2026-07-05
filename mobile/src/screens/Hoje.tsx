@@ -461,6 +461,20 @@ export function Hoje({
     onGoFocus();
   }
 
+  // "Deixar esfriar" no celular: MESMA ação do "Deixar esfriar" do PC (some até
+  // você tocar no item de novo). Some da lista na hora (otimista) e manda o ack
+  // pro desktop aplicar no sync — aí não volta a aparecer nos dois lados.
+  async function snoozeCold(c: Cold) {
+    setColdOpen(null);
+    setCooling((prev) => prev.filter((x) => x.source_id !== c.source_id));
+    void haptic("light");
+    try {
+      await sendCapture("cooling_ack", { ref: c.source_id });
+    } catch {
+      /* a fila reenvia sozinha */
+    }
+  }
+
   return (
     <div className="screen today" ref={rootRef}>
       {/* Pull-to-refresh + estado de sync */}
@@ -616,7 +630,7 @@ export function Hoje({
         {refreshing ? "Sincronizando…" : "Atualizar"}
       </button>
 
-      {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} onFocus={() => openColdFocus(coldOpen)} />}
+      {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} onFocus={() => openColdFocus(coldOpen)} onSnooze={() => void snoozeCold(coldOpen)} />}
       {gigOpen && <GigSheet gig={gigOpen} today={today} onClose={() => setGigOpen(null)} onFocus={() => { setGigOpen(null); goFocus(); }} />}
       {trackOpen && <TrackSheet track={trackOpen} onClose={() => setTrackOpen(null)} />}
       {partyOpen && <PartySheet party={partyOpen} today={today} onClose={() => setPartyOpen(null)} />}
@@ -819,7 +833,7 @@ function AulaHojeCard({ classes, today }: { classes: ClassRow[]; today: string }
 }
 
 /** Detalhe do item esfriando (sheet): contato → WhatsApp/ligar; criação → Foco. */
-function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void; onFocus: () => void }) {
+function ColdSheet({ item, onClose, onFocus, onSnooze }: { item: Cold; onClose: () => void; onFocus: () => void; onSnooze: () => void }) {
   const kind = coldKind(item);
   const person = isPerson(item);
   const phone = person ? item.handle : null;
@@ -857,6 +871,9 @@ function ColdSheet({ item, onClose, onFocus }: { item: Cold; onClose: () => void
               ▶ Retomar no Modo Foco{item.handle ? ` · ${item.handle}` : ""}
             </button>
           )}
+          <button className="ghost full" style={{ marginTop: 0 }} onClick={onSnooze}>
+            Deixar esfriar
+          </button>
         </div>
       </div>
     </div>

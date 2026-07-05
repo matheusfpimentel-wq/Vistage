@@ -184,3 +184,4 @@
 .grid-music .cell-input:focus { background: hsl(var(--accent) / 0.15); border-radius: 4px; }
 .grid-music .status { padding: 0 0.5rem; font-size: 0.72rem; color: hsl(var(--muted-foreground)); }
 .grid-music .del { display: flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; }
+.grid-music .sel { display: flex; align-items: center; justify-content: center; }

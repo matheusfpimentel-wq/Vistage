@@ -287,7 +287,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
         all.filter((c) => c.types.some((t) => LINEUP_TYPES.includes(t)))
       )
     );
-    void listSuppliers().then(setSuppliers);
+    void listSuppliers({ withProfile: true }).then(setSuppliers);
     void listVenues().then(setVenues);
     void listGigs().then(setGigs);
 

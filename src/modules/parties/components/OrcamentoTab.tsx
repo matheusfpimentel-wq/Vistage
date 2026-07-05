@@ -160,7 +160,7 @@ export function OrcamentoTab({
   const [dialogKind, setDialogKind] = useState<"custo" | "receita">("custo");
 
   useEffect(() => {
-    void listSuppliers()
+    void listSuppliers({ withProfile: true })
       .then(setSuppliers)
       .catch(() => undefined);
   }, []);
