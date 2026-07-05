@@ -61,9 +61,11 @@ export async function filterSnoozed(alerts: AlertItem[]): Promise<AlertItem[]> {
 const DISMISS_DB_KEY = "alerts.dismissed";
 type Dismissed = Record<string, string>;
 
-/** Assinatura de um alerta para fins de dispensa (muda quando a situação muda). */
+/** Assinatura de um alerta para fins de dispensa (muda quando a situação muda).
+ *  Prefere a identidade (ids dos itens) quando o builder fornece: rótulo só de
+ *  contagem esconderia um item NOVO que entrou com a mesma contagem. */
 export function alertSignature(a: AlertItem): string {
-  return a.label;
+  return a.signature ?? a.label;
 }
 
 async function loadDismissed(): Promise<Dismissed> {

@@ -68,6 +68,13 @@ export type AlertItem = {
    * registra esses itens como aceitos (ackCooling) — ver cooling.ts.
    */
   coolingRefs?: string[];
+  /**
+   * Identidade pra dispensa "até mudar" (ids dos itens, ordenados). Sem ela a
+   * dispensa compara o RÓTULO — que carrega só a contagem: dispensado "1 contato
+   * faz aniversário hoje" ontem, o aniversariante de HOJE (outro contato, mesma
+   * contagem) ficava engolido. Com ids, trocar o conjunto reexibe o alerta.
+   */
+  signature?: string;
 };
 
 /** Prioridade efetiva de um alerta: a própria, ou a do catálogo builtin, ou via `critical`. */
@@ -101,6 +108,9 @@ export type ExtraStats = {
 };
 
 const plural = (n: number) => (n > 1 ? "s" : "");
+
+/** Assinatura estável por identidade (ids ordenados) pra dispensa "até mudar". */
+const idsSignature = (ids: number[]): string => [...ids].sort((a, b) => a - b).join(",");
 
 /** Categorias usadas para agrupar as regras padrão no editor de Configurações. */
 export type RuleCategory =
@@ -250,6 +260,7 @@ export function computeAlerts(
       to: stats.tasksOverdueIds.length > 0 ? `/tarefas?open=${stats.tasksOverdueIds[0]}` : "/tarefas",
       critical: true,
       label: `Há ${stats.tasksOverdue} tarefa${plural(stats.tasksOverdue)} vencida${plural(stats.tasksOverdue)} sem conclusão`,
+      signature: idsSignature(stats.tasksOverdueIds),
     });
   if (stats.pendingDebriefs > 0)
     alerts.push({
@@ -259,6 +270,7 @@ export function computeAlerts(
       to: stats.pendingDebriefIds.length > 0 ? `/gigs?debrief=${stats.pendingDebriefIds[0]}` : "/gigs",
       critical: false,
       label: `Há ${stats.pendingDebriefs} GIG${plural(stats.pendingDebriefs)} com debrief pendente`,
+      signature: idsSignature(stats.pendingDebriefIds),
     });
   if (stats.gigsUnprepared > 0)
     alerts.push({
@@ -268,6 +280,7 @@ export function computeAlerts(
       to: stats.gigsUnpreparedIds.length > 0 ? `/gigs?open=${stats.gigsUnpreparedIds[0]}` : "/gigs",
       critical: false,
       label: `Há ${stats.gigsUnprepared} GIG${plural(stats.gigsUnprepared)} chegando sem prep musical completa`,
+      signature: idsSignature(stats.gigsUnpreparedIds),
     });
   if (stats.gigsUnpaidAfter48h > 0)
     alerts.push({
@@ -277,6 +290,7 @@ export function computeAlerts(
       to: stats.gigsUnpaidIds.length > 0 ? `/gigs?open=${stats.gigsUnpaidIds[0]}` : "/gigs",
       critical: true,
       label: `Há ${stats.gigsUnpaidAfter48h} GIG${plural(stats.gigsUnpaidAfter48h)} concluída${plural(stats.gigsUnpaidAfter48h)} com cachê não recebido`,
+      signature: idsSignature(stats.gigsUnpaidIds),
     });
   // Ideias quentes paradas, faixas/conteúdos/superfãs estagnados → cobertos pelo
   // alerta UNIFICADO "Esfriando" (loadCoolingAlerts em cooling.ts): um só conceito,
@@ -400,6 +414,7 @@ export function computeAlerts(
         stats.contactBirthdaysToday === 1
           ? "1 contato faz aniversário hoje"
           : `${stats.contactBirthdaysToday} contatos fazem aniversário hoje`,
+      signature: idsSignature(stats.contactBirthdaysTodayIds),
     });
   }
 

@@ -18,8 +18,8 @@ import { loadIdentity } from "@/modules/identity/api";
 import { loadFocusStreak } from "@/modules/foco/api";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
-import { getCoolingDays, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
-import { loadCoolingAlerts, ackCooling, loadAcks, isAcked } from "@/modules/revisao/cooling";
+import { getCoolingDays, getCoolingHeat, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
+import { loadCoolingAlerts, ackCooling, loadAcks, isAcked, COOLING_RULE_ID } from "@/modules/revisao/cooling";
 import { loadPartyFinanceAlerts } from "@/modules/revisao/partyFinanceAlerts";
 import { getHiddenModules } from "@/lib/moduleVisibility";
 import { evaluateCustomRules } from "@/modules/revisao/customRules";
@@ -210,76 +210,94 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
   // aceito não volta pro celular — mesma regra do sininho/tela de Alertas do PC.
   const acks = await loadAcks();
   const out: CoolingRow[] = [];
+  // MESMOS gates do desktop (loadCoolingAlerts): regra desligada ou calor 0
+  // silenciam o Esfriando; módulo oculto no Perfil some do card. A rotação de
+  // expansão (§4) NÃO é parte da regra — segue no fim mesmo com ela desligada.
+  const heatMin = getCoolingHeat();
+  const coolingOff = getDisabledRuleIds().includes(COOLING_RULE_ID) || heatMin === 0;
+  const hidden = getHiddenModules();
+  if (coolingOff) {
+    out.push(...(await buildExpansaoWeek(uid)));
+    return out;
+  }
 
   // Contatos sem interação (os mais frios primeiro). Expansão tem card próprio
   // ("Contatos da semana"), então não repete aqui.
-  const contacts = await db.select<{ id: number; name: string; phone: string | null; tags: string | null; last_interaction_at: string }[]>(
-    `SELECT id, name, phone, tags, last_interaction_at FROM contacts
-      WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-      ORDER BY last_interaction_at ASC LIMIT 12`,
-    [cutoff]
-  );
-  let coldContacts = 0;
-  for (const c of contacts) {
-    if (coldContacts >= 4) break;
-    if (hasExpansaoTag(c.tags)) continue;
-    if (isAcked(acks, `contact:${c.id}`, c.last_interaction_at)) continue;
-    out.push({
-      user_id: uid, source_id: `contact:${c.id}`, name: c.name,
-      reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
-      handle: c.phone, due_date: today,
-    });
-    coldContacts++;
+  if (!hidden.has("/pessoas")) {
+    const contacts = await db.select<{ id: number; name: string; phone: string | null; tags: string | null; last_interaction_at: string }[]>(
+      `SELECT id, name, phone, tags, last_interaction_at FROM contacts
+        WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
+        ORDER BY last_interaction_at ASC LIMIT 12`,
+      [cutoff]
+    );
+    let coldContacts = 0;
+    for (const c of contacts) {
+      if (coldContacts >= 4) break;
+      if (hasExpansaoTag(c.tags)) continue;
+      if (isAcked(acks, `contact:${c.id}`, c.last_interaction_at)) continue;
+      out.push({
+        user_id: uid, source_id: `contact:${c.id}`, name: c.name,
+        reason: `Sem contato há ${daysSince(c.last_interaction_at)} dias`,
+        handle: c.phone, due_date: today,
+      });
+      coldContacts++;
+    }
   }
 
   // Fãs sem interação.
-  const fans = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
-    `SELECT id, name, phone, last_interaction_at FROM fans
-      WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-      ORDER BY last_interaction_at ASC LIMIT 3`,
-    [cutoff]
-  );
-  for (const f of fans) {
-    if (isAcked(acks, `fan:${f.id}`, f.last_interaction_at)) continue;
-    out.push({
-      user_id: uid, source_id: `fan:${f.id}`, name: f.name,
-      reason: `Sem interação há ${daysSince(f.last_interaction_at)} dias`,
-      handle: f.phone, due_date: today,
-    });
+  if (!hidden.has("/fas")) {
+    const fans = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
+      `SELECT id, name, phone, last_interaction_at FROM fans
+        WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
+        ORDER BY last_interaction_at ASC LIMIT 3`,
+      [cutoff]
+    );
+    for (const f of fans) {
+      if (isAcked(acks, `fan:${f.id}`, f.last_interaction_at)) continue;
+      out.push({
+        user_id: uid, source_id: `fan:${f.id}`, name: f.name,
+        reason: `Sem interação há ${daysSince(f.last_interaction_at)} dias`,
+        handle: f.phone, due_date: today,
+      });
+    }
   }
 
   // Faixas em produção paradas (exclui Pós-lançamento e standby).
-  const tracks = await db.select<{ id: number; title: string | null; updated_at: string }[]>(
-    `SELECT id, title_working as title, updated_at FROM tracks
-      WHERE standby = 0 AND current_stage != 'Pós-lançamento'
-        AND substr(updated_at, 1, 10) < $1
-      ORDER BY updated_at ASC LIMIT 3`,
-    [cutoff]
-  );
-  for (const t of tracks) {
-    if (isAcked(acks, `track:${t.id}`, t.updated_at)) continue;
-    out.push({
-      user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
-      reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
-      handle: "Criação musical", due_date: today,
-    });
+  if (!hidden.has("/musica")) {
+    const tracks = await db.select<{ id: number; title: string | null; updated_at: string }[]>(
+      `SELECT id, title_working as title, updated_at FROM tracks
+        WHERE standby = 0 AND current_stage != 'Pós-lançamento'
+          AND substr(updated_at, 1, 10) < $1
+        ORDER BY updated_at ASC LIMIT 3`,
+      [cutoff]
+    );
+    for (const t of tracks) {
+      if (isAcked(acks, `track:${t.id}`, t.updated_at)) continue;
+      out.push({
+        user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
+        reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
+        handle: "Criação musical", due_date: today,
+      });
+    }
   }
 
   // Conteúdos parados (exclui Publicado/Arquivado).
-  const content = await db.select<{ id: number; title: string; updated_at: string }[]>(
-    `SELECT id, title, updated_at FROM content
-      WHERE status NOT IN ('Publicado','Arquivado')
-        AND substr(updated_at, 1, 10) < $1
-      ORDER BY updated_at ASC LIMIT 2`,
-    [cutoff]
-  );
-  for (const ct of content) {
-    if (isAcked(acks, `content:${ct.id}`, ct.updated_at)) continue;
-    out.push({
-      user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
-      reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
-      handle: "Criação de conteúdo", due_date: today,
-    });
+  if (!hidden.has("/conteudo")) {
+    const content = await db.select<{ id: number; title: string; updated_at: string }[]>(
+      `SELECT id, title, updated_at FROM content
+        WHERE status NOT IN ('Publicado','Arquivado')
+          AND substr(updated_at, 1, 10) < $1
+        ORDER BY updated_at ASC LIMIT 2`,
+      [cutoff]
+    );
+    for (const ct of content) {
+      if (isAcked(acks, `content:${ct.id}`, ct.updated_at)) continue;
+      out.push({
+        user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
+        reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
+        handle: "Criação de conteúdo", due_date: today,
+      });
+    }
   }
 
   // Ideias paradas (exclui Arquivadas). O relógio é o `last_touched_at` (mesmo do
@@ -293,9 +311,10 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     : "Gestão";
   const ideas = await db.select<{ id: number; title: string; category: string | null; touched: string }[]>(
     `SELECT id, title, category, COALESCE(last_touched_at, updated_at) AS touched FROM ideas
-      WHERE maturation != 'Arquivada' AND substr(COALESCE(last_touched_at, updated_at), 1, 10) < $1
+      WHERE maturation != 'Arquivada' AND heat >= $1
+        AND substr(COALESCE(last_touched_at, updated_at), 1, 10) < $2
       ORDER BY touched ASC LIMIT 3`,
-    [cutoff]
+    [heatMin, cutoff]
   );
   for (const i of ideas) {
     if (isAcked(acks, `idea:${i.id}`, i.touched)) continue;
@@ -307,20 +326,22 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
   }
 
   // Tarefas abertas paradas (não Concluída/Cancelada, sem toque no período).
-  const coldTasks = await db.select<{ id: number; title: string; updated_at: string }[]>(
-    `SELECT id, title, updated_at FROM tasks
-      WHERE status NOT IN ('Concluída','Cancelada')
-        AND substr(updated_at, 1, 10) < $1
-      ORDER BY updated_at ASC LIMIT 3`,
-    [cutoff]
-  );
-  for (const t of coldTasks) {
-    if (isAcked(acks, `task:${t.id}`, t.updated_at)) continue;
-    out.push({
-      user_id: uid, source_id: `task:${t.id}`, name: t.title,
-      reason: `Tarefa parada há ${daysSince(t.updated_at)} dias`,
-      handle: "Gestão", due_date: today,
-    });
+  if (!hidden.has("/tarefas")) {
+    const coldTasks = await db.select<{ id: number; title: string; updated_at: string }[]>(
+      `SELECT id, title, updated_at FROM tasks
+        WHERE status NOT IN ('Concluída','Cancelada')
+          AND substr(updated_at, 1, 10) < $1
+        ORDER BY updated_at ASC LIMIT 3`,
+      [cutoff]
+    );
+    for (const t of coldTasks) {
+      if (isAcked(acks, `task:${t.id}`, t.updated_at)) continue;
+      out.push({
+        user_id: uid, source_id: `task:${t.id}`, name: t.title,
+        reason: `Tarefa parada há ${daysSince(t.updated_at)} dias`,
+        handle: "Gestão", due_date: today,
+      });
+    }
   }
 
   // §4 — cadência de expansão ("Contatos da semana"). Vai no mesmo espelho
