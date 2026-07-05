@@ -208,11 +208,6 @@ export function DashboardPage() {
           </div>
         )}
 
-        <p className="pt-2 text-center text-xs text-muted-foreground/70">
-          Métricas são bússolas, não termômetros. Otimizar para o número costuma
-          deformar o resultado real.{" "}
-          <span className="italic">(Lei de Goodhart)</span>
-        </p>
       </TabsContent>
 
       <TabsContent value="timeline">

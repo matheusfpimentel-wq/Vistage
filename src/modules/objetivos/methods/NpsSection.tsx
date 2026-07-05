@@ -102,15 +102,15 @@ function npsScore(rated: Gig[]): {
 }
 
 /**
- * Tom/veredito do score, reaproveitado pelo headline e pela quebra por grupo.
- * Exportados também para a sub-aba "Pesquisa própria" (mesma faixa -100..100).
+ * Tom/veredito do score, reaproveitado pelo headline, pela quebra por grupo e
+ * pela sub-aba "Pesquisa própria" (mesma faixa -100..100) — tudo neste arquivo.
  */
-export function npsTone(nps: number | null): string {
+function npsTone(nps: number | null): string {
   if (nps == null) return "text-muted-foreground";
   return nps >= 50 ? "text-emerald-500" : nps >= 0 ? "text-amber-500" : "text-destructive";
 }
 
-export function npsVerdict(nps: number | null): string {
+function npsVerdict(nps: number | null): string {
   if (nps == null) return "";
   return nps >= 50 ? "Excelente" : nps >= 0 ? "Razoável" : "Precisa de atenção";
 }

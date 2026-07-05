@@ -236,7 +236,6 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .cat-label { flex: 1; min-width: 0; font-size: 0.98rem; font-weight: 700; }
-.cat-text .muted { font-size: 0.8rem; }
 .cat-chevron { color: var(--muted); flex: 0 0 auto; }
 
 /* Cabeçalho da busca: voltar + campo */

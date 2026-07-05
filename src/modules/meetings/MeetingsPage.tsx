@@ -43,6 +43,7 @@ import {
   type MeetingStatus,
 } from "./types";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 function formatWhen(m: Meeting): string {
   if (!m.date) return "Sem data";
@@ -133,11 +134,14 @@ export function MeetingsPage() {
       />
 
       {visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nova reunião
-          </Button>
-        </div>
+        <EmptyState
+          title="Nenhuma reunião"
+          action={
+            <Button size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4" /> Nova reunião
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-3">
           {visible.map((m) => (
