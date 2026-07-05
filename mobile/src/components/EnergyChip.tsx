@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
 import { pendingEnergyWindow, resolveEnergyWindow } from "../lib/energy";
@@ -10,6 +10,17 @@ import { pendingEnergyWindow, resolveEnergyWindow } from "../lib/energy";
  */
 export function EnergyChip() {
   const [win, setWin] = useState<number | null>(() => pendingEnergyWindow());
+  // Reavalia a janela de tempos em tempos: com a tela aberta cruzando 8h/16h o
+  // chip aparece (e some ao fechar a janela) sem precisar trocar de aba.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setWin((cur) => {
+        const next = pendingEnergyWindow();
+        return next === cur ? cur : next;
+      });
+    }, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   if (win == null) return null;
 
   async function pick(level: number) {

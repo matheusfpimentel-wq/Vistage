@@ -39,8 +39,12 @@ export function applyTheme(theme: string, accent: string) {
 
 /** Override manual de dia/noite salvo neste aparelho (ou null se não houver). */
 function storedTheme(): Theme | null {
-  const v = localStorage.getItem(LS_THEME);
-  return v === "light" || v === "dark" ? v : null;
+  try {
+    const v = localStorage.getItem(LS_THEME);
+    return v === "light" || v === "dark" ? v : null;
+  } catch {
+    return null; // storage indisponível (modo privado) — segue o tema da conta
+  }
 }
 
 /** Tema em vigor agora (pro ícone sol/lua na barra). */
@@ -51,7 +55,11 @@ export function currentTheme(): Theme {
 /** Alterna dia/noite, persiste no aparelho e aplica na hora. Retorna o novo. */
 export function toggleTheme(): Theme {
   const next: Theme = applied.theme === "light" ? "dark" : "light";
-  localStorage.setItem(LS_THEME, next);
+  try {
+    localStorage.setItem(LS_THEME, next);
+  } catch {
+    /* storage indisponível — aplica sem persistir */
+  }
   applyTheme(next, applied.accent);
   return next;
 }

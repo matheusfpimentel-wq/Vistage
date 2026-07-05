@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../supabase";
 import { sendCapture } from "../capture";
 import { haptic } from "../native";
@@ -26,27 +26,36 @@ export function Checkin({ gigId, gigTitle, vips, onClose }: { gigId: number; gig
   const [newIg, setNewIg] = useState("");
   const [added, setAdded] = useState(0);
 
-  async function search(t: string) {
-    setTerm(t);
-    if (t.trim().length < 2) {
+  // Busca com debounce + guarda de ordem: digitando rápido, a resposta lenta de
+  // um termo antigo não pode sobrescrever a lista do termo atual.
+  const searchSeq = useRef(0);
+  useEffect(() => {
+    const t = term.trim();
+    if (t.length < 2) {
       setHits([]);
+      setSearching(false);
       return;
     }
+    const seq = ++searchSeq.current;
     setSearching(true);
-    try {
-      const { data } = await supabase
-        .from("catalog_mirror")
-        .select("source_id, title, meta")
-        .eq("kind", "fan")
-        .ilike("search_text", `%${t.trim()}%`)
-        .limit(20);
-      setHits((data ?? []) as FanHit[]);
-    } catch {
-      setHits([]);
-    } finally {
-      setSearching(false);
-    }
-  }
+    const timer = window.setTimeout(async () => {
+      try {
+        const { data } = await supabase
+          .from("catalog_mirror")
+          .select("source_id, title, meta")
+          .eq("kind", "fan")
+          .ilike("search_text", `%${t}%`)
+          .limit(20);
+        if (seq !== searchSeq.current) return; // já digitou outra coisa
+        setHits((data ?? []) as FanHit[]);
+      } catch {
+        if (seq === searchSeq.current) setHits([]);
+      } finally {
+        if (seq === searchSeq.current) setSearching(false);
+      }
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [term]);
 
   async function vipArrived(v: Vip) {
     if (arrived.has(v.ref_id)) return;
@@ -113,7 +122,7 @@ export function Checkin({ gigId, gigTitle, vips, onClose }: { gigId: number; gig
         )}
 
         <h3 className="checkin-h">Fãs presentes</h3>
-        <input className="checkin-search" value={term} onChange={(e) => void search(e.target.value)} placeholder="Buscar fã pelo nome…" />
+        <input className="checkin-search" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Buscar fã pelo nome…" />
         {searching && <p className="muted small" style={{ margin: "0.3rem 0 0" }}>Buscando…</p>}
         {hits.length > 0 && (
           <ul className="mini-list">

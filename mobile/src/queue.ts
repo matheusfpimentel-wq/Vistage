@@ -61,12 +61,19 @@ export async function flushQueue(): Promise<{ sent: number; pending: number }> {
 
     const sent = new Set<string>();
     for (const c of q) {
-      const { error } = await supabase.from("capture_inbox").insert({
-        user_id: uid,
-        kind: c.kind,
-        client_ref: c.client_ref,
-        payload: c.payload,
-      });
+      // upsert idempotente: se um flush anterior gravou no servidor mas o app
+      // caiu/perdeu a resposta antes de limpar a fila, o reenvio do MESMO
+      // client_ref não pode virar erro de duplicado — senão o item entala na
+      // cabeça da fila e bloqueia tudo atrás pra sempre.
+      const { error } = await supabase.from("capture_inbox").upsert(
+        {
+          user_id: uid,
+          kind: c.kind,
+          client_ref: c.client_ref,
+          payload: c.payload,
+        },
+        { onConflict: "user_id,client_ref", ignoreDuplicates: true }
+      );
       if (error) break; // rede/RLS — para e mantém o resto na fila
       sent.add(c.client_ref);
     }

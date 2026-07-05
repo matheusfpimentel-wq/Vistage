@@ -99,10 +99,16 @@ async function loadPeople(scopes: Record<AgendaScope, boolean>): Promise<Person[
   return out;
 }
 
+let agendaSyncing = false;
+
 /** Sincroniza (mão única). Só nativo + habilitado. Idempotente. */
 export async function syncAgenda(): Promise<{ created: number; updated: number; skipped: number }> {
   const result = { created: 0, updated: 0, skipped: 0 };
   if (!isNative() || !isAgendaSyncEnabled()) return result;
+  // Reentrância: boot + refresh de sessão podem disparar dois syncs juntos; em
+  // paralelo os dois criariam os mesmos contatos (e o último mapa salvo vence).
+  if (agendaSyncing) return result;
+  agendaSyncing = true;
   try {
     const { Contacts, PhoneType } = await import("@capacitor-community/contacts");
 
@@ -112,12 +118,14 @@ export async function syncAgenda(): Promise<{ created: number; updated: number; 
     const people = await loadPeople(getScopes());
     const map = await loadMap();
 
-    // Dedupe: dígitos dos telefones já na agenda (pra não duplicar).
+    // Dedupe: telefones da agenda normalizados em E.164 IGUAL aos nossos —
+    // "11 98765-4321" salvo na agenda e "5511987654321" no Vistage são o mesmo
+    // número; comparar dígitos crus deixava passar e duplicava.
     const existing = await Contacts.getContacts({ projection: { phones: true } });
     const existingPhones = new Set<string>();
     for (const c of existing.contacts ?? []) {
       for (const ph of c.phones ?? []) {
-        const d = (ph.number ?? "").replace(/\D/g, "");
+        const d = e164(ph.number);
         if (d) existingPhones.add(d);
       }
     }
@@ -131,53 +139,62 @@ export async function syncAgenda(): Promise<{ created: number; updated: number; 
       },
     });
 
-    // Só mexe em quem já mapeamos + cria os novos dos escopos atuais.
+    // Só mexe em quem já mapeamos + cria os novos dos escopos atuais. O mapa é
+    // salvo no finally: se algo falhar no meio, o que já foi criado continua
+    // registrado — sem contato órfão que a remoção não alcança depois.
     const wantedKeys = new Set(people.map((p) => p.key));
-
-    for (const p of people) {
-      const prev = map[p.key];
-      if (prev) {
-        if (prev.phone === p.phone && prev.name === p.name) {
-          result.skipped++;
-          continue;
-        }
-        // Mudou: recria (o plugin não tem update).
+    try {
+      for (const p of people) {
         try {
-          await Contacts.deleteContact({ contactId: prev.nativeId });
+          const prev = map[p.key];
+          if (prev) {
+            if (prev.phone === p.phone && prev.name === p.name) {
+              result.skipped++;
+              continue;
+            }
+            // Mudou: recria (o plugin não tem update).
+            try {
+              await Contacts.deleteContact({ contactId: prev.nativeId });
+            } catch {
+              /* pode já não existir */
+            }
+            delete map[p.key];
+            const res = await Contacts.createContact(build(p.name, p.phone));
+            map[p.key] = { nativeId: res.contactId, phone: p.phone, name: p.name };
+            result.updated++;
+          } else {
+            if (existingPhones.has(p.phone)) {
+              result.skipped++;
+              continue;
+            }
+            const res = await Contacts.createContact(build(p.name, p.phone));
+            map[p.key] = { nativeId: res.contactId, phone: p.phone, name: p.name };
+            existingPhones.add(p.phone);
+            result.created++;
+          }
         } catch {
-          /* pode já não existir */
+          /* falhou ESTA pessoa — segue as demais; tenta de novo no próximo sync */
         }
-        const res = await Contacts.createContact(build(p.name, p.phone));
-        map[p.key] = { nativeId: res.contactId, phone: p.phone, name: p.name };
-        result.updated++;
-      } else {
-        const digits = p.phone.replace(/\D/g, "");
-        if (existingPhones.has(digits)) {
-          result.skipped++;
-          continue;
-        }
-        const res = await Contacts.createContact(build(p.name, p.phone));
-        map[p.key] = { nativeId: res.contactId, phone: p.phone, name: p.name };
-        existingPhones.add(digits);
-        result.created++;
       }
-    }
 
-    // Escopo desligado/pessoa sumiu: remove o que tínhamos criado pra ela.
-    for (const key of Object.keys(map)) {
-      if (!wantedKeys.has(key)) {
-        try {
-          await Contacts.deleteContact({ contactId: map[key].nativeId });
-        } catch {
-          /* pode já não existir */
+      // Escopo desligado/pessoa sumiu: remove o que tínhamos criado pra ela.
+      for (const key of Object.keys(map)) {
+        if (!wantedKeys.has(key)) {
+          try {
+            await Contacts.deleteContact({ contactId: map[key].nativeId });
+          } catch {
+            /* pode já não existir */
+          }
+          delete map[key];
         }
-        delete map[key];
       }
+    } finally {
+      await saveMap(map);
     }
-
-    await saveMap(map);
   } catch {
     /* permissão negada / plugin indisponível — silencioso */
+  } finally {
+    agendaSyncing = false;
   }
   return result;
 }
