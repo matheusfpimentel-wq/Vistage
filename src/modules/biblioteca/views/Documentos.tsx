@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { connectDrive, isDriveConnected } from "@/lib/gdrive";
+import { ENTITY_LINK_LABELS, ENTITY_LINK_TYPES, type EntityLinkType, type EntityOption } from "@/lib/entityLinks";
 import {
   associateDoc,
   deleteDoc,
-  gigOptions,
+  entityOptions,
   getDocFolderId,
   linksForDoc,
   listFolderDocs,
@@ -17,7 +18,6 @@ import {
   uploadDocsToFolder,
   type DocLink,
   type DriveFile,
-  type EntityRef,
 } from "../documents/api";
 
 export function Documentos() {
@@ -27,7 +27,6 @@ export function Documentos() {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [gigs, setGigs] = useState<EntityRef[]>([]);
   const [openFile, setOpenFile] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -37,7 +36,6 @@ export function Documentos() {
       setFolderId(id);
       setFolderInput(id ?? "");
     });
-    void gigOptions().then(setGigs);
   }, []);
 
   const loadFiles = useCallback(async (fid: string) => {
@@ -182,7 +180,6 @@ export function Documentos() {
             <DocRow
               key={f.id}
               file={f}
-              gigs={gigs}
               expanded={openFile === f.id}
               onToggle={() => setOpenFile(openFile === f.id ? null : f.id)}
               onDelete={() => void handleDelete(f)}
@@ -200,19 +197,21 @@ function isFolder(mime: string): boolean {
 
 function DocRow({
   file,
-  gigs,
   expanded,
   onToggle,
   onDelete,
 }: {
   file: DriveFile;
-  gigs: EntityRef[];
   expanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
 }) {
   const [links, setLinks] = useState<DocLink[]>([]);
-  const [gigId, setGigId] = useState<string>("");
+  // Seletor Tipo → Entidade (vínculo polimórfico a qualquer entidade).
+  const [kind, setKind] = useState<EntityLinkType | "">("");
+  const [options, setOptions] = useState<EntityOption[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [entityId, setEntityId] = useState<string>("");
 
   const reloadLinks = useCallback(() => {
     void linksForDoc(file.id).then(setLinks);
@@ -222,15 +221,28 @@ function DocRow({
     if (expanded) reloadLinks();
   }, [expanded, reloadLinks]);
 
+  // Carrega as opções ao escolher o tipo.
+  useEffect(() => {
+    setEntityId("");
+    if (!kind) {
+      setOptions([]);
+      return;
+    }
+    setLoadingOptions(true);
+    void entityOptions(kind)
+      .then(setOptions)
+      .finally(() => setLoadingOptions(false));
+  }, [kind]);
+
   async function link() {
-    if (!gigId) return;
-    const g = gigs.find((x) => String(x.id) === gigId);
-    if (!g) return;
+    if (!kind || !entityId) return;
+    const opt = options.find((o) => String(o.id) === entityId);
+    if (!opt) return;
     try {
-      await associateDoc(file, "gig", g.id);
-      setGigId("");
+      await associateDoc(file, kind, opt.id, opt.label);
+      setEntityId("");
       reloadLinks();
-      toast.success("Documento associado à GIG.");
+      toast.success(`Documento associado a ${ENTITY_LINK_LABELS[kind]}.`);
     } catch (e) {
       toast.error(`Não consegui associar o documento: ${String(e)}`);
     }
@@ -249,7 +261,7 @@ function DocRow({
           </button>
         )}
         {!isFolder(file.mime_type) && (
-          <button className="text-muted-foreground hover:text-foreground" title="Associar a uma GIG" onClick={onToggle}>
+          <button className="text-muted-foreground hover:text-foreground" title="Vincular a uma entidade" onClick={onToggle}>
             <Link2 className="h-4 w-4" />
           </button>
         )}
@@ -265,7 +277,13 @@ function DocRow({
             <ul className="space-y-1">
               {links.map((l) => (
                 <li key={l.id} className="flex items-center gap-2 text-xs">
-                  <span className="flex-1 truncate">Vinculado a: <strong>{l.label}</strong></span>
+                  <span className="flex-1 truncate">
+                    Vinculado a{" "}
+                    <span className="text-muted-foreground">
+                      {entityKindLabel(l.entity_type)}
+                    </span>{" "}
+                    <strong>{l.label}</strong>
+                  </span>
                   <button className="text-muted-foreground hover:text-destructive" onClick={async () => {
                     try {
                       await removeLink(l.id);
@@ -281,16 +299,36 @@ function DocRow({
             </ul>
           )}
           <div className="flex items-center gap-1.5">
-            <select className="h-8 flex-1 rounded-md border bg-background px-2 text-sm" value={gigId} onChange={(e) => setGigId(e.target.value)}>
-              <option value="">Associar a uma GIG…</option>
-              {gigs.map((g) => (
-                <option key={g.id} value={g.id}>{g.label}</option>
+            <select
+              className="h-8 w-32 rounded-md border bg-background px-2 text-sm"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as EntityLinkType | "")}
+            >
+              <option value="">Tipo…</option>
+              {ENTITY_LINK_TYPES.map((t) => (
+                <option key={t} value={t}>{ENTITY_LINK_LABELS[t]}</option>
               ))}
             </select>
-            <Button size="sm" variant="outline" className="h-8" disabled={!gigId} onClick={() => void link()}>Vincular</Button>
+            <select
+              className="h-8 flex-1 rounded-md border bg-background px-2 text-sm disabled:opacity-50"
+              value={entityId}
+              onChange={(e) => setEntityId(e.target.value)}
+              disabled={!kind || loadingOptions}
+            >
+              <option value="">{loadingOptions ? "Carregando…" : "Selecione…"}</option>
+              {options.map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
+              ))}
+            </select>
+            <Button size="sm" variant="outline" className="h-8" disabled={!kind || !entityId} onClick={() => void link()}>Vincular</Button>
           </div>
         </div>
       )}
     </li>
   );
+}
+
+/** Rótulo curto do tipo da entidade (para o "Vinculado a Festa X"). */
+function entityKindLabel(type: string): string {
+  return type in ENTITY_LINK_LABELS ? ENTITY_LINK_LABELS[type as EntityLinkType] : type;
 }

@@ -10,10 +10,18 @@ import {
   type DriveFile,
 } from "@/lib/gdrive";
 import { bytesToBase64 } from "@/lib/uploads";
-import { gigDisplayName } from "@/modules/gigs/displayName";
+import {
+  ENTITY_LINK_LABELS,
+  isEntityLinkType,
+  loadEntityOptions,
+  resolveEntityLabel,
+  type EntityLinkType,
+  type EntityOption,
+} from "@/lib/entityLinks";
 
 // Biblioteca de Documentos — pasta designada do Google Drive (contratos, modelos,
-// rider técnico). Não embute nada no .vistage: referência + associação a um GIG.
+// rider técnico). Não embute nada no .vistage: referência + associação polimórfica
+// (entity_type/entity_id) a QUALQUER entidade (GIG, festa, contato, track…).
 
 const FOLDER_KEY = "drive_documents_folder_id";
 
@@ -124,52 +132,80 @@ async function ensureDriveDoc(f: DriveFile): Promise<number> {
   return Number(res.lastInsertId);
 }
 
-export type EntityRef = { type: "gig"; id: number; label: string };
+export type { EntityLinkType, EntityOption };
+export { ENTITY_LINK_LABELS };
 
-/** GIGs pra associar um documento (ex.: o contrato daquele evento). */
-export async function gigOptions(): Promise<EntityRef[]> {
-  const rows = await getDb().select<
-    { id: number; venue_name: string; event_name: string | null; recurring_event_name: string | null; date: string }[]
-  >("SELECT id, venue_name, event_name, recurring_event_name, date FROM gigs ORDER BY date DESC LIMIT 300");
-  return rows.map((g) => ({ type: "gig", id: g.id, label: `${gigDisplayName(g)} · ${g.date}` }));
+/** Opções de uma entidade pra associar um documento (ex.: as GIGs, as festas…). */
+export async function entityOptions(type: EntityLinkType): Promise<EntityOption[]> {
+  return loadEntityOptions(type);
 }
 
-export async function associateDoc(f: DriveFile, entityType: "gig", entityId: number): Promise<void> {
+/** Vincula o arquivo do Drive a uma entidade qualquer. Idempotente (INSERT OR
+ *  IGNORE + índice único): revincular o mesmo par não duplica. `label` é
+ *  cacheado pra a leitura não precisar reabrir a lista da entidade. */
+export async function associateDoc(
+  f: DriveFile,
+  entityType: EntityLinkType,
+  entityId: number,
+  label?: string
+): Promise<void> {
   const docId = await ensureDriveDoc(f);
   await getDb().execute(
-    "INSERT INTO document_links (drive_document_id, entity_type, entity_id) VALUES ($1, $2, $3)",
-    [docId, entityType, entityId]
+    "INSERT OR IGNORE INTO document_links (drive_document_id, entity_type, entity_id, label) VALUES ($1, $2, $3, $4)",
+    [docId, entityType, entityId, label ?? null]
   );
   emitDataChanged();
 }
 
 export type DocLink = { id: number; entity_type: string; entity_id: number; label: string };
 
-/** Associações de um arquivo (resolve o nome da GIG quando for o caso). */
+/** Associações de um arquivo. Usa o label cacheado; se faltar (vínculos antigos,
+ *  pré-migration), resolve na hora pelo tipo/id. */
 export async function linksForDoc(driveFileId: string): Promise<DocLink[]> {
   const db = getDb();
-  const links = await db.select<{ id: number; entity_type: string; entity_id: number }[]>(
-    `SELECT dl.id, dl.entity_type, dl.entity_id FROM document_links dl
+  const links = await db.select<{ id: number; entity_type: string; entity_id: number; label: string | null }[]>(
+    `SELECT dl.id, dl.entity_type, dl.entity_id, dl.label FROM document_links dl
        JOIN drive_documents dd ON dd.id = dl.drive_document_id
       WHERE dd.drive_file_id = $1 ORDER BY dl.id`,
     [driveFileId]
   );
   const out: DocLink[] = [];
   for (const l of links) {
-    let label = `${l.entity_type} #${l.entity_id}`;
-    if (l.entity_type === "gig") {
-      const g = await db.select<{ venue_name: string; event_name: string | null; recurring_event_name: string | null; date: string }[]>(
-        "SELECT venue_name, event_name, recurring_event_name, date FROM gigs WHERE id = $1",
-        [l.entity_id]
-      );
-      if (g[0]) label = gigDisplayName(g[0]);
+    let label = l.label ?? "";
+    if (!label) {
+      label = isEntityLinkType(l.entity_type)
+        ? await resolveEntityLabel(l.entity_type, l.entity_id)
+        : `${l.entity_type} #${l.entity_id}`;
     }
-    out.push({ ...l, label });
+    out.push({ id: l.id, entity_type: l.entity_type, entity_id: l.entity_id, label });
   }
   return out;
 }
 
+/** Vínculos de documento apontando pra uma entidade (para um painel "Documentos
+ *  desta GIG/festa/…" ou consulta inversa). */
+export async function documentsLinkedTo(entityType: EntityLinkType, entityId: number): Promise<
+  { link_id: number; drive_file_id: string; name: string | null; web_view_link: string | null; mime_type: string | null }[]
+> {
+  return getDb().select(
+    `SELECT dl.id AS link_id, dd.drive_file_id, dd.name, dd.web_view_link, dd.mime_type
+       FROM document_links dl JOIN drive_documents dd ON dd.id = dl.drive_document_id
+      WHERE dl.entity_type = $1 AND dl.entity_id = $2 ORDER BY dd.name`,
+    [entityType, entityId]
+  );
+}
+
 export async function removeLink(id: number): Promise<void> {
   await getDb().execute("DELETE FROM document_links WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+/** Limpa vínculos órfãos quando a entidade referenciada é excluída (o lado
+ *  polimórfico não tem FK). Espelha unlinkTasksFromEntity das tarefas. */
+export async function unlinkDocumentsFromEntity(entityType: EntityLinkType, entityId: number): Promise<void> {
+  await getDb().execute(
+    "DELETE FROM document_links WHERE entity_type = $1 AND entity_id = $2",
+    [entityType, entityId]
+  );
   emitDataChanged();
 }

@@ -2525,6 +2525,19 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_content_raw_media_status ON content_raw_media(status);
     `,
   },
+  {
+    version: 180,
+    description:
+      "document_links — vínculo de documentos do Drive a QUALQUER entidade (já era polimórfico entity_type/entity_id; a API/UI é que travava em 'gig'). Adiciona label cacheado (nome da entidade no momento do vínculo, evita N+1 na leitura) + índice ÚNICO (drive_document_id, entity_type, entity_id) — dedup antes pra o índice não falhar. Espelha o padrão de task_links.",
+    sql: `
+      ALTER TABLE document_links ADD COLUMN label TEXT;
+      DELETE FROM document_links WHERE id NOT IN (
+        SELECT MIN(id) FROM document_links GROUP BY drive_document_id, entity_type, entity_id
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_document_links_unique
+        ON document_links(drive_document_id, entity_type, entity_id);
+    `,
+  },
 ];
 
 
