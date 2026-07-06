@@ -520,37 +520,37 @@ export function Hoje({
       <div className="stat-circles">
         <button className="stat-circle sc-red" onClick={goFocus} aria-label={`${streak} ${streak === 1 ? "dia" : "dias"} de foco · abrir Modo Foco`}>
           <span className="stat-face">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+            <span className="stat-num">{streak}</span>
           </span>
-          <span className="stat-num">{streak}</span>
           <span className="stat-label">Streak</span>
         </button>
         <button className="stat-circle sc-orange" onClick={onGoBrainstorm} aria-label={`${ideasCount} ideias · abrir Brainstorming`}>
           <span className="stat-face">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>
+            <span className="stat-num">{ideasCount}</span>
           </span>
-          <span className="stat-num">{ideasCount}</span>
           <span className="stat-label">Ideias</span>
         </button>
         <button className="stat-circle sc-yellow" onClick={onGoTasks} aria-label={`${tasksCount} tarefas pendentes · abrir Tarefas`}>
           <span className="stat-face">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+            <span className="stat-num">{tasksCount}</span>
           </span>
-          <span className="stat-num">{tasksCount}</span>
           <span className="stat-label">Tarefas</span>
         </button>
         <button className="stat-circle sc-green" onClick={() => setStratOpen(true)} aria-label="Indicadores estratégicos">
           <span className="stat-face">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /></svg>
+            <span className="stat-num">{okrAvg != null ? `${okrAvg}%` : "—"}</span>
           </span>
-          <span className="stat-num">{okrAvg != null ? `${okrAvg}%` : "—"}</span>
           <span className="stat-label">Estratégia</span>
         </button>
         <button className="stat-circle sc-blue" onClick={() => setCareerOpen(true)} aria-label={`${totalGigs} GIGs na carreira · abrir Carreira em números`}>
           <span className="stat-face">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M6 2h12v7a6 6 0 0 1-12 0V2z" /><path d="M12 15v3" /><path d="M8 21h8" /><path d="M9 18h6v3H9z" /></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M6 2h12v7a6 6 0 0 1-12 0V2z" /><path d="M12 15v3" /><path d="M8 21h8" /><path d="M9 18h6v3H9z" /></svg>
+            <span className="stat-num">{totalGigs}</span>
           </span>
-          <span className="stat-num">{totalGigs}</span>
           <span className="stat-label">Carreira</span>
         </button>
       </div>
@@ -570,9 +570,9 @@ export function Hoje({
         ) : (
           <div className="coming-grid">
             {comingTop.map((it, i) => (
-              <button key={it.key} className="coming-tile" style={{ animationDelay: `${i * 50}ms` }} onClick={it.onTap}>
+              <button key={it.key} className={"coming-tile k-" + it.kind} style={{ animationDelay: `${i * 50}ms` }} onClick={it.onTap}>
                 <span className="coming-tile-top">
-                  <span className={"coming-ic " + it.kind}><ComingIcon kind={it.kind} /></span>
+                  <span className={"coming-ic ci-" + it.kind}><ComingIcon kind={it.kind} /></span>
                   <span className="coming-chips">
                     {it.chips.map((c, j) => <Chip key={j} tone={c.tone}>{c.label}</Chip>)}
                   </span>
