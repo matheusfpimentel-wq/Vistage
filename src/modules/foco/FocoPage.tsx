@@ -201,7 +201,7 @@ export function FocoPage() {
                       {Math.round(s.total_minutes / 60)}h
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      E:{s.avg_energy} F:{s.avg_focus}
+                      E:{s.avg_energy ?? "—"} F:{s.avg_focus ?? "—"}
                     </div>
                   </div>
                 ))}
@@ -580,7 +580,7 @@ function MarkerEditRow({
 function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
   const cellMap = new Map<string, HeatmapCell>();
   for (const c of heatmap) cellMap.set(`${c.day}-${c.hour}`, c);
-  const max = Math.max(1, ...heatmap.map((c) => c.avg_energy));
+  const max = Math.max(1, ...heatmap.map((c) => c.avg_energy ?? 0));
 
   return (
     <Card>
@@ -605,7 +605,19 @@ function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
               <div className="w-8 text-[10px] text-muted-foreground flex items-center">{d}</div>
               {HOURS.map((h) => {
                 const cell = cellMap.get(`${di}-${h}`);
-                const intensity = cell ? cell.avg_energy / max : 0;
+                // avg_energy/avg_focus podem ser NULL (bucket só com registros
+                // avulsos de energia do celular). Sem energia → célula neutra.
+                const hasEnergy = cell != null && cell.avg_energy != null;
+                const intensity = hasEnergy ? (cell!.avg_energy as number) / max : 0;
+                const title = cell
+                  ? [
+                      cell.avg_energy != null ? `E:${cell.avg_energy.toFixed(1)}` : null,
+                      cell.avg_focus != null ? `F:${cell.avg_focus.toFixed(1)}` : null,
+                      `(${cell.count}×)`,
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  : "Sem dados";
                 return (
                   <div
                     key={h}
@@ -613,8 +625,8 @@ function HeatmapCard({ heatmap }: { heatmap: HeatmapCell[] }) {
                       "flex-1 rounded-sm h-5 transition",
                       cell ? "cursor-default" : "bg-muted/30"
                     )}
-                    style={cell ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : {}}
-                    title={cell ? `E:${cell.avg_energy.toFixed(1)} F:${cell.avg_focus.toFixed(1)} (${cell.count}×)` : "Sem dados"}
+                    style={hasEnergy ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : {}}
+                    title={title}
                   />
                 );
               })}

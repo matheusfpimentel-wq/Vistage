@@ -528,8 +528,11 @@ export async function deleteMoment(id: number): Promise<void> {
 export type HeatmapCell = {
   day: number;   // 0=Dom…6=Sab
   hour: number;  // 0…23
-  avg_energy: number;
-  avg_focus: number;
+  // Nulos são possíveis: um bucket que só tem registros avulsos do celular
+  // (energy_logs, sem foco) devolve avg_focus NULL; e AVG de um grupo sem
+  // energia devolve avg_energy NULL. A UI trata os dois casos.
+  avg_energy: number | null;
+  avg_focus: number | null;
   count: number;
 };
 
@@ -562,8 +565,9 @@ export async function loadHeatmap(): Promise<HeatmapCell[]> {
 export type ActivityStats = {
   activity_type: string;
   total_minutes: number;
-  avg_energy: number;
-  avg_focus: number;
+  // ROUND(AVG(...)) é NULL quando o grupo não tem nenhuma nota (energia/foco).
+  avg_energy: number | null;
+  avg_focus: number | null;
   sessions: number;
 };
 
