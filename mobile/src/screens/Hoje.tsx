@@ -570,15 +570,9 @@ export function Hoje({
         ) : (
           <div className="coming-grid">
             {comingTop.map((it, i) => (
-              <button key={it.key} className={"coming-tile k-" + it.kind} style={{ animationDelay: `${i * 50}ms` }} onClick={it.onTap}>
-                <span className="coming-tile-top">
-                  <span className={"coming-ic ci-" + it.kind}><ComingIcon kind={it.kind} /></span>
-                  <span className="coming-chips">
-                    {it.chips.map((c, j) => <Chip key={j} tone={c.tone}>{c.label}</Chip>)}
-                  </span>
-                </span>
+              <button key={it.key} className={"coming-tile k-" + it.kind} style={{ animationDelay: `${i * 55}ms` }} onClick={it.onTap}>
+                <span className={"coming-ic ci-" + it.kind}><ComingIcon kind={it.kind} /></span>
                 <span className="coming-title">{it.title}</span>
-                {it.sub && <span className="coming-sub">{it.sub}</span>}
               </button>
             ))}
           </div>
