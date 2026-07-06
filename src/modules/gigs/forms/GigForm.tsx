@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Plus, Search, Target, Trash2, X } from "lucide-react";
+import { Loader2, Plus, Target, Trash2 } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,32 +31,30 @@ import {
   type GigCreateInput,
   type GigTimeSlot,
 } from "../types";
-import { createGig, createGigPrepTask, getGig, listGigTracks, setGigTracks, updateGig } from "../api";
+import { createGig, createGigPrepTask, getGig, updateGig } from "../api";
 import { syncGigPaymentTransaction, listEquipment, createEquipment, listGigExpenses, createTransaction, deleteTransaction } from "@/modules/finance/api";
 import type { FinanceTransactionWithCategory } from "@/modules/finance/types";
 import type { Equipment } from "@/modules/finance/types";
 import { PAYMENT_METHODS } from "@/modules/finance/types";
 import { loadAuth, pushGigToCalendar } from "@/lib/gcal";
 import { createTask } from "@/modules/tasks/api";
-import { EMPTY_VALUE, todayISO, formatCurrency, formatDate } from "@/lib/format";
+import { todayISO, formatCurrency, formatDate } from "@/lib/format";
 import { onEnterSave } from "@/lib/formEnter";
 import { listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import { listVenues, listVenueTechNotes, type VenueTechNote } from "@/modules/venues/api";
 import { listContentPromoting } from "@/modules/content/api";
-import { listTracks } from "@/modules/music/api";
 import { QuickVenueForm } from "@/modules/venues/forms/QuickVenueForm";
 import { QuickContactForm } from "@/modules/crm/forms/QuickContactForm";
 import type { Venue } from "@/modules/venues/types";
 import { useUnsavedConfirm } from "@/lib/dirty";
-import { cn } from "@/lib/utils";
 import { PrepChecklist } from "../components/PrepChecklist";
 import { GigVipList } from "../components/GigVipList";
 import { gigDisplayName } from "../displayName";
 import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
-import { GigSetlist } from "./GigSetlist";
-import { GigLibraryPicker } from "@/modules/biblioteca/views/GigLibraryPicker";
+import { SetPlanner } from "./SetPlanner";
+import { emptySetPlan, parseSetPlan, serializeSetPlan, manualTrack, type SetPlan } from "../setPlan";
 import { RecurringFestField } from "./RecurringFestField";
 
 type Props = {
@@ -150,6 +148,7 @@ const EMPTY: FormState = {
   prep_notes: null,
   gig_equipment: "[]",
   gig_research: null,
+  set_plan: null,
   main_goal_task_id: null,
   event_category: null,
   recurring_event_name: null,
@@ -169,6 +168,31 @@ function gigToState(gig: Gig): FormState {
     extra_flyers = [];
   }
   return { ...rest, prep: parsePrepState(gig.prep_state), extra_flyers, slots: parseTimeSlots(gig) };
+}
+
+/** Estado inicial do Set Planner. Usa set_plan; se ainda não existe, semeia as
+ *  "Descobertas da pesquisa" a partir da pesquisa musical legada (gig_research)
+ *  pra não perder o que já estava lá. */
+function initSetPlanFromGig(gig: Gig | null): SetPlan {
+  const plan = parseSetPlan(gig?.set_plan ?? null);
+  const isEmpty =
+    plan.setlist.length === 0 &&
+    plan.inegociaveis.length === 0 &&
+    plan.descobertas.length === 0 &&
+    plan.proprias.length === 0;
+  if (isEmpty && gig?.gig_research) {
+    try {
+      const arr = JSON.parse(gig.gig_research) as { title?: string; artist?: string }[];
+      if (Array.isArray(arr)) {
+        plan.descobertas = arr
+          .filter((r) => r && (r.title || r.artist))
+          .map((r) => manualTrack(String(r.title ?? ""), String(r.artist ?? "")));
+      }
+    } catch {
+      /* pesquisa legada ilegível — começa vazio */
+    }
+  }
+  return plan;
 }
 
 /** Editor de intervalos de horário (1 ou vários, p/ set alternado). */
@@ -261,9 +285,13 @@ export function GigForm({
   const confirmClose = useUnsavedConfirm(dirty);
   const [quickVenueOpen, setQuickVenueOpen] = useState(false);
   const [quickContactOpen, setQuickContactOpen] = useState(false);
-  const [setListTrackIds, setSetListTrackIds] = useState<number[]>([]);
-  const [allTracks, setAllTracks] = useState<{ id: number; title: string }[]>([]);
+  const [setPlan, setSetPlanState] = useState<SetPlan>(emptySetPlan());
   const [allEquipment, setAllEquipment] = useState<Equipment[]>([]);
+  // O Set Planner é estado próprio (JSON em gigs.set_plan); marca sujo ao mudar.
+  function updateSetPlan(p: SetPlan) {
+    setSetPlanState(p);
+    setDirty(true);
+  }
   const [activeTab, setActiveTab] = useState("geral");
   const [promotingContent, setPromotingContent] = useState<
     { id: number; title: string; status: string }[]
@@ -285,6 +313,7 @@ export function GigForm({
         venue_city: prefillPromoter.city,
       });
     else setState(EMPTY);
+    setSetPlanState(initSetPlanFromGig(gig ?? null));
     setErrors({});
     setDirty(false);
     // Abre na aba pedida (ex.: "prep" ao clicar em Preparar/Debrief na lista).
@@ -298,19 +327,9 @@ export function GigForm({
     );
     void listVenues().then((vs) => setVenues([...vs].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))));
     void listEquipment().then(setAllEquipment);
-    void listTracks().then((ts) =>
-      setAllTracks(
-        ts.map((t) => ({
-          id: t.id,
-          title: t.title_final?.trim() || t.title_working,
-        }))
-      )
-    );
     if (gig) {
-      void listGigTracks(gig.id).then(setSetListTrackIds);
       void listContentPromoting("GIG", gig.id).then(setPromotingContent);
     } else {
-      setSetListTrackIds([]);
       setPromotingContent([]);
     }
   }, [open, gig]);
@@ -424,6 +443,7 @@ export function GigForm({
         prep_state: JSON.stringify(state.prep),
         extra_flyer_paths: state.extra_flyers.length > 0 ? JSON.stringify(state.extra_flyers) : null,
         time_slots: validSlots.length > 0 ? JSON.stringify(validSlots) : null,
+        set_plan: serializeSetPlan(setPlan),
         // start_time/end_time espelham o 1º intervalo (gcal/ordenação/spreadsheet)
         start_time: validSlots[0]?.start || null,
         end_time: validSlots[0]?.end || null,
@@ -531,8 +551,6 @@ export function GigForm({
         }
       }
 
-      await setGigTracks(savedId, setListTrackIds);
-
       // Finaliza o debrief embutido (quando a aba está ativa para esta GIG) —
       // assim o "Salvar alterações" grava o debrief junto, sem botão separado.
       if (gig && showDebrief) {
@@ -626,7 +644,7 @@ export function GigForm({
             <TabsTrigger value="briefing">Briefing</TabsTrigger>
             <TabsTrigger value="prep">Preparação</TabsTrigger>
             <TabsTrigger value="debrief">Debrief</TabsTrigger>
-            <TabsTrigger value="setlist">Setlist</TabsTrigger>
+            <TabsTrigger value="setlist">Set Planner</TabsTrigger>
           </TabsList>
 
           <TabsContent value="geral" className="space-y-4">
@@ -1255,61 +1273,7 @@ export function GigForm({
             {state.status === "Proposta" ? (
               <ProposalHint />
             ) : (
-              <>
-                <Section title="Pesquisa musical">
-                  <ResearchList
-                    value={state.gig_research}
-                    onChange={(v) => set("gig_research", v)}
-                  />
-                </Section>
-
-                {allTracks.length > 0 && (
-                  <Section title="Minhas Tracks">
-                    <div className="flex flex-wrap gap-1.5">
-                      {allTracks.map((t) => {
-                        const selected = setListTrackIds.includes(t.id);
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() =>
-                              setSetListTrackIds((ids) =>
-                                selected
-                                  ? ids.filter((x) => x !== t.id)
-                                  : [...ids, t.id]
-                              )
-                            }
-                            className={cn(
-                              "rounded-md border px-2.5 py-1 text-xs transition",
-                              selected
-                                ? "border-primary/30 bg-primary/10 text-primary shadow-sm shadow-primary/5 ring-1 ring-inset ring-primary/20 backdrop-blur-sm"
-                                : "border-input text-muted-foreground hover:bg-accent"
-                            )}
-                          >
-                            {t.title}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Section>
-                )}
-
-                {gig && (
-                  <Section title="Da Biblioteca de Músicas" hint="O que foi tocado fica salvo mesmo se a faixa for excluída da biblioteca depois.">
-                    <GigLibraryPicker gigId={gig.id} />
-                  </Section>
-                )}
-
-                {gig ? (
-                  <Section title="Setlist tocado" hint="Adicione o histórico direto do Rekordbox, Serato ou Traktor.">
-                    <GigSetlist gigId={gig.id} />
-                  </Section>
-                ) : (
-                  <Section title="Setlist tocado">
-                    <p className="text-xs text-muted-foreground">Salve a GIG primeiro para adicionar o setlist tocado.</p>
-                  </Section>
-                )}
-              </>
+              <SetPlanner plan={setPlan} onChange={updateSetPlan} gig={gig ?? null} />
             )}
           </TabsContent>
         </Tabs>
@@ -1350,101 +1314,6 @@ export function GigForm({
         }}
       />
     </Dialog>
-  );
-}
-
-type ResearchItem = { title: string; artist: string; note: string };
-
-function ResearchList({
-  value,
-  onChange,
-}: {
-  value: string | null;
-  onChange: (v: string | null) => void;
-}) {
-  const items: ResearchItem[] = (() => {
-    try {
-      const parsed = value ? (JSON.parse(value) as unknown) : [];
-      return Array.isArray(parsed) ? (parsed as ResearchItem[]) : [];
-    } catch {
-      return [];
-    }
-  })();
-
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
-
-  function save(next: ResearchItem[]) {
-    onChange(next.length > 0 ? JSON.stringify(next) : null);
-  }
-
-  function add() {
-    if (!title.trim() && !artist.trim()) return;
-    save([...items, { title: title.trim(), artist: artist.trim(), note: "" }]);
-    setTitle("");
-    setArtist("");
-  }
-
-  function remove(i: number) {
-    save(items.filter((_, j) => j !== i));
-  }
-
-  function updateNote(i: number, note: string) {
-    save(items.map((item, j) => (j === i ? { ...item, note } : item)));
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <Input
-          placeholder="Título"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          className="flex-1"
-        />
-        <Input
-          placeholder="Artista"
-          value={artist}
-          onChange={(e) => setArtist(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
-          className="flex-1"
-        />
-        <Button type="button" size="sm" variant="outline" onClick={add}>
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhuma música pesquisada ainda. Adicione acima.</p>
-      ) : (
-        <ul className="space-y-1.5">
-          {items.map((item, i) => (
-            <li key={i} className="flex items-start gap-2 rounded-md border px-2.5 py-2">
-              <Search className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="text-sm font-medium leading-none">
-                  {item.title || EMPTY_VALUE}
-                  {item.artist && <span className="ml-1.5 text-xs text-muted-foreground">· {item.artist}</span>}
-                </div>
-                <Input
-                  placeholder="Nota (opcional)"
-                  value={item.note}
-                  onChange={(e) => updateNote(i, e.target.value)}
-                  className="h-6 text-xs"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => remove(i)}
-                className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 

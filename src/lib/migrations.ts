@@ -2538,6 +2538,14 @@ const MIGRATIONS: Migration[] = [
         ON document_links(drive_document_id, entity_type, entity_id);
     `,
   },
+  {
+    version: 181,
+    description:
+      "GIGs — set_plan: planejamento do Set Planner (Curadoria + Setlist ordenado com blocos/transições + tempo médio de transição) num único JSON. O 'Executado' continua em gig_setlists. Coluna aditiva idempotente.",
+    sql: `
+      ALTER TABLE gigs ADD COLUMN set_plan TEXT;
+    `,
+  },
 ];
 
 

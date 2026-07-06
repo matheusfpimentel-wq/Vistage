@@ -70,6 +70,7 @@ const GIG_COLUMNS = [
   "main_goal_task_id",
   "prep_task_id",
   "gig_equipment",
+  "set_plan",
   "event_category",
   "recurring_event_name",
   "rating_contractor",
