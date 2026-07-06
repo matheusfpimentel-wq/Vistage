@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { loadStreak } from "../identity";
-import { loadProvocations } from "../insights";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
+import { Estrategia, type StrategyPayload } from "./Estrategia";
+import { Carreira, type CareerPayload } from "./Carreira";
 import { telLink, waLink, mapsLink } from "../links";
 import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
 import { EnergyChip } from "../components/EnergyChip";
@@ -66,21 +67,25 @@ type GigMeta = {
 type TrackMeta = { stage?: string | null; project?: string | null; genre?: string | null; bpm?: number | null; key?: string | null; concept?: string | null; deadline?: string | null };
 type PartyMeta = { status?: string | null; date?: string | null; venue_name?: string | null };
 type ClassMeta = { date?: string | null; status?: string | null; student_name?: string | null; start_time?: string | null; given?: boolean; amount?: number | null };
+type ContentMeta = { status?: string | null; format?: string | null; due_date?: string | null; publish_date?: string | null; published_at?: string | null };
 
 type GigRow = { source_id: string; title: string; meta: GigMeta; search_text?: string };
 type TrackRow = { source_id: string; title: string; meta: TrackMeta };
 type PartyRow = { source_id: string; title: string; meta: PartyMeta };
 type ClassRow = { source_id: string; title: string; meta: ClassMeta };
+type ContentRow = { source_id: string; title: string; meta: ContentMeta };
 type CatalogGig = { title: string; meta: GigMeta };
 
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
 // Total de itens do checklist de Preparação (espelha PREP_GROUPS do Foco: 5+3+5).
 const PREP_TOTAL = 13;
-// Track já concluída (não entra no "O que vem").
+// Track já concluída (não entra no "VEM AÍ").
 const TRACK_DONE_STAGE = "Pós-lançamento";
 // Festa "em aberto" = tudo menos Realizada/Cancelada.
 const PARTY_DONE = new Set(["Realizada", "Cancelada"]);
+// Conteúdo "em aberto" = tudo menos Publicado/Arquivado.
+const CONTENT_DONE = new Set(["Publicado", "Arquivado"]);
 
 /** "hoje 22:00" / "12 jul 23:00" / "amanhã" — rótulo curto de quando. */
 function whenLabel(iso: string | null, today: string): string {
@@ -142,17 +147,19 @@ function SourceIcon({ source }: { source: string }) {
   if (source === "gig") return <svg {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg>;
   if (source === "class") return <svg {...p}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>;
   if (source === "meeting") return <svg {...p}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>;
+  // Bloco de foco da Trilha da semana (relógio).
+  if (source === "foco") return <svg {...p}><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5" /><path d="M9 2h6" /></svg>;
   // task / deadline
   return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
 }
-type ComingKind = "gig" | "class" | "party" | "track" | "task";
-// Ícone dos itens "O que vem".
+type ComingKind = "gig" | "class" | "party" | "track" | "content";
+// Ícone dos itens do "VEM AÍ".
 function ComingIcon({ kind }: { kind: ComingKind }) {
   const p = { width: 17, height: 17, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   if (kind === "track") return <svg {...p}><circle cx="6" cy="18" r="2.5" /><circle cx="17" cy="16" r="2.5" /><path d="M8.5 18V6l11-2v12" /></svg>;
   if (kind === "party") return <svg {...p}><path d="M2 22l5-15 10 10z" /><path d="M14 7a3 3 0 0 0-3-3M17 4a6 6 0 0 0-6-2" /></svg>;
   if (kind === "class") return <svg {...p}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>;
-  if (kind === "task") return <svg {...p}><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>;
+  if (kind === "content") return <svg {...p}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3V9z" /></svg>;
   return <svg {...p}><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3" /></svg>;
 }
 function ChevronRight() {
@@ -168,17 +175,8 @@ function suggestActivity(items: Agenda[]): string {
   return "Gestão";
 }
 
-// Frases motivacionais prontas (loop quando os insights acionáveis acabam).
-const MOTIVATION = [
-  "Comece pequeno: um bloco de foco hoje conta pro seu eu de daqui a um ano.",
-  "Consistência vence intensidade. Um passo hoje.",
-  "O que você planta agora, toca no palco depois.",
-  "Sem pressa e sem pausa. Só siga.",
-  "Disciplina é lembrar do que você quer de verdade.",
-];
-
-// Prioridade de tipo no "O que vem" (empate de data): GIG > aula > festa > track > tarefa.
-const COMING_PRIORITY: Record<ComingKind, number> = { gig: 0, class: 1, party: 2, track: 3, task: 4 };
+// Prioridade de tipo no "VEM AÍ" (empate de data): GIG > aula > festa > track > conteúdo.
+const COMING_PRIORITY: Record<ComingKind, number> = { gig: 0, class: 1, party: 2, track: 3, content: 4 };
 type ComingItem = {
   key: string;
   kind: ComingKind;
@@ -192,7 +190,9 @@ type ComingItem = {
 // ── Cache offline do digest ─────────────────────────────────────────────────
 type HomeSnapshot = {
   agenda: Agenda[]; cooling: Cold[]; gigs: GigRow[]; tracks: TrackRow[]; parties: PartyRow[]; classes: ClassRow[];
-  streak: number; provocations: string[]; at: number;
+  contents?: ContentRow[]; strategy?: StrategyPayload | null; career?: CareerPayload | null;
+  ideasCount?: number; tasksCount?: number;
+  streak: number; at: number;
 };
 const CACHE_KEY = "vistage.home.cache";
 function saveSnapshot(s: HomeSnapshot) {
@@ -227,10 +227,15 @@ export function Hoje({
   const [catTracks, setCatTracks] = useState<TrackRow[]>([]);
   const [catParties, setCatParties] = useState<PartyRow[]>([]);
   const [catClasses, setCatClasses] = useState<ClassRow[]>([]);
+  const [catContents, setCatContents] = useState<ContentRow[]>([]);
+  const [strategy, setStrategy] = useState<StrategyPayload | null>(null);
+  const [career, setCareer] = useState<CareerPayload | null>(null);
+  const [ideasCount, setIdeasCount] = useState(0);
+  const [tasksCount, setTasksCount] = useState(0);
+  const [stratOpen, setStratOpen] = useState(false);
+  const [careerOpen, setCareerOpen] = useState(false);
   const [localGigs, setLocalGigs] = useState<LocalGig[]>([]);
-  const [provocations, setProvocations] = useState<string[]>([]);
   const [streak, setStreak] = useState(0);
-  const [insightIdx, setInsightIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [offline, setOffline] = useState(false);
@@ -242,21 +247,27 @@ export function Hoje({
   const applySnapshot = useCallback((s: HomeSnapshot) => {
     setAgenda(s.agenda); setCooling(s.cooling); setCatGigs(s.gigs);
     setCatTracks(s.tracks); setCatParties(s.parties); setCatClasses(s.classes ?? []);
-    setStreak(s.streak); setProvocations(s.provocations);
+    setCatContents(s.contents ?? []); setStrategy(s.strategy ?? null); setCareer(s.career ?? null);
+    setIdeasCount(s.ideasCount ?? 0); setTasksCount(s.tasksCount ?? 0);
+    setStreak(s.streak);
   }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [a, c, g, tr, pa, cl, s, prov] = await Promise.all([
-        supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(60),
-        supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(18),
+      const [a, c, g, tr, pa, cl, cn, st, ca, idn, tkn, s] = await Promise.all([
+        supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(80),
+        supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(120),
         supabase.from("catalog_mirror").select("source_id, title, meta, search_text").eq("kind", "gig").limit(200),
         supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "track").limit(120),
         supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "party").limit(120),
         supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "class").limit(120),
+        supabase.from("catalog_mirror").select("source_id, title, meta").eq("kind", "content").limit(120),
+        supabase.from("strategy_mirror").select("payload").maybeSingle(),
+        supabase.from("career_stats").select("payload").maybeSingle(),
+        supabase.from("catalog_mirror").select("*", { count: "exact", head: true }).eq("kind", "idea"),
+        supabase.from("tasks_mirror").select("*", { count: "exact", head: true }),
         loadStreak(),
-        loadProvocations([]),
       ]);
       // Falha total de rede (todas as leituras com erro) → cai no cache.
       if (a.error && c.error && g.error) throw a.error;
@@ -267,6 +278,11 @@ export function Hoje({
       const trackRows = (tr.data ?? []) as TrackRow[];
       const partyRows = (pa.data ?? []) as PartyRow[];
       const classRows = (cl.data ?? []) as ClassRow[];
+      const contentRows = (cn.data ?? []) as ContentRow[];
+      const strategyPayload = (st.data?.payload ?? null) as StrategyPayload | null;
+      const careerPayload = (ca.data?.payload ?? null) as CareerPayload | null;
+      const nIdeas = idn.count ?? 0;
+      const nTasks = tkn.count ?? 0;
 
       setAgenda(agendaRows);
       setCooling(coolingRows);
@@ -274,8 +290,12 @@ export function Hoje({
       setCatTracks(trackRows);
       setCatParties(partyRows);
       setCatClasses(classRows);
+      setCatContents(contentRows);
+      setStrategy(strategyPayload);
+      setCareer(careerPayload);
+      setIdeasCount(nIdeas);
+      setTasksCount(nTasks);
       setStreak(s);
-      setProvocations(prov);
       // GIGs criadas no celular ainda não sincronizadas: reconcilia contra o espelho.
       setLocalGigs(
         await reconcileLocalGigs(
@@ -286,7 +306,7 @@ export function Hoje({
         )
       );
       setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
-      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, classes: classRows, streak: s, provocations: prov, at: Date.now() });
+      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, classes: classRows, contents: contentRows, strategy: strategyPayload, career: careerPayload, ideasCount: nIdeas, tasksCount: nTasks, streak: s, at: Date.now() });
     } catch {
       // Sem rede: mostra o último sync (legível offline).
       const snap = readSnapshot();
@@ -361,25 +381,21 @@ export function Hoje({
     .filter((x) => x.meta?.date === today && x.meta.status !== "Cancelada")
     .sort((x, y) => (x.meta.start_time ?? "").localeCompare(y.meta.start_time ?? ""))[0] ?? null;
 
-  // GIGs pendentes criadas no celular → compromissos sintéticos (aparecem já).
-  const localUpcoming: Agenda[] = localGigs
-    .filter((g) => !g.date || g.date >= today)
-    .map((g) => ({ id: "local:" + g.client_ref, source: "gig", source_id: undefined, title: g.venue_name, start_at: g.date ? `${g.date}T21:00:00` : null, location: g.city }));
-
-  // Compromissos = tarefas atrasadas (topo) + hoje + futuros. Ordena por data asc.
-  const commitments = [...localUpcoming, ...agenda]
+  // Compromissos = tarefas + reuniões + blocos de foco da Trilha, em ordem
+  // cronológica (atrasadas sobem naturalmente). GIGs/aulas moraram pro VEM AÍ.
+  const COMMIT_SOURCES = new Set(["task", "meeting", "foco"]);
+  const commitments = agenda
+    .filter((i) => COMMIT_SOURCES.has(i.source))
     .sort((x, y) => {
       const dx = localDateOf(x.start_at) ?? "9999-99-99";
       const dy = localDateOf(y.start_at) ?? "9999-99-99";
       if (dx !== dy) return dx < dy ? -1 : 1;
       return (timeOf(x.start_at) ?? "99") < (timeOf(y.start_at) ?? "99") ? -1 : 1;
     })
-    .slice(0, 12);
+    .slice(0, 14);
 
-  const gigById = new Map(catGigs.map((g) => [g.source_id, g]));
-
-  // ── "O que vem": lista única (GIG, aula, festa, track, próxima tarefa),
-  // ordenada por data mais próxima e depois pela prioridade de tipo. Sem ideias.
+  // ── "VEM AÍ": só futuros — músicas em produção, GIGs, festas, aulas e
+  // conteúdos, ordenados por data e depois pela prioridade de tipo.
   const coming: ComingItem[] = [];
   for (const g of catGigs) {
     if (typeof g.meta?.date !== "string" || g.meta.date <= today || g.meta.status === "Cancelada") continue;
@@ -387,6 +403,11 @@ export function Hoje({
     if (prepPending(g.meta)) chips.push({ tone: "warn", label: "prep pendente" });
     chips.push({ tone: dateTone(g.meta.date, today), label: countdownLabel(g.meta.date, today) });
     coming.push({ key: "g" + g.source_id, kind: "gig", date: g.meta.date, title: g.title, sub: g.meta.city, chips, onTap: () => setGigOpen(g) });
+  }
+  // GIGs criadas no celular ainda não sincronizadas entram como futuras "pendentes".
+  for (const g of localGigs) {
+    if (g.date && g.date < today) continue;
+    coming.push({ key: "lg" + g.client_ref, kind: "gig", date: g.date ?? today, title: g.venue_name, sub: g.city, chips: [{ tone: "warn", label: "pendente" }], onTap: () => {} });
   }
   for (const cl of catClasses) {
     const d = cl.meta?.date;
@@ -409,44 +430,41 @@ export function Hoje({
     chips.push({ tone: dateTone(d, today), label: countdownLabel(d, today) });
     coming.push({ key: "t" + t.source_id, kind: "track", date: d, title: t.title, sub: t.meta.project, chips, onTap: () => setTrackOpen(t) });
   }
-  // Só a PRÓXIMA tarefa (a de vencimento mais próximo, de hoje em diante).
-  const nextTask = agenda
-    .filter((i) => i.source === "task" && !!localDateOf(i.start_at) && (localDateOf(i.start_at) as string) >= today)
-    .sort((x, y) => ((localDateOf(x.start_at) as string) < (localDateOf(y.start_at) as string) ? -1 : 1))[0];
-  if (nextTask) {
-    const d = localDateOf(nextTask.start_at) as string;
-    coming.push({ key: "k" + nextTask.id, kind: "task", date: d, title: nextTask.title, sub: null, chips: [{ tone: dateTone(d, today), label: countdownLabel(d, today) }], onTap: onGoTasks });
+  // Conteúdos futuros (publicação/prazo de hoje em diante, ainda não publicados).
+  for (const cn of catContents) {
+    if (CONTENT_DONE.has(cn.meta?.status ?? "")) continue;
+    const d = cn.meta?.publish_date || cn.meta?.due_date;
+    if (typeof d !== "string" || d < today) continue;
+    const chips: ComingItem["chips"] = [];
+    if (cn.meta.status) chips.push({ tone: "neutral", label: cn.meta.status });
+    chips.push({ tone: dateTone(d, today), label: countdownLabel(d, today) });
+    coming.push({ key: "n" + cn.source_id, kind: "content", date: d, title: cn.title, sub: cn.meta.format, chips, onTap: () => {} });
   }
   coming.sort((x, y) => (x.date !== y.date ? (x.date < y.date ? -1 : 1) : COMING_PRIORITY[x.kind] - COMING_PRIORITY[y.kind]));
-  const comingTop = coming.slice(0, 8);
+  // Músicas em produção SEM prazo completam a grade (são "sendo produzidas").
+  const datedKeys = new Set(coming.map((i) => i.key));
+  for (const t of catTracks) {
+    if (coming.length >= 10) break;
+    if ((t.meta?.stage ?? "") === TRACK_DONE_STAGE) continue;
+    if (datedKeys.has("t" + t.source_id)) continue;
+    if (typeof t.meta?.deadline === "string" && t.meta.deadline < today) continue; // prazo estourado já esfriou
+    coming.push({ key: "t" + t.source_id, kind: "track", date: "9999", title: t.title, sub: t.meta?.project, chips: t.meta?.stage ? [{ tone: "accent", label: t.meta.stage }] : [], onTap: () => setTrackOpen(t) });
+  }
+  const comingTop = coming.slice(0, 10);
 
   // §4 — cadência de expansão (prefixo expansao:) tem card próprio; o resto é
   // o "Esfriando" de sempre.
   const weekContacts = cooling.filter((c) => c.source_id.startsWith("expansao:"));
   const coldList = cooling.filter((c) => !c.source_id.startsWith("expansao:"));
 
-  const coldPerson = coldList.find(isPerson) ?? null;
-  const overdue = commitments.filter((i) => i.source === "task" && taskUrgency(i.start_at, today) === "danger");
-
-  // ── Insight: pilha de mensagens acionáveis (atrasada → fã esfriando →
-  // provocações). "Próxima" avança; passou do fim, entra o rodízio motivacional.
-  const insightPool: { text: string; tone: Tone; onClick?: () => void }[] = [];
-  if (overdue[0]) {
-    const o = overdue[0];
-    insightPool.push({ text: `Atrasada: ${o.title} · ${countdownLabel(localDateOf(o.start_at), today)}`, tone: "danger", onClick: onGoTasks });
-  }
-  if (coldPerson) {
-    insightPool.push({ text: `Faz tempo que você não fala com ${coldPerson.name.split(" ")[0]}. Um "oi" reaquece.`, tone: "accent", onClick: () => setColdOpen(coldPerson) });
-  }
-  for (const p of provocations) insightPool.push({ text: p, tone: "accent" });
-  const insight: { text: string; tone: Tone; onClick?: () => void } =
-    insightIdx < insightPool.length
-      ? insightPool[insightIdx]
-      : { text: MOTIVATION[(insightIdx - insightPool.length) % MOTIVATION.length], tone: "accent" };
+  // Nº do círculo Estratégia: progresso médio dos OKRs (se houver).
+  const okrList = strategy?.okrs ?? [];
+  const okrAvg = okrList.length ? Math.round(okrList.reduce((s2, o) => s2 + (o.progress ?? 0), 0) / okrList.length) : null;
+  const totalGigs = career?.all_time?.totalGigs ?? catGigs.length;
 
   function goFocus() {
     try {
-      localStorage.setItem("vistage.foco.suggestedActivity", suggestActivity(commitments));
+      localStorage.setItem("vistage.foco.suggestedActivity", suggestActivity(agenda));
     } catch { /* ok */ }
     onGoFocus();
   }
@@ -496,48 +514,71 @@ export function Hoje({
       {/* §3 EMA — pergunta de energia (1 toque, some sozinha fora da janela). */}
       <EnergyChip />
 
-      {/* (1) Streak (badge redondo, abre o Foco) + insight ao lado (dispensável). */}
-      <div className="home-top">
-        <button className="streak-badge" onClick={goFocus} aria-label={`${streak} ${streak === 1 ? "dia" : "dias"} de foco · abrir Modo Foco`}>
-          <svg className="streak-badge-flame" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
-          <span className="streak-badge-num">{streak}</span>
+      {/* (1) Fileira de indicadores: círculos com degradê, número embaixo.
+          Streak (vermelho) → Foco · Ideias → Brainstorming · Tarefas → Tarefas ·
+          Estratégia → página nova · Carreira → página nova. */}
+      <div className="stat-circles">
+        <button className="stat-circle sc-red" onClick={goFocus} aria-label={`${streak} ${streak === 1 ? "dia" : "dias"} de foco · abrir Modo Foco`}>
+          <span className="stat-face">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12 2c1 3 3 4.5 4.5 6.5C18 10.5 19 12.4 19 14.5a7 7 0 1 1-14 0c0-1.2.4-2.3 1-3.2.3 1.3 1.3 2.2 2.5 2.2a2.5 2.5 0 0 0 2.5-2.5c0-1.4-.8-2.2-1.3-3.2C10.7 6.3 11 4 12 2z" /></svg>
+          </span>
+          <span className="stat-num">{streak}</span>
+          <span className="stat-label">Streak</span>
         </button>
-        <div className={"insight-inline tone-" + insight.tone}>
-          {insight.onClick ? (
-            <button type="button" className="insight-inline-text" onClick={insight.onClick}>{insight.text}</button>
-          ) : (
-            <span className="insight-inline-text">{insight.text}</span>
-          )}
-          <button type="button" className="insight-next" onClick={() => setInsightIdx((i) => i + 1)} aria-label="Próxima mensagem">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 17 5-5-5-5" /><path d="m13 17 5-5-5-5" /></svg>
-          </button>
-        </div>
+        <button className="stat-circle sc-orange" onClick={onGoBrainstorm} aria-label={`${ideasCount} ideias · abrir Brainstorming`}>
+          <span className="stat-face">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>
+          </span>
+          <span className="stat-num">{ideasCount}</span>
+          <span className="stat-label">Ideias</span>
+        </button>
+        <button className="stat-circle sc-yellow" onClick={onGoTasks} aria-label={`${tasksCount} tarefas pendentes · abrir Tarefas`}>
+          <span className="stat-face">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+          </span>
+          <span className="stat-num">{tasksCount}</span>
+          <span className="stat-label">Tarefas</span>
+        </button>
+        <button className="stat-circle sc-green" onClick={() => setStratOpen(true)} aria-label="Indicadores estratégicos">
+          <span className="stat-face">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /></svg>
+          </span>
+          <span className="stat-num">{okrAvg != null ? `${okrAvg}%` : "—"}</span>
+          <span className="stat-label">Estratégia</span>
+        </button>
+        <button className="stat-circle sc-blue" onClick={() => setCareerOpen(true)} aria-label={`${totalGigs} GIGs na carreira · abrir Carreira em números`}>
+          <span className="stat-face">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M6 2h12v7a6 6 0 0 1-12 0V2z" /><path d="M12 15v3" /><path d="M8 21h8" /><path d="M9 18h6v3H9z" /></svg>
+          </span>
+          <span className="stat-num">{totalGigs}</span>
+          <span className="stat-label">Carreira</span>
+        </button>
       </div>
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
       {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} onMedia={() => setMediaOpen(true)} />}
 
-      {/* (2) O que vem — lista única animada (cada item surge da esquerda). */}
+      {/* (2) VEM AÍ — só futuros (músicas em produção, GIGs, festas, aulas,
+          conteúdos), em grade de duas colunas. */}
       <section className="home-section">
-        <h2 className="section-head">O que vem</h2>
+        <h2 className="section-head">Vem aí</h2>
         {comingTop.length === 0 ? (
           <div className="card empty-card">
             <p className="muted small" style={{ margin: 0 }}>Nada em andamento agora. Que tal prospectar um show ou soltar uma ideia?</p>
             <button className="ghost full" style={{ marginTop: "0.5rem" }} onClick={onGoBrainstorm}>Soltar uma ideia</button>
           </div>
         ) : (
-          <div className="coming-wrap">
+          <div className="coming-grid">
             {comingTop.map((it, i) => (
-              <button key={it.key} className="coming-card" style={{ animationDelay: `${i * 60}ms` }} onClick={it.onTap}>
-                <span className={"coming-ic " + it.kind}><ComingIcon kind={it.kind} /></span>
-                <span className="coming-body">
-                  <span className="coming-title">{it.title}</span>
-                  {it.sub && <span className="coming-sub">{it.sub}</span>}
+              <button key={it.key} className="coming-tile" style={{ animationDelay: `${i * 50}ms` }} onClick={it.onTap}>
+                <span className="coming-tile-top">
+                  <span className={"coming-ic " + it.kind}><ComingIcon kind={it.kind} /></span>
+                  <span className="coming-chips">
+                    {it.chips.map((c, j) => <Chip key={j} tone={c.tone}>{c.label}</Chip>)}
+                  </span>
                 </span>
-                <span className="coming-chips">
-                  {it.chips.map((c, j) => <Chip key={j} tone={c.tone}>{c.label}</Chip>)}
-                </span>
-                <ChevronRight />
+                <span className="coming-title">{it.title}</span>
+                {it.sub && <span className="coming-sub">{it.sub}</span>}
               </button>
             ))}
           </div>
@@ -556,14 +597,9 @@ export function Hoje({
           <ul className="commit-list">
             {commitments.map((i) => {
               const isTask = i.source === "task";
+              const isFoco = i.source === "foco";
               const tone: Tone = isTask ? taskUrgency(i.start_at, today) : "neutral";
               const overdueDays = isTask && tone === "danger" ? countdownLabel(localDateOf(i.start_at), today) : null;
-              const gig = i.source === "gig" ? gigById.get(i.source_id ?? "") : undefined;
-              const tappable = isTask || !!gig;
-              const onTap = () => {
-                if (isTask) onGoTasks();
-                else if (gig) setGigOpen(gig);
-              };
               return (
                 <li key={i.id} className={"commit-item u-row-" + tone}>
                   {isTask && i.source_id ? (
@@ -578,16 +614,12 @@ export function Hoje({
                   ) : (
                     <span className={"commit-ic " + i.source}><SourceIcon source={i.source} /></span>
                   )}
-                  {tappable ? (
-                    <button type="button" className="commit-title as-link" onClick={onTap}>
+                  {isTask || isFoco ? (
+                    <button type="button" className="commit-title as-link" onClick={isTask ? onGoTasks : goFocus}>
                       {i.title}
-                      {i.id.startsWith("local:") && <span className="pending-badge">pendente</span>}
                     </button>
                   ) : (
-                    <span className="commit-title">
-                      {i.title}
-                      {i.id.startsWith("local:") && <span className="pending-badge">pendente</span>}
-                    </span>
+                    <span className="commit-title">{i.title}</span>
                   )}
                   <span className={"commit-time" + (tone !== "neutral" ? " u-" + tone : "")}>
                     {overdueDays ?? whenLabel(i.start_at, today)}
@@ -651,6 +683,8 @@ export function Hoje({
           onClose={() => setMediaOpen(false)}
         />
       )}
+      {stratOpen && <Estrategia data={strategy} onClose={() => setStratOpen(false)} />}
+      {careerOpen && <Carreira data={career} onClose={() => setCareerOpen(false)} />}
     </div>
   );
 }
