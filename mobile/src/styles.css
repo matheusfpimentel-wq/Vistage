@@ -53,11 +53,16 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 /* ── Layout do app ─────────────────────────────── */
 .app { display: flex; flex-direction: column; height: 100%; }
 
+/* Header discreto: vidro translúcido com blur, borda quase invisível —
+   o conteúdo passa por baixo e o header some na paisagem. */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 0.75rem) 1rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--bg); z-index: 5;
+  padding: calc(env(safe-area-inset-top) + 0.55rem) 0.9rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  position: sticky; top: 0; z-index: 5;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
 }
 
 /* Header: identidade (isótipo + nome) à esquerda */
@@ -67,17 +72,16 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   color: var(--text);
 }
 .identity-chip:active { background: var(--surface-2); }
-.identity-chip-iso { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; background: var(--surface-2); }
+.identity-chip-iso { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; background: var(--surface-2); }
 .identity-chip-mono {
-  width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
-  display: flex; align-items: center; justify-content: center; font-weight: 800;
+  width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem;
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.identity-chip-name { font-weight: 700; font-size: 0.95rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.identity-chip-name { font-weight: 650; font-size: 0.92rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.topbar-actions { display: flex; align-items: center; gap: 0.35rem; }
-.bell-streak { display: flex; align-items: center; gap: 0.15rem; }
+.topbar-actions { display: flex; align-items: center; gap: 0.3rem; }
 
 /* Folha de identidade */
 .identity-sheet { display: flex; flex-direction: column; gap: 0.8rem; padding-bottom: 0.5rem; }
@@ -134,10 +138,14 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .iconbtn {
   position: relative; display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; border-radius: 10px;
-  background: none; border: none; color: var(--text);
+  width: 38px; height: 38px; border-radius: 12px;
+  background: none; border: none; color: var(--muted);
 }
 .iconbtn:active { background: var(--surface-2); }
+.iconbtn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Refresh do header girando enquanto as telas recarregam. */
+.iconbtn.spinning svg { animation: iconspin 0.9s linear infinite; }
+@keyframes iconspin { to { transform: rotate(360deg); } }
 .bell-wrap { position: relative; }
 .bell-badge {
   position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px;
@@ -219,24 +227,24 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .anotar textarea { font-size: 1rem; }
 .anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
-/* Prompt de categorias (Pesquisa) — ícone + texto, antes de digitar */
-.cat-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+/* Prompt de categorias (Pesquisa) — grade de QUADRADOS (ícone em cima, título embaixo) */
+.cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; margin-top: 0.5rem; }
 .cat-btn {
-  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.45rem; aspect-ratio: 1; text-align: center;
   background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
-  border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 0.9rem;
+  border: 1px solid var(--border); border-radius: 14px; padding: 0.5rem 0.35rem;
   color: var(--text); box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
-.cat-btn:active { transform: scale(0.985); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.cat-btn:active { transform: scale(0.97); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .cat-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
   width: 42px; height: 42px; border-radius: 50%; color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.cat-label { flex: 1; min-width: 0; font-size: 0.98rem; font-weight: 700; }
-.cat-chevron { color: var(--muted); flex: 0 0 auto; }
+.cat-label { min-width: 0; font-size: 0.82rem; font-weight: 700; line-height: 1.15; }
 
 /* Cabeçalho da busca: voltar + campo */
 .search-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
@@ -396,8 +404,9 @@ button { font-family: inherit; cursor: pointer; }
 .tabwrap {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
   display: flex; flex-direction: column; align-items: center;
-  /* Fade suave por baixo pra os botões de vidro lerem bem sobre o conteúdo. */
-  background: linear-gradient(to top, var(--bg) 18%, transparent);
+  /* Fade suave por baixo pra os botões de vidro lerem bem sobre o conteúdo —
+     mais leve agora, os botões ficam quase flutuando. */
+  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 72%, transparent) 14%, transparent);
   transition: transform 0.28s cubic-bezier(.4, 0, .2, 1);
 }
 .tabwrap.hidden { transform: translateY(calc(100% - 24px)); }
@@ -443,12 +452,20 @@ button { font-family: inherit; cursor: pointer; }
    pintava de accent e ele sumia no fundo accent do botão selecionado. */
 .tabbar-rail .glass-round,
 .tabbar-rail .glass-round.active { color: #fff; }
+/* No rodapé os tiles não selecionados são mais transparentes (o blur segura a
+   leitura); o selecionado continua accent cheio. */
+.tabbar-rail .glass-round:not(.active) {
+  background: rgba(20, 20, 30, 0.32);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 4px 14px -9px rgba(0, 0, 0, 0.4);
+}
 
-/* Botão de captura no header — redondo */
+/* Botão de captura no header — redondo, única cor cheia do header */
 .capture-fab {
   display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%; margin-left: 0.15rem;
   background: var(--accent); color: #fff; border: none;
+  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .capture-fab:active { filter: brightness(0.92); }
 
@@ -778,6 +795,11 @@ button { font-family: inherit; cursor: pointer; }
 :root.light .lc-fan-item {
   background: rgba(28, 28, 42, 0.92);
   border-color: rgba(255, 255, 255, 0.3);
+}
+/* No modo claro o rodapé também afina, mas menos (precisa segurar o ícone branco). */
+:root.light .tabbar-rail .glass-round:not(.active) {
+  background: rgba(28, 28, 42, 0.68);
+  border-color: rgba(255, 255, 255, 0.24);
 }
 
 /* Ideia rápida: card central com campo de nota curtinha (a lâmpada abre isto). */

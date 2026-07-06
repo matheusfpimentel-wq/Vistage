@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { supabase } from "../supabase";
 import { loadStreak } from "../identity";
 import { loadProvocations } from "../insights";
-import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink } from "../links";
 import { localToday, localDateOf, timeOf, fmtDate } from "../lib/dates";
@@ -301,6 +300,13 @@ export function Hoje({
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  // Refresh global do header (ícone ↻): recarrega o digest desta tela.
+  useEffect(() => {
+    const onRefresh = () => void load();
+    window.addEventListener("vistage:refresh", onRefresh);
+    return () => window.removeEventListener("vistage:refresh", onRefresh);
   }, [load]);
 
   // Pull-to-refresh no container rolável (.content). Puxar pra baixo no topo
@@ -624,12 +630,6 @@ export function Hoje({
           )}
         </section>
       </section>
-
-      <NotificationsCard />
-
-      <button className="ghost full" onClick={() => void load()} disabled={refreshing}>
-        {refreshing ? "Sincronizando…" : "Atualizar"}
-      </button>
 
       {coldOpen && <ColdSheet item={coldOpen} onClose={() => setColdOpen(null)} onFocus={() => openColdFocus(coldOpen)} onSnooze={() => void snoozeCold(coldOpen)} />}
       {gigOpen && <GigSheet gig={gigOpen} today={today} onClose={() => setGigOpen(null)} onFocus={() => { setGigOpen(null); goFocus(); }} />}
@@ -1080,60 +1080,3 @@ function GigDayHero({ gig, onFocus, onCheckin, onMedia }: { gig: CatalogGig; onF
   );
 }
 
-function NotificationsCard() {
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    void isPushEnabled().then(setEnabled);
-  }, []);
-
-  if (!pushSupported()) {
-    return null;
-  }
-
-  async function enable() {
-    setBusy(true);
-    setMsg(null);
-    const r = await enablePush();
-    setBusy(false);
-    if (r.ok) {
-      setEnabled(true);
-      setMsg("Notificações ativadas. Resumo diário às 8h.");
-    } else {
-      setMsg(r.reason ?? "Não consegui ativar.");
-    }
-  }
-
-  async function test() {
-    setBusy(true);
-    setMsg(null);
-    const r = await sendTestPush();
-    setBusy(false);
-    setMsg(r.ok ? "Resumo enviado · deve chegar em instantes." : r.reason ?? "Falhou.");
-  }
-
-  return (
-    <section className="card">
-      <div className="row">
-        <div>
-          <span className="label">Resumo diário + lembretes</span>
-          <strong>{enabled == null ? "…" : enabled ? "Ativas" : "Desativadas"}</strong>
-        </div>
-        <div className="right">
-          {enabled ? (
-            <button className="ghost" disabled={busy} onClick={() => void test()}>
-              {busy ? "…" : "Testar"}
-            </button>
-          ) : (
-            <button className="primary" disabled={busy} onClick={() => void enable()}>
-              {busy ? "…" : "Ativar"}
-            </button>
-          )}
-        </div>
-      </div>
-      {msg && <p className="muted stage-sub" style={{ marginBottom: 0, marginTop: "0.5rem" }}>{msg}</p>}
-    </section>
-  );
-}

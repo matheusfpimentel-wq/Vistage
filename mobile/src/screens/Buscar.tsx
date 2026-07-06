@@ -5,7 +5,7 @@ import { sendCapture } from "../capture";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink, digits } from "../links";
 
-type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "venue" | "class" | "party";
+type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "fan" | "venue" | "class" | "party";
 type Row = {
   kind: string;
   source_id: string;
@@ -16,14 +16,15 @@ type Row = {
   pending?: boolean;
 };
 
-/** Categorias do prompt inicial — só ícone (em círculo) + título. "all" = tudo. */
+/** Categorias do prompt inicial — quadrados em grade (ícone + título). "all" = tudo. */
 const CATEGORIES: { id: Kind; label: string; icon: ReactNode }[] = [
-  { id: "all", label: "Todas as informações", icon: <IcLayers /> },
+  { id: "all", label: "Tudo", icon: <IcLayers /> },
   { id: "gig", label: "GIGs", icon: <IcGig /> },
   { id: "task", label: "Tarefas", icon: <IcCheck /> },
   { id: "idea", label: "Ideias", icon: <IcBulb /> },
   { id: "track", label: "Músicas", icon: <IcNote /> },
   { id: "contact", label: "Pessoas", icon: <IcUser /> },
+  { id: "fan", label: "Fãs", icon: <IcHeart /> },
   { id: "venue", label: "Venues", icon: <IcPin /> },
   { id: "class", label: "Aulas", icon: <IcClass /> },
   { id: "party", label: "Festas", icon: <IcParty /> },
@@ -38,6 +39,7 @@ const KIND_LABEL: Record<string, string> = {
   idea: "Ideia",
   track: "Música",
   contact: "Pessoa",
+  fan: "Fã",
   venue: "Venue",
   class: "Aula",
   party: "Festa",
@@ -158,9 +160,6 @@ export function Buscar() {
             <button key={c.id} className="cat-btn" onClick={() => setCategory(c.id)}>
               <span className="cat-ic">{c.icon}</span>
               <strong className="cat-label">{c.label}</strong>
-              <span className="cat-chevron" aria-hidden>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-              </span>
             </button>
           ))}
         </div>
@@ -303,6 +302,20 @@ function Detail({ r }: { r: Row }) {
       out.push(["Email", <a className="link" href={`mailto:${str(m.email)}`}>{str(m.email)}</a>]);
     if (str(m.instagram)) out.push(["Instagram", str(m.instagram)]);
     if (str(m.company)) out.push(["Empresa", str(m.company)]);
+  } else if (r.kind === "fan") {
+    if (str(m.phone)) {
+      const tel = telLink(m.phone);
+      const wapp = waLink(m.phone);
+      out.push([
+        "Telefone",
+        <span className="link-row">
+          {tel ? <a className="link" href={tel}>{str(m.phone)}</a> : <span>{str(m.phone)}</span>}
+          {wapp && <a className="link" href={wapp} target="_blank" rel="noreferrer">WhatsApp</a>}
+        </span>,
+      ]);
+    }
+    if (str(m.instagram)) out.push(["Instagram", str(m.instagram)]);
+    if (str(m.city)) out.push(["Cidade", str(m.city)]);
   } else if (r.kind === "venue") {
     if (num(m.capacity)) out.push(["Capacidade", String(num(m.capacity))]);
     const loc = [str(m.city), str(m.state)].filter(Boolean).join(", ");
@@ -401,6 +414,7 @@ function IcUser() { return <svg {...IP}><circle cx="12" cy="8" r="4" /><path d="
 function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>; }
 function IcClass() { return <svg {...IP}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>; }
 function IcParty() { return <svg {...IP}><path d="M2 22l5-15 10 10z" /><path d="M14 7a3 3 0 0 0-3-3M17 4a6 6 0 0 0-6-2" /></svg>; }
+function IcHeart() { return <svg {...IP}><path d="M19 14c1.5-1.5 3-3.3 3-5.5A4.5 4.5 0 0 0 17.5 4c-1.9 0-3.4 1-4.5 2.5h-2C9.9 5 8.4 4 6.5 4A4.5 4.5 0 0 0 2 8.5C2 10.7 3.5 12.5 5 14l7 7z" /></svg>; }
 
 /** Ícone por tipo de resultado (no lugar do rótulo de texto). */
 function kindIcon(kind: string) {
@@ -410,6 +424,7 @@ function kindIcon(kind: string) {
     case "idea": return <IcBulb />;
     case "track": return <IcNote />;
     case "contact": return <IcUser />;
+    case "fan": return <IcHeart />;
     case "venue": return <IcPin />;
     case "class": return <IcClass />;
     case "party": return <IcParty />;

@@ -70,6 +70,16 @@ export function App() {
   const [identityOpen, setIdentityOpen] = useState(false);
   const [signOutAsk, setSignOutAsk] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Refresh global (ícone ↻ do header): avisa a tela ativa recarregar e gira o
+  // ícone por um instante como feedback.
+  function doRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    window.dispatchEvent(new Event("vistage:refresh"));
+    window.setTimeout(() => setRefreshing(false), 900);
+  }
 
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => {
@@ -159,31 +169,30 @@ export function App() {
         </button>
         <div className="topbar-actions">
           <button
+            className={"iconbtn" + (refreshing ? " spinning" : "")}
+            onClick={doRefresh}
+            aria-label="Atualizar"
+            title="Atualizar"
+          >
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+          <button
             className={"iconbtn" + (tab === "buscar" ? " active" : "")}
             onClick={() => setTab("buscar")}
             aria-label="Buscar"
             title="Buscar"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="7" />
               <path d="M21 21l-4.3-4.3" />
             </svg>
           </button>
+          <NotificationBell />
           <button className="capture-fab" onClick={() => setCapturing(true)} aria-label="Capturar" title="Capturar">
             <PlusIcon />
-          </button>
-          <div className="bell-streak">
-            <NotificationBell />
-          </div>
-          <button
-            className="iconbtn"
-            onClick={() => setSignOutAsk(true)}
-            aria-label="Sair"
-            title="Sair"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-            </svg>
           </button>
         </div>
       </header>
