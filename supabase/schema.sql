@@ -331,6 +331,40 @@ drop policy if exists "own rows" on public.provocations_mirror;
 create policy "own rows" on public.provocations_mirror
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- ── Leitura: indicadores estratégicos (página Estratégia do celular) ──────────
+-- payload jsonb: { okrs: [{objective, quarter, progress, krs[]}],
+--                  eisenhower: {counts{do,schedule,delegate,eliminate}, top[]},
+--                  swot: {strengths[], weaknesses[], opportunities[], threats[]} }
+-- Uma linha por conta; o desktop faz upsert a cada push.
+create table if not exists public.strategy_mirror (
+  user_id     uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  payload     jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+alter table public.strategy_mirror enable row level security;
+drop policy if exists "own rows" on public.strategy_mirror;
+create policy "own rows" on public.strategy_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop trigger if exists trg_bump on public.strategy_mirror;
+create trigger trg_bump after insert or update or delete on public.strategy_mirror
+  for each row execute function public.bump_sync_rev();
+
+-- ── Leitura: carreira em números (página Carreira do celular) ─────────────────
+-- payload jsonb: { all_time: WrappedData, year: WrappedData, year_label } — os
+-- MESMOS agregados da página "Carreira em Números" do desktop (loadWrapped).
+create table if not exists public.career_stats (
+  user_id     uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  payload     jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now()
+);
+alter table public.career_stats enable row level security;
+drop policy if exists "own rows" on public.career_stats;
+create policy "own rows" on public.career_stats
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop trigger if exists trg_bump on public.career_stats;
+create trigger trg_bump after insert or update or delete on public.career_stats
+  for each row execute function public.bump_sync_rev();
+
 -- ============================================================================
 -- §5 — Relay de MÍDIA da GIG (Storage). Ponte EFÊMERA: o celular sobe a
 -- foto/clipe comprimido pra cá; o PC baixa na revisão de capturas, grava em

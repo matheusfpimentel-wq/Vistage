@@ -53,11 +53,16 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 /* ── Layout do app ─────────────────────────────── */
 .app { display: flex; flex-direction: column; height: 100%; }
 
+/* Header discreto: vidro translúcido com blur, borda quase invisível —
+   o conteúdo passa por baixo e o header some na paisagem. */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top) + 0.75rem) 1rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; background: var(--bg); z-index: 5;
+  padding: calc(env(safe-area-inset-top) + 0.55rem) 0.9rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  position: sticky; top: 0; z-index: 5;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  backdrop-filter: blur(14px) saturate(1.15);
 }
 
 /* Header: identidade (isótipo + nome) à esquerda */
@@ -67,17 +72,16 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   color: var(--text);
 }
 .identity-chip:active { background: var(--surface-2); }
-.identity-chip-iso { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; background: var(--surface-2); }
+.identity-chip-iso { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; background: var(--surface-2); }
 .identity-chip-mono {
-  width: 34px; height: 34px; border-radius: 50%; flex: 0 0 auto;
-  display: flex; align-items: center; justify-content: center; font-weight: 800;
+  width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem;
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
 }
-.identity-chip-name { font-weight: 700; font-size: 0.95rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.identity-chip-name { font-weight: 650; font-size: 0.92rem; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.topbar-actions { display: flex; align-items: center; gap: 0.35rem; }
-.bell-streak { display: flex; align-items: center; gap: 0.15rem; }
+.topbar-actions { display: flex; align-items: center; gap: 0.3rem; }
 
 /* Folha de identidade */
 .identity-sheet { display: flex; flex-direction: column; gap: 0.8rem; padding-bottom: 0.5rem; }
@@ -134,10 +138,14 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 }
 .iconbtn {
   position: relative; display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; border-radius: 10px;
-  background: none; border: none; color: var(--text);
+  width: 38px; height: 38px; border-radius: 12px;
+  background: none; border: none; color: var(--muted);
 }
 .iconbtn:active { background: var(--surface-2); }
+.iconbtn.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/* Refresh do header girando enquanto as telas recarregam. */
+.iconbtn.spinning svg { animation: iconspin 0.9s linear infinite; }
+@keyframes iconspin { to { transform: rotate(360deg); } }
 .bell-wrap { position: relative; }
 .bell-badge {
   position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px;
@@ -219,24 +227,24 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .anotar textarea { font-size: 1rem; }
 .anotar .ghost { align-self: flex-end; padding: 0.45rem 0.9rem; font-size: 0.85rem; }
 
-/* Prompt de categorias (Pesquisa) — ícone + texto, antes de digitar */
-.cat-grid { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem; }
+/* Prompt de categorias (Pesquisa) — grade de QUADRADOS (ícone em cima, título embaixo) */
+.cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; margin-top: 0.5rem; }
 .cat-btn {
-  display: flex; align-items: center; gap: 0.8rem; width: 100%; text-align: left;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.45rem; aspect-ratio: 1; text-align: center;
   background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
-  border: 1px solid var(--border); border-radius: 14px; padding: 0.85rem 0.9rem;
+  border: 1px solid var(--border); border-radius: 14px; padding: 0.5rem 0.35rem;
   color: var(--text); box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
-.cat-btn:active { transform: scale(0.985); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.cat-btn:active { transform: scale(0.97); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .cat-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
   width: 42px; height: 42px; border-radius: 50%; color: var(--accent);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.cat-label { flex: 1; min-width: 0; font-size: 0.98rem; font-weight: 700; }
-.cat-chevron { color: var(--muted); flex: 0 0 auto; }
+.cat-label { min-width: 0; font-size: 0.82rem; font-weight: 700; line-height: 1.15; }
 
 /* Cabeçalho da busca: voltar + campo */
 .search-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
@@ -396,8 +404,9 @@ button { font-family: inherit; cursor: pointer; }
 .tabwrap {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
   display: flex; flex-direction: column; align-items: center;
-  /* Fade suave por baixo pra os botões de vidro lerem bem sobre o conteúdo. */
-  background: linear-gradient(to top, var(--bg) 18%, transparent);
+  /* Fade suave por baixo pra os botões de vidro lerem bem sobre o conteúdo —
+     mais leve agora, os botões ficam quase flutuando. */
+  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 72%, transparent) 14%, transparent);
   transition: transform 0.28s cubic-bezier(.4, 0, .2, 1);
 }
 .tabwrap.hidden { transform: translateY(calc(100% - 24px)); }
@@ -443,12 +452,20 @@ button { font-family: inherit; cursor: pointer; }
    pintava de accent e ele sumia no fundo accent do botão selecionado. */
 .tabbar-rail .glass-round,
 .tabbar-rail .glass-round.active { color: #fff; }
+/* No rodapé os tiles não selecionados são mais transparentes (o blur segura a
+   leitura); o selecionado continua accent cheio. */
+.tabbar-rail .glass-round:not(.active) {
+  background: rgba(20, 20, 30, 0.32);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 4px 14px -9px rgba(0, 0, 0, 0.4);
+}
 
-/* Botão de captura no header — redondo */
+/* Botão de captura no header — redondo, única cor cheia do header */
 .capture-fab {
   display: flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 50%; margin-left: 0.15rem;
   background: var(--accent); color: #fff; border: none;
+  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .capture-fab:active { filter: brightness(0.92); }
 
@@ -548,6 +565,7 @@ button { font-family: inherit; cursor: pointer; }
 }
 .commit-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
 .commit-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
+.commit-ic.foco { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 /* "Play" no lugar do ícone, em tarefas — foca aquela tarefa (mostra o checklist). */
 .commit-play {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
@@ -779,6 +797,11 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(28, 28, 42, 0.92);
   border-color: rgba(255, 255, 255, 0.3);
 }
+/* No modo claro o rodapé também afina, mas menos (precisa segurar o ícone branco). */
+:root.light .tabbar-rail .glass-round:not(.active) {
+  background: rgba(28, 28, 42, 0.68);
+  border-color: rgba(255, 255, 255, 0.24);
+}
 
 /* Ideia rápida: card central com campo de nota curtinha (a lâmpada abre isto). */
 .lc-idea-box {
@@ -925,10 +948,9 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 /* Cabeçalho de seção (escanear rápido) */
 .home-section { margin-top: 0.9rem; }
 .section-head { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
-.insight-text { flex: 1; font-size: 0.9rem; line-height: 1.35; min-width: 0; }
 
-/* (2) O que vem / Em andamento */
-.coming-wrap { display: flex; flex-direction: column; gap: 0.7rem; }
+/* (2) VEM AÍ — grade de duas colunas com tiles compactos */
+.coming-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
 .coming-ic {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border-radius: 9px; color: var(--muted);
@@ -967,50 +989,142 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 /* Chips no topo dos sheets de leitura */
 .sheet-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.1rem 0 0.6rem; }
 
-/* ── Home v2: streak badge redondo + insight ao lado (dispensável) ─────────── */
-.home-top { display: flex; align-items: stretch; gap: 0.55rem; margin-bottom: 0.2rem; }
-.streak-badge {
-  flex: 0 0 auto; display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
-  width: 52px; height: 52px; border-radius: 50%; gap: 1px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
-  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 26%, var(--surface)), var(--surface));
-  color: var(--text);
+/* ── Home v3: fileira de círculos-indicadores (streak, ideias, tarefas,
+   estratégia, carreira). Círculo com degradê + ícone; número e rótulo abaixo. */
+.stat-circles {
+  display: flex; justify-content: space-between; gap: 0.3rem;
+  margin: 0.15rem 0 0.3rem; overflow-x: auto; scrollbar-width: none;
 }
-.streak-badge:active { filter: brightness(0.95); }
-.streak-badge-flame { color: #fb923c; }
-.streak-badge-num { font-size: 1.05rem; font-weight: 800; line-height: 1; color: var(--accent); }
-.insight-inline {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.4rem;
-  padding: 0.45rem 0.55rem; border-radius: 14px; border: 1px solid var(--border); background: var(--surface);
+.stat-circles::-webkit-scrollbar { display: none; }
+.stat-circle {
+  flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; gap: 0.22rem;
+  min-width: 56px; padding: 0.15rem 0.1rem; background: none; border: none; color: var(--text);
 }
-.insight-inline.tone-danger { border-color: color-mix(in srgb, var(--danger) 45%, var(--border)); background: color-mix(in srgb, var(--danger) 9%, var(--surface)); }
-.insight-inline-text {
-  flex: 1; min-width: 0; text-align: left; background: none; border: none; color: var(--text);
-  font: inherit; font-size: 0.84rem; line-height: 1.25;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+.stat-circle:active .stat-face { transform: scale(0.92); }
+.stat-face {
+  display: flex; align-items: center; justify-content: center;
+  width: 50px; height: 50px; border-radius: 50%; color: #fff;
+  box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.15s ease;
 }
-button.insight-inline-text:active { opacity: 0.6; }
-.insight-next {
-  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border);
-  background: var(--surface-2); color: var(--muted);
-}
-.insight-next:active { filter: brightness(0.9); }
+.stat-num { font-size: 0.95rem; font-weight: 800; line-height: 1; }
+.stat-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); line-height: 1; }
+.sc-red .stat-face { background: linear-gradient(145deg, #f87171, #dc2626); }
+.sc-red .stat-num { color: #ef4444; }
+.sc-orange .stat-face { background: linear-gradient(145deg, #fdba74, #ea580c); }
+.sc-orange .stat-num { color: #f97316; }
+.sc-yellow .stat-face { background: linear-gradient(145deg, #fde047, #d97706); }
+.sc-yellow .stat-num { color: #eab308; }
+.sc-green .stat-face { background: linear-gradient(145deg, #4ade80, #15803d); }
+.sc-green .stat-num { color: #22c55e; }
+.sc-blue .stat-face { background: linear-gradient(145deg, #60a5fa, #1d4ed8); }
+.sc-blue .stat-num { color: #3b82f6; }
 
-/* O que vem — cada item é um card que surge da esquerda (entrada escalonada) */
-.coming-card {
-  display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
-  padding: 0.6rem 0.7rem; border-radius: 12px; border: 1px solid var(--border);
-  background: var(--surface); color: var(--text); min-width: 0;
+/* VEM AÍ — tile vertical compacto (2 colunas), entrada escalonada */
+.coming-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem;
+  min-width: 0; text-align: left; padding: 0.6rem 0.65rem; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
   animation: coming-slide-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.coming-card:active { filter: brightness(0.96); }
+.coming-tile:active { filter: brightness(0.96); }
+.coming-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; width: 100%; }
+.coming-tile .coming-title { width: 100%; font-size: 0.88rem; }
+.coming-tile .coming-sub { width: 100%; }
 .coming-ic.class { color: #f59e0b; background: color-mix(in srgb, #f59e0b 14%, transparent); }
-.coming-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
+.coming-ic.content { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); }
 @keyframes coming-slide-in {
   from { opacity: 0; transform: translateX(-24px); }
   to { opacity: 1; transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .coming-card { animation: none; }
+  .coming-tile { animation: none; }
 }
+
+/* ── Páginas cheias (Estratégia / Carreira) — abrem por cima da Home ───────── */
+.fullpage {
+  position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+  background: var(--bg);
+}
+.fullpage-head {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: calc(env(safe-area-inset-top) + 0.55rem) 0.9rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+}
+.fullpage-head strong { font-size: 1rem; }
+.fullpage-spacer { width: 38px; flex: 0 0 auto; }
+.fullpage-body { flex: 1; overflow-y: auto; padding: 0.4rem 1rem calc(1.2rem + env(safe-area-inset-bottom)); }
+
+/* Estratégia — OKRs */
+.okr-list { display: flex; flex-direction: column; gap: 0.55rem; }
+.okr-card { position: relative; }
+.okr-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.okr-objective { font-weight: 700; font-size: 0.92rem; min-width: 0; }
+.okr-quarter { flex: 0 0 auto; font-size: 0.7rem; font-weight: 700; color: var(--muted); }
+.okr-bar {
+  margin-top: 0.45rem; height: 8px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+.okr-bar-fill { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #4ade80, #16a34a); }
+.okr-pct { display: block; margin-top: 0.25rem; font-size: 0.72rem; font-weight: 800; color: #22c55e; }
+.okr-krs { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+.okr-krs li { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; }
+.okr-kr-desc { color: var(--muted); min-width: 0; }
+.okr-kr-val { flex: 0 0 auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Estratégia — matriz de Eisenhower (2×2) */
+.eis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.eis-cell {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: 0.7rem 0.4rem; border-radius: 12px; border: 1px solid var(--border);
+}
+.eis-num { font-size: 1.35rem; font-weight: 800; line-height: 1; }
+.eis-label { font-size: 0.68rem; font-weight: 600; color: var(--muted); }
+.eis-cell.q-do { border-color: color-mix(in srgb, #ef4444 40%, var(--border)); background: color-mix(in srgb, #ef4444 8%, var(--surface)); }
+.eis-cell.q-do .eis-num { color: #ef4444; }
+.eis-cell.q-schedule { border-color: color-mix(in srgb, #38bdf8 40%, var(--border)); background: color-mix(in srgb, #38bdf8 8%, var(--surface)); }
+.eis-cell.q-schedule .eis-num { color: #38bdf8; }
+.eis-cell.q-delegate { border-color: color-mix(in srgb, #f59e0b 40%, var(--border)); background: color-mix(in srgb, #f59e0b 8%, var(--surface)); }
+.eis-cell.q-delegate .eis-num { color: #f59e0b; }
+.eis-cell.q-eliminate .eis-num { color: var(--muted); }
+.eis-top-row { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.eis-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+.eis-dot.q-do { background: #ef4444; }
+.eis-dot.q-schedule { background: #38bdf8; }
+.eis-top-title { flex: 1; min-width: 0; font-size: 0.86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eis-top-due { flex: 0 0 auto; font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Estratégia — SWOT (2×2) */
+.swot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.swot-cell {
+  display: flex; flex-direction: column; gap: 0.3rem; min-width: 0;
+  padding: 0.6rem 0.65rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+}
+.swot-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.sw-s .swot-title { color: #22c55e; }
+.sw-w .swot-title { color: #f59e0b; }
+.sw-o .swot-title { color: #38bdf8; }
+.sw-t .swot-title { color: #ef4444; }
+.swot-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.swot-items li { font-size: 0.78rem; line-height: 1.3; color: var(--text); }
+.swot-items li.swot-more { color: var(--muted); font-weight: 700; }
+.swot-empty { color: var(--muted); font-size: 0.8rem; }
+
+/* Carreira em números — corte de período + grade de tiles */
+.career-cut { display: flex; gap: 0.4rem; margin: 0.5rem 0 0.2rem; }
+.career-cut-btn {
+  flex: 1; min-height: 40px; border-radius: 999px; font-weight: 700; font-size: 0.85rem;
+  color: var(--muted); background: var(--surface-2); border: 1px solid var(--border);
+}
+.career-cut-btn.on {
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.career-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.career-tile {
+  display: flex; flex-direction: column; gap: 0.15rem; min-width: 0;
+  padding: 0.65rem 0.7rem; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);
+}
+.career-value { font-size: 1.15rem; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; }
+.career-label { font-size: 0.7rem; font-weight: 600; color: var(--muted); }
+.career-sub { font-size: 0.7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

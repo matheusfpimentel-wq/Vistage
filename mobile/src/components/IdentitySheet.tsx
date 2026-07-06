@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { loadTotalGigs, updateArtistName, type HeaderInfo } from "../identity";
+import { enablePush, isPushEnabled, pushSupported, sendTestPush } from "../push";
 import { isEnergyEnabled, setEnergyEnabled } from "../lib/energy";
 import { isBiometricEnabled, setBiometricEnabled, biometricOfferable, biometricVerify } from "../lib/biometric";
 import {
@@ -113,7 +114,7 @@ export function IdentitySheet({
     <div className="overlay" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
-          <strong>Identidade</strong>
+          <strong>Identidade e ajustes</strong>
           <button className="iconbtn" onClick={onClose} aria-label="Fechar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
@@ -156,6 +157,8 @@ export function IdentitySheet({
               </strong>
             </div>
           </div>
+
+          <PushSettingsRow />
 
           <div className="settings-row">
             <span className="settings-row-label">
@@ -312,5 +315,70 @@ export function IdentitySheet({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Resumo diário + lembretes (push) — morava na Hoje, virou ajuste aqui.
+ * Só aparece quando o navegador/aparelho suporta push.
+ */
+function PushSettingsRow() {
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void isPushEnabled().then(setEnabled);
+  }, []);
+
+  if (!pushSupported()) return null;
+
+  async function enable() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await enablePush();
+      if (res.ok) {
+        setEnabled(true);
+        setMsg("Notificações ativadas. Resumo diário às 8h.");
+      } else {
+        setMsg(res.reason ?? "Não deu para ativar agora.");
+      }
+    } catch (e) {
+      setMsg(String((e as Error)?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function test() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await sendTestPush();
+      setMsg(res.ok ? "Resumo enviado · deve chegar em instantes." : res.reason ?? "Falha ao enviar.");
+    } catch (e) {
+      setMsg(String((e as Error)?.message ?? e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="settings-row">
+        <span className="settings-row-label">Resumo diário + lembretes</span>
+        {enabled ? (
+          <button type="button" className="ghost" disabled={busy} onClick={() => void test()}>
+            {busy ? "Enviando…" : "Testar"}
+          </button>
+        ) : (
+          <button type="button" className="primary" disabled={busy} onClick={() => void enable()}>
+            {busy ? "Ativando…" : "Ativar"}
+          </button>
+        )}
+      </div>
+      {msg && <p className="settings-note">{msg}</p>}
+    </>
   );
 }

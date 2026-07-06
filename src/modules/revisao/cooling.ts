@@ -232,6 +232,37 @@ export async function loadCoolingAlerts(): Promise<AlertItem[]> {
     }
   }
 
+  // ── Festas em planejamento sem movimento além do limiar ─────────────────────
+  // "Concluído" = Realizada/Cancelada (excluídas) — só o que ainda está sendo
+  // construído esfria.
+  if (!hidden.has("/festas")) {
+    const rows = await safeRows<{ id: number; title: string; updated_at: string }>(() =>
+      db.select(
+        `SELECT id, title, updated_at FROM parties
+          WHERE status NOT IN ('Realizada','Cancelada') AND substr(updated_at, 1, 10) < $1`,
+        [cutoff]
+      )
+    );
+    const cold = fresh(
+      rows.map((r) => ({ ref: `party:${r.id}`, id: r.id, name: r.title, lastFed: r.updated_at }))
+    );
+    if (cold.length > 0) {
+      const single = cold.length === 1 ? cold[0] : null;
+      out.push({
+        key: "cooling:parties",
+        icon: "party",
+        to: "/festas",
+        critical: false,
+        severidade: "info",
+        label: single
+          ? `Festa "${single.name}" esfriando: sem movimento há +${days} dias`
+          : `${cold.length} festas esfriando: sem movimento há +${days} dias`,
+        coolingRefs: cold.map((c) => c.ref),
+        signature: cold.map((c) => c.ref).sort().join(","),
+      });
+    }
+  }
+
   // ── Ideias esfriando — filtradas pelo CALOR mínimo (ideias têm calor 1–3) ────
   // Só ideias com calor >= o limiar configurado entram; sem movimento além do
   // tempo de resfriamento. (Ideias não é um módulo ocultável do Perfil.)

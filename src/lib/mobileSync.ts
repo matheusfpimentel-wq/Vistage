@@ -15,7 +15,10 @@ import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { parsePrepState } from "@/modules/gigs/prep";
 import { loadIdentity } from "@/modules/identity/api";
-import { loadFocusStreak } from "@/modules/foco/api";
+import { loadFocusStreak, listFocusBlocks } from "@/modules/foco/api";
+import { listOkrs, okrProgress } from "@/modules/objetivos/api";
+import { loadSwot } from "@/modules/dashboard/methodologies";
+import { loadWrapped } from "@/modules/dashboard/careerWrapped";
 import { loadWeekStats } from "@/modules/revisao/api";
 import { computeAlerts, type AlertItem } from "@/modules/revisao/alerts";
 import { getCoolingDays, getCoolingHeat, getDisabledRuleIds } from "@/modules/revisao/ruleConfig";
@@ -141,6 +144,42 @@ async function buildAgenda(uid: string): Promise<AgendaRow[]> {
     rows.push({ user_id: uid, source: "task", source_id: String(t.id), title: t.title, start_at: t.due_date ? startAt(t.due_date, null) : null, end_at: null, location: null, meta: { priority: t.priority } });
   for (const m of meetings)
     rows.push({ user_id: uid, source: "meeting", source_id: String(m.id), title: m.title, start_at: startAt(m.date, m.time), end_at: null, location: m.location, meta: { status: m.status } });
+
+  // Blocos de foco da Trilha da semana → Compromissos do celular. O template
+  // semanal não tem data; expande as ocorrências dos próximos 7 dias (hoje
+  // incluso). Só blocos "foco" (produtivos) — tempo indisponível não é
+  // compromisso. source_id = "id:data" (uma linha por ocorrência).
+  try {
+    const focoBlocks = (await listFocusBlocks()).filter((b) => b.kind === "foco");
+    if (focoBlocks.length) {
+      const hm = (min: number) =>
+        `${String(Math.floor((min % 1440) / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+      const base = new Date(`${today}T12:00:00`);
+      for (let d = 0; d < 7; d++) {
+        const day = new Date(base);
+        day.setDate(base.getDate() + d);
+        const dayISO = toLocalISODate(day);
+        const weekday = day.getDay();
+        for (const b of focoBlocks) {
+          if (b.weekday !== weekday) continue;
+          const endMin = b.start_min + b.duration_min;
+          rows.push({
+            user_id: uid,
+            source: "foco",
+            source_id: `${b.id}:${dayISO}`,
+            title: b.label || b.category || "Bloco de foco",
+            start_at: startAt(dayISO, hm(b.start_min)),
+            // Cruzou a meia-noite → sem end_at (o celular mostra só o início).
+            end_at: endMin < 1440 ? startAt(dayISO, hm(endMin)) : null,
+            location: null,
+            meta: { category: b.category, color: b.color, plan: b.plan },
+          });
+        }
+      }
+    }
+  } catch {
+    /* trilha vazia/indisponível — agenda segue sem blocos */
+  }
   return rows;
 }
 
@@ -227,12 +266,12 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     const contacts = await db.select<{ id: number; name: string; phone: string | null; tags: string | null; last_interaction_at: string }[]>(
       `SELECT id, name, phone, tags, last_interaction_at FROM contacts
         WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-        ORDER BY last_interaction_at ASC LIMIT 12`,
+        ORDER BY last_interaction_at ASC LIMIT 24`,
       [cutoff]
     );
     let coldContacts = 0;
     for (const c of contacts) {
-      if (coldContacts >= 4) break;
+      if (coldContacts >= 10) break;
       if (hasExpansaoTag(c.tags)) continue;
       if (isAcked(acks, `contact:${c.id}`, c.last_interaction_at)) continue;
       out.push({
@@ -249,11 +288,14 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     const fans = await db.select<{ id: number; name: string; phone: string | null; last_interaction_at: string }[]>(
       `SELECT id, name, phone, last_interaction_at FROM fans
         WHERE last_interaction_at IS NOT NULL AND substr(last_interaction_at, 1, 10) < $1
-        ORDER BY last_interaction_at ASC LIMIT 3`,
+        ORDER BY last_interaction_at ASC LIMIT 20`,
       [cutoff]
     );
+    let coldFans = 0;
     for (const f of fans) {
+      if (coldFans >= 10) break;
       if (isAcked(acks, `fan:${f.id}`, f.last_interaction_at)) continue;
+      coldFans++;
       out.push({
         user_id: uid, source_id: `fan:${f.id}`, name: f.name,
         reason: `Sem interação há ${daysSince(f.last_interaction_at)} dias`,
@@ -268,11 +310,14 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
       `SELECT id, title_working as title, updated_at FROM tracks
         WHERE standby = 0 AND current_stage != 'Pós-lançamento'
           AND substr(updated_at, 1, 10) < $1
-        ORDER BY updated_at ASC LIMIT 3`,
+        ORDER BY updated_at ASC LIMIT 20`,
       [cutoff]
     );
+    let coldTracks = 0;
     for (const t of tracks) {
+      if (coldTracks >= 10) break;
       if (isAcked(acks, `track:${t.id}`, t.updated_at)) continue;
+      coldTracks++;
       out.push({
         user_id: uid, source_id: `track:${t.id}`, name: t.title || "Sem título",
         reason: `Faixa parada há ${daysSince(t.updated_at)} dias`,
@@ -287,11 +332,14 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
       `SELECT id, title, updated_at FROM content
         WHERE status NOT IN ('Publicado','Arquivado')
           AND substr(updated_at, 1, 10) < $1
-        ORDER BY updated_at ASC LIMIT 2`,
+        ORDER BY updated_at ASC LIMIT 20`,
       [cutoff]
     );
+    let coldContent = 0;
     for (const ct of content) {
+      if (coldContent >= 10) break;
       if (isAcked(acks, `content:${ct.id}`, ct.updated_at)) continue;
+      coldContent++;
       out.push({
         user_id: uid, source_id: `content:${ct.id}`, name: ct.title,
         reason: `Conteúdo parado há ${daysSince(ct.updated_at)} dias`,
@@ -313,11 +361,14 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
     `SELECT id, title, category, COALESCE(last_touched_at, updated_at) AS touched FROM ideas
       WHERE maturation != 'Arquivada' AND heat >= $1
         AND substr(COALESCE(last_touched_at, updated_at), 1, 10) < $2
-      ORDER BY touched ASC LIMIT 3`,
+      ORDER BY touched ASC LIMIT 20`,
     [heatMin, cutoff]
   );
+  let coldIdeas = 0;
   for (const i of ideas) {
+    if (coldIdeas >= 10) break;
     if (isAcked(acks, `idea:${i.id}`, i.touched)) continue;
+    coldIdeas++;
     out.push({
       user_id: uid, source_id: `idea:${i.id}`, name: i.title,
       reason: `Ideia parada há ${daysSince(i.touched)} dias`,
@@ -331,15 +382,41 @@ async function buildCooling(uid: string): Promise<CoolingRow[]> {
       `SELECT id, title, updated_at FROM tasks
         WHERE status NOT IN ('Concluída','Cancelada')
           AND substr(updated_at, 1, 10) < $1
-        ORDER BY updated_at ASC LIMIT 3`,
+        ORDER BY updated_at ASC LIMIT 20`,
       [cutoff]
     );
+    let kept = 0;
     for (const t of coldTasks) {
+      if (kept >= 10) break;
       if (isAcked(acks, `task:${t.id}`, t.updated_at)) continue;
+      kept++;
       out.push({
         user_id: uid, source_id: `task:${t.id}`, name: t.title,
         reason: `Tarefa parada há ${daysSince(t.updated_at)} dias`,
         handle: "Gestão", due_date: today,
+      });
+    }
+  }
+
+  // Festas em planejamento paradas (não Realizada/Cancelada) — mesmo bloco novo
+  // do Esfriando do desktop (cooling.ts), pra paridade das notificações.
+  if (!hidden.has("/festas")) {
+    const coldParties = await db.select<{ id: number; title: string; updated_at: string }[]>(
+      `SELECT id, title, updated_at FROM parties
+        WHERE status NOT IN ('Realizada','Cancelada')
+          AND substr(updated_at, 1, 10) < $1
+        ORDER BY updated_at ASC LIMIT 20`,
+      [cutoff]
+    ).catch(() => [] as { id: number; title: string; updated_at: string }[]);
+    let kept = 0;
+    for (const p of coldParties) {
+      if (kept >= 10) break;
+      if (isAcked(acks, `party:${p.id}`, p.updated_at)) continue;
+      kept++;
+      out.push({
+        user_id: uid, source_id: `party:${p.id}`, name: p.title,
+        reason: `Festa parada há ${daysSince(p.updated_at)} dias`,
+        handle: "Produção de festa", due_date: today,
       });
     }
   }
@@ -737,6 +814,22 @@ async function buildCatalog(uid: string): Promise<CatalogRow[]> {
       meta: { status: p.status, date: p.date, venue_name: p.venue_name },
     });
 
+  // Conteúdos — pesquisáveis e fonte dos "conteúdos futuros" do VEM AÍ na Home
+  // do celular (o mobile filtra por status ≠ Publicado/Arquivado + data futura).
+  const ccontent = await db.select<{ id: number; title: string; status: string; format: string | null; due_date: string | null; publish_date: string | null; published_at: string | null }[]>(
+    `SELECT id, title, status, format, due_date, publish_date, published_at
+       FROM content ORDER BY updated_at DESC LIMIT 500`,
+    []
+  ).catch(() => [] as { id: number; title: string; status: string; format: string | null; due_date: string | null; publish_date: string | null; published_at: string | null }[]);
+  for (const cn of ccontent)
+    rows.push({
+      user_id: uid, kind: "content", source_id: String(cn.id),
+      title: cn.title,
+      subtitle: [cn.format, cn.status].filter(Boolean).join(" · ") || null,
+      search_text: lc(cn.title, cn.format, cn.status),
+      meta: { status: cn.status, format: cn.format, due_date: cn.due_date, publish_date: cn.publish_date, published_at: cn.published_at },
+    });
+
   // Reuniões — fonte do picker de "Comunicação" no Modo Foco (recentes + futuras)
   // e pesquisáveis. Encaminhamentos de uma sessão vinculada voltam pra ata.
   const cmeetings = await db.select<{ id: number; title: string; date: string | null; time: string | null; location: string | null; status: string }[]>(
@@ -833,13 +926,96 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+// ── Indicadores estratégicos (OKRs + Eisenhower + SWOT) → página Estratégia ──
+// Payload único por conta. Cada fonte é best-effort: se uma falha, as outras
+// seguem (o celular mostra o que chegou).
+async function buildStrategy(uid: string): Promise<{ user_id: string; payload: Record<string, unknown> }> {
+  const payload: Record<string, unknown> = {};
+
+  try {
+    const okrs = await listOkrs();
+    payload.okrs = okrs.slice(0, 12).map((o) => ({
+      objective: o.objective,
+      quarter: o.quarter,
+      progress: Math.round(okrProgress(o) * 100),
+      krs: o.key_results.map((kr) => ({
+        description: kr.description,
+        current: kr.current,
+        target: kr.target,
+        unit: kr.unit,
+      })),
+    }));
+  } catch {
+    payload.okrs = [];
+  }
+
+  try {
+    // Mesma classificação da matriz do desktop (quadrante salvo ou derivado de
+    // prioridade + vencimento) — TaskEisenhowerView.quadrantOf.
+    const today = todayISO();
+    const tasks = await getDb().select<{ title: string; priority: string | null; due_date: string | null; eisenhower_quadrant: string | null }[]>(
+      `SELECT title, priority, due_date, eisenhower_quadrant FROM tasks
+        WHERE status NOT IN ('Concluída','Cancelada')`,
+      []
+    );
+    const counts: Record<string, number> = { do: 0, schedule: 0, delegate: 0, eliminate: 0 };
+    const doList: { title: string; due_date: string | null }[] = [];
+    const scheduleList: { title: string; due_date: string | null }[] = [];
+    for (const t of tasks) {
+      let q = t.eisenhower_quadrant ?? "";
+      if (!(q in counts)) {
+        const important = t.priority === "Alta" || t.priority === "Urgente";
+        const urgent = !!t.due_date && t.due_date <= today;
+        q = urgent && important ? "do" : !urgent && important ? "schedule" : urgent ? "delegate" : "eliminate";
+      }
+      counts[q]++;
+      if (q === "do") doList.push({ title: t.title, due_date: t.due_date });
+      else if (q === "schedule") scheduleList.push({ title: t.title, due_date: t.due_date });
+    }
+    payload.eisenhower = {
+      counts,
+      // Destaques: o que fazer AGORA primeiro; completa com "agendar".
+      top: [...doList.map((t) => ({ ...t, quadrant: "do" })), ...scheduleList.map((t) => ({ ...t, quadrant: "schedule" }))].slice(0, 6),
+    };
+  } catch {
+    /* sem tarefas — celular mostra só OKRs/SWOT */
+  }
+
+  try {
+    payload.swot = await loadSwot();
+  } catch {
+    /* sem SWOT ainda */
+  }
+
+  return { user_id: uid, payload };
+}
+
+// ── Carreira em números (Wrapped) → página Carreira no celular ───────────────
+// Mesmos agregados da página do desktop (loadWrapped), em dois cortes: vida
+// inteira e ano corrente.
+async function buildCareerStats(uid: string): Promise<{ user_id: string; payload: Record<string, unknown> }> {
+  const year = String(new Date().getFullYear());
+  const payload: Record<string, unknown> = { year_label: year };
+  try {
+    payload.all_time = await loadWrapped({ prefix: "", label: "Todos os anos", slug: "todos", year: "all" });
+  } catch {
+    /* banco sem os módulos — celular mostra vazio */
+  }
+  try {
+    payload.year = await loadWrapped({ prefix: year, label: year, slug: year, year: Number(year) });
+  } catch {
+    /* idem */
+  }
+  return { user_id: uid, payload };
+}
+
 // ── PUSH ────────────────────────────────────────────────────────────────────
 export async function pushMirror(): Promise<void> {
   const user = await currentUser();
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, cooling, focus, catalog, tasks, alerts, provocations] = await Promise.all([
+  const [agenda, finance, cooling, focus, catalog, tasks, alerts, provocations, strategy, career] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
     buildCooling(uid),
@@ -848,6 +1024,8 @@ export async function pushMirror(): Promise<void> {
     buildTasks(uid),
     buildAlerts(uid),
     buildProvocations(uid),
+    buildStrategy(uid),
+    buildCareerStats(uid),
   ]);
 
   // agenda e contato do dia: snapshot (apaga as próprias linhas e reinsere o set atual).
@@ -895,6 +1073,15 @@ export async function pushMirror(): Promise<void> {
       const { error } = await supabase.from("provocations_mirror").insert(part);
       if (error) throw error;
     }
+  }
+  // indicadores estratégicos + carreira em números: 1 linha por conta → upsert.
+  {
+    const { error } = await supabase.from("strategy_mirror").upsert(strategy, { onConflict: "user_id" });
+    if (error) throw error;
+  }
+  {
+    const { error } = await supabase.from("career_stats").upsert(career, { onConflict: "user_id" });
+    if (error) throw error;
   }
   // aparência: tema/acento do documento → 1 linha por conta.
   const prefs = await buildPreferences(uid);
