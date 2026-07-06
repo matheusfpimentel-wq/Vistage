@@ -5,7 +5,7 @@ import { sendCapture } from "../capture";
 import { reconcileLocalGigs, type LocalGig } from "../localGigs";
 import { telLink, waLink, mapsLink, digits } from "../links";
 
-type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "fan" | "venue" | "class" | "party";
+type Kind = "all" | "gig" | "task" | "idea" | "track" | "contact" | "fan" | "venue" | "class" | "party" | "content";
 type Row = {
   kind: string;
   source_id: string;
@@ -28,6 +28,7 @@ const CATEGORIES: { id: Kind; label: string; icon: ReactNode }[] = [
   { id: "venue", label: "Venues", icon: <IcPin /> },
   { id: "class", label: "Aulas", icon: <IcClass /> },
   { id: "party", label: "Festas", icon: <IcParty /> },
+  { id: "content", label: "Conteúdos", icon: <IcVideo /> },
 ];
 const CAT_LABEL: Record<Kind, string> = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c.label])
@@ -43,6 +44,9 @@ const KIND_LABEL: Record<string, string> = {
   venue: "Venue",
   class: "Aula",
   party: "Festa",
+  content: "Conteúdo",
+  meeting: "Reunião",
+  student: "Aluno",
 };
 const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -201,7 +205,7 @@ export function Buscar() {
             return (
               <li key={key} className="item col" onClick={() => setOpenKey(open ? null : key)}>
                 <div className="item-head">
-                  <span className={"kind-ic " + r.kind} title={KIND_LABEL[r.kind] ?? r.kind} aria-label={KIND_LABEL[r.kind] ?? r.kind}>
+                  <span className={"kind-ic ki-" + r.kind} title={KIND_LABEL[r.kind] ?? r.kind} aria-label={KIND_LABEL[r.kind] ?? r.kind}>
                     {kindIcon(r.kind)}
                   </span>
                   <div className="grow">
@@ -415,6 +419,8 @@ function IcPin() { return <svg {...IP}><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0
 function IcClass() { return <svg {...IP}><path d="M22 10 12 5 2 10l10 5 10-5z" /><path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" /></svg>; }
 function IcParty() { return <svg {...IP}><path d="M2 22l5-15 10 10z" /><path d="M14 7a3 3 0 0 0-3-3M17 4a6 6 0 0 0-6-2" /></svg>; }
 function IcHeart() { return <svg {...IP}><path d="M19 14c1.5-1.5 3-3.3 3-5.5A4.5 4.5 0 0 0 17.5 4c-1.9 0-3.4 1-4.5 2.5h-2C9.9 5 8.4 4 6.5 4A4.5 4.5 0 0 0 2 8.5C2 10.7 3.5 12.5 5 14l7 7z" /></svg>; }
+function IcVideo() { return <svg {...IP}><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m10 9 5 3-5 3V9z" /></svg>; }
+function IcMeet() { return <svg {...IP}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>; }
 
 /** Ícone por tipo de resultado (no lugar do rótulo de texto). */
 function kindIcon(kind: string) {
@@ -428,6 +434,9 @@ function kindIcon(kind: string) {
     case "venue": return <IcPin />;
     case "class": return <IcClass />;
     case "party": return <IcParty />;
+    case "content": return <IcVideo />;
+    case "meeting": return <IcMeet />;
+    case "student": return <IcUser />;
     default: return <IcLayers />;
   }
 }
