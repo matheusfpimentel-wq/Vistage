@@ -777,7 +777,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Card grande de compromissos: degradê, borda menos arredondada */
 .today-commit {
-  margin: 0.6rem 0 0.5rem; padding: 1rem; border-radius: 10px;
+  margin: 0.6rem 0 0.5rem; padding: 1rem; border-radius: 16px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   background:
     radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--accent) 20%, transparent) 0%, transparent 55%),
@@ -1266,9 +1266,27 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-/* Cabeçalho de seção (escanear rápido) */
-.home-section { margin-top: 0.9rem; }
-.section-head { margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+/* Herói da Home: data pequena + saudação grande com degradê (cara de homepage). */
+.home-hero { margin: 0.25rem 0 0.75rem; }
+.hero-date { margin: 0; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.hero-greet {
+  margin: 0.12rem 0 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15;
+  background: linear-gradient(92deg, var(--text) 20%, color-mix(in srgb, var(--accent) 80%, var(--text)));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+
+/* Cabeçalho de seção (escanear rápido) — tracinho de accent dá o ritmo. */
+.home-section { margin-top: 1.1rem; }
+.section-head {
+  display: flex; align-items: center; gap: 0.45rem;
+  margin: 0 0 0.5rem; font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+}
+.section-head::before {
+  content: ""; width: 14px; height: 3px; border-radius: 2px; flex: 0 0 auto;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 40%, transparent));
+}
 
 /* (2) VEM AÍ — grade de duas colunas com tiles compactos */
 .coming-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
@@ -1289,11 +1307,14 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   display: inline-flex; align-items: center; padding: 0.1rem 0.45rem; border-radius: 999px;
   font-size: 0.68rem; font-weight: 700; white-space: nowrap;
 }
-.u-neutral { color: var(--muted); background: color-mix(in srgb, var(--muted) 15%, transparent); }
-.u-ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 16%, transparent); }
-.u-warn { color: var(--warn); background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent); }
-.u-danger { color: var(--danger); background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent); }
-.u-accent { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.u-chip.u-neutral { color: var(--muted); background: color-mix(in srgb, var(--muted) 15%, transparent); }
+.u-chip.u-ok { color: var(--pos); background: color-mix(in srgb, var(--pos) 16%, transparent); }
+.u-chip.u-warn { color: var(--warn); background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warn) 45%, transparent); }
+.u-chip.u-danger { color: var(--danger); background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 45%, transparent); }
+.u-chip.u-accent { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+/* Fora de chip (ex.: hora do compromisso), tom = só a cor do texto. */
+.u-warn:not(.u-chip) { color: var(--warn); }
+.u-danger:not(.u-chip) { color: var(--danger); }
 
 /* (3) Compromissos — urgência na linha */
 .commit-item { padding-left: 0.5rem; border-left: 3px solid transparent; }

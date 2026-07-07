@@ -205,14 +205,30 @@ function readSnapshot(): HomeSnapshot | null {
   } catch { return null; }
 }
 
+/** "Bom dia" / "Boa tarde" / "Boa noite" pela hora local. */
+function greetingNow(): string {
+  const h = new Date().getHours();
+  if (h < 6) return "Boa madrugada";
+  if (h < 12) return "Bom dia";
+  if (h < 18) return "Boa tarde";
+  return "Boa noite";
+}
+/** "terça-feira, 7 de julho" com a primeira letra maiúscula. */
+function todayLine(): string {
+  const s = new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function Hoje({
   onGoFocus,
   onGoBrainstorm,
   onGoTasks,
+  artistName,
 }: {
   onGoFocus: () => void;
   onGoBrainstorm: () => void;
   onGoTasks: () => void;
+  artistName?: string | null;
 }) {
   const [agenda, setAgenda] = useState<Agenda[]>([]);
   const [cooling, setCooling] = useState<Cold[]>([]);
@@ -506,6 +522,14 @@ export function Hoje({
       <div className="pull-ind" style={{ height: pull }}>
         {(pull > 6 || refreshing) && <span className={"spinner sm" + (refreshing ? " on" : "")} style={{ opacity: refreshing ? 1 : Math.min(1, pull / 60) }} />}
       </div>
+      {/* Herói de homepage: data + saudação com o nome do artista. */}
+      <header className="home-hero">
+        <p className="hero-date">{todayLine()}</p>
+        <h1 className="hero-greet">
+          {greetingNow()}
+          {artistName ? `, ${artistName.split(" ")[0]}` : ""}
+        </h1>
+      </header>
       <div className="sync-bar">
         <span className={"sync-dot " + (offline ? "off" : "on")} aria-hidden />
         <span className="sync-text">{offline ? "Offline · último sync" : "Sincronizado"}</span>

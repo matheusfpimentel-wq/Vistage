@@ -220,7 +220,7 @@ export function App() {
 
       <main className="content">
         <Suspense fallback={<div className="center"><span className="spinner" /></div>}>
-          {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} />}
+          {tab === "hoje" && <Hoje onGoFocus={() => setTab("foco")} onGoBrainstorm={() => setTab("brainstorm")} onGoTasks={() => setTab("tarefas")} artistName={header.artistName} />}
           {tab === "foco" && <Foco />}
           {tab === "brainstorm" && <Brainstorming />}
           {tab === "buscar" && <Buscar />}
