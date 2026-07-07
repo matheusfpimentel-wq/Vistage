@@ -65,7 +65,20 @@ export function App() {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [capturing, setCapturing] = useState(() => readGo() === "capturar");
   const [navHidden, setNavHidden] = useState(false);
+  const [headerHidden, setHeaderHidden] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(currentTheme());
+
+  // Modo imersivo: o Foco avisa quando uma sessão começa/termina — header e
+  // rodapé recolhem juntos (voltam pelo chevron do topo / alça do rodapé).
+  useEffect(() => {
+    const onImmersive = (e: Event) => {
+      const im = (e as CustomEvent).detail === true;
+      setHeaderHidden(im);
+      setNavHidden(im);
+    };
+    window.addEventListener("vistage:immersive", onImmersive);
+    return () => window.removeEventListener("vistage:immersive", onImmersive);
+  }, []);
   const [header, setHeader] = useState<HeaderInfo>({ artistName: null, isotype: null, streak: 0 });
   const [identityOpen, setIdentityOpen] = useState(false);
   const [signOutAsk, setSignOutAsk] = useState(false);
@@ -158,7 +171,7 @@ export function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
+      <header className={"topbar" + (headerHidden ? " collapsed" : "")}>
         <button className="identity-chip" onClick={() => setIdentityOpen(true)} aria-label="Identidade">
           {header.isotype ? (
             <img className="identity-chip-iso" src={header.isotype} alt="" />
@@ -196,6 +209,14 @@ export function App() {
           </button>
         </div>
       </header>
+
+      {headerHidden && (
+        <button className="top-peek" onClick={() => setHeaderHidden(false)} aria-label="Mostrar cabeçalho">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+      )}
 
       <main className="content">
         <Suspense fallback={<div className="center"><span className="spinner" /></div>}>

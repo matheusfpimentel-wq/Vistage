@@ -175,7 +175,7 @@ function SwipeTask({ t, onComplete, onFocus }: { t: Task; onComplete: () => void
             </span>
           )}
         </div>
-        <button className="task-focus" aria-label={`Focar em ${t.title}`} onClick={onFocus}>
+        <button className={"task-focus" + (overdue ? " overdue" : "")} aria-label={`Focar em ${t.title}`} onClick={onFocus}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M8 5v14l11-7z" /></svg>
         </button>
       </div>

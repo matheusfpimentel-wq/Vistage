@@ -1147,6 +1147,16 @@ export function Foco() {
   const activityRef = useRef(ACTIVITIES[0]);
   const plannedMsRef = useRef<number | null>(null);
 
+  // Modo imersivo: sessão rodando recolhe header + rodapé (o App escuta).
+  // Sair da tela (unmount) ou encerrar devolve tudo.
+  useEffect(() => {
+    const im = phase === "running";
+    window.dispatchEvent(new CustomEvent("vistage:immersive", { detail: im }));
+    return () => {
+      if (im) window.dispatchEvent(new CustomEvent("vistage:immersive", { detail: false }));
+    };
+  }, [phase]);
+
   const [doneAt, setDoneAt] = useState<{ startedAt: string; endedAt: string } | null>(null);
   const [energy, setEnergy] = useState(3);
   const [focusLvl, setFocusLvl] = useState(3);
