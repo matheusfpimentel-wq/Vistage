@@ -1,5 +1,5 @@
 :root {
-  --bg: #0b0b10;
+  --bg: #0c0b14;
   --surface: #15151f;
   --surface-2: #1d1d2b;
   --border: #2a2a3c;
@@ -43,6 +43,32 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* Aurora de fundo — blobs de cor suaves e fixos atrás de tudo. É isso que dá
+   vida ao vidro: sem cor atrás, backdrop-filter não tem o que refratar e os
+   botões translúcidos liam como cinza chapado. Deriva bem devagar. */
+body::before {
+  content: ""; position: fixed; inset: -12%; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(42% 34% at 14% 6%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%),
+    radial-gradient(34% 28% at 88% 10%, rgba(236, 72, 153, 0.16), transparent 70%),
+    radial-gradient(40% 34% at 84% 82%, rgba(59, 130, 246, 0.14), transparent 72%),
+    radial-gradient(30% 26% at 12% 88%, rgba(16, 185, 129, 0.1), transparent 70%);
+  animation: aurora-drift 30s ease-in-out infinite alternate;
+}
+:root.light body::before {
+  background:
+    radial-gradient(42% 34% at 14% 6%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 72%),
+    radial-gradient(34% 28% at 88% 10%, rgba(236, 72, 153, 0.1), transparent 70%),
+    radial-gradient(40% 34% at 84% 82%, rgba(59, 130, 246, 0.1), transparent 72%),
+    radial-gradient(30% 26% at 12% 88%, rgba(16, 185, 129, 0.08), transparent 70%);
+}
+@keyframes aurora-drift {
+  to { transform: translate3d(2.5%, -2%, 0) scale(1.07); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body::before { animation: none; }
+}
+
 h1 { font-size: 1.6rem; margin: 0; }
 h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 1.25rem 0 0.5rem; }
 
@@ -58,12 +84,13 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 0.55rem) 0.9rem 0.55rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky; top: 0; z-index: 5;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  backdrop-filter: blur(14px) saturate(1.15);
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+  backdrop-filter: blur(22px) saturate(1.6);
 }
+:root.light .topbar { border-bottom-color: rgba(20, 20, 60, 0.08); }
 
 /* Header: identidade (isótipo + nome) à esquerda */
 .identity-chip {
@@ -155,7 +182,10 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .alerts-panel {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
   width: min(85vw, 340px); max-height: 70vh; overflow-y: auto;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  backdrop-filter: blur(18px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 18px;
   padding: 0.6rem; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 .alerts-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
@@ -166,17 +196,7 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 
 .content { flex: 1; overflow-y: auto; padding: 1rem 1rem 5.5rem; }
 
-.tabbar {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  background: var(--surface); border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-.tabbar button {
-  background: none; border: none; color: var(--muted);
-  padding: 0.85rem 0; font-size: 0.85rem; font-weight: 600;
-}
-.tabbar button.active { color: var(--accent); }
+/* (a tabbar antiga em grid saiu — hoje o rodapé é a cápsula .tabbar-rail) */
 
 /* ── Cards / listas ────────────────────────────── */
 .screen { display: flex; flex-direction: column; }
@@ -275,8 +295,9 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .kind-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%; color: #fff;
-  background: var(--ec, #64748b);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 3px 9px -4px var(--ec, transparent);
+  background: color-mix(in srgb, var(--ec, #64748b) 62%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 3px 9px -5px var(--ec, transparent);
 }
 .kind-ic svg { width: 17px; height: 17px; }
 .kind-ic.ki-gig { --ec: var(--e-gig); }
@@ -372,7 +393,7 @@ button { font-family: inherit; cursor: pointer; }
 .foco { align-items: center; gap: 1rem; padding-top: 1.5rem; }
 .foco .form { width: 100%; }
 
-/* Círculo do foco: anel de progresso + play/pause no centro. */
+/* Círculo do foco: anel de progresso; controles ficam ABAIXO (fileira). */
 .focus-ring {
   position: relative; background: none; border: none; padding: 0; cursor: pointer;
   color: var(--accent); display: inline-flex; align-items: center; justify-content: center;
@@ -381,6 +402,54 @@ button { font-family: inherit; cursor: pointer; }
 .focus-ring-prog { transition: stroke-dasharray 0.6s linear; }
 .focus-ring-prog.pulse { animation: ringpulse 1.2s ease-in-out infinite; }
 @keyframes ringpulse { 50% { opacity: 0.45; } }
+/* Órbita tracejada girando devagar enquanto foca — um círculo "sendo feito". */
+.focus-ring::before {
+  content: ""; position: absolute; inset: -16px; border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 38%, transparent);
+  opacity: 0; transition: opacity 0.4s ease; pointer-events: none;
+}
+.focus-ring.running::before { opacity: 1; animation: ringspin 18s linear infinite; }
+.focus-ring.running.paused::before { animation-play-state: paused; opacity: 0.3; }
+/* Eco: um anel nasce no círculo e se expande até sumir (fecha o ciclo). */
+.focus-ring::after {
+  content: ""; position: absolute; inset: -3px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  opacity: 0; pointer-events: none;
+}
+.focus-ring.running:not(.paused)::after {
+  animation: ring-echo 3.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+@keyframes ringspin { to { transform: rotate(360deg); } }
+@keyframes ring-echo {
+  0% { transform: scale(0.94); opacity: 0.5; }
+  70% { transform: scale(1.18); opacity: 0; }
+  100% { transform: scale(1.18); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-ring::before, .focus-ring::after { animation: none !important; opacity: 0 !important; }
+}
+
+/* Fileira de controles (pausar/retomar + encerrar juntos, centralizados). */
+.focus-controls { display: flex; align-items: center; justify-content: center; gap: 1.1rem; }
+.focus-ctl {
+  display: flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
+  color: #fff; border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(20, 20, 34, 0.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  backdrop-filter: blur(16px) saturate(1.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 10px 24px -12px rgba(0, 0, 0, 0.6);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.focus-ctl:active { transform: scale(0.9); }
+/* Play grande de iniciar (estado parado). */
+.focus-ctl.start {
+  width: 74px; height: 74px;
+  border-color: color-mix(in srgb, #fff 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 78%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 12px 30px -12px color-mix(in srgb, var(--accent) 60%, transparent);
+}
 .focus-ring-center {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 0.25rem; pointer-events: none;
@@ -405,11 +474,13 @@ button { font-family: inherit; cursor: pointer; }
 .focus-stop {
   display: flex; align-items: center; justify-content: center;
   width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 32%, transparent);
-  background: var(--danger);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+  background: color-mix(in srgb, var(--danger) 78%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 10px 24px -10px color-mix(in srgb, var(--danger) 70%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 24px -11px color-mix(in srgb, var(--danger) 55%, transparent);
   transition: transform 0.15s ease, filter 0.15s ease;
 }
 .focus-stop:active { transform: scale(0.9); filter: brightness(0.92); }
@@ -432,23 +503,23 @@ button { font-family: inherit; cursor: pointer; }
 /* ── Port do mobile (modos, brainstorm, tarefas, captura FAB) ─────────── */
 .tag.idea { color: #fb923c; }
 
-/* Cards/itens com cara mais "glass" (modelo do PC) */
+/* Cards/itens levemente translúcidos — a aurora do fundo tinge de leve por
+   baixo (sem backdrop-filter: barato e suficiente em superfícies grandes). */
 .card {
-  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 160%);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 6px 18px -10px rgba(0,0,0,0.5);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--surface) 90%, transparent) 0%, color-mix(in srgb, var(--surface-2) 82%, transparent) 160%);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 6px 18px -10px rgba(0,0,0,0.5);
 }
 .item {
-  background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--surface) 88%, transparent) 0%, color-mix(in srgb, var(--surface-2) 80%, transparent) 170%);
   box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
 }
 
-/* Tabbar estilo "rail" — só ícones em tiles, recolhível com animação */
+/* Rodapé recolhível — a cápsula de vidro flutua direto sobre a aurora. */
 .tabwrap {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
   display: flex; flex-direction: column; align-items: center;
-  /* Fade suave por baixo pra os botões de vidro lerem bem sobre o conteúdo —
-     mais leve agora, os botões ficam quase flutuando. */
-  background: linear-gradient(to top, color-mix(in srgb, var(--bg) 72%, transparent) 14%, transparent);
+  background: none;
+  padding-bottom: calc(0.55rem + env(safe-area-inset-bottom));
   transition: transform 0.28s cubic-bezier(.4, 0, .2, 1);
 }
 .tabwrap.hidden { transform: translateY(calc(100% - 24px)); }
@@ -459,13 +530,51 @@ button { font-family: inherit; cursor: pointer; }
   border: none; opacity: 0.5; transition: opacity 0.15s ease;
 }
 .tab-handle:active { opacity: 0.85; }
-/* Fileira dos modos: botões redondos de vidro em sequência, centralizados,
-   sem encostar nas bordas (gap agradável). Fundo só pra elevar do conteúdo. */
+/* CÁPSULA única de vidro (referência: tabbar glassmorphism) — um painel
+   translúcido segurando todos os tabs, ícone + rótulo, sobre a aurora. */
 .tabbar-rail {
-  position: static; display: flex; justify-content: center; gap: 1.05rem;
-  width: 100%; padding: 0.6rem 0.9rem calc(0.6rem + env(safe-area-inset-bottom));
-  background: transparent; border-top: none;
-  grid-template-columns: none;
+  display: flex; align-items: stretch; justify-content: space-around; gap: 0;
+  width: min(100% - 1.7rem, 400px); margin: 0 auto;
+  padding: 0.4rem 0.45rem; border-radius: 26px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.8);
+  backdrop-filter: blur(28px) saturate(1.8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.05),
+    0 14px 34px -18px rgba(0, 0, 0, 0.6);
+}
+.tab-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; min-height: 52px; padding: 0.35rem 0.2rem; border-radius: 19px;
+  background: none; border: none; color: rgba(255, 255, 255, 0.72);
+  transition: background 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+.tab-item:active { transform: scale(0.94); }
+.tab-label { font-size: 0.62rem; font-weight: 650; letter-spacing: 0.01em; line-height: 1; }
+/* Ativo: mancha suave de accent dentro da cápsula (como o blob da referência). */
+.tab-item.active {
+  color: #fff;
+  background: radial-gradient(
+    120% 130% at 50% 0%,
+    color-mix(in srgb, var(--accent) 46%, transparent),
+    color-mix(in srgb, var(--accent) 15%, transparent) 80%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+:root.light .tabbar-rail {
+  background: rgba(255, 255, 255, 0.55);
+  border-color: rgba(24, 24, 60, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 14px 34px -20px rgba(30, 30, 70, 0.45);
+}
+:root.light .tab-item { color: color-mix(in srgb, var(--text) 70%, transparent); }
+:root.light .tab-item.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: none;
 }
 
 /* Botão redondo "frosted glass" reutilizável (tabbar + botões do Foco).
@@ -493,35 +602,18 @@ button { font-family: inherit; cursor: pointer; }
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 8px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent);
 }
-/* Ícone do modo SEMPRE branco no rail — a regra antiga `.tabbar button.active`
-   pintava de accent e ele sumia no fundo accent do botão selecionado. */
-.tabbar-rail .glass-round,
-.tabbar-rail .glass-round.active { color: #fff; }
-/* No rodapé os tiles não selecionados são LIQUID GLASS de verdade: tinta escura
-   bem sutil (só o necessário pro ícone branco ler), blur/saturação fortes (a
-   refração), um fio especular fino no topo e um halo interno embaixo — nada de
-   lavado branco. O selecionado continua accent cheio. */
-.tabbar-rail .glass-round:not(.active) {
-  background: rgba(12, 14, 24, 0.22);
-  border-color: rgba(255, 255, 255, 0.28);
-  -webkit-backdrop-filter: blur(24px) saturate(2);
-  backdrop-filter: blur(24px) saturate(2);
-  box-shadow:
-    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.5),
-    inset 0 -10px 16px -8px rgba(255, 255, 255, 0.08),
-    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
-    0 10px 24px -14px rgba(0, 0, 0, 0.55);
-}
 
 /* Botão de captura no header — cor chapada viva + fio de luz + halo (iOS 26). */
 .capture-fab {
   display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 50%; margin-left: 0.15rem;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 34%, transparent);
-  background: var(--accent);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 78%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 5px 14px -5px color-mix(in srgb, var(--accent) 70%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 5px 14px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 .capture-fab:active { filter: brightness(0.92); transform: scale(0.93); }
 
@@ -581,11 +673,11 @@ button { font-family: inherit; cursor: pointer; }
 /* Lâmpada "acesa": amarelo chapado, glifo branco, fio de luz + halo. */
 .ic-mini.lit {
   color: #fff;
-  border-color: color-mix(in srgb, #fff 36%, transparent);
-  background: #eab308;
+  border-color: color-mix(in srgb, #fff 32%, transparent);
+  background: color-mix(in srgb, #eab308 72%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 5px 14px -6px rgba(234, 179, 8, 0.6);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 5px 14px -7px rgba(234, 179, 8, 0.45);
 }
 
 /* Linha de adicionar: sprint da sessão (redondo) + botão redondo de +. */
@@ -600,11 +692,13 @@ button { font-family: inherit; cursor: pointer; }
 .round-add {
   display: inline-flex; align-items: center; justify-content: center;
   width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 34%, transparent);
-  background: var(--accent);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 78%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 8px 20px -9px color-mix(in srgb, var(--accent) 75%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 8px 20px -10px color-mix(in srgb, var(--accent) 60%, transparent);
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 .round-add:active { filter: brightness(0.92); transform: scale(0.93); }
@@ -612,20 +706,30 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Mural de ideias — 2 colunas, fundo pintado pelo CALOR (igual ao mural do PC:
    frio zinco → amarelo → âmbar → laranja → vermelho quente). */
-.idea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.7rem; }
+.idea-grid { columns: 2; column-gap: 0.6rem; margin-top: 0.7rem; }
 /* Mural post-it: quadrado PONTUDO com leve rotação alternada (mural de parede),
    sombra de papel + fio de luz no topo; a cor segue vindo do CALOR. */
 .idea-cell {
   --rot: 0deg;
   display: flex; flex-direction: column; gap: 0.2rem; min-width: 0;
+  break-inside: avoid; margin-bottom: 0.6rem;
   border: 1px solid var(--border); border-radius: 0; padding: 0.65rem 0.7rem 0.7rem;
   background: var(--surface);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 10px 20px -14px rgba(0, 0, 0, 0.6);
   transform: rotate(var(--rot));
   animation: idea-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.idea-cell:nth-child(odd) { --rot: -0.6deg; }
-.idea-cell:nth-child(even) { --rot: 0.55deg; }
+/* Tamanho segue o texto (masonry): nota curta vira post-it GRANDE de marcador,
+   texto longo vira card menor e denso — o caos organizado de um mural real. */
+.idea-cell.sz-s { padding: 0.95rem 0.75rem 1rem; }
+.idea-cell.sz-s strong { font-size: 1.08rem; line-height: 1.18; }
+.idea-cell.sz-l { padding: 0.55rem 0.65rem 0.6rem; }
+.idea-cell.sz-l strong { font-size: 0.78rem; line-height: 1.32; font-weight: 650; }
+.idea-cell:nth-child(odd) { --rot: -0.7deg; }
+.idea-cell:nth-child(even) { --rot: 0.6deg; }
+.idea-cell:nth-child(3n) { --rot: 1deg; }
+.idea-cell:nth-child(4n) { --rot: -1.1deg; }
+.idea-cell:nth-child(5n) { --rot: 0.35deg; }
 .idea-cell:nth-child(1) { animation-delay: 0.02s; }
 .idea-cell:nth-child(2) { animation-delay: 0.06s; }
 .idea-cell:nth-child(3) { animation-delay: 0.1s; }
@@ -679,12 +783,12 @@ button { font-family: inherit; cursor: pointer; }
 .commit-play {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 26%, transparent);
   color: #fff;
-  background: var(--accent);
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 10px -5px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .commit-play:active { filter: brightness(0.9); }
 .commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -756,12 +860,12 @@ button { font-family: inherit; cursor: pointer; }
   position: relative;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 26%, transparent);
   color: #fff;
-  background: var(--accent);
+  background: color-mix(in srgb, var(--accent) 72%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 4px 10px -5px color-mix(in srgb, var(--accent) 60%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 10px -5px color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .task-focus:active { filter: brightness(0.9); transform: scale(0.92); }
 /* A.1 — expande o alvo de toque desses ícones pequenos p/ ≥44px sem mudar o
@@ -773,20 +877,47 @@ button { font-family: inherit; cursor: pointer; }
 .identity-chip { min-height: 44px; }
 .cold-tap { min-height: 44px; }
 
-/* Overlay de captura (sheet) */
+/* Overlay + sheet amigáveis: fundo embaçado, painel de vidro com alça de
+   arrastar e cantos generosos, subindo com animação. */
 .overlay {
-  position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; z-index: 30; background: rgba(8, 8, 18, 0.45);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  backdrop-filter: blur(8px) saturate(1.2);
   display: flex; align-items: flex-end;
+  animation: lc-fade 0.18s ease both;
 }
 .sheet {
   width: 100%; max-height: 88vh; overflow-y: auto;
-  background: var(--bg); border-top-left-radius: 18px; border-top-right-radius: 18px;
-  border-top: 1px solid var(--border);
-  padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  border-top-left-radius: 26px; border-top-right-radius: 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 -18px 50px -30px rgba(0, 0, 0, 0.8);
+  padding: 0.3rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  animation: sheet-up 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* Alça de arrastar (afford: "isso é uma folha"). */
+.sheet::before {
+  content: ""; display: block; width: 42px; height: 5px; border-radius: 999px;
+  margin: 0.45rem auto 0.15rem;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+@keyframes sheet-up {
+  from { transform: translateY(24px); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet { animation: none; }
+}
+:root.light .overlay { background: rgba(30, 30, 60, 0.3); }
+:root.light .sheet { border-top-color: rgba(20, 20, 60, 0.1); }
 .sheet-head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0.5rem 0 0.75rem; position: sticky; top: 0; background: var(--bg);
+  padding: 0.5rem 0 0.75rem; position: sticky; top: 0;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 /* ── Captura ao vivo (Modo Foco) ──────────────────────────────────────────── */
@@ -916,17 +1047,6 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(28, 28, 42, 0.92);
   border-color: rgba(255, 255, 255, 0.3);
 }
-/* No modo claro o vidro precisa de um pouco mais de corpo pra segurar o ícone
-   branco, mas segue translúcido (sem lavado): tinta escura média + o mesmo fio
-   especular. */
-:root.light .tabbar-rail .glass-round:not(.active) {
-  background: rgba(28, 28, 42, 0.42);
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow:
-    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.55),
-    inset 0 -10px 16px -8px rgba(255, 255, 255, 0.1),
-    0 10px 24px -14px rgba(0, 0, 0, 0.4);
-}
 /* MODO CLARO — vidro neutro vira FOSCO BRANCO (glifo escuro segue var(--text));
    os vidros TINGIDOS (accent/cores) são autocoloridos e valem nos dois temas. */
 :root.light .ic-mini:not(.lit) {
@@ -954,7 +1074,10 @@ button { font-family: inherit; cursor: pointer; }
 .lc-idea-box {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   width: min(86vw, 360px); display: flex; flex-direction: column; gap: 0.5rem;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 22px;
   padding: 1rem; box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.6);
 }
 .lc-idea-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.1rem; }
@@ -1174,14 +1297,16 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   width: 54px; height: 54px; border-radius: 50%; color: #fff;
-  /* iOS 26: cor CHAPADA e viva (sem degradê nem mancha de brilho — aquilo é o
-     "aqua" dos anos 2000). Fio de luz na borda + halo suave da cor e só. */
-  border: 1px solid rgba(255, 255, 255, 0.26);
-  background: var(--fc, var(--accent));
+  /* Vidro fosco tingido: cor translúcida SUAVE + blur da aurora atrás + fio
+     de luz na borda (sem chapado gritante, sem gloss). */
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: color-mix(in srgb, var(--fc, var(--accent)) 55%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    0 4px 10px -5px rgba(0, 0, 0, 0.25),
-    0 10px 26px -9px var(--glow, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 4px 10px -5px rgba(0, 0, 0, 0.22),
+    0 10px 26px -10px var(--glow, transparent);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 .stat-num {
@@ -1191,12 +1316,12 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 }
 .stat-face svg { position: relative; z-index: 1; }
 .stat-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); line-height: 1; }
-/* Cor do vidro (--fc) + halo colorido combinando — tons vivos, meio da escala. */
-.sc-red { --glow: rgba(244, 63, 94, 0.5); --fc: #f43f5e; }
-.sc-orange { --glow: rgba(249, 115, 22, 0.46); --fc: #f97316; }
-.sc-yellow { --glow: rgba(245, 158, 11, 0.45); --fc: #f59e0b; }
-.sc-green { --glow: rgba(16, 185, 129, 0.46); --fc: #10b981; }
-.sc-blue { --glow: rgba(59, 130, 246, 0.5); --fc: #3b82f6; }
+/* Cor do vidro (--fc) + halo colorido bem suave. */
+.sc-red { --glow: rgba(244, 63, 94, 0.3); --fc: #f43f5e; }
+.sc-orange { --glow: rgba(249, 115, 22, 0.28); --fc: #f97316; }
+.sc-yellow { --glow: rgba(245, 158, 11, 0.27); --fc: #f59e0b; }
+.sc-green { --glow: rgba(16, 185, 129, 0.28); --fc: #10b981; }
+.sc-blue { --glow: rgba(59, 130, 246, 0.3); --fc: #3b82f6; }
 @keyframes stat-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.7); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1221,8 +1346,9 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 .coming-ic {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%; color: #fff;
-  background: var(--ec, var(--accent));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 3px 10px -4px var(--ec, transparent);
+  background: color-mix(in srgb, var(--ec, var(--accent)) 62%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 3px 10px -5px var(--ec, transparent);
 }
 .coming-ic.ci-gig { --ec: var(--e-gig); }
 .coming-ic.ci-track { --ec: var(--e-track); }

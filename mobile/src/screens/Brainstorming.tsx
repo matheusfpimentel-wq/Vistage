@@ -231,12 +231,17 @@ export function Brainstorming() {
         <div className="center"><span className="spinner" /></div>
       ) : grid.length > 0 ? (
         <div className="idea-grid">
-          {grid.map((it) => (
-            <div key={it.key} className={`idea-cell heat-${it.heat}`}>
-              <strong>{it.title}</strong>
-              {it.subtitle && <span className="muted small">{it.subtitle}</span>}
-            </div>
-          ))}
+          {grid.map((it) => {
+            // Post-it dimensionado pelo texto: nota curta vira cartão grande de
+            // marcador, texto longo vira cartão denso — caos de mural real.
+            const sz = it.title.length <= 26 ? "sz-s" : it.title.length <= 64 ? "sz-m" : "sz-l";
+            return (
+              <div key={it.key} className={`idea-cell heat-${it.heat} ${sz}`}>
+                <strong>{it.title}</strong>
+                {it.subtitle && <span className="muted small">{it.subtitle}</span>}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="muted center-text small">Nenhuma ideia ainda. Solta a primeira aí em cima.</p>
