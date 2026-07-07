@@ -131,6 +131,7 @@ function SwipeTask({ t, onComplete, onFocus }: { t: Task; onComplete: () => void
   const startX = useRef<number | null>(null);
   const dragging = startX.current != null;
   const due = fmtDate(t.due_date);
+  const overdue = !!t.due_date && t.due_date.slice(0, 10) < localISO(new Date());
 
   function onTouchStart(e: TouchEvent) {
     startX.current = e.touches[0].clientX;
@@ -166,7 +167,12 @@ function SwipeTask({ t, onComplete, onFocus }: { t: Task; onComplete: () => void
         <div className="grow">
           <strong>{t.title}</strong>
           {(t.category || t.priority || due) && (
-            <span className="muted small"> {[t.category, t.priority, due].filter(Boolean).join(" · ")}</span>
+            <span className="muted small">
+              {" "}
+              {[t.category, t.priority].filter(Boolean).join(" · ")}
+              {(t.category || t.priority) && due ? " · " : ""}
+              {due && <span className={"task-due" + (overdue ? " overdue" : "")}>{due}</span>}
+            </span>
           )}
         </div>
         <button className="task-focus" aria-label={`Focar em ${t.title}`} onClick={onFocus}>
