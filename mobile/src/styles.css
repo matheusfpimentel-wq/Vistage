@@ -233,8 +233,10 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 0.45rem; aspect-ratio: 1; text-align: center;
   background: linear-gradient(155deg, var(--surface) 0%, var(--surface-2) 170%);
-  border: 1px solid var(--border); border-radius: 14px; padding: 0.5rem 0.35rem;
-  color: var(--text); box-shadow: 0 4px 14px -10px rgba(0,0,0,0.5);
+  /* Quadrado PONTUDO (preferência: círculo ou canto vivo, nunca meio-termo). */
+  border: 1px solid var(--border); border-radius: 0; padding: 0.5rem 0.35rem;
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 14px -10px rgba(0,0,0,0.5);
   transition: transform 0.12s ease, border-color 0.12s ease;
 }
 .cat-btn:active { transform: scale(0.97); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
@@ -304,10 +306,31 @@ button { font-family: inherit; cursor: pointer; }
 .primary, .ghost, .danger {
   border-radius: 10px; padding: 0.8rem 1rem; font-size: 1rem; font-weight: 600; border: 1px solid transparent;
 }
-.primary { background: var(--accent); color: white; }
+/* Primário/perigo com corpo de vidro: luz no topo, densidade embaixo, halo. */
+.primary {
+  color: white;
+  background: linear-gradient(
+    172deg,
+    color-mix(in srgb, var(--accent) 80%, #fff),
+    var(--accent) 55%,
+    color-mix(in srgb, var(--accent) 88%, #000)
+  );
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    0 8px 18px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
 .primary:disabled { opacity: 0.5; }
 .ghost { background: transparent; color: var(--text); border-color: var(--border); }
-.danger { background: var(--danger); color: white; }
+.danger {
+  color: white;
+  background: linear-gradient(
+    172deg,
+    color-mix(in srgb, var(--danger) 80%, #fff),
+    var(--danger) 55%,
+    color-mix(in srgb, var(--danger) 88%, #000)
+  );
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.32),
+    0 8px 18px -10px color-mix(in srgb, var(--danger) 65%, transparent);
+}
 .full { width: 100%; margin-top: 1rem; }
 .link { background: none; border: none; color: var(--accent); font-weight: 600; font-size: 0.9rem; text-decoration: none; }
 
@@ -388,13 +411,26 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Play/pause no centro do anel + Encerrar consistente com o resto do app */
 .focus-ring-ic { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; }
-/* Encerrar = botão redondo vermelho com quadrado de stop. */
+/* Encerrar = vidro tingido de vermelho (redondo, com brilho e halo). */
 .focus-stop {
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
-  background: var(--danger); color: #fff; border: none;
-  box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--danger) 60%, transparent);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 42%, transparent);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--danger) 58%, rgba(255, 255, 255, 0.38)),
+    color-mix(in srgb, var(--danger) 92%, rgba(24, 6, 10, 0.22)) 76%
+  );
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -8px 12px -7px rgba(0, 0, 0, 0.3),
+    0 10px 24px -9px color-mix(in srgb, var(--danger) 70%, transparent);
   transition: transform 0.15s ease, filter 0.15s ease;
+}
+.focus-stop::after {
+  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.38), transparent 58%);
 }
 .focus-stop:active { transform: scale(0.9); filter: brightness(0.92); }
 
@@ -456,6 +492,7 @@ button { font-family: inherit; cursor: pointer; }
    Fundo escuro semitransparente + blur, borda translúcida, ícone branco
    centralizado (currentColor). Referência: botões dos cantos da galeria iOS. */
 .glass-round {
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 52px; height: 52px; border-radius: 50%; flex: 0 0 auto;
   background: rgba(20, 20, 30, 0.55); color: #fff;
@@ -466,13 +503,29 @@ button { font-family: inherit; cursor: pointer; }
   transition: transform 0.15s ease, background 0.15s ease,
     border-color 0.15s ease, box-shadow 0.15s ease;
 }
+/* Reflexo "lente" do liquid glass: mancha especular no alto (o vidro por cima
+   do ícone, como no Control Center do iOS). */
+.glass-round::after {
+  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05) 45%, transparent 62%);
+}
 .glass-round:active { transform: scale(0.9); }
-/* Modo/seleção ativa: anel + fundo accent, ícone segue branco. */
+/* Modo/seleção ativa: VIDRO TINGIDO de accent (não tinta chapada) — cor viva
+   translúcida com refração atrás, aro especular e halo colorido. */
 .glass-round.active {
-  background: var(--accent);
-  border-color: color-mix(in srgb, #fff 45%, var(--accent));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent),
-    0 6px 18px -8px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 60%, rgba(255, 255, 255, 0.38)),
+    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.22)) 74%
+  );
+  border-color: color-mix(in srgb, #fff 55%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(2);
+  backdrop-filter: blur(24px) saturate(2);
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.6),
+    inset 0 -8px 14px -8px rgba(0, 0, 0, 0.28),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 8px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
 }
 /* Ícone do modo SEMPRE branco no rail — a regra antiga `.tabbar button.active`
    pintava de accent e ele sumia no fundo accent do botão selecionado. */
@@ -494,14 +547,27 @@ button { font-family: inherit; cursor: pointer; }
     0 10px 24px -14px rgba(0, 0, 0, 0.55);
 }
 
-/* Botão de captura no header — redondo, única cor cheia do header */
+/* Botão de captura no header — vidro tingido de accent (vivo, com brilho). */
 .capture-fab {
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 50%; margin-left: 0.15rem;
-  background: var(--accent); color: #fff; border: none;
-  box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 70%, transparent);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 45%, transparent);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 58%, rgba(255, 255, 255, 0.42)),
+    color-mix(in srgb, var(--accent) 92%, rgba(12, 8, 28, 0.2)) 76%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -5px 9px -5px rgba(0, 0, 0, 0.28),
+    0 5px 14px -5px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-.capture-fab:active { filter: brightness(0.92); }
+.capture-fab::after {
+  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), transparent 58%);
+}
+.capture-fab:active { filter: brightness(0.92); transform: scale(0.93); }
 
 /* Cabeçalhos de tela + pílula contadora */
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.5rem; }
@@ -514,10 +580,25 @@ button { font-family: inherit; cursor: pointer; }
 }
 .small { font-size: 0.78rem; }
 
-/* Brainstorming */
+/* Brainstorming — painéis de CANTO VIVO (nada de pontas arredondadas aqui). */
 .brainstorm { gap: 0.5rem; }
-.insight { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.insight-text { margin: 0 0 0.6rem; font-size: 0.98rem; line-height: 1.35; }
+.brainstorm .card { border-radius: 0; }
+/* Painel da provocação: vidro tingido de accent + aspas decorativas gigantes. */
+.insight {
+  position: relative; overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background:
+    radial-gradient(130% 100% at 100% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 58%),
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 9%, var(--surface)), var(--surface) 72%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 12px 28px -20px rgba(0, 0, 0, 0.65);
+  animation: coming-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.insight::before {
+  content: "\201C"; position: absolute; top: -1.55rem; left: 0.15rem;
+  font-family: Georgia, "Times New Roman", serif; font-size: 6.2rem; font-weight: 700; line-height: 1;
+  color: color-mix(in srgb, var(--accent) 30%, transparent); pointer-events: none;
+}
+.insight-text { position: relative; margin: 0.35rem 0 0.6rem; padding-left: 0.35rem; font-size: 1.02rem; line-height: 1.4; }
 .card.form { display: flex; flex-direction: column; gap: 0.55rem; }
 .card.form input, .card.form textarea {
   width: 100%; background: var(--bg); border: 1px solid var(--border);
@@ -527,17 +608,33 @@ button { font-family: inherit; cursor: pointer; }
 /* Ações mínimas da provocação: dado (outra) · lâmpada acesa (virar ideia). */
 .insight-actions { display: flex; gap: 0.5rem; }
 .ic-mini {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
-  background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
+  background: rgba(16, 16, 28, 0.38); color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.35),
+    0 6px 14px -9px rgba(0, 0, 0, 0.55);
   transition: transform 0.12s ease, background 0.12s ease;
 }
 .ic-mini:active { transform: scale(0.9); }
 .ic-mini:disabled { opacity: 0.5; }
+/* Lâmpada "acesa": vidro tingido de amarelo, glifo branco. */
 .ic-mini.lit {
-  color: #f5c83c;
-  border-color: color-mix(in srgb, #f5c83c 45%, var(--border));
-  background: color-mix(in srgb, #f5c83c 12%, var(--surface-2));
+  color: #fff;
+  border-color: color-mix(in srgb, #fff 48%, transparent);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, #f5c83c 55%, rgba(255, 255, 255, 0.4)),
+    color-mix(in srgb, #eab308 90%, rgba(48, 32, 0, 0.25)) 76%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.22),
+    0 5px 14px -6px rgba(234, 179, 8, 0.6);
 }
 
 /* Linha de adicionar: sprint da sessão (redondo) + botão redondo de +. */
@@ -550,30 +647,66 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
 }
 .round-add {
+  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto;
-  background: var(--accent); color: #fff; border: none;
-  box-shadow: 0 6px 16px -8px rgba(0, 0, 0, 0.55);
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 45%, transparent);
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 58%, rgba(255, 255, 255, 0.4)),
+    color-mix(in srgb, var(--accent) 92%, rgba(12, 8, 28, 0.2)) 76%
+  );
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.55),
+    inset 0 -7px 11px -6px rgba(0, 0, 0, 0.28),
+    0 8px 20px -8px color-mix(in srgb, var(--accent) 75%, transparent);
   transition: transform 0.12s ease, filter 0.12s ease;
+}
+.round-add::after {
+  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), transparent 58%);
 }
 .round-add:active { filter: brightness(0.92); transform: scale(0.93); }
 .round-add:disabled { opacity: 0.45; box-shadow: none; }
 
 /* Mural de ideias — 2 colunas, fundo pintado pelo CALOR (igual ao mural do PC:
    frio zinco → amarelo → âmbar → laranja → vermelho quente). */
-.idea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.6rem; }
+.idea-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.7rem; }
+/* Mural post-it: quadrado PONTUDO com leve rotação alternada (mural de parede),
+   sombra de papel + fio de luz no topo; a cor segue vindo do CALOR. */
 .idea-cell {
+  --rot: 0deg;
   display: flex; flex-direction: column; gap: 0.2rem; min-width: 0;
-  border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border); border-radius: 0; padding: 0.65rem 0.7rem 0.7rem;
   background: var(--surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 10px 20px -14px rgba(0, 0, 0, 0.6);
+  transform: rotate(var(--rot));
+  animation: idea-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.idea-cell:nth-child(odd) { --rot: -0.6deg; }
+.idea-cell:nth-child(even) { --rot: 0.55deg; }
+.idea-cell:nth-child(1) { animation-delay: 0.02s; }
+.idea-cell:nth-child(2) { animation-delay: 0.06s; }
+.idea-cell:nth-child(3) { animation-delay: 0.1s; }
+.idea-cell:nth-child(4) { animation-delay: 0.14s; }
+.idea-cell:nth-child(5) { animation-delay: 0.18s; }
+.idea-cell:nth-child(6) { animation-delay: 0.22s; }
+.idea-cell:nth-child(7) { animation-delay: 0.26s; }
+.idea-cell:nth-child(8) { animation-delay: 0.3s; }
+@keyframes idea-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.95) rotate(var(--rot)); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(var(--rot)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .idea-cell { animation: none; transform: none; }
 }
 .idea-cell strong { font-size: 0.9rem; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
 .idea-cell .small { font-size: 0.7rem; }
-.idea-cell.heat-1 { background: color-mix(in srgb, #a1a1aa 8%, var(--surface)); border-color: color-mix(in srgb, #a1a1aa 28%, var(--border)); }
-.idea-cell.heat-2 { background: color-mix(in srgb, #eab308 9%, var(--surface)); border-color: color-mix(in srgb, #eab308 30%, var(--border)); }
-.idea-cell.heat-3 { background: color-mix(in srgb, #f59e0b 9%, var(--surface)); border-color: color-mix(in srgb, #f59e0b 30%, var(--border)); }
-.idea-cell.heat-4 { background: color-mix(in srgb, #f97316 11%, var(--surface)); border-color: color-mix(in srgb, #f97316 33%, var(--border)); }
-.idea-cell.heat-5 { background: color-mix(in srgb, #ef4444 13%, var(--surface)); border-color: color-mix(in srgb, #ef4444 38%, var(--border)); }
+.idea-cell.heat-1 { background: color-mix(in srgb, #a1a1aa 10%, var(--surface)); border-color: color-mix(in srgb, #a1a1aa 32%, var(--border)); }
+.idea-cell.heat-2 { background: color-mix(in srgb, #eab308 12%, var(--surface)); border-color: color-mix(in srgb, #eab308 34%, var(--border)); }
+.idea-cell.heat-3 { background: color-mix(in srgb, #f59e0b 12%, var(--surface)); border-color: color-mix(in srgb, #f59e0b 34%, var(--border)); }
+.idea-cell.heat-4 { background: color-mix(in srgb, #f97316 14%, var(--surface)); border-color: color-mix(in srgb, #f97316 38%, var(--border)); }
+.idea-cell.heat-5 { background: color-mix(in srgb, #ef4444 17%, var(--surface)); border-color: color-mix(in srgb, #ef4444 44%, var(--border)); }
 
 /* Card grande de compromissos: degradê, borda menos arredondada */
 .today-commit {
@@ -604,9 +737,18 @@ button { font-family: inherit; cursor: pointer; }
    Redondo, com leve brilho de topo. */
 .commit-play {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 50%; border: none;
-  color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 78%, #fff), var(--accent));
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 3px 8px -4px color-mix(in srgb, var(--accent) 60%, transparent);
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, #fff 42%, transparent);
+  color: #fff;
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 56%, rgba(255, 255, 255, 0.4)),
+    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.2)) 76%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.26),
+    0 4px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .commit-play:active { filter: brightness(0.9); }
 .commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -673,14 +815,24 @@ button { font-family: inherit; cursor: pointer; }
   border: 2px solid var(--muted); background: transparent;
 }
 .check:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
-/* "Play" pra focar na tarefa (à direita, não conflita com o check de concluir). */
+/* "Play" pra focar na tarefa — redondo, vidro tingido de accent (glifo branco). */
 .task-focus {
   position: relative;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 8px; border: none;
-  color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid color-mix(in srgb, #fff 40%, transparent);
+  color: #fff;
+  background: linear-gradient(
+    170deg,
+    color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.4)),
+    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.2)) 76%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.5),
+    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.26),
+    0 4px 10px -5px color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.task-focus:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.task-focus:active { filter: brightness(0.9); transform: scale(0.92); }
 /* A.1 — expande o alvo de toque desses ícones pequenos p/ ≥44px sem mudar o
    visual (área invisível centralizada via ::before). */
 .check::before, .task-focus::before {
@@ -844,6 +996,28 @@ button { font-family: inherit; cursor: pointer; }
     inset 0 -10px 16px -8px rgba(255, 255, 255, 0.1),
     0 10px 24px -14px rgba(0, 0, 0, 0.4);
 }
+/* MODO CLARO — vidro neutro vira FOSCO BRANCO (glifo escuro segue var(--text));
+   os vidros TINGIDOS (accent/cores) são autocoloridos e valem nos dois temas. */
+:root.light .ic-mini:not(.lit) {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: rgba(20, 20, 50, 0.14);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 5px 12px -8px rgba(20, 20, 60, 0.35);
+}
+:root.light .stat-face {
+  box-shadow:
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.7),
+    inset 0 -9px 14px -7px rgba(0, 0, 0, 0.16),
+    0 4px 10px -6px rgba(30, 30, 70, 0.25),
+    0 10px 26px -8px var(--glow, transparent);
+}
+:root.light .insight {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 12px 28px -22px rgba(30, 30, 70, 0.4);
+}
+:root.light .idea-cell {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 10px 20px -16px rgba(30, 30, 70, 0.35);
+}
 
 /* Ideia rápida: card central com campo de nota curtinha (a lâmpada abre isto). */
 .lc-idea-box {
@@ -931,18 +1105,34 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 .checkin-add { display: flex; flex-direction: column; gap: 0.5rem; }
 
 /* ── §8 Tarefas: grupos por vencimento + deslizar-pra-concluir ─────────────── */
-.task-group { margin-bottom: 0.9rem; }
+.task-group { margin-bottom: 1rem; }
+/* Cabeçalho do grupo com régua que completa a linha (escaneável). */
 .task-group-h {
+  display: flex; align-items: center; gap: 0.55rem;
   font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;
-  color: var(--muted); margin: 0.6rem 0 0.35rem;
+  color: var(--muted); margin: 0.6rem 0 0.3rem;
 }
+.task-group-h::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--border) 75%, transparent); }
 .task-group-h.overdue { color: var(--urg-overdue); }
-.swipe-wrap { position: relative; list-style: none; overflow: hidden; border-radius: 12px; }
+.task-group-h.overdue::after { background: color-mix(in srgb, var(--urg-overdue) 35%, transparent); }
+/* Linhas SEM caixa (canto vivo): fundo do app + fio entre linhas — mais leve
+   que os cartões arredondados; o deslizar segue revelando o verde por trás. */
+.task-group .list { gap: 0; }
+.swipe-wrap { position: relative; list-style: none; overflow: hidden; border-radius: 0; }
 .swipe-behind {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end;
-  padding-right: 1rem; font-weight: 700; color: #fff; border-radius: 12px; background: var(--pos);
+  padding-right: 1rem; font-weight: 700; color: #fff; border-radius: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pos) 55%, var(--bg)), var(--pos));
 }
 .swipe-fore { position: relative; will-change: transform; touch-action: pan-y; }
+.item.task-row {
+  background: var(--bg); border: none; border-radius: 0; box-shadow: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  padding: 0.7rem 0.15rem;
+}
+/* Data de vencimento — vermelha quando já passou. */
+.task-due { color: var(--muted); }
+.task-due.overdue { color: var(--urg-overdue); font-weight: 700; }
 
 /* tap-to-action: linha com vários links (telefone · WhatsApp) */
 .link-row { display: inline-flex; flex-wrap: wrap; gap: 0.1rem 0.7rem; align-items: baseline; }
@@ -1053,17 +1243,25 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   width: 54px; height: 54px; border-radius: 50%; color: #fff;
+  /* Liquid glass tingido (referência iOS): a COR (--fc) entra translúcida —
+     clara no alto (luz), densa embaixo — com aro branco fino de vidro. */
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  background: linear-gradient(
+    172deg,
+    color-mix(in srgb, var(--fc, var(--accent)) 46%, rgba(255, 255, 255, 0.5)),
+    color-mix(in srgb, var(--fc, var(--accent)) 88%, rgba(14, 10, 32, 0.24)) 78%
+  );
   box-shadow:
-    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.6),
-    inset 0 -7px 12px -5px rgba(0, 0, 0, 0.14),
-    0 4px 10px -5px rgba(0, 0, 0, 0.3),
-    0 8px 22px -6px var(--glow, transparent);
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.62),
+    inset 0 -9px 14px -7px rgba(0, 0, 0, 0.26),
+    0 4px 10px -5px rgba(0, 0, 0, 0.28),
+    0 10px 26px -8px var(--glow, transparent);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
 }
 /* Sheen radial suave no canto superior (reflexo de vidro). */
 .stat-face::after {
   content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 80% at 32% 16%, rgba(255, 255, 255, 0.5), transparent 56%);
+  background: radial-gradient(120% 80% at 32% 16%, rgba(255, 255, 255, 0.46), transparent 56%);
 }
 .stat-num {
   position: relative; z-index: 1; max-width: 46px; overflow: hidden; text-overflow: ellipsis;
@@ -1072,17 +1270,12 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 }
 .stat-face svg { position: relative; z-index: 1; }
 .stat-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); line-height: 1; }
-/* Degradês suaves (claro → médio) + halo colorido combinando. */
-.sc-red { --glow: rgba(244, 63, 94, 0.45); }
-.sc-red .stat-face { background: linear-gradient(150deg, #fda4af, #fb5871); }
-.sc-orange { --glow: rgba(249, 115, 22, 0.42); }
-.sc-orange .stat-face { background: linear-gradient(150deg, #fed7aa, #fb923c); }
-.sc-yellow { --glow: rgba(234, 179, 8, 0.4); }
-.sc-yellow .stat-face { background: linear-gradient(150deg, #fef08a, #f59e0b); }
-.sc-green { --glow: rgba(34, 197, 94, 0.42); }
-.sc-green .stat-face { background: linear-gradient(150deg, #86efac, #34d399); }
-.sc-blue { --glow: rgba(59, 130, 246, 0.45); }
-.sc-blue .stat-face { background: linear-gradient(150deg, #93c5fd, #60a5fa); }
+/* Cor do vidro (--fc) + halo colorido combinando — tons vivos, meio da escala. */
+.sc-red { --glow: rgba(244, 63, 94, 0.5); --fc: #f43f5e; }
+.sc-orange { --glow: rgba(249, 115, 22, 0.46); --fc: #f97316; }
+.sc-yellow { --glow: rgba(245, 158, 11, 0.45); --fc: #f59e0b; }
+.sc-green { --glow: rgba(16, 185, 129, 0.46); --fc: #10b981; }
+.sc-blue { --glow: rgba(59, 130, 246, 0.5); --fc: #3b82f6; }
 @keyframes stat-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.7); }
   to { opacity: 1; transform: translateY(0) scale(1); }
