@@ -108,6 +108,8 @@ export type Gig = {
   gig_equipment: string;  // JSON array, parsed to number[]
   /** JSON array de músicas pesquisadas para a GIG: [{title, artist, note}] */
   gig_research: string | null;
+  /** JSON do Set Planner (Curadoria + Setlist planejado). Ver setPlan.ts. */
+  set_plan: string | null;
   /** ID da tarefa auto-criada a partir do objetivo principal. */
   main_goal_task_id: number | null;
   event_category: string | null;

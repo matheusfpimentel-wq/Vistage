@@ -250,22 +250,45 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .search-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
 .search-head .search { margin-bottom: 0; flex: 1; }
 
-/* Ícone do tipo no lugar do rótulo (GIG)/(Venue) */
+/* Paleta forte por entidade (vívida, sem tom anil apagado). Reusada nos ícones
+   da Busca, do "Vem aí" e dos Compromissos via a var --ec. */
+:root {
+  --e-gig: #8b5cf6;      /* violeta forte */
+  --e-party: #3b82f6;    /* azul */
+  --e-track: #ec4899;    /* rosa */
+  --e-content: #10b981;  /* esmeralda */
+  --e-class: #06b6d4;    /* ciano */
+  --e-task: #f59e0b;     /* âmbar */
+  --e-idea: #f97316;     /* laranja */
+  --e-contact: #14b8a6;  /* teal */
+  --e-venue: #f43f5e;    /* rosa-vermelho */
+  --e-fan: #fb7185;      /* rosé */
+  --e-meeting: #6366f1;  /* índigo */
+  --e-student: #0ea5e9;  /* céu */
+}
+
+/* Ícone do tipo (Busca): CÍRCULO preenchido com a cor da entidade + glifo branco
+   e um leve brilho especular no topo. Prefixo ki- evita colisão com classes
+   globais (ex.: "content" × .content). */
 .kind-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); color: var(--muted);
+  width: 34px; height: 34px; border-radius: 50%; color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--ec, #64748b) 80%, #fff), var(--ec, #64748b));
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.5), 0 3px 9px -4px var(--ec, transparent);
 }
-.kind-ic svg { width: 18px; height: 18px; }
-/* Prefixo ki- evita colisão com classes globais (ex.: "content" × .content). */
-.kind-ic.ki-gig { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.kind-ic.ki-task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
-.kind-ic.ki-idea { color: #fb923c; background: color-mix(in srgb, #fb923c 14%, transparent); }
-.kind-ic.ki-track { color: #c084fc; background: color-mix(in srgb, #c084fc 14%, transparent); }
-.kind-ic.ki-contact { color: #34d399; background: color-mix(in srgb, #34d399 14%, transparent); }
-.kind-ic.ki-venue { color: #f472b6; background: color-mix(in srgb, #f472b6 14%, transparent); }
-.kind-ic.ki-class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
-.kind-ic.ki-fan { color: #fb7185; background: color-mix(in srgb, #fb7185 14%, transparent); }
-.kind-ic.ki-content { color: #10b981; background: color-mix(in srgb, #10b981 14%, transparent); }
+.kind-ic svg { width: 17px; height: 17px; }
+.kind-ic.ki-gig { --ec: var(--e-gig); }
+.kind-ic.ki-task { --ec: var(--e-task); }
+.kind-ic.ki-idea { --ec: var(--e-idea); }
+.kind-ic.ki-track { --ec: var(--e-track); }
+.kind-ic.ki-contact { --ec: var(--e-contact); }
+.kind-ic.ki-venue { --ec: var(--e-venue); }
+.kind-ic.ki-class { --ec: var(--e-class); }
+.kind-ic.ki-fan { --ec: var(--e-fan); }
+.kind-ic.ki-content { --ec: var(--e-content); }
+.kind-ic.ki-party { --ec: var(--e-party); }
+.kind-ic.ki-meeting { --ec: var(--e-meeting); }
+.kind-ic.ki-student { --ec: var(--e-student); }
 .kind-chevron { color: var(--muted); flex: 0 0 auto; align-self: center; }
 
 /* ── Inputs / botões ───────────────────────────── */
@@ -455,17 +478,20 @@ button { font-family: inherit; cursor: pointer; }
    pintava de accent e ele sumia no fundo accent do botão selecionado. */
 .tabbar-rail .glass-round,
 .tabbar-rail .glass-round.active { color: #fff; }
-/* No rodapé os tiles não selecionados são "liquid glass": bem translúcidos,
-   blur forte + brilho no topo (borda clara + highlight interno); o selecionado
-   continua accent cheio. */
+/* No rodapé os tiles não selecionados são LIQUID GLASS de verdade: tinta escura
+   bem sutil (só o necessário pro ícone branco ler), blur/saturação fortes (a
+   refração), um fio especular fino no topo e um halo interno embaixo — nada de
+   lavado branco. O selecionado continua accent cheio. */
 .tabbar-rail .glass-round:not(.active) {
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02) 55%),
-    rgba(20, 20, 30, 0.24);
-  border-color: rgba(255, 255, 255, 0.24);
-  -webkit-backdrop-filter: blur(18px) saturate(1.7);
-  backdrop-filter: blur(18px) saturate(1.7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 6px 16px -10px rgba(0, 0, 0, 0.45);
+  background: rgba(12, 14, 24, 0.22);
+  border-color: rgba(255, 255, 255, 0.28);
+  -webkit-backdrop-filter: blur(24px) saturate(2);
+  backdrop-filter: blur(24px) saturate(2);
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.5),
+    inset 0 -10px 16px -8px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 10px 24px -14px rgba(0, 0, 0, 0.55);
 }
 
 /* Botão de captura no header — redondo, única cor cheia do header */
@@ -568,17 +594,19 @@ button { font-family: inherit; cursor: pointer; }
 .commit-list li { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .commit-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 9px; color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  width: 32px; height: 32px; border-radius: 50%; color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
-.commit-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 14%, transparent); }
-.commit-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 14%, transparent); }
-.commit-ic.foco { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-/* "Play" no lugar do ícone, em tarefas — foca aquela tarefa (mostra o checklist). */
+.commit-ic.class { color: #38bdf8; background: color-mix(in srgb, #38bdf8 15%, transparent); }
+.commit-ic.task { color: #fbbf24; background: color-mix(in srgb, #fbbf24 15%, transparent); }
+.commit-ic.foco { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+/* "Play" no lugar do ícone, em tarefas — foca aquela tarefa (mostra o checklist).
+   Redondo, com leve brilho de topo. */
 .commit-play {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: 9px; border: none;
-  color: #fff; background: var(--accent);
+  width: 32px; height: 32px; border-radius: 50%; border: none;
+  color: #fff; background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 78%, #fff), var(--accent));
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.45), 0 3px 8px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .commit-play:active { filter: brightness(0.9); }
 .commit-title { flex: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -805,14 +833,16 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(28, 28, 42, 0.92);
   border-color: rgba(255, 255, 255, 0.3);
 }
-/* No modo claro o vidro precisa de mais corpo pra segurar o ícone branco,
-   mas mantém o brilho de topo do liquid glass. */
+/* No modo claro o vidro precisa de um pouco mais de corpo pra segurar o ícone
+   branco, mas segue translúcido (sem lavado): tinta escura média + o mesmo fio
+   especular. */
 :root.light .tabbar-rail .glass-round:not(.active) {
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.05) 55%),
-    rgba(28, 28, 42, 0.55);
-  border-color: rgba(255, 255, 255, 0.38);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 16px -10px rgba(0, 0, 0, 0.35);
+  background: rgba(28, 28, 42, 0.42);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow:
+    inset 0 1.5px 0.5px rgba(255, 255, 255, 0.55),
+    inset 0 -10px 16px -8px rgba(255, 255, 255, 0.1),
+    0 10px 24px -14px rgba(0, 0, 0, 0.4);
 }
 
 /* Ideia rápida: card central com campo de nota curtinha (a lâmpada abre isto). */
@@ -1008,46 +1038,83 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 .stat-circle {
   flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
   min-width: 56px; padding: 0.15rem 0.1rem; background: none; border: none; color: var(--text);
+  animation: stat-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-.stat-circle:active .stat-face { transform: scale(0.92); }
-/* Ícone em cima + NÚMERO DENTRO do círculo; rótulo pequeno embaixo. */
+.stat-circle:nth-child(1) { animation-delay: 0.02s; }
+.stat-circle:nth-child(2) { animation-delay: 0.08s; }
+.stat-circle:nth-child(3) { animation-delay: 0.14s; }
+.stat-circle:nth-child(4) { animation-delay: 0.20s; }
+.stat-circle:nth-child(5) { animation-delay: 0.26s; }
+.stat-circle:active .stat-face { transform: scale(0.9); }
+/* Ícone em cima + NÚMERO DENTRO do círculo; rótulo pequeno embaixo. Cor suave
+   (degradê claro→médio), brilho especular no topo + halo interno e glow colorido
+   externo (--glow). */
 .stat-face {
+  position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   width: 54px; height: 54px; border-radius: 50%; color: #fff;
-  box-shadow: 0 6px 14px -8px rgba(0, 0, 0, 0.5);
-  transition: transform 0.15s ease;
+  box-shadow:
+    inset 0 1.5px 1.5px rgba(255, 255, 255, 0.6),
+    inset 0 -7px 12px -5px rgba(0, 0, 0, 0.14),
+    0 4px 10px -5px rgba(0, 0, 0, 0.3),
+    0 8px 22px -6px var(--glow, transparent);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+/* Sheen radial suave no canto superior (reflexo de vidro). */
+.stat-face::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(120% 80% at 32% 16%, rgba(255, 255, 255, 0.5), transparent 56%);
 }
 .stat-num {
-  max-width: 46px; overflow: hidden; text-overflow: ellipsis;
+  position: relative; z-index: 1; max-width: 46px; overflow: hidden; text-overflow: ellipsis;
   font-size: 0.86rem; font-weight: 800; line-height: 1; color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
 }
+.stat-face svg { position: relative; z-index: 1; }
 .stat-label { font-size: 0.62rem; font-weight: 600; color: var(--muted); line-height: 1; }
-.sc-red .stat-face { background: linear-gradient(145deg, #f87171, #dc2626); }
-.sc-orange .stat-face { background: linear-gradient(145deg, #fdba74, #ea580c); }
-.sc-yellow .stat-face { background: linear-gradient(145deg, #fde047, #d97706); }
-.sc-green .stat-face { background: linear-gradient(145deg, #4ade80, #15803d); }
-.sc-blue .stat-face { background: linear-gradient(145deg, #60a5fa, #1d4ed8); }
+/* Degradês suaves (claro → médio) + halo colorido combinando. */
+.sc-red { --glow: rgba(244, 63, 94, 0.45); }
+.sc-red .stat-face { background: linear-gradient(150deg, #fda4af, #fb5871); }
+.sc-orange { --glow: rgba(249, 115, 22, 0.42); }
+.sc-orange .stat-face { background: linear-gradient(150deg, #fed7aa, #fb923c); }
+.sc-yellow { --glow: rgba(234, 179, 8, 0.4); }
+.sc-yellow .stat-face { background: linear-gradient(150deg, #fef08a, #f59e0b); }
+.sc-green { --glow: rgba(34, 197, 94, 0.42); }
+.sc-green .stat-face { background: linear-gradient(150deg, #86efac, #34d399); }
+.sc-blue { --glow: rgba(59, 130, 246, 0.45); }
+.sc-blue .stat-face { background: linear-gradient(150deg, #93c5fd, #60a5fa); }
+@keyframes stat-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.7); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stat-circle { animation: none; }
+}
 
 /* VEM AÍ — tile compacto (2 colunas) com degradê de fundo pela COR do tipo de
    entidade; entrada escalonada. Classes prefixadas (ci-/k-) porque "content"
    colidia com a classe global .content do container rolável. */
 .coming-tile {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;
-  min-width: 0; text-align: left; padding: 0.5rem 0.55rem; border-radius: 12px;
+  display: flex; flex-direction: row; align-items: center; gap: 0.6rem;
+  min-width: 0; text-align: left; padding: 0.6rem 0.65rem; border-radius: 14px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  animation: coming-slide-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: coming-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
-.coming-tile:active { filter: brightness(0.96); }
-.coming-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; width: 100%; }
-.coming-tile .coming-ic { width: 26px; height: 26px; border-radius: 8px; }
-.coming-tile .coming-title { width: 100%; font-size: 0.84rem; }
-.coming-tile .coming-sub { width: 100%; font-size: 0.7rem; }
-.coming-ic.ci-gig { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.coming-ic.ci-track { color: #f472b6; background: color-mix(in srgb, #f472b6 16%, transparent); }
-.coming-ic.ci-party { color: #38bdf8; background: color-mix(in srgb, #38bdf8 16%, transparent); }
-.coming-ic.ci-class { color: #f59e0b; background: color-mix(in srgb, #f59e0b 16%, transparent); }
-.coming-ic.ci-content { color: #10b981; background: color-mix(in srgb, #10b981 16%, transparent); }
+.coming-tile:active { filter: brightness(0.96); transform: scale(0.985); }
+/* Só ícone (círculo forte) + nome do projeto — nada de etapa/prazo. */
+.coming-tile .coming-title { width: 100%; font-size: 0.9rem; font-weight: 600; line-height: 1.25; }
+.coming-ic {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%; color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--ec, var(--accent)) 80%, #fff), var(--ec, var(--accent)));
+  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.5), 0 3px 10px -4px var(--ec, transparent);
+}
+.coming-ic.ci-gig { --ec: var(--e-gig); }
+.coming-ic.ci-track { --ec: var(--e-track); }
+.coming-ic.ci-party { --ec: var(--e-party); }
+.coming-ic.ci-class { --ec: var(--e-class); }
+.coming-ic.ci-content { --ec: var(--e-content); }
 .coming-tile.k-gig {
   border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
   background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 14%, var(--surface)), var(--surface) 75%);
@@ -1068,9 +1135,10 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   border-color: color-mix(in srgb, #10b981 30%, var(--border));
   background: linear-gradient(155deg, color-mix(in srgb, #10b981 14%, var(--surface)), var(--surface) 75%);
 }
-@keyframes coming-slide-in {
-  from { opacity: 0; transform: translateX(-24px); }
-  to { opacity: 1; transform: translateX(0); }
+/* Entrada mais viva: sobe + cresce + desfoca-pra-nítido. */
+@keyframes coming-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .coming-tile { animation: none; }
