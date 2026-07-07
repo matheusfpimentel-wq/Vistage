@@ -275,8 +275,8 @@ h2 { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; colo
 .kind-ic {
   flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%; color: #fff;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--ec, #64748b) 80%, #fff), var(--ec, #64748b));
-  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.5), 0 3px 9px -4px var(--ec, transparent);
+  background: var(--ec, #64748b);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 3px 9px -4px var(--ec, transparent);
 }
 .kind-ic svg { width: 17px; height: 17px; }
 .kind-ic.ki-gig { --ec: var(--e-gig); }
@@ -306,30 +306,20 @@ button { font-family: inherit; cursor: pointer; }
 .primary, .ghost, .danger {
   border-radius: 10px; padding: 0.8rem 1rem; font-size: 1rem; font-weight: 600; border: 1px solid transparent;
 }
-/* Primário/perigo com corpo de vidro: luz no topo, densidade embaixo, halo. */
+/* Primário/perigo: cor chapada + fio de luz na borda + halo suave (sem gloss). */
 .primary {
   color: white;
-  background: linear-gradient(
-    172deg,
-    color-mix(in srgb, var(--accent) 80%, #fff),
-    var(--accent) 55%,
-    color-mix(in srgb, var(--accent) 88%, #000)
-  );
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35),
-    0 8px 18px -10px color-mix(in srgb, var(--accent) 70%, transparent);
+  background: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 18px -11px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .primary:disabled { opacity: 0.5; }
 .ghost { background: transparent; color: var(--text); border-color: var(--border); }
 .danger {
   color: white;
-  background: linear-gradient(
-    172deg,
-    color-mix(in srgb, var(--danger) 80%, #fff),
-    var(--danger) 55%,
-    color-mix(in srgb, var(--danger) 88%, #000)
-  );
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.32),
-    0 8px 18px -10px color-mix(in srgb, var(--danger) 65%, transparent);
+  background: var(--danger);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 18px -11px color-mix(in srgb, var(--danger) 65%, transparent);
 }
 .full { width: 100%; margin-top: 1rem; }
 .link { background: none; border: none; color: var(--accent); font-weight: 600; font-size: 0.9rem; text-decoration: none; }
@@ -411,26 +401,16 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Play/pause no centro do anel + Encerrar consistente com o resto do app */
 .focus-ring-ic { display: flex; align-items: center; justify-content: center; margin-bottom: 1px; }
-/* Encerrar = vidro tingido de vermelho (redondo, com brilho e halo). */
+/* Encerrar = vermelho chapado com fio de luz + halo (iOS 26, sem gloss). */
 .focus-stop {
-  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 64px; height: 64px; border-radius: 50%; flex: 0 0 auto;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 42%, transparent);
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--danger) 58%, rgba(255, 255, 255, 0.38)),
-    color-mix(in srgb, var(--danger) 92%, rgba(24, 6, 10, 0.22)) 76%
-  );
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 32%, transparent);
+  background: var(--danger);
   box-shadow:
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.55),
-    inset 0 -8px 12px -7px rgba(0, 0, 0, 0.3),
-    0 10px 24px -9px color-mix(in srgb, var(--danger) 70%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 24px -10px color-mix(in srgb, var(--danger) 70%, transparent);
   transition: transform 0.15s ease, filter 0.15s ease;
-}
-.focus-stop::after {
-  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.38), transparent 58%);
 }
 .focus-stop:active { transform: scale(0.9); filter: brightness(0.92); }
 
@@ -503,29 +483,15 @@ button { font-family: inherit; cursor: pointer; }
   transition: transform 0.15s ease, background 0.15s ease,
     border-color 0.15s ease, box-shadow 0.15s ease;
 }
-/* Reflexo "lente" do liquid glass: mancha especular no alto (o vidro por cima
-   do ícone, como no Control Center do iOS). */
-.glass-round::after {
-  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.05) 45%, transparent 62%);
-}
 .glass-round:active { transform: scale(0.9); }
-/* Modo/seleção ativa: VIDRO TINGIDO de accent (não tinta chapada) — cor viva
-   translúcida com refração atrás, aro especular e halo colorido. */
+/* Modo/seleção ativa: cor CHAPADA e viva (como os toggles acesos do iOS 26) —
+   nada de degradê/brilho; só um fio de luz na borda e um halo suave da cor. */
 .glass-round.active {
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--accent) 60%, rgba(255, 255, 255, 0.38)),
-    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.22)) 74%
-  );
-  border-color: color-mix(in srgb, #fff 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(2);
-  backdrop-filter: blur(24px) saturate(2);
+  background: var(--accent);
+  border-color: color-mix(in srgb, #fff 45%, transparent);
   box-shadow:
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.6),
-    inset 0 -8px 14px -8px rgba(0, 0, 0, 0.28),
-    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 8px 22px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent);
 }
 /* Ícone do modo SEMPRE branco no rail — a regra antiga `.tabbar button.active`
    pintava de accent e ele sumia no fundo accent do botão selecionado. */
@@ -547,25 +513,15 @@ button { font-family: inherit; cursor: pointer; }
     0 10px 24px -14px rgba(0, 0, 0, 0.55);
 }
 
-/* Botão de captura no header — vidro tingido de accent (vivo, com brilho). */
+/* Botão de captura no header — cor chapada viva + fio de luz + halo (iOS 26). */
 .capture-fab {
-  position: relative;
   display: flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; border-radius: 50%; margin-left: 0.15rem;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 45%, transparent);
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--accent) 58%, rgba(255, 255, 255, 0.42)),
-    color-mix(in srgb, var(--accent) 92%, rgba(12, 8, 28, 0.2)) 76%
-  );
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 34%, transparent);
+  background: var(--accent);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.55),
-    inset 0 -5px 9px -5px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 5px 14px -5px color-mix(in srgb, var(--accent) 70%, transparent);
-}
-.capture-fab::after {
-  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), transparent 58%);
 }
 .capture-fab:active { filter: brightness(0.92); transform: scale(0.93); }
 
@@ -622,18 +578,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 .ic-mini:active { transform: scale(0.9); }
 .ic-mini:disabled { opacity: 0.5; }
-/* Lâmpada "acesa": vidro tingido de amarelo, glifo branco. */
+/* Lâmpada "acesa": amarelo chapado, glifo branco, fio de luz + halo. */
 .ic-mini.lit {
   color: #fff;
-  border-color: color-mix(in srgb, #fff 48%, transparent);
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, #f5c83c 55%, rgba(255, 255, 255, 0.4)),
-    color-mix(in srgb, #eab308 90%, rgba(48, 32, 0, 0.25)) 76%
-  );
+  border-color: color-mix(in srgb, #fff 36%, transparent);
+  background: #eab308;
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.55),
-    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
     0 5px 14px -6px rgba(234, 179, 8, 0.6);
 }
 
@@ -647,24 +598,14 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
 }
 .round-add {
-  position: relative;
   display: inline-flex; align-items: center; justify-content: center;
   width: 48px; height: 48px; border-radius: 50%; flex: 0 0 auto;
-  color: #fff; border: 1px solid color-mix(in srgb, #fff 45%, transparent);
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--accent) 58%, rgba(255, 255, 255, 0.4)),
-    color-mix(in srgb, var(--accent) 92%, rgba(12, 8, 28, 0.2)) 76%
-  );
+  color: #fff; border: 1px solid color-mix(in srgb, #fff 34%, transparent);
+  background: var(--accent);
   box-shadow:
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.55),
-    inset 0 -7px 11px -6px rgba(0, 0, 0, 0.28),
-    0 8px 20px -8px color-mix(in srgb, var(--accent) 75%, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 8px 20px -9px color-mix(in srgb, var(--accent) 75%, transparent);
   transition: transform 0.12s ease, filter 0.12s ease;
-}
-.round-add::after {
-  content: ""; position: absolute; inset: 1px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 85% at 30% 12%, rgba(255, 255, 255, 0.4), transparent 58%);
 }
 .round-add:active { filter: brightness(0.92); transform: scale(0.93); }
 .round-add:disabled { opacity: 0.45; box-shadow: none; }
@@ -738,16 +679,11 @@ button { font-family: inherit; cursor: pointer; }
 .commit-play {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, #fff 42%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
   color: #fff;
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--accent) 56%, rgba(255, 255, 255, 0.4)),
-    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.2)) 76%
-  );
+  background: var(--accent);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.5),
-    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 4px 10px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .commit-play:active { filter: brightness(0.9); }
@@ -815,21 +751,16 @@ button { font-family: inherit; cursor: pointer; }
   border: 2px solid var(--muted); background: transparent;
 }
 .check:active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 25%, transparent); }
-/* "Play" pra focar na tarefa — redondo, vidro tingido de accent (glifo branco). */
+/* "Play" pra focar na tarefa — redondo, accent chapado com fio de luz. */
 .task-focus {
   position: relative;
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%;
-  border: 1px solid color-mix(in srgb, #fff 40%, transparent);
+  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
   color: #fff;
-  background: linear-gradient(
-    170deg,
-    color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.4)),
-    color-mix(in srgb, var(--accent) 90%, rgba(12, 8, 28, 0.2)) 76%
-  );
+  background: var(--accent);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.5),
-    inset 0 -4px 7px -4px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 4px 10px -5px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 .task-focus:active { filter: brightness(0.9); transform: scale(0.92); }
@@ -1002,15 +933,15 @@ button { font-family: inherit; cursor: pointer; }
   background: rgba(255, 255, 255, 0.66);
   border-color: rgba(20, 20, 50, 0.14);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 5px 12px -8px rgba(20, 20, 60, 0.35);
 }
 :root.light .stat-face {
+  border-color: rgba(255, 255, 255, 0.5);
   box-shadow:
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.7),
-    inset 0 -9px 14px -7px rgba(0, 0, 0, 0.16),
-    0 4px 10px -6px rgba(30, 30, 70, 0.25),
-    0 10px 26px -8px var(--glow, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 4px 10px -6px rgba(30, 30, 70, 0.28),
+    0 10px 26px -9px var(--glow, transparent);
 }
 :root.light .insight {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 12px 28px -22px rgba(30, 30, 70, 0.4);
@@ -1243,25 +1174,15 @@ button.gig-act { cursor: pointer; font-family: inherit; }
   position: relative; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   width: 54px; height: 54px; border-radius: 50%; color: #fff;
-  /* Liquid glass tingido (referência iOS): a COR (--fc) entra translúcida —
-     clara no alto (luz), densa embaixo — com aro branco fino de vidro. */
-  border: 1px solid rgba(255, 255, 255, 0.38);
-  background: linear-gradient(
-    172deg,
-    color-mix(in srgb, var(--fc, var(--accent)) 46%, rgba(255, 255, 255, 0.5)),
-    color-mix(in srgb, var(--fc, var(--accent)) 88%, rgba(14, 10, 32, 0.24)) 78%
-  );
+  /* iOS 26: cor CHAPADA e viva (sem degradê nem mancha de brilho — aquilo é o
+     "aqua" dos anos 2000). Fio de luz na borda + halo suave da cor e só. */
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: var(--fc, var(--accent));
   box-shadow:
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.62),
-    inset 0 -9px 14px -7px rgba(0, 0, 0, 0.26),
-    0 4px 10px -5px rgba(0, 0, 0, 0.28),
-    0 10px 26px -8px var(--glow, transparent);
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 10px -5px rgba(0, 0, 0, 0.25),
+    0 10px 26px -9px var(--glow, transparent);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
-}
-/* Sheen radial suave no canto superior (reflexo de vidro). */
-.stat-face::after {
-  content: ""; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(120% 80% at 32% 16%, rgba(255, 255, 255, 0.46), transparent 56%);
 }
 .stat-num {
   position: relative; z-index: 1; max-width: 46px; overflow: hidden; text-overflow: ellipsis;
@@ -1300,8 +1221,8 @@ button.gig-act { cursor: pointer; font-family: inherit; }
 .coming-ic {
   flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; border-radius: 50%; color: #fff;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--ec, var(--accent)) 80%, #fff), var(--ec, var(--accent)));
-  box-shadow: inset 0 1px 1.5px rgba(255, 255, 255, 0.5), 0 3px 10px -4px var(--ec, transparent);
+  background: var(--ec, var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 3px 10px -4px var(--ec, transparent);
 }
 .coming-ic.ci-gig { --ec: var(--e-gig); }
 .coming-ic.ci-track { --ec: var(--e-track); }
