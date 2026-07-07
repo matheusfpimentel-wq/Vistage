@@ -87,13 +87,11 @@ function FocusRing({
   const clamped = progress == null ? 0 : Math.min(1, Math.max(0, progress));
   const dash = circ * clamped;
   const ringColor = expired ? "#f59e0b" : "var(--accent)";
-  const showPause = running && !paused;
-  const ic = Math.round(size * 0.16);
 
   return (
     <button
       type="button"
-      className="focus-ring"
+      className={"focus-ring" + (running ? " running" : "") + (paused ? " paused" : "")}
       style={{ width: size, height: size }}
       onClick={onToggle}
       aria-label={!running ? "Iniciar foco" : paused ? "Retomar" : "Pausar"}
@@ -115,19 +113,7 @@ function FocusRing({
         )}
       </svg>
       <span className="focus-ring-center">
-        <span className="focus-ring-ic" style={{ color: ringColor }}>
-          {showPause ? (
-            <svg width={ic} height={ic} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <rect x="6" y="5" width="4" height="14" rx="1" />
-              <rect x="14" y="5" width="4" height="14" rx="1" />
-            </svg>
-          ) : (
-            <svg width={ic} height={ic} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </span>
-        <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.16 }}>
+        <span className={"focus-ring-time" + (expired ? " expired" : "")} style={{ fontSize: size * 0.17 }}>
           {timeLabel}
         </span>
         <span className="focus-ring-sub">{subLabel}</span>
@@ -207,6 +193,21 @@ function IcStop({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <rect x="6" y="6" width="12" height="12" rx="2.5" />
+    </svg>
+  );
+}
+function IcPlay({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+function IcPause({ size = 24 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
     </svg>
   );
 }
@@ -1583,7 +1584,11 @@ export function Foco() {
             : <LiveCapture markers={markers} onMark={addMarker} />)}
 
           {phase === "idle" ? (
-            <div className="form" style={{ width: "100%", maxWidth: 360 }}>
+            <>
+              <button className="focus-ctl start" onClick={start} aria-label="Iniciar foco" title="Iniciar foco">
+                <IcPlay size={30} />
+              </button>
+              <div className="form" style={{ width: "100%", maxWidth: 360 }}>
               <label>
                 Tipo de foco
                 <select value={activity} onChange={(e) => setActivity(e.target.value)}>
@@ -1609,11 +1614,23 @@ export function Foco() {
                   onChange={(e) => setPlannedStr(e.target.value)}
                 />
               </label>
-            </div>
+              </div>
+            </>
           ) : (
-            <button className="focus-stop" onClick={encerrar} aria-label="Encerrar" title="Encerrar">
-              <IcStop />
-            </button>
+            /* Pausar/retomar + Encerrar lado a lado, centralizados sob o anel. */
+            <div className="focus-controls">
+              <button
+                className="focus-ctl"
+                onClick={togglePause}
+                aria-label={paused ? "Retomar" : "Pausar"}
+                title={paused ? "Retomar" : "Pausar"}
+              >
+                {paused ? <IcPlay size={26} /> : <IcPause size={26} />}
+              </button>
+              <button className="focus-stop" onClick={encerrar} aria-label="Encerrar" title="Encerrar">
+                <IcStop />
+              </button>
+            </div>
           )}
 
           {(activity === "Tempo de palco" || activity === "Preparação") && (

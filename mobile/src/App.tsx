@@ -217,16 +217,17 @@ export function App() {
             <path d={navHidden ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
           </svg>
         </button>
-        <nav className="tabbar tabbar-rail">
+        <nav className="tabbar-rail">
           {TABS.map((t) => (
             <button
               key={t}
-              className={"glass-round tab-round" + (tab === t ? " active" : "")}
+              className={"tab-item" + (tab === t ? " active" : "")}
               onClick={() => setTab(t)}
               aria-label={TAB_LABEL[t]}
               title={TAB_LABEL[t]}
             >
               {TAB_ICON[t]}
+              <span className="tab-label">{TAB_LABEL[t]}</span>
             </button>
           ))}
         </nav>
