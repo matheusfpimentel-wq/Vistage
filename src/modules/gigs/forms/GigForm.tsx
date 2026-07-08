@@ -54,7 +54,7 @@ import { gigDisplayName } from "../displayName";
 import { DebriefForm, type DebriefHandle } from "./DebriefForm";
 import { parsePrepState } from "../prep";
 import { SetPlanner } from "./SetPlanner";
-import { emptySetPlan, parseSetPlan, serializeSetPlan, manualTrack, type SetPlan } from "../setPlan";
+import { emptySetPlan, parseSetPlan, serializeSetPlan, manualTrack, setItemFrom, regroup, type SetPlan } from "../setPlan";
 import { RecurringFestField } from "./RecurringFestField";
 
 type Props = {
@@ -175,18 +175,16 @@ function gigToState(gig: Gig): FormState {
  *  pra não perder o que já estava lá. */
 function initSetPlanFromGig(gig: Gig | null): SetPlan {
   const plan = parseSetPlan(gig?.set_plan ?? null);
-  const isEmpty =
-    plan.setlist.length === 0 &&
-    plan.inegociaveis.length === 0 &&
-    plan.descobertas.length === 0 &&
-    plan.proprias.length === 0;
-  if (isEmpty && gig?.gig_research) {
+  // Semeia o setlist com a pesquisa musical legada (gig_research) como "achados"
+  // no primeiro acesso — só quando o plano ainda está totalmente vazio.
+  if (plan.setlist.length === 0 && gig?.gig_research) {
     try {
       const arr = JSON.parse(gig.gig_research) as { title?: string; artist?: string }[];
       if (Array.isArray(arr)) {
-        plan.descobertas = arr
+        const seeded = arr
           .filter((r) => r && (r.title || r.artist))
-          .map((r) => manualTrack(String(r.title ?? ""), String(r.artist ?? "")));
+          .map((r) => setItemFrom(manualTrack(String(r.title ?? ""), String(r.artist ?? "")), "achado", null));
+        plan.setlist = regroup(seeded, plan.moments);
       }
     } catch {
       /* pesquisa legada ilegível — começa vazio */
