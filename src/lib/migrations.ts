@@ -2564,6 +2564,14 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_doc_group_members_group ON document_group_members(group_id);
     `,
   },
+  {
+    version: 183,
+    description:
+      "Conhecimento — cor por nota: notes.color (hex ou NULL = sem cor). Coluna aditiva; viaja sozinha no backup/restore/CSV (SELECT *).",
+    sql: `
+      ALTER TABLE notes ADD COLUMN color TEXT;
+    `,
+  },
 ];
 
 

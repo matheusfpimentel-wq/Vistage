@@ -15,6 +15,7 @@ export type NoteSummary = {
   folder_id: number | null;
   pinned: number;
   updated_at: string;
+  color: string | null;
 };
 export type Note = NoteSummary & {
   body: string;
@@ -79,7 +80,7 @@ export async function listNotes(folderId?: number | "all" | "loose"): Promise<No
     params.push(folderId);
   }
   return db.select<NoteSummary[]>(
-    `SELECT id, title, folder_id, pinned, updated_at FROM notes ${where}
+    `SELECT id, title, folder_id, pinned, updated_at, color FROM notes ${where}
       ORDER BY pinned DESC, updated_at DESC`,
     params
   );
@@ -88,7 +89,7 @@ export async function listNotes(folderId?: number | "all" | "loose"): Promise<No
 export async function getNote(id: number): Promise<Note | null> {
   const db = getDb();
   const rows = await db.select<Omit<Note, "tags">[]>(
-    "SELECT id, title, body, folder_id, pinned, created_at, updated_at FROM notes WHERE id = $1",
+    "SELECT id, title, body, folder_id, pinned, created_at, updated_at, color FROM notes WHERE id = $1",
     [id]
   );
   if (!rows[0]) return null;
@@ -124,6 +125,13 @@ export async function setPinned(id: number, pinned: boolean): Promise<void> {
 
 export async function moveNote(id: number, folderId: number | null): Promise<void> {
   await getDb().execute("UPDATE notes SET folder_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [folderId, id]);
+  emitDataChanged();
+}
+
+/** Cor da nota (hex) ou NULL pra "sem cor". Não mexe em updated_at — pintar não
+ *  é edição de conteúdo. */
+export async function setNoteColor(id: number, color: string | null): Promise<void> {
+  await getDb().execute("UPDATE notes SET color = $1 WHERE id = $2", [color, id]);
   emitDataChanged();
 }
 
@@ -222,7 +230,7 @@ export async function listTags(): Promise<string[]> {
 
 export async function notesByTag(tag: string): Promise<NoteSummary[]> {
   return getDb().select<NoteSummary[]>(
-    `SELECT n.id, n.title, n.folder_id, n.pinned, n.updated_at FROM notes n
+    `SELECT n.id, n.title, n.folder_id, n.pinned, n.updated_at, n.color FROM notes n
        JOIN note_note_tags nt ON nt.note_id = n.id
        JOIN note_tags t ON t.id = nt.tag_id
       WHERE t.name = $1 ORDER BY n.pinned DESC, n.updated_at DESC`,

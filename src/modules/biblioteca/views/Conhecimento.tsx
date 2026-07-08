@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
+  Eye,
+  EyeOff,
   FolderPlus,
   GripVertical,
   Lightbulb,
+  Palette,
   Pencil,
   Pin,
   PinOff,
   Plus,
+  Settings2,
   Tag,
   Trash2,
 } from "lucide-react";
@@ -26,6 +30,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
 import { RichNoteEditor } from "../components/RichNoteEditor";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
@@ -46,6 +51,7 @@ import {
   renameFolder,
   reorderFolders,
   saveNote,
+  setNoteColor,
   setPinned,
   type Note,
   type NoteFolder,
@@ -55,6 +61,34 @@ import {
 
 type FolderFilter = number | "all" | "loose";
 
+// Paleta de cores das notas (espelha BLOCK_COLORS do Foco). NULL = sem cor.
+const NOTE_COLORS = [
+  "#ef4444", "#f59e0b", "#eab308", "#22c55e", "#14b8a6",
+  "#3b82f6", "#8b5cf6", "#ec4899", "#64748b",
+];
+
+// Ocultar as "views rápidas" (Todas as notas / Sem pasta) é preferência LOCAL
+// da máquina (não viaja no .vistage) — como useModuleView. Guardado à parte por
+// serem duas flags.
+const HIDDEN_VIEWS_KEY = "vistage.notes.hiddenViews";
+type HiddenViews = { all: boolean; loose: boolean };
+function loadHiddenViews(): HiddenViews {
+  try {
+    const raw = localStorage.getItem(HIDDEN_VIEWS_KEY);
+    if (raw) return { all: false, loose: false, ...JSON.parse(raw) };
+  } catch {
+    /* storage indisponível */
+  }
+  return { all: false, loose: false };
+}
+function saveHiddenViews(v: HiddenViews): void {
+  try {
+    localStorage.setItem(HIDDEN_VIEWS_KEY, JSON.stringify(v));
+  } catch {
+    /* storage indisponível */
+  }
+}
+
 export function Conhecimento() {
   const navigate = useNavigate();
   const [folders, setFolders] = useState<NoteFolder[]>([]);
@@ -63,6 +97,18 @@ export function Conhecimento() {
   const [tags, setTags] = useState<string[]>([]);
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [hidden, setHidden] = useState<HiddenViews>(loadHiddenViews);
+
+  function toggleHiddenView(key: keyof HiddenViews) {
+    setHidden((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      saveHiddenViews(next);
+      // Se escondeu a view ativa, cai pra "Todas as notas" (ou a outra visível).
+      if (next[key] && filter === key) setFilter(key === "all" ? "loose" : "all");
+      return next;
+    });
+  }
 
   const refreshLists = useCallback(async () => {
     const [f, t] = await Promise.all([listFolders(), listTags()]);
@@ -150,15 +196,55 @@ export function Conhecimento() {
           <Button size="icon" variant="outline" onClick={() => void addFolder()} title="Nova pasta">
             <FolderPlus className="h-4 w-4" />
           </Button>
+          <Button
+            size="icon"
+            variant={configOpen ? "secondary" : "ghost"}
+            onClick={() => setConfigOpen((o) => !o)}
+            title="Configurar views rápidas"
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
         </div>
+
+        {/* Config das views rápidas: mostrar/ocultar "Todas as notas" e "Sem pasta". */}
+        {configOpen && (
+          <div className="space-y-1 rounded-md border p-2 text-xs">
+            <div className="flex items-center gap-1 font-medium text-muted-foreground">
+              Views rápidas
+              <InfoHint>
+                "Todas as notas" mostra tudo; "Sem pasta" mostra só as notas fora de qualquer
+                pasta. Oculte as que você não usa pra enxugar a barra lateral (preferência da
+                máquina, não vai no arquivo).
+              </InfoHint>
+            </div>
+            {(["all", "loose"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => toggleHiddenView(k)}
+                className="flex w-full items-center justify-between rounded px-1.5 py-1 hover:bg-muted/50"
+              >
+                <span>{k === "all" ? "Todas as notas" : "Sem pasta"}</span>
+                {hidden[k] ? (
+                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5 text-primary" />
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
           {/* Pastas (arraste pra reordenar; solte uma nota numa pasta pra movê-la) */}
           <div className="space-y-0.5 text-sm">
-            <FolderRow label="Todas as notas" active={filter === "all" && !tagFilter} onClick={() => { setFilter("all"); setTagFilter(null); }} />
-            <DroppableRow id="drop:loose">
-              <FolderRow label="Sem pasta" active={filter === "loose" && !tagFilter} onClick={() => { setFilter("loose"); setTagFilter(null); }} />
-            </DroppableRow>
+            {!hidden.all && (
+              <FolderRow label="Todas as notas" active={filter === "all" && !tagFilter} onClick={() => { setFilter("all"); setTagFilter(null); }} />
+            )}
+            {!hidden.loose && (
+              <DroppableRow id="drop:loose">
+                <FolderRow label="Sem pasta" active={filter === "loose" && !tagFilter} onClick={() => { setFilter("loose"); setTagFilter(null); }} />
+              </DroppableRow>
+            )}
             <SortableContext items={folders.map((f) => `folder:${f.id}`)} strategy={verticalListSortingStrategy}>
               {folders.map((f) => (
                 <SortableFolder key={f.id} id={`folder:${f.id}`}>
@@ -224,6 +310,12 @@ export function Conhecimento() {
                       selectedId === n.id ? "bg-accent" : "hover:bg-muted/50"
                     )}
                   >
+                    {n.color && (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full ring-1 ring-black/10"
+                        style={{ backgroundColor: n.color }}
+                      />
+                    )}
                     {n.pinned ? <Pin className="h-3 w-3 shrink-0 text-primary" /> : null}
                     <span className="flex-1 truncate">{n.title || "(sem título)"}</span>
                   </button>
@@ -357,8 +449,20 @@ function NoteEditor({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [links, setLinks] = useState<NoteRef[]>([]);
+  const [colorOpen, setColorOpen] = useState(false);
   const saveTimer = useRef<number | undefined>(undefined);
   const dirtyRef = useRef(false);
+
+  async function applyColor(color: string | null) {
+    try {
+      await setNoteColor(noteId, color);
+      setNote((n) => (n ? { ...n, color } : n));
+      setColorOpen(false);
+      onChanged();
+    } catch (e) {
+      toast.error(`Não consegui salvar a cor: ${String(e)}`);
+    }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -424,6 +528,14 @@ function NoteEditor({
         <Button
           size="icon"
           variant="ghost"
+          onClick={() => setColorOpen((o) => !o)}
+          title="Cor da nota"
+        >
+          <Palette className="h-4 w-4" style={note.color ? { color: note.color } : undefined} />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
           onClick={async () => {
             try {
               await setPinned(noteId, !note.pinned);
@@ -472,6 +584,35 @@ function NoteEditor({
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </div>
+
+      {/* Seletor de cor da nota (aparece no lápis de paleta) */}
+      {colorOpen && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md border p-2">
+          <button
+            onClick={() => void applyColor(null)}
+            title="Sem cor"
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full border text-xs text-muted-foreground transition",
+              !note.color ? "ring-2 ring-foreground" : "hover:border-muted-foreground/40"
+            )}
+          >
+            —
+          </button>
+          {NOTE_COLORS.map((c) => (
+            <button
+              key={c}
+              onClick={() => void applyColor(c)}
+              title={c}
+              aria-label={`Cor ${c}`}
+              className={cn(
+                "h-6 w-6 rounded-full border-2 transition",
+                note.color === c ? "border-foreground" : "border-transparent hover:border-muted-foreground/40"
+              )}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Pasta */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
