@@ -37,6 +37,7 @@ import {
 } from "./types";
 import { formatCurrency, toLocalISODate } from "@/lib/format";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { useModuleView } from "@/lib/moduleView";
 import { useConfirm } from "@/components/ui/confirm";
 import { exportTransactionsCsv } from "@/lib/csv";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
@@ -204,9 +205,10 @@ export function FinancePage() {
     .reduce((s, t) => s + t.amount, 0);
   const monthBalance = monthIncome - monthExpense;
 
+  const [tab, setTab] = useModuleView<string>("finance", "transactions");
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="transactions">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="transactions">Transações</TabsTrigger>
           <TabsTrigger value="profit">Lucro por projeto</TabsTrigger>

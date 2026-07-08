@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useModuleView } from "@/lib/moduleView";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
@@ -29,6 +30,8 @@ import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 import { InsightsBankSettings } from "./InsightsBankSettings";
 
 export function SettingsPage() {
+  const [tab, setTab] = useModuleView<string>("settings", "perfil");
+  const [advTab, setAdvTab] = useModuleView<string>("settings-avancado", "alertas");
   const [seeding, setSeeding] = useState(false);
   const [canSeed, setCanSeed] = useState(false);
   const { theme, accent, setTheme, setAccent, sidebarLayout, setSidebarLayout } = useThemeStore();
@@ -59,7 +62,7 @@ export function SettingsPage() {
   }
 
   return (
-    <Tabs defaultValue="perfil" className="space-y-4">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <TabsList className="w-full justify-start">
         <TabsTrigger value="perfil">Perfil</TabsTrigger>
         <TabsTrigger value="integracoes">Integrações</TabsTrigger>
@@ -69,7 +72,7 @@ export function SettingsPage() {
 
       {/* ─── Configurações avançadas (alertas + insights) ─── */}
       <TabsContent value="avancado" className="space-y-4">
-        <Tabs defaultValue="alertas" className="space-y-4">
+        <Tabs value={advTab} onValueChange={setAdvTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="alertas">Alertas</TabsTrigger>
             <TabsTrigger value="insights">Insights</TabsTrigger>

@@ -205,8 +205,9 @@ export function FansPage() {
       /* storage indisponível */
     }
   }, []);
-  // "Próximas ações" (valor "hoje") é a aba PADRÃO do Clube de Fãs.
-  const [section, setSection] = useState<"fas" | "hoje" | "grupos" | "config">("hoje");
+  // "Próximas ações" (valor "hoje") é a aba PADRÃO — mas a última aberta fica
+  // guardada (localStorage), pra o módulo reabrir onde o usuário deixou.
+  const [section, setSection] = useModuleView<"fas" | "hoje" | "grupos" | "config">("fans-section", "hoje");
   // Linhas augmentadas com campos derivados pra ordenar Grupo/Contato/Interações
   // (que não mapeiam direto num campo do Fan). FanRow estende Fan, então o que
   // consome `sortedFans` como Fan[] (ex.: GroupedFansView) segue funcionando.

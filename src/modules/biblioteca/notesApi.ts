@@ -15,6 +15,7 @@ export type NoteSummary = {
   folder_id: number | null;
   pinned: number;
   updated_at: string;
+  color: string | null;
 };
 export type Note = NoteSummary & {
   body: string;
@@ -79,7 +80,7 @@ export async function listNotes(folderId?: number | "all" | "loose"): Promise<No
     params.push(folderId);
   }
   return db.select<NoteSummary[]>(
-    `SELECT id, title, folder_id, pinned, updated_at FROM notes ${where}
+    `SELECT id, title, folder_id, pinned, updated_at, color FROM notes ${where}
       ORDER BY pinned DESC, updated_at DESC`,
     params
   );
@@ -88,7 +89,7 @@ export async function listNotes(folderId?: number | "all" | "loose"): Promise<No
 export async function getNote(id: number): Promise<Note | null> {
   const db = getDb();
   const rows = await db.select<Omit<Note, "tags">[]>(
-    "SELECT id, title, body, folder_id, pinned, created_at, updated_at FROM notes WHERE id = $1",
+    "SELECT id, title, body, folder_id, pinned, created_at, updated_at, color FROM notes WHERE id = $1",
     [id]
   );
   if (!rows[0]) return null;
@@ -127,6 +128,13 @@ export async function moveNote(id: number, folderId: number | null): Promise<voi
   emitDataChanged();
 }
 
+/** Cor da nota (hex) ou NULL pra "sem cor". Não mexe em updated_at — pintar não
+ *  é edição de conteúdo. */
+export async function setNoteColor(id: number, color: string | null): Promise<void> {
+  await getDb().execute("UPDATE notes SET color = $1 WHERE id = $2", [color, id]);
+  emitDataChanged();
+}
+
 /**
  * Salva título+corpo e RECALCULA derivados a partir do corpo:
  *  - backlinks: parseia [[wikilinks]] → note_links (só os que resolvem a uma nota).
@@ -161,7 +169,9 @@ export function noteBodyText(body: string): string {
 
 async function recomputeLinks(db: ReturnType<typeof getDb>, sourceId: number, body: string): Promise<void> {
   const titles = parseWikilinks(noteBodyText(body));
-  await db.execute("DELETE FROM note_links WHERE source_note_id = $1", [sourceId]);
+  // Só recalcula as ligações AUTOMÁTICAS (manual = 0). As desenhadas à mão no
+  // mapa mental (manual = 1) sobrevivem ao salvamento do texto.
+  await db.execute("DELETE FROM note_links WHERE source_note_id = $1 AND manual = 0", [sourceId]);
   if (titles.length === 0) return;
   const seen = new Set<number>();
   for (const t of titles) {
@@ -172,8 +182,9 @@ async function recomputeLinks(db: ReturnType<typeof getDb>, sourceId: number, bo
     const target = rows[0]?.id;
     if (!target || target === sourceId || seen.has(target)) continue;
     seen.add(target);
+    // OR IGNORE: se já existe uma ligação manual pro mesmo par, ela é mantida.
     await db.execute(
-      "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id) VALUES ($1, $2)",
+      "INSERT OR IGNORE INTO note_links (source_note_id, target_note_id, manual) VALUES ($1, $2, 0)",
       [sourceId, target]
     );
   }
@@ -212,6 +223,56 @@ export async function allNoteTitles(): Promise<NoteRef[]> {
   );
 }
 
+// ── Mapa mental ──────────────────────────────────────────────────────────────
+export type GraphNode = {
+  id: number;
+  title: string;
+  color: string | null;
+  graph_x: number | null;
+  graph_y: number | null;
+};
+export type GraphEdge = { source_note_id: number; target_note_id: number; manual: number };
+export type NoteGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
+
+/** Grafo completo das notas (nós + ligações auto e manuais) pro mapa mental. */
+export async function noteGraph(): Promise<NoteGraph> {
+  const db = getDb();
+  const nodes = await db.select<GraphNode[]>(
+    "SELECT id, title, color, graph_x, graph_y FROM notes ORDER BY id"
+  );
+  const edges = await db.select<GraphEdge[]>(
+    "SELECT source_note_id, target_note_id, manual FROM note_links"
+  );
+  return { nodes, edges };
+}
+
+/** Grava a posição do nó no mapa (arrastar). */
+export async function setNoteGraphPos(id: number, x: number, y: number): Promise<void> {
+  await getDb().execute("UPDATE notes SET graph_x = $1, graph_y = $2 WHERE id = $3", [x, y, id]);
+  emitDataChanged();
+}
+
+/** Cria (ou promove a manual) uma ligação direcionada origem→destino. */
+export async function addManualLink(source: number, target: number): Promise<void> {
+  if (source === target) return;
+  await getDb().execute(
+    `INSERT INTO note_links (source_note_id, target_note_id, manual) VALUES ($1, $2, 1)
+     ON CONFLICT(source_note_id, target_note_id) DO UPDATE SET manual = 1`,
+    [source, target]
+  );
+  emitDataChanged();
+}
+
+/** Remove uma ligação MANUAL. As automáticas (de [[wikilink]]) só saem editando
+ *  o texto da nota — não dá pra apagar pelo mapa. */
+export async function removeManualLink(source: number, target: number): Promise<void> {
+  await getDb().execute(
+    "DELETE FROM note_links WHERE source_note_id = $1 AND target_note_id = $2 AND manual = 1",
+    [source, target]
+  );
+  emitDataChanged();
+}
+
 export async function listTags(): Promise<string[]> {
   const rows = await getDb().select<{ name: string }[]>(
     `SELECT DISTINCT t.name FROM note_tags t
@@ -222,7 +283,7 @@ export async function listTags(): Promise<string[]> {
 
 export async function notesByTag(tag: string): Promise<NoteSummary[]> {
   return getDb().select<NoteSummary[]>(
-    `SELECT n.id, n.title, n.folder_id, n.pinned, n.updated_at FROM notes n
+    `SELECT n.id, n.title, n.folder_id, n.pinned, n.updated_at, n.color FROM notes n
        JOIN note_note_tags nt ON nt.note_id = n.id
        JOIN note_tags t ON t.id = nt.tag_id
       WHERE t.name = $1 ORDER BY n.pinned DESC, n.updated_at DESC`,

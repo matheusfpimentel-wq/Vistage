@@ -2546,6 +2546,42 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE gigs ADD COLUMN set_plan TEXT;
     `,
   },
+  {
+    version: 182,
+    description:
+      "Documentos — agrupamento LOCAL (não toca no Drive): document_groups (grupos nomeados/ordenáveis) + document_group_members (cada arquivo do Drive, por drive_file_id, em no máximo 1 grupo; CASCADE ao excluir o grupo). Keyed por drive_file_id — o arquivo pode nem estar no cache drive_documents.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS document_groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        sort INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS document_group_members (
+        drive_file_id TEXT PRIMARY KEY,
+        group_id INTEGER NOT NULL REFERENCES document_groups(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_doc_group_members_group ON document_group_members(group_id);
+    `,
+  },
+  {
+    version: 183,
+    description:
+      "Conhecimento — cor por nota: notes.color (hex ou NULL = sem cor). Coluna aditiva; viaja sozinha no backup/restore/CSV (SELECT *).",
+    sql: `
+      ALTER TABLE notes ADD COLUMN color TEXT;
+    `,
+  },
+  {
+    version: 184,
+    description:
+      "Conhecimento — mapa mental: notes.graph_x/graph_y (posição do nó, NULL = auto-layout) + note_links.manual (1 = ligação desenhada à mão no mapa, 0 = derivada de [[wikilink]]). O recompute dos [[links]] só mexe nas manual=0, então as ligações manuais sobrevivem. Colunas aditivas — viajam sozinhas no backup.",
+    sql: `
+      ALTER TABLE notes ADD COLUMN graph_x REAL;
+      ALTER TABLE notes ADD COLUMN graph_y REAL;
+      ALTER TABLE note_links ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 

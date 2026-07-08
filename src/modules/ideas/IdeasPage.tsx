@@ -50,6 +50,7 @@ import {
   type IdeaMaturation,
 } from "./types";
 import { useNewItemShortcut } from "@/lib/shortcuts";
+import { useModuleView } from "@/lib/moduleView";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 type CategoryFilter = IdeaCategory | "Todas";
@@ -58,6 +59,7 @@ type HeatFilter = IdeaHeat | "all";
 
 export function IdeasPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [tab, setTab] = useModuleView<string>("ideas", "board");
   const [items, setItems] = useState<Idea[]>([]);
   const [resurface, setResurface] = useState<Idea[]>([]);
   const [filters, setFilters] = useState<{
@@ -273,7 +275,7 @@ export function IdeasPage() {
           </Button>
         </div>
       ) : (
-        <Tabs defaultValue="board">
+        <Tabs value={tab} onValueChange={setTab}>
           <div className="mb-3">
             <InsightDie onCreatedIdea={(id) => void openCreatedIdea(id)} />
           </div>

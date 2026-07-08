@@ -116,6 +116,8 @@ const TABLES = [
   "note_note_tags",          // note_id → notes, tag_id → note_tags
   "note_links",              // source/target → notes
   "document_links",          // drive_document_id → drive_documents
+  "document_groups",         // Documentos — grupos locais (não toca no Drive)
+  "document_group_members",  // drive_file_id (PK) → group_id → document_groups (CASCADE)
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -495,6 +497,19 @@ export async function buildBackup(): Promise<Backup> {
 export async function restoreBackupSession(backup: Backup): Promise<void> {
   try {
     await adoptPortableSession(backup.session);
+    // Guarda o e-mail da conta de sync pra pré-preencher o login ao reabrir o
+    // arquivo (a senha NUNCA é guardada — só a sessão portátil viaja). Backfilla
+    // também arquivos antigos: o primeiro open grava o e-mail em app_settings.
+    // Chave literal espelha K.email em mobileSync.ts (import evitado p/ não puxar
+    // o grafo pesado do sync pra dentro do backup).
+    const email = backup.session?.email;
+    if (email && email.trim()) {
+      await getDb().execute(
+        `INSERT INTO app_settings (key, value) VALUES ('mobile_sync.email', $1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [email.trim()]
+      );
+    }
   } catch {
     // reconexão é best-effort — o usuário sempre pode logar manualmente
   }
