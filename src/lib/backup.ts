@@ -116,6 +116,8 @@ const TABLES = [
   "note_note_tags",          // note_id → notes, tag_id → note_tags
   "note_links",              // source/target → notes
   "document_links",          // drive_document_id → drive_documents
+  "document_groups",         // Documentos — grupos locais (não toca no Drive)
+  "document_group_members",  // drive_file_id (PK) → group_id → document_groups (CASCADE)
 ] as const;
 
 type TableName = (typeof TABLES)[number];

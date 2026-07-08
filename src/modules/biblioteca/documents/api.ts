@@ -209,3 +209,68 @@ export async function unlinkDocumentsFromEntity(entityType: EntityLinkType, enti
   );
   emitDataChanged();
 }
+
+// ── Grupos LOCAIS de documentos ─────────────────────────────────────────────
+// Organização só no Vistage: NÃO cria pastas no Drive. Um arquivo (por
+// drive_file_id, o ID estável do Drive) entra em no máximo 1 grupo. Excluir o
+// grupo solta os arquivos (CASCADE em document_group_members) — não apaga nada
+// no Drive. Tudo viaja no backup (document_groups/_members estão em TABLES).
+
+export type DocGroup = { id: number; name: string; sort: number };
+
+export async function listDocGroups(): Promise<DocGroup[]> {
+  return getDb().select<DocGroup[]>(
+    "SELECT id, name, sort FROM document_groups ORDER BY sort, name COLLATE NOCASE"
+  );
+}
+
+export async function createDocGroup(name: string): Promise<number> {
+  const db = getDb();
+  const max = await db.select<{ m: number | null }[]>(
+    "SELECT MAX(sort) AS m FROM document_groups"
+  );
+  const res = await db.execute(
+    "INSERT INTO document_groups (name, sort) VALUES ($1, $2)",
+    [name.trim() || "Grupo", (max[0]?.m ?? 0) + 1]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function renameDocGroup(id: number, name: string): Promise<void> {
+  await getDb().execute("UPDATE document_groups SET name = $1 WHERE id = $2", [
+    name.trim() || "Grupo",
+    id,
+  ]);
+  emitDataChanged();
+}
+
+/** Exclui o grupo. CASCADE solta os arquivos (nada é removido do Drive). */
+export async function deleteDocGroup(id: number): Promise<void> {
+  await getDb().execute("DELETE FROM document_groups WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+/** Mapa drive_file_id → group_id dos arquivos que estão em algum grupo. */
+export async function groupMemberships(): Promise<Record<string, number>> {
+  const rows = await getDb().select<{ drive_file_id: string; group_id: number }[]>(
+    "SELECT drive_file_id, group_id FROM document_group_members"
+  );
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.drive_file_id] = r.group_id;
+  return out;
+}
+
+/** Põe o arquivo num grupo (upsert) ou tira dele (groupId = null). */
+export async function setDocGroup(driveFileId: string, groupId: number | null): Promise<void> {
+  const db = getDb();
+  if (groupId == null) {
+    await db.execute("DELETE FROM document_group_members WHERE drive_file_id = $1", [driveFileId]);
+  } else {
+    await db.execute(
+      "INSERT INTO document_group_members (drive_file_id, group_id) VALUES ($1, $2) ON CONFLICT(drive_file_id) DO UPDATE SET group_id = $2",
+      [driveFileId, groupId]
+    );
+  }
+  emitDataChanged();
+}
