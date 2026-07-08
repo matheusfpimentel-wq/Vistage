@@ -19,6 +19,7 @@ import {
   AlertTriangle,
   FileDown,
   GripVertical,
+  Link2,
   ListMusic,
   Lock,
   Music4,
@@ -38,7 +39,7 @@ import { InfoHint } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
-import { listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
+import { AUDIO_EXTS, linkFileToLibrary, listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
 import { areHarmonic, keyColor, toCamelot } from "@/lib/camelot";
 import { gigDisplayName } from "../displayName";
 import type { Gig } from "../types";
@@ -876,6 +877,34 @@ function SetlistRow({
   const bothKeys = !!cam && !!toCamelot(nextKey);
   const harmonic = areHarmonic(item.key, nextKey);
 
+  // Vincula um arquivo de áudio: lê as tags, ALIMENTA a Biblioteca (cria/reusa a
+  // faixa) e SOBRESCREVE os campos da faixa com as tags do arquivo.
+  async function linkAudio() {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const picked = await open({
+        multiple: false,
+        title: "Vincular arquivo de áudio",
+        filters: [{ name: "Áudio", extensions: AUDIO_EXTS }],
+      });
+      if (!picked || Array.isArray(picked)) return;
+      const lib = await linkFileToLibrary(picked);
+      if (!lib) return;
+      onUpdate({
+        library_track_id: lib.id,
+        title: (lib.title ?? "").trim() || item.title,
+        artist: (lib.artist ?? "").trim() || item.artist,
+        duration_sec: lib.duration_sec ?? item.duration_sec,
+        bpm: lib.bpm ?? item.bpm,
+        key: lib.music_key ?? item.key,
+        has_audio: true,
+      });
+      toast.success("Áudio vinculado — a faixa entrou na Biblioteca.");
+    } catch (e) {
+      toast.error(`Não consegui vincular o áudio: ${String(e)}`);
+    }
+  }
+
   return (
     <li ref={setNodeRef} style={style}>
       <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5">
@@ -891,9 +920,15 @@ function SetlistRow({
           {item.artist && <span className="text-muted-foreground"> · {item.artist}</span>}
         </span>
         {!item.has_audio && (
-          <span title="Sem arquivo de áudio vinculado">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-          </span>
+          <button
+            type="button"
+            onClick={() => void linkAudio()}
+            title="Sem áudio — clique pra vincular um arquivo (lê as tags e alimenta a Biblioteca)"
+            className="shrink-0 text-amber-600 hover:text-foreground"
+            aria-label="Vincular áudio"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
         )}
         {cam && (
           <span
@@ -971,6 +1006,9 @@ function SetlistRow({
               />
             )}
           </div>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void linkAudio()}>
+            <Link2 className="mr-1 h-3.5 w-3.5" /> {item.has_audio ? "Trocar áudio" : "Vincular áudio"}
+          </Button>
         </div>
       )}
 
