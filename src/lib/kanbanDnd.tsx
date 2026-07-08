@@ -4,6 +4,7 @@ import {
   useContext,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
@@ -166,10 +167,12 @@ export function KanbanColumn({
   status,
   children,
   className,
+  style,
 }: {
   status: string;
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
 }) {
   const ctx = useContext(KanbanCtx);
   const isOver = ctx?.overStatus === status && ctx?.draggingId !== null;
@@ -177,6 +180,7 @@ export function KanbanColumn({
     <div
       ref={(el) => ctx?.registerColumn(status, el)}
       className={cn(className, isOver && "ring-2 ring-primary ring-offset-1")}
+      style={style}
     >
       {children}
     </div>

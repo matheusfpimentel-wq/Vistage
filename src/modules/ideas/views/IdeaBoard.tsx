@@ -4,6 +4,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { heatBucket, heatCardBg, heatColor, heatLabel, IDEA_HEAT_MAX, type Idea } from "../types";
 
+// Rotação pequena e ESTÁVEL por id (não Math.random, pra não pular a cada
+// render) — dá o ar de "post-it colado torto".
+const POSTIT_ROT = ["-rotate-2", "-rotate-1", "rotate-1", "rotate-2"];
+
 type Props = {
   items: Idea[];
   onEdit: (i: Idea) => void;
@@ -15,8 +19,10 @@ type Props = {
 };
 
 /**
- * Mural visual de ideias — grid de post-its em tons pastel.
- * Os tons rotacionam por ordem da ideia pra dar variedade visual.
+ * Mural visual de ideias — grid de post-its QUADRADOS (sem cantos arredondados),
+ * levemente tortos (rotação pequena e estável por id) pra dar um ar de caos
+ * organizado. O tom de fundo vem do calor da ideia (heatCardBg). Passar o mouse
+ * endireita e destaca o post-it.
  */
 export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Props) {
   if (items.length === 0) {
@@ -36,7 +42,8 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Pr
         <div
           key={i.id}
           className={cn(
-            "group relative flex h-full flex-col gap-2 rounded-md border-2 p-3 text-left transition hover:scale-[1.02] hover:shadow-md",
+            "group relative flex h-full flex-col gap-2 rounded-none border-2 p-3 text-left transition hover:z-10 hover:scale-[1.03] hover:rotate-0 hover:shadow-lg",
+            POSTIT_ROT[i.id % POSTIT_ROT.length],
             heatCardBg(i.heat)
           )}
         >

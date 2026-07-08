@@ -1,7 +1,8 @@
-import { Trash2 } from "lucide-react";
+import { Palette, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
+import { columnTintStyle, useColumnColors } from "@/lib/kanbanColumnColors";
 import {
   IDEA_MATURATIONS,
   heatColor,
@@ -19,7 +20,13 @@ type Props = {
   onRefresh: () => void;
 };
 
+// Cor por coluna: tinge o FUNDO da coluna/agrupador (não os cards). Preferência
+// da máquina — não viaja no .vistage. Mesma lógica das Tarefas.
+const COLORS_KEY = "vistage.ideas.kanbanColors";
+
 export function IdeaKanban({ items, onEdit, onDelete, onRefresh }: Props) {
+  const [colors, setColor] = useColumnColors(COLORS_KEY);
+
   async function handleMove(id: number, status: string) {
     await updateIdea({ id, maturation: status as IdeaMaturation });
     onRefresh();
@@ -35,6 +42,8 @@ export function IdeaKanban({ items, onEdit, onDelete, onRefresh }: Props) {
           key={m}
           maturation={m}
           items={items.filter((i) => i.maturation === m)}
+          color={colors[m] ?? null}
+          onColor={setColor}
           onEdit={onEdit}
           onDelete={onDelete}
         />
@@ -46,11 +55,15 @@ export function IdeaKanban({ items, onEdit, onDelete, onRefresh }: Props) {
 function Column({
   maturation,
   items,
+  color,
+  onColor,
   onEdit,
   onDelete,
 }: {
   maturation: IdeaMaturation;
   items: Idea[];
+  color: string | null;
+  onColor: (column: string, hex: string | null) => void;
   onEdit: (i: Idea) => void;
   onDelete?: (id: number) => void;
 }) {
@@ -58,10 +71,42 @@ function Column({
     <KanbanColumn
       status={maturation}
       className="flex flex-col rounded-md border bg-muted/30"
+      style={columnTintStyle(color)}
     >
-      <div className="flex items-center justify-between border-b px-3 py-2">
-        <div className="text-sm font-medium">{maturation}</div>
-        <Badge variant="outline">{items.length}</Badge>
+      <div className="flex items-center justify-between gap-1 border-b px-3 py-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {color && (
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+          )}
+          <span className="truncate text-sm font-medium">{maturation}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Badge variant="outline">{items.length}</Badge>
+          <label
+            className="relative inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            title="Cor de fundo desta coluna"
+          >
+            <input
+              type="color"
+              value={color ?? "#8b5cf6"}
+              onChange={(e) => onColor(maturation, e.target.value)}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label={`Cor da coluna ${maturation}`}
+            />
+            <Palette className="h-3.5 w-3.5" />
+          </label>
+          {color && (
+            <button
+              type="button"
+              onClick={() => onColor(maturation, null)}
+              className="text-sm leading-none text-muted-foreground hover:text-foreground"
+              title="Limpar cor"
+              aria-label="Limpar cor"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 space-y-2 p-2">
         {items.length === 0 && (

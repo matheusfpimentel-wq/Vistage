@@ -2,7 +2,20 @@ import { create } from "zustand";
 import { getDb } from "./db";
 
 export type Theme = "light" | "dark";
-export type Accent = "violet" | "blue" | "emerald" | "rose" | "amber" | "cyan" | "bordo";
+export type Accent =
+  | "violet"
+  | "blue"
+  | "emerald"
+  | "rose"
+  | "amber"
+  | "cyan"
+  | "bordo"
+  | "teal"
+  | "indigo"
+  | "fuchsia"
+  | "orange"
+  | "lime"
+  | "slate";
 /** Layout do menu lateral no desktop: clássico (rótulos) ou rail compacto (ícones). */
 export type SidebarLayout = "classic" | "rail";
 
@@ -58,6 +71,12 @@ export const ACCENTS: AccentDef[] = [
   { id: "amber",   label: "Âmbar",     swatch: "38 92% 56%",  primaryLight: "32 95% 48%",  primaryDark: "38 92% 56%",  glowLight: "45 95% 56%",  glowDark: "45 95% 62%" },
   { id: "cyan",    label: "Ciano",     swatch: "188 82% 52%", primaryLight: "190 85% 40%", primaryDark: "188 82% 52%", glowLight: "198 88% 50%", glowDark: "196 86% 60%" },
   { id: "bordo",   label: "Bordô",     swatch: "345 58% 35%", primaryLight: "345 60% 33%", primaryDark: "345 62% 52%", glowLight: "350 60% 45%", glowDark: "345 68% 60%" },
+  { id: "teal",    label: "Teal",      swatch: "174 72% 43%", primaryLight: "175 84% 32%", primaryDark: "173 70% 47%", glowLight: "182 70% 42%", glowDark: "178 72% 54%" },
+  { id: "indigo",  label: "Índigo",    swatch: "243 76% 66%", primaryLight: "244 65% 56%", primaryDark: "243 78% 68%", glowLight: "250 78% 65%", glowDark: "252 84% 72%" },
+  { id: "fuchsia", label: "Fúcsia",    swatch: "291 74% 62%", primaryLight: "291 68% 50%", primaryDark: "292 76% 64%", glowLight: "300 76% 58%", glowDark: "300 82% 67%" },
+  { id: "orange",  label: "Laranja",   swatch: "25 92% 55%",  primaryLight: "22 90% 47%",  primaryDark: "25 92% 56%",  glowLight: "32 94% 54%",  glowDark: "30 92% 60%" },
+  { id: "lime",    label: "Lima",      swatch: "96 55% 45%",  primaryLight: "100 60% 35%", primaryDark: "96 52% 47%",  glowLight: "108 58% 43%", glowDark: "100 58% 53%" },
+  { id: "slate",   label: "Ardósia",   swatch: "215 22% 52%", primaryLight: "215 28% 40%", primaryDark: "214 20% 60%", glowLight: "215 25% 50%", glowDark: "215 22% 63%" },
 ];
 
 type ThemeState = {

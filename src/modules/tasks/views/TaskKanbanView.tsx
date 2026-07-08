@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { CalendarClock, Palette } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PriorityBadge } from "../components/PriorityBadge";
@@ -6,9 +5,9 @@ import { TASK_STATUSES, type Task, type TaskStatus } from "../types";
 import { formatDate } from "@/lib/format";
 import { urgencyLevel } from "@/lib/urgency";
 import { UrgencyMark } from "@/components/ui/urgency-mark";
-import { readableTextColor } from "@/lib/contrast";
 import { cn } from "@/lib/utils";
 import { KanbanBoard, KanbanCard, KanbanColumn } from "@/lib/kanbanDnd";
+import { columnTintStyle, useColumnColors } from "@/lib/kanbanColumnColors";
 
 type Props = {
   tasks: Task[];
@@ -16,34 +15,12 @@ type Props = {
   onMove?: (id: number, status: TaskStatus) => void;
 };
 
-// Cor por coluna (preferência da máquina, não viaja no .vistage).
+// Cor por coluna: tinge o FUNDO da coluna/agrupador (não os cards). Preferência
+// da máquina — não viaja no .vistage.
 const COLORS_KEY = "vistage.tasks.kanbanColors";
-function loadColors(): Record<string, string> {
-  try {
-    const raw = localStorage.getItem(COLORS_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
 
 export function TaskKanbanView({ tasks, onEdit, onMove }: Props) {
-  const [colors, setColors] = useState<Record<string, string>>(loadColors);
-
-  function setColor(status: TaskStatus, hex: string | null) {
-    setColors((prev) => {
-      const next = { ...prev };
-      if (hex) next[status] = hex;
-      else delete next[status];
-      try {
-        localStorage.setItem(COLORS_KEY, JSON.stringify(next));
-      } catch {
-        /* storage indisponível */
-      }
-      return next;
-    });
-  }
+  const [colors, setColor] = useColumnColors(COLORS_KEY);
 
   const columns = TASK_STATUSES.map((status) => ({
     status,
@@ -84,11 +61,12 @@ function Column({
   onColor: (status: TaskStatus, hex: string | null) => void;
   onEdit: (task: Task) => void;
 }) {
-  // Texto do card em preto/branco pra manter AA sobre a cor escolhida (§8.2).
-  const cardText = color ? readableTextColor(color) : undefined;
-
   return (
-    <KanbanColumn status={status} className="flex min-w-0 flex-col rounded-md border bg-muted/30">
+    <KanbanColumn
+      status={status}
+      className="flex min-w-0 flex-col rounded-md border bg-muted/30"
+      style={columnTintStyle(color)}
+    >
       <div className="flex items-center justify-between gap-1 border-b px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5">
           {color && (
@@ -100,7 +78,7 @@ function Column({
           <Badge variant="outline">{tasks.length}</Badge>
           <label
             className="relative inline-flex h-5 w-5 cursor-pointer items-center justify-center rounded text-muted-foreground hover:text-foreground"
-            title="Cor dos cards desta coluna"
+            title="Cor de fundo desta coluna"
           >
             <input
               type="color"
@@ -146,10 +124,7 @@ function Column({
                 overdue && "border-destructive/40"
               )}
             >
-              <div
-                className={cn("p-2", !color && "bg-background")}
-                style={color ? { backgroundColor: color, color: cardText } : undefined}
-              >
+              <div className="bg-background p-2">
                 <div className="font-medium">{t.title}</div>
                 <div className="mt-1 flex items-center justify-between gap-1">
                   <div className="flex items-center gap-1">
@@ -168,12 +143,7 @@ function Column({
                         className="text-xs font-medium tabular-nums"
                       />
                     ) : (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 text-xs tabular-nums",
-                          !color && "text-muted-foreground"
-                        )}
-                      >
+                      <span className="inline-flex items-center gap-1 text-xs tabular-nums text-muted-foreground">
                         <CalendarClock className="h-3 w-3" />
                         {formatDate(t.due_date, "dd/MM")}
                       </span>
