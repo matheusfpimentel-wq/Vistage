@@ -495,6 +495,19 @@ export async function buildBackup(): Promise<Backup> {
 export async function restoreBackupSession(backup: Backup): Promise<void> {
   try {
     await adoptPortableSession(backup.session);
+    // Guarda o e-mail da conta de sync pra pré-preencher o login ao reabrir o
+    // arquivo (a senha NUNCA é guardada — só a sessão portátil viaja). Backfilla
+    // também arquivos antigos: o primeiro open grava o e-mail em app_settings.
+    // Chave literal espelha K.email em mobileSync.ts (import evitado p/ não puxar
+    // o grafo pesado do sync pra dentro do backup).
+    const email = backup.session?.email;
+    if (email && email.trim()) {
+      await getDb().execute(
+        `INSERT INTO app_settings (key, value) VALUES ('mobile_sync.email', $1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [email.trim()]
+      );
+    }
   } catch {
     // reconexão é best-effort — o usuário sempre pode logar manualmente
   }

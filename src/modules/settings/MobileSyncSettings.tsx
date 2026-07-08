@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
-import { currentUser, signIn, signOut, updatePassword } from "@/lib/supabase";
-import { getLastSyncAt, syncNow } from "@/lib/mobileSync";
+import { currentUser, signIn, signOut, updatePassword, supabase } from "@/lib/supabase";
+import { getLastSyncAt, getSyncEmail, setSyncEmail, syncNow } from "@/lib/mobileSync";
 import { displayDocName, useDocumentStore } from "@/lib/document";
 
 export function MobileSyncSettings() {
@@ -31,11 +31,23 @@ export function MobileSyncSettings() {
       try {
         const u = await currentUser();
         setUserEmail(u?.email ?? null);
+        // Pré-preenche o e-mail (a senha não é guardada, por segurança): usa o da
+        // conta conectada ou o último salvo no arquivo. Assim, se a sessão
+        // expirou, o campo já vem preenchido e basta a senha.
+        const savedEmail = u?.email ?? (await getSyncEmail());
+        if (savedEmail) setEmail(savedEmail);
         setLastSync(await getLastSyncAt());
       } finally {
         setLoading(false);
       }
     })();
+    // A sessão do arquivo pode ser adotada logo DEPOIS deste mount (corrida com o
+    // fluxo de abertura). Escutar o auth troca pro estado "conectado" sozinho, em
+    // vez de deixar o formulário de login à toa.
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUserEmail(session?.user?.email ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   async function handleLogin() {
@@ -45,6 +57,8 @@ export function MobileSyncSettings() {
       const u = await signIn(email.trim(), password);
       setUserEmail(u.email ?? null);
       setPassword("");
+      // Guarda o e-mail no arquivo pra pré-preencher nas próximas aberturas.
+      void setSyncEmail(u.email ?? email.trim());
       toast.success("Conectado ao Supabase.");
       // sincroniza logo após o login (em segundo plano)
       void syncNow()

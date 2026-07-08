@@ -1,4 +1,5 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useModuleView } from "@/lib/moduleView";
 import { ObjetivosPage } from "./ObjetivosPage";
 import { EisenhowerSection } from "./methods/EisenhowerSection";
 import { SwotSection } from "./methods/SwotSection";
@@ -17,8 +18,9 @@ import { NpsSection } from "./methods/NpsSection";
 // ============================================================
 
 export function GestaoEstrategicaPage() {
+  const [tab, setTab] = useModuleView<string>("estrategia", "okr");
   return (
-    <Tabs defaultValue="okr" className="space-y-4">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <TabsList className="flex-wrap h-auto gap-0.5">
         <TabsTrigger value="okr">OKR</TabsTrigger>
         <TabsTrigger value="eisenhower">Eisenhower</TabsTrigger>

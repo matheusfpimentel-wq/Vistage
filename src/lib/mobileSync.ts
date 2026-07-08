@@ -49,6 +49,10 @@ async function setSetting(key: string, value: string | null): Promise<void> {
 const K = {
   enabled: "mobile_sync.enabled",
   lastSyncAt: "mobile_sync.last_sync_at",
+  // E-mail da conta de sync (só o e-mail — a senha NUNCA é guardada). Serve pra
+  // pré-preencher o campo ao reabrir o arquivo. A chave literal é espelhada em
+  // backup.ts (backfill no open), então mantenha os dois em sincronia.
+  email: "mobile_sync.email",
 } as const;
 
 export async function isSyncEnabled(): Promise<boolean> {
@@ -59,6 +63,13 @@ export async function setSyncEnabled(on: boolean): Promise<void> {
 }
 export async function getLastSyncAt(): Promise<string | null> {
   return getSetting(K.lastSyncAt);
+}
+/** E-mail da conta de sync guardado no arquivo (pré-preenche o login). */
+export async function getSyncEmail(): Promise<string | null> {
+  return getSetting(K.email);
+}
+export async function setSyncEmail(email: string | null): Promise<void> {
+  await setSetting(K.email, email && email.trim() ? email.trim() : null);
 }
 
 // ── Helpers de data ─────────────────────────────────────────────────────────

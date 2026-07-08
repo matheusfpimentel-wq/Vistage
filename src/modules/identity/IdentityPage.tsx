@@ -88,8 +88,10 @@ import {
   useImageUrl,
 } from "@/lib/uploads";
 import { cn } from "@/lib/utils";
+import { useModuleView } from "@/lib/moduleView";
 
 export function IdentityPage() {
+  const [idTab, setIdTab] = useModuleView<string>("identity", "general");
   const [identity, setIdentity] = useState<ArtistIdentity | null>(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -220,7 +222,7 @@ export function IdentityPage() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="general">
+      <Tabs value={idTab} onValueChange={setIdTab}>
         <TabsList>
           <TabsTrigger value="general">Identidade</TabsTrigger>
           <TabsTrigger value="photos">Galeria ({identity.photos.length})</TabsTrigger>

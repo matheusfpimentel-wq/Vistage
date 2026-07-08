@@ -28,6 +28,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useModuleView } from "@/lib/moduleView";
 import {
   Select,
   SelectContent,
@@ -164,8 +165,9 @@ export function DashboardPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const [tab, setTab] = useModuleView<string>("dashboard", "overview");
   return (
-    <Tabs defaultValue="overview" className="space-y-4">
+    <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <TabsList className="flex-wrap h-auto gap-0.5">
           <TabsTrigger value="overview">Visão geral</TabsTrigger>
