@@ -6,6 +6,8 @@ import {
   FolderPlus,
   GripVertical,
   Lightbulb,
+  List,
+  Network,
   Palette,
   Pencil,
   Pin,
@@ -29,13 +31,16 @@ import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } 
 import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
 import { RichNoteEditor } from "../components/RichNoteEditor";
+import { NoteMindMap } from "../components/NoteMindMap";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { cn } from "@/lib/utils";
+import { useModuleView } from "@/lib/moduleView";
 import { promptDialog } from "@/components/ui/prompt";
 import {
+  addManualLink,
   backlinks,
   createFolder,
   createNote,
@@ -46,15 +51,19 @@ import {
   listNotes,
   listTags,
   moveNote,
+  noteGraph,
   noteToIdea,
   notesByTag,
+  removeManualLink,
   renameFolder,
   reorderFolders,
   saveNote,
   setNoteColor,
+  setNoteGraphPos,
   setPinned,
   type Note,
   type NoteFolder,
+  type NoteGraph,
   type NoteRef,
   type NoteSummary,
 } from "../notesApi";
@@ -99,6 +108,20 @@ export function Conhecimento() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [hidden, setHidden] = useState<HiddenViews>(loadHiddenViews);
+  const [view, setView] = useModuleView<string>("conhecimento-view", "notas");
+  const [graph, setGraph] = useState<NoteGraph>({ nodes: [], edges: [] });
+
+  const loadGraph = useCallback(async () => {
+    try {
+      setGraph(await noteGraph());
+    } catch (e) {
+      toast.error(`Não consegui carregar o mapa: ${String(e)}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === "mapa") void loadGraph();
+  }, [view, loadGraph]);
 
   function toggleHiddenView(key: keyof HiddenViews) {
     setHidden((prev) => {
@@ -186,9 +209,70 @@ export function Conhecimento() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
-      {/* Coluna 1: pastas + lista de notas */}
-      <div className="space-y-3">
+    <div className="space-y-3">
+      {/* Alternar Notas | Mapa mental */}
+      <div className="flex items-center gap-2">
+        <div className="inline-flex rounded-md border p-0.5 text-sm">
+          <button
+            onClick={() => setView("notas")}
+            className={cn(
+              "flex items-center gap-1 rounded px-2.5 py-1 transition-colors",
+              view === "notas" ? "bg-accent" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <List className="h-3.5 w-3.5" /> Notas
+          </button>
+          <button
+            onClick={() => setView("mapa")}
+            className={cn(
+              "flex items-center gap-1 rounded px-2.5 py-1 transition-colors",
+              view === "mapa" ? "bg-accent" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Network className="h-3.5 w-3.5" /> Mapa
+          </button>
+        </div>
+        {view === "mapa" && (
+          <InfoHint>
+            Arraste os nós pra organizar; a posição fica salva. Puxe pela alça (bolinha à
+            direita do nó) até outra nota pra criar uma ligação. Clique num nó pra abrir a nota.
+            As setas tracejadas vêm dos [[wikilinks]] do texto; as sólidas você desenhou aqui e
+            têm "×" pra remover.
+          </InfoHint>
+        )}
+      </div>
+
+      {view === "mapa" ? (
+        <NoteMindMap
+          nodes={graph.nodes}
+          edges={graph.edges}
+          selectedId={selectedId}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setView("notas");
+          }}
+          onMove={(id, x, y) => void setNoteGraphPos(id, x, y)}
+          onCreateLink={async (s, t) => {
+            try {
+              await addManualLink(s, t);
+              await loadGraph();
+            } catch (e) {
+              toast.error(`Não consegui ligar as notas: ${String(e)}`);
+            }
+          }}
+          onDeleteLink={async (s, t) => {
+            try {
+              await removeManualLink(s, t);
+              await loadGraph();
+            } catch (e) {
+              toast.error(`Não consegui remover a ligação: ${String(e)}`);
+            }
+          }}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_1fr]">
+          {/* Coluna 1: pastas + lista de notas */}
+          <div className="space-y-3">
         <div className="flex items-center gap-1.5">
           <Button size="sm" className="flex-1" onClick={() => void addNote()}>
             <Plus className="mr-1 h-4 w-4" /> Nova nota
@@ -343,7 +427,9 @@ export function Conhecimento() {
             onIdea={() => navigate("/ideias")}
           />
         )}
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

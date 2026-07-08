@@ -2572,6 +2572,16 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE notes ADD COLUMN color TEXT;
     `,
   },
+  {
+    version: 184,
+    description:
+      "Conhecimento — mapa mental: notes.graph_x/graph_y (posição do nó, NULL = auto-layout) + note_links.manual (1 = ligação desenhada à mão no mapa, 0 = derivada de [[wikilink]]). O recompute dos [[links]] só mexe nas manual=0, então as ligações manuais sobrevivem. Colunas aditivas — viajam sozinhas no backup.",
+    sql: `
+      ALTER TABLE notes ADD COLUMN graph_x REAL;
+      ALTER TABLE notes ADD COLUMN graph_y REAL;
+      ALTER TABLE note_links ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 
