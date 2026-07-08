@@ -97,18 +97,32 @@ export function trackFromLibrary(t: LibraryTrack): SetTrack {
   };
 }
 
-/** Faixa digitada à mão (sem áudio vinculado). */
-export function manualTrack(title: string, artist: string): SetTrack {
+/** Faixa digitada à mão (sem áudio vinculado). Duração/BPM/Key são opcionais. */
+export function manualTrack(
+  title: string,
+  artist: string,
+  extra?: Partial<Pick<SetTrack, "duration_sec" | "bpm" | "key">>
+): SetTrack {
   return {
     id: uid(),
     library_track_id: null,
     title: title.trim() || "Sem título",
     artist: artist.trim(),
-    duration_sec: null,
-    bpm: null,
-    key: null,
+    duration_sec: extra?.duration_sec ?? null,
+    bpm: extra?.bpm ?? null,
+    key: extra?.key ?? null,
     has_audio: false,
   };
+}
+
+/** Parseia duração digitada: "3:45" → 225, "225" → 225, vazio/inválido → null. */
+export function parseDurationInput(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const mmss = /^(\d+):([0-5]?\d)$/.exec(s);
+  if (mmss) return Number(mmss[1]) * 60 + Number(mmss[2]);
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
 }
 
 /** Embrulha uma faixa em item de setlist com tag + momento. */
