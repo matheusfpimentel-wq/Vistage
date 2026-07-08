@@ -81,9 +81,14 @@ const TAG_COLOR: Record<TrackTag, string> = {
   achado: "text-amber-500",
 };
 const TAG_ORDER: TrackTag[] = ["achado", "inegociavel", "autoral"];
+const TAG_PLURAL: Record<TrackTag, string> = {
+  inegociavel: "Inegociáveis",
+  autoral: "Autorais",
+  achado: "Achados",
+};
 
 export function SetPlanner({ plan, onChange, gig }: Props) {
-  const [sub, setSub] = useState("setlist");
+  const [sub, setSub] = useState("curadoria");
 
   // Biblioteca de músicas carregada uma vez (busca client-side, reusada pelo
   // adder e pelo export M3U8).
@@ -95,23 +100,23 @@ export function SetPlanner({ plan, onChange, gig }: Props) {
   return (
     <Tabs value={sub} onValueChange={setSub} className="w-full">
       <TabsList className="flex w-full justify-start overflow-x-auto">
-        <TabsTrigger value="setlist">
-          <ListMusic className="mr-1.5 h-3.5 w-3.5" /> Setlist
-        </TabsTrigger>
         <TabsTrigger value="curadoria">
           <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Curadoria
+        </TabsTrigger>
+        <TabsTrigger value="setlist">
+          <ListMusic className="mr-1.5 h-3.5 w-3.5" /> Setlist
         </TabsTrigger>
         <TabsTrigger value="executado">
           <Music4 className="mr-1.5 h-3.5 w-3.5" /> Executado
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="setlist" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
-        <SetlistTab plan={plan} onChange={onChange} library={library} gig={gig} />
-      </TabsContent>
-
       <TabsContent value="curadoria" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
         <CuracaoTab plan={plan} onChange={onChange} library={library} />
+      </TabsContent>
+
+      <TabsContent value="setlist" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
+        <SetlistTab plan={plan} onChange={onChange} library={library} gig={gig} />
       </TabsContent>
 
       <TabsContent value="executado" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
@@ -223,7 +228,7 @@ function CurationList({
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-        <Icon className={"h-3.5 w-3.5 " + TAG_COLOR[tag]} /> {TAG_LABEL[tag] + "s"}
+        <Icon className={"h-3.5 w-3.5 " + TAG_COLOR[tag]} /> {TAG_PLURAL[tag]}
         <InfoHint>{hint}</InfoHint>
       </div>
 
@@ -664,20 +669,27 @@ function MomentsBar({
         )}
       </div>
 
-      {moments.length === 0 && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
-          {MOMENT_SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-              onClick={() => onAdd(s)}
-            >
-              + {s}
-            </button>
-          ))}
-        </div>
-      )}
+      {(() => {
+        // Sugestões continuam à mostra (mais claro), escondendo só as já criadas.
+        const taken = new Set(moments.map((m) => m.name.trim().toLowerCase()));
+        const left = MOMENT_SUGGESTIONS.filter((s) => !taken.has(s.toLowerCase()));
+        if (left.length === 0) return null;
+        return (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+            <span className="text-[11px] text-muted-foreground">Sugestões:</span>
+            {left.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+                onClick={() => onAdd(s)}
+              >
+                + {s}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
