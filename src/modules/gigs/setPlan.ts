@@ -1,13 +1,16 @@
 import type { LibraryTrack } from "@/modules/biblioteca/library/api";
 
 // Set Planner — modelo de dados + lógica pura (tempo, validação, export). Todo o
-// planejamento vive num JSON em gigs.set_plan (salva no submit da GIG). Uma faixa
-// pode vir da Biblioteca de Músicas (com áudio + duração) ou ser digitada à mão /
-// vinda da pesquisa (sem áudio) — o que muda a validação do export.
+// planejamento vive num JSON em gigs.set_plan (salva no submit da GIG). O Setlist
+// é a fonte única das faixas: cada uma tem uma TAG (papel na pista) e pertence a
+// um MOMENTO (agrupamento pensado pela pista: Warm-up, Pico, Grand Finale, bloco
+// de gênero…). O parse migra planos antigos (bloco de texto → Momento; listas de
+// curadoria separadas → faixas com a tag correspondente) sem perder nada.
 
-export type CurationBucket = "inegociaveis" | "descobertas" | "proprias";
+/** Papel da faixa no set, sinalizado ao adicionar. */
+export type TrackTag = "inegociavel" | "autoral" | "achado";
 
-/** Faixa "solta" nas listas de Curadoria (aba 1). */
+/** Faixa base (metadados). */
 export type SetTrack = {
   id: string; // uid local (DnD / referências)
   library_track_id: number | null;
@@ -19,36 +22,48 @@ export type SetTrack = {
   has_audio: boolean; // snapshot: arquivo de áudio vinculado E presente no disco
 };
 
-/** Item ordenado do Setlist (aba 2): faixa + bloco + transição pra próxima. */
+/** Momento do set (agrupamento). Warm-up, Construção, Pico, Grand Finale, ou um
+ *  bloco de gênero ("Bloco Funk"). Cor opcional só decora o cabeçalho/chip. */
+export type SetMoment = {
+  id: string;
+  name: string;
+  color: string | null;
+};
+
+/** Item do Setlist: faixa + momento + tag + transição pra próxima. */
 export type SetItem = SetTrack & {
-  block: string; // rótulo do bloco (agrupamento); "" = sem bloco
-  transition: string; // nota da transição PARA a próxima faixa
-  origin: CurationBucket | "manual";
+  moment_id: string | null; // null = "Sem momento"
+  tag: TrackTag;
+  transition: string;
 };
 
 export type SetPlan = {
-  // Curadoria
   concept: string; // conceito/intenção do set
   role: string; // papel nesta gig
   goal: string; // objetivo
-  inegociaveis: SetTrack[];
-  descobertas: SetTrack[];
-  proprias: SetTrack[];
-  // Setlist (plano ordenado)
-  setlist: SetItem[];
+  moments: SetMoment[]; // ordem dos momentos
+  setlist: SetItem[]; // agrupado por momento (contíguo), na ordem de execução
   avg_transition_min: number; // tempo médio de transição (só isto é configurável)
 };
 
 export const DEFAULT_TRANSITION_MIN = 1;
+
+/** Sugestões de momento comuns na jornada da pista. */
+export const MOMENT_SUGGESTIONS = ["Warm-up", "Construção", "Pico", "Grand Finale", "Encore"];
+const MOMENT_COLORS = ["#8b5cf6", "#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#f43f5e", "#06b6d4", "#f97316"];
+
+export const TAG_LABEL: Record<TrackTag, string> = {
+  inegociavel: "Inegociável",
+  autoral: "Autoral",
+  achado: "Achado",
+};
 
 export function emptySetPlan(): SetPlan {
   return {
     concept: "",
     role: "",
     goal: "",
-    inegociaveis: [],
-    descobertas: [],
-    proprias: [],
+    moments: [],
     setlist: [],
     avg_transition_min: DEFAULT_TRANSITION_MIN,
   };
@@ -61,6 +76,11 @@ export function uid(): string {
     Math.floor(Math.random() * 1e9).toString(36) +
     Math.floor(Math.random() * 1e6).toString(36)
   );
+}
+
+/** Novo momento com cor da paleta pela posição. */
+export function newMoment(name: string, index: number): SetMoment {
+  return { id: uid(), name: name.trim() || "Momento", color: MOMENT_COLORS[index % MOMENT_COLORS.length] };
 }
 
 /** Uma faixa da Biblioteca de Músicas vira SetTrack (snapshot de metadados). */
@@ -77,7 +97,7 @@ export function trackFromLibrary(t: LibraryTrack): SetTrack {
   };
 }
 
-/** Faixa digitada à mão / vinda da pesquisa (sem áudio vinculado). */
+/** Faixa digitada à mão (sem áudio vinculado). */
 export function manualTrack(title: string, artist: string): SetTrack {
   return {
     id: uid(),
@@ -91,9 +111,20 @@ export function manualTrack(title: string, artist: string): SetTrack {
   };
 }
 
-function toSetTrack(v: unknown): SetTrack | null {
-  if (!v || typeof v !== "object") return null;
-  const o = v as Record<string, unknown>;
+/** Embrulha uma faixa em item de setlist com tag + momento. */
+export function setItemFrom(track: SetTrack, tag: TrackTag, moment_id: string | null): SetItem {
+  return { ...track, tag, moment_id, transition: "" };
+}
+
+/** Chave de deduplicação (mesma faixa não entra 2x). */
+export function trackKey(t: Pick<SetTrack, "library_track_id" | "title" | "artist">): string {
+  return t.library_track_id != null
+    ? `l${t.library_track_id}`
+    : `m${t.title.trim().toLowerCase()}|${t.artist.trim().toLowerCase()}`;
+}
+
+// ── Parse tolerante + migração do legado ────────────────────────────────────
+function toSetTrackBase(o: Record<string, unknown>): SetTrack | null {
   const title = typeof o.title === "string" ? o.title : "";
   if (!title && o.library_track_id == null) return null;
   return {
@@ -108,23 +139,25 @@ function toSetTrack(v: unknown): SetTrack | null {
   };
 }
 
-function toSetItem(v: unknown): SetItem | null {
-  const base = toSetTrack(v);
-  if (!base) return null;
-  const o = v as Record<string, unknown>;
-  const origin = o.origin;
-  return {
-    ...base,
-    block: typeof o.block === "string" ? o.block : "",
-    transition: typeof o.transition === "string" ? o.transition : "",
-    origin:
-      origin === "inegociaveis" || origin === "descobertas" || origin === "proprias"
-        ? origin
-        : "manual",
-  };
+/** Aceita tag nova (inegociavel/autoral/achado) OU origin antiga
+ *  (inegociaveis/proprias/descobertas/manual). */
+function toTag(v: unknown): TrackTag {
+  if (v === "inegociavel" || v === "inegociaveis") return "inegociavel";
+  if (v === "autoral" || v === "proprias") return "autoral";
+  return "achado"; // descobertas, manual, achado, desconhecido
 }
 
-/** Parse tolerante do JSON persistido (nunca lança). */
+/** Reagrupa o setlist: itens do mesmo momento ficam contíguos, na ordem dos
+ *  momentos; "Sem momento" vai pro fim. Sort estável preserva a ordem interna. */
+export function regroup(setlist: SetItem[], moments: SetMoment[]): SetItem[] {
+  const order = new Map(moments.map((m, i) => [m.id, i]));
+  return [...setlist].sort((a, b) => {
+    const oa = a.moment_id != null ? order.get(a.moment_id) ?? 9998 : 9999;
+    const ob = b.moment_id != null ? order.get(b.moment_id) ?? 9998 : 9999;
+    return oa - ob;
+  });
+}
+
 export function parseSetPlan(json: string | null | undefined): SetPlan {
   const plan = emptySetPlan();
   if (!json) return plan;
@@ -133,13 +166,75 @@ export function parseSetPlan(json: string | null | undefined): SetPlan {
     if (typeof raw.concept === "string") plan.concept = raw.concept;
     if (typeof raw.role === "string") plan.role = raw.role;
     if (typeof raw.goal === "string") plan.goal = raw.goal;
-    if (Array.isArray(raw.inegociaveis)) plan.inegociaveis = raw.inegociaveis.map(toSetTrack).filter(Boolean) as SetTrack[];
-    if (Array.isArray(raw.descobertas)) plan.descobertas = raw.descobertas.map(toSetTrack).filter(Boolean) as SetTrack[];
-    if (Array.isArray(raw.proprias)) plan.proprias = raw.proprias.map(toSetTrack).filter(Boolean) as SetTrack[];
-    if (Array.isArray(raw.setlist)) plan.setlist = raw.setlist.map(toSetItem).filter(Boolean) as SetItem[];
     if (typeof raw.avg_transition_min === "number" && raw.avg_transition_min >= 0) {
       plan.avg_transition_min = raw.avg_transition_min;
     }
+
+    // Momentos (formato novo).
+    const moments: SetMoment[] = [];
+    if (Array.isArray(raw.moments)) {
+      for (const m of raw.moments) {
+        if (m && typeof m === "object") {
+          const mo = m as Record<string, unknown>;
+          moments.push({
+            id: typeof mo.id === "string" ? mo.id : uid(),
+            name: typeof mo.name === "string" && mo.name.trim() ? mo.name : "Momento",
+            color: typeof mo.color === "string" ? mo.color : null,
+          });
+        }
+      }
+    }
+
+    // Setlist. Suporta tag/moment_id novos OU origin/block (texto) legados.
+    const blockToMoment = new Map<string, string>();
+    const seen = new Set<string>();
+    const setlist: SetItem[] = [];
+    if (Array.isArray(raw.setlist)) {
+      for (const it of raw.setlist) {
+        if (!it || typeof it !== "object") continue;
+        const o = it as Record<string, unknown>;
+        const base = toSetTrackBase(o);
+        if (!base) continue;
+        const tag = toTag(typeof o.tag === "string" ? o.tag : o.origin);
+        let momentId: string | null = null;
+        if (typeof o.moment_id === "string") {
+          momentId = o.moment_id;
+        } else if (typeof o.block === "string" && o.block.trim()) {
+          // Migra bloco (texto por música) → Momento de verdade.
+          const key = o.block.trim().toLowerCase();
+          let mid = blockToMoment.get(key);
+          if (!mid) {
+            const m = newMoment(o.block.trim(), moments.length);
+            moments.push(m);
+            mid = m.id;
+            blockToMoment.set(key, mid);
+          }
+          momentId = mid;
+        }
+        setlist.push({ ...base, tag, moment_id: momentId, transition: typeof o.transition === "string" ? o.transition : "" });
+        seen.add(trackKey(base));
+      }
+    }
+
+    // Curadoria legada (arrays separados) → entra no setlist se ainda não estiver.
+    const absorb = (arr: unknown, tag: TrackTag) => {
+      if (!Array.isArray(arr)) return;
+      for (const v of arr) {
+        if (!v || typeof v !== "object") continue;
+        const base = toSetTrackBase(v as Record<string, unknown>);
+        if (!base) continue;
+        const k = trackKey(base);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        setlist.push({ ...base, tag, moment_id: null, transition: "" });
+      }
+    };
+    absorb(raw.inegociaveis, "inegociavel");
+    absorb(raw.proprias, "autoral");
+    absorb(raw.descobertas, "achado");
+
+    plan.moments = moments;
+    plan.setlist = regroup(setlist, moments);
   } catch {
     /* JSON corrompido — devolve plano vazio */
   }
@@ -151,12 +246,15 @@ export function serializeSetPlan(plan: SetPlan): string | null {
     !plan.concept &&
     !plan.role &&
     !plan.goal &&
-    plan.inegociaveis.length === 0 &&
-    plan.descobertas.length === 0 &&
-    plan.proprias.length === 0 &&
+    plan.moments.length === 0 &&
     plan.setlist.length === 0 &&
     plan.avg_transition_min === DEFAULT_TRANSITION_MIN;
   return empty ? null : JSON.stringify(plan);
+}
+
+// ── Consultas de curadoria (views derivadas do setlist) ─────────────────────
+export function tracksByTag(plan: SetPlan, tag: TrackTag): SetItem[] {
+  return plan.setlist.filter((i) => i.tag === tag);
 }
 
 // ── Tempo estimado do set ────────────────────────────────────────────────────
@@ -186,6 +284,13 @@ export function computeSetTiming(plan: SetPlan): SetTiming {
     withDuration: items.length - missingDuration,
     missingDuration,
   };
+}
+
+/** Subtotal de duração (soma bruta) de um momento — pra exibir no cabeçalho. */
+export function momentSubtotalSec(plan: SetPlan, momentId: string | null): number {
+  return plan.setlist
+    .filter((i) => i.moment_id === momentId)
+    .reduce((a, i) => a + (i.duration_sec ?? 0), 0);
 }
 
 /** "1h 12min" (longo) ou "72 min". */

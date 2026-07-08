@@ -10,6 +10,7 @@ import {
 import {
   SortableContext,
   arrayMove,
+  horizontalListSortingStrategy,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -19,10 +20,12 @@ import {
   FileDown,
   GripVertical,
   ListMusic,
+  Lock,
   Music4,
   Plus,
   Search,
   Sparkles,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -30,13 +33,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { InfoHint } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
@@ -44,18 +42,26 @@ import { gigDisplayName } from "../displayName";
 import type { Gig } from "../types";
 import { GigSetlist } from "./GigSetlist";
 import {
+  MOMENT_SUGGESTIONS,
+  TAG_LABEL,
   buildM3U8,
   computeSetTiming,
   fmtSetDuration,
   fmtTrackDuration,
   manualTrack,
-  tracksWithoutAudio,
+  momentSubtotalSec,
+  newMoment,
+  regroup,
+  setItemFrom,
   trackFromLibrary,
-  uid,
-  type CurationBucket,
+  trackKey,
+  tracksByTag,
+  tracksWithoutAudio,
   type SetItem,
+  type SetMoment,
   type SetPlan,
   type SetTrack,
+  type TrackTag,
 } from "../setPlan";
 
 type Props = {
@@ -64,22 +70,23 @@ type Props = {
   gig: Gig | null;
 };
 
-const BUCKET_LABEL: Record<CurationBucket, string> = {
-  inegociaveis: "Tracks inegociáveis",
-  descobertas: "Descobertas da pesquisa",
-  proprias: "Tracks próprias / autorais",
+const TAG_ICON: Record<TrackTag, typeof Lock> = {
+  inegociavel: Lock,
+  autoral: Star,
+  achado: Sparkles,
 };
-const BUCKET_HINT: Record<CurationBucket, string> = {
-  inegociaveis: "As que NÃO podem faltar. Entram no Setlist automaticamente.",
-  descobertas: "Achados da pesquisa musical — candidatas ao set.",
-  proprias: "Suas produções pra tocar. Entram no Setlist automaticamente.",
+const TAG_COLOR: Record<TrackTag, string> = {
+  inegociavel: "text-rose-500",
+  autoral: "text-violet-500",
+  achado: "text-amber-500",
 };
+const TAG_ORDER: TrackTag[] = ["achado", "inegociavel", "autoral"];
 
 export function SetPlanner({ plan, onChange, gig }: Props) {
-  const [sub, setSub] = useState("curadoria");
+  const [sub, setSub] = useState("setlist");
 
-  // Biblioteca de músicas carregada uma vez (busca client-side, como o
-  // GigLibraryPicker). Reusada pelo adder e pelo export M3U8.
+  // Biblioteca de músicas carregada uma vez (busca client-side, reusada pelo
+  // adder e pelo export M3U8).
   const [library, setLibrary] = useState<LibraryTrack[]>([]);
   useEffect(() => {
     void listTracks().then(setLibrary).catch(() => setLibrary([]));
@@ -88,23 +95,23 @@ export function SetPlanner({ plan, onChange, gig }: Props) {
   return (
     <Tabs value={sub} onValueChange={setSub} className="w-full">
       <TabsList className="flex w-full justify-start overflow-x-auto">
-        <TabsTrigger value="curadoria">
-          <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Curadoria
-        </TabsTrigger>
         <TabsTrigger value="setlist">
           <ListMusic className="mr-1.5 h-3.5 w-3.5" /> Setlist
+        </TabsTrigger>
+        <TabsTrigger value="curadoria">
+          <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Curadoria
         </TabsTrigger>
         <TabsTrigger value="executado">
           <Music4 className="mr-1.5 h-3.5 w-3.5" /> Executado
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="curadoria" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
-        <CuracaoTab plan={plan} onChange={onChange} library={library} />
-      </TabsContent>
-
       <TabsContent value="setlist" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
         <SetlistTab plan={plan} onChange={onChange} library={library} gig={gig} />
+      </TabsContent>
+
+      <TabsContent value="curadoria" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
+        <CuracaoTab plan={plan} onChange={onChange} library={library} />
       </TabsContent>
 
       <TabsContent value="executado" className="space-y-4 pt-3 data-[state=inactive]:hidden" forceMount>
@@ -120,7 +127,7 @@ export function SetPlanner({ plan, onChange, gig }: Props) {
   );
 }
 
-// ── Aba 1: Curadoria Musical ─────────────────────────────────────────────────
+// ── Curadoria: conceito/papel/objetivo + listas Inegociáveis e Autorais ──────
 function CuracaoTab({
   plan,
   onChange,
@@ -132,81 +139,92 @@ function CuracaoTab({
 }) {
   const set = (patch: Partial<SetPlan>) => onChange({ ...plan, ...patch });
 
+  // Adiciona uma faixa taggeada direto no setlist (sem momento). É a mesma fonte
+  // do Setlist, então aparece nos dois lugares.
+  function addTagged(track: SetTrack, tag: TrackTag) {
+    if (plan.setlist.some((i) => trackKey(i) === trackKey(track))) {
+      toast.error("Essa faixa já está no set.");
+      return;
+    }
+    onChange({ ...plan, setlist: regroup([...plan.setlist, setItemFrom(track, tag, null)], plan.moments) });
+  }
+  function removeItem(id: string) {
+    onChange({ ...plan, setlist: plan.setlist.filter((i) => i.id !== id) });
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid gap-3">
         <div className="space-y-1">
-          <Label>Conceito e intenção do set</Label>
-          <Textarea
-            value={plan.concept}
-            onChange={(e) => set({ concept: e.target.value })}
-            placeholder="Que sensação esse set entrega? Qual é a narrativa da noite?"
-            rows={2}
-          />
+          <Label className="flex items-center gap-1.5">
+            Conceito
+            <InfoHint>Que sensação esse set entrega? Qual é a narrativa da noite?</InfoHint>
+          </Label>
+          <Textarea value={plan.concept} onChange={(e) => set({ concept: e.target.value })} placeholder="A narrativa da noite" rows={2} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
-            <Label>Meu papel nesta gig</Label>
-            <Textarea
-              value={plan.role}
-              onChange={(e) => set({ role: e.target.value })}
-              placeholder="Abertura? Pico? Fechamento? DJ residente?"
-              rows={2}
-            />
+            <Label className="flex items-center gap-1.5">
+              Papel
+              <InfoHint>Seu papel nesta gig: abertura, pico, fechamento, residente…</InfoHint>
+            </Label>
+            <Textarea value={plan.role} onChange={(e) => set({ role: e.target.value })} placeholder="Abertura, pico, fechamento…" rows={2} />
           </div>
           <div className="space-y-1">
-            <Label>Objetivo</Label>
-            <Textarea
-              value={plan.goal}
-              onChange={(e) => set({ goal: e.target.value })}
-              placeholder="O que quero provocar/alcançar com este set?"
-              rows={2}
-            />
+            <Label className="flex items-center gap-1.5">
+              Objetivo
+              <InfoHint>O que você quer provocar ou alcançar com este set?</InfoHint>
+            </Label>
+            <Textarea value={plan.goal} onChange={(e) => set({ goal: e.target.value })} placeholder="O que quer provocar" rows={2} />
           </div>
         </div>
       </div>
 
-      {(["inegociaveis", "descobertas", "proprias"] as CurationBucket[]).map((bucket) => (
-        <CurationBucketBlock
-          key={bucket}
-          bucket={bucket}
-          tracks={plan[bucket]}
-          onChange={(next) => set({ [bucket]: next } as Partial<SetPlan>)}
-          library={library}
-        />
-      ))}
+      <CurationList
+        tag="inegociavel"
+        hint="As que não podem faltar. Já entram no setlist."
+        tracks={tracksByTag(plan, "inegociavel")}
+        library={library}
+        exclude={plan.setlist}
+        onAdd={(t) => addTagged(t, "inegociavel")}
+        onRemove={removeItem}
+      />
+      <CurationList
+        tag="autoral"
+        hint="Suas produções pra tocar. Já entram no setlist."
+        tracks={tracksByTag(plan, "autoral")}
+        library={library}
+        exclude={plan.setlist}
+        onAdd={(t) => addTagged(t, "autoral")}
+        onRemove={removeItem}
+      />
     </div>
   );
 }
 
-function CurationBucketBlock({
-  bucket,
+function CurationList({
+  tag,
+  hint,
   tracks,
-  onChange,
   library,
+  exclude,
+  onAdd,
+  onRemove,
 }: {
-  bucket: CurationBucket;
-  tracks: SetTrack[];
-  onChange: (next: SetTrack[]) => void;
+  tag: TrackTag;
+  hint: string;
+  tracks: SetItem[];
   library: LibraryTrack[];
+  exclude: SetItem[];
+  onAdd: (t: SetTrack) => void;
+  onRemove: (id: string) => void;
 }) {
-  function add(t: SetTrack) {
-    // evita duplicar a mesma faixa da biblioteca no mesmo balde
-    if (t.library_track_id != null && tracks.some((x) => x.library_track_id === t.library_track_id)) {
-      toast.error("Essa faixa já está na lista.");
-      return;
-    }
-    onChange([...tracks, t]);
-  }
-  function remove(id: string) {
-    onChange(tracks.filter((t) => t.id !== id));
-  }
-
+  const Icon = TAG_ICON[tag];
   return (
     <div className="rounded-lg border bg-card p-3">
-      <div className="mb-2">
-        <div className="text-sm font-semibold">{BUCKET_LABEL[bucket]}</div>
-        <div className="text-xs text-muted-foreground">{BUCKET_HINT[bucket]}</div>
+      <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+        <Icon className={"h-3.5 w-3.5 " + TAG_COLOR[tag]} /> {TAG_LABEL[tag] + "s"}
+        <InfoHint>{hint}</InfoHint>
       </div>
 
       {tracks.length > 0 && (
@@ -218,15 +236,10 @@ function CurationBucketBlock({
                 <span className="font-medium">{t.title}</span>
                 {t.artist && <span className="text-muted-foreground"> · {t.artist}</span>}
               </span>
-              {!t.has_audio && (
-                <Badge variant="outline" className="gap-1 text-[10px] text-amber-600">
-                  <AlertTriangle className="h-3 w-3" /> sem áudio
-                </Badge>
-              )}
               {t.duration_sec != null && (
                 <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTrackDuration(t.duration_sec)}</span>
               )}
-              <button type="button" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={() => remove(t.id)} aria-label="Remover">
+              <button type="button" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={() => onRemove(t.id)} aria-label="Remover">
                 <X className="h-3.5 w-3.5" />
               </button>
             </li>
@@ -234,20 +247,23 @@ function CurationBucketBlock({
         </ul>
       )}
 
-      <TrackAdder library={library} exclude={tracks} onAdd={add} />
+      <TrackAdder library={library} exclude={exclude} onAdd={onAdd} />
     </div>
   );
 }
 
-/** Busca na Biblioteca de Músicas (client-side) + adicionar manual (título/artista). */
+/** Busca na Biblioteca (client-side) + adicionar manual. `onAdd` recebe a faixa
+ *  (o chamador decide a tag). */
 function TrackAdder({
   library,
   exclude,
   onAdd,
+  autoFocusManual,
 }: {
   library: LibraryTrack[];
-  exclude: SetTrack[];
+  exclude: SetItem[];
   onAdd: (t: SetTrack) => void;
+  autoFocusManual?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
@@ -283,12 +299,7 @@ function TrackAdder({
     <div className="space-y-1.5">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="h-8 pl-7 text-sm"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar na Biblioteca de Músicas…"
-        />
+        <Input className="h-8 pl-7 text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar na Biblioteca de Músicas" />
       </div>
       {results.length > 0 && (
         <ul className="rounded-md border bg-popover">
@@ -307,9 +318,7 @@ function TrackAdder({
                   <span className="font-medium">{t.title ?? "Sem título"}</span>
                   {t.artist && <span className="text-muted-foreground"> · {t.artist}</span>}
                 </span>
-                {(!t.file_path || t.file_missing === 1) && (
-                  <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
-                )}
+                {(!t.file_path || t.file_missing === 1) && <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />}
                 {t.duration_sec != null && (
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTrackDuration(t.duration_sec)}</span>
                 )}
@@ -321,21 +330,21 @@ function TrackAdder({
 
       {manualOpen ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Input className="h-8 w-40 text-sm" value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="Título" autoFocus />
+          <Input className="h-8 w-40 text-sm" value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="Título" autoFocus={autoFocusManual ?? true} />
           <Input className="h-8 w-36 text-sm" value={mArtist} onChange={(e) => setMArtist(e.target.value)} placeholder="Artista" />
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={addManual}>Adicionar</Button>
           <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setManualOpen(false)}>Cancelar</Button>
         </div>
       ) : (
         <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setManualOpen(true)}>
-          + adicionar à mão (sem arquivo)
+          + adicionar à mão
         </button>
       )}
     </div>
   );
 }
 
-// ── Aba 2: Setlist (DnD, blocos, transições, tempo, export) ───────────────────
+// ── Setlist: momentos + adição direta + tempo ────────────────────────────────
 function SetlistTab({
   plan,
   onChange,
@@ -353,29 +362,44 @@ function SetlistTab({
   function setItems(setlist: SetItem[]) {
     onChange({ ...plan, setlist });
   }
+  function setMoments(moments: SetMoment[]) {
+    onChange({ ...plan, moments, setlist: regroup(plan.setlist, moments) });
+  }
 
-  // Puxa Inegociáveis + Próprias da Curadoria que ainda não estão no setlist.
-  function pullFromCuration() {
-    const present = new Set(
-      plan.setlist.map((i) => (i.library_track_id != null ? `l${i.library_track_id}` : `m${i.title}|${i.artist}`))
-    );
-    const additions: SetItem[] = [];
-    const pull = (tracks: SetTrack[], origin: CurationBucket) => {
-      for (const t of tracks) {
-        const key = t.library_track_id != null ? `l${t.library_track_id}` : `m${t.title}|${t.artist}`;
-        if (present.has(key)) continue;
-        present.add(key);
-        additions.push({ ...t, id: uid(), block: "", transition: "", origin });
-      }
-    };
-    pull(plan.inegociaveis, "inegociaveis");
-    pull(plan.proprias, "proprias");
-    if (additions.length === 0) {
-      toast.error("Nada novo pra puxar — Inegociáveis e Próprias já estão no setlist.");
+  // Faixa adicionada direto no setlist (com tag + momento escolhidos no adder).
+  function addToSetlist(track: SetTrack, tag: TrackTag, momentId: string | null) {
+    if (plan.setlist.some((i) => trackKey(i) === trackKey(track))) {
+      toast.error("Essa faixa já está no set.");
       return;
     }
-    setItems([...plan.setlist, ...additions]);
-    toast.success(`${additions.length} faixa(s) adicionada(s) ao setlist.`);
+    setItems(regroup([...plan.setlist, setItemFrom(track, tag, momentId)], plan.moments));
+  }
+
+  function addMoment(name: string) {
+    const m = newMoment(name, plan.moments.length);
+    setMoments([...plan.moments, m]);
+  }
+  function renameMoment(id: string, name: string) {
+    onChange({ ...plan, moments: plan.moments.map((m) => (m.id === id ? { ...m, name } : m)) });
+  }
+  function recolorMoment(id: string, color: string) {
+    onChange({ ...plan, moments: plan.moments.map((m) => (m.id === id ? { ...m, color } : m)) });
+  }
+  async function deleteMoment(id: string) {
+    const m = plan.moments.find((x) => x.id === id);
+    const has = plan.setlist.some((i) => i.moment_id === id);
+    if (has) {
+      const ok = await confirmDialog({
+        title: `Excluir "${m?.name}"?`,
+        description: "As faixas dele voltam para Sem momento.",
+        confirmLabel: "Excluir",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    const moments = plan.moments.filter((x) => x.id !== id);
+    const setlist = plan.setlist.map((i) => (i.moment_id === id ? { ...i, moment_id: null } : i));
+    onChange({ ...plan, moments, setlist: regroup(setlist, moments) });
   }
 
   function onDragEnd(e: DragEndEvent) {
@@ -384,22 +408,40 @@ function SetlistTab({
     const oldIndex = plan.setlist.findIndex((i) => i.id === active.id);
     const newIndex = plan.setlist.findIndex((i) => i.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
-    setItems(arrayMove(plan.setlist, oldIndex, newIndex));
+    const moved = arrayMove(plan.setlist, oldIndex, newIndex);
+    // Ao soltar, a faixa herda o momento do vizinho de cima (ou de baixo) —
+    // arrastar entre grupos reatribui o momento sem picker.
+    const pos = moved.findIndex((i) => i.id === active.id);
+    const neighbor = pos > 0 ? moved[pos - 1].moment_id : pos < moved.length - 1 ? moved[pos + 1].moment_id : null;
+    const withMoment = moved.map((i) => (i.id === active.id ? { ...i, moment_id: neighbor } : i));
+    setItems(regroup(withMoment, plan.moments));
   }
 
   function updateItem(id: string, patch: Partial<SetItem>) {
-    setItems(plan.setlist.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+    const next = plan.setlist.map((i) => (i.id === id ? { ...i, ...patch } : i));
+    setItems("moment_id" in patch ? regroup(next, plan.moments) : next);
   }
   function removeItem(id: string) {
     setItems(plan.setlist.filter((i) => i.id !== id));
   }
 
+  // Grupos na ordem: momentos + "Sem momento" no fim (se tiver faixa sem momento).
+  const groups: { moment: SetMoment | null; items: SetItem[] }[] = useMemo(() => {
+    const g: { moment: SetMoment | null; items: SetItem[] }[] = plan.moments.map((m) => ({
+      moment: m,
+      items: plan.setlist.filter((i) => i.moment_id === m.id),
+    }));
+    const orphans = plan.setlist.filter((i) => i.moment_id == null);
+    if (orphans.length > 0 || plan.moments.length === 0) g.push({ moment: null, items: orphans });
+    return g;
+  }, [plan.moments, plan.setlist]);
+
   async function exportM3U8() {
-    const missing = tracksWithoutAudio(plan);
     if (plan.setlist.length === 0) {
       toast.error("O setlist está vazio.");
       return;
     }
+    const missing = tracksWithoutAudio(plan);
     if (missing.length > 0) {
       const names = missing.map((m) => m.title).slice(0, 6).join(", ");
       const extra = missing.length > 6 ? ` e mais ${missing.length - 6}` : "";
@@ -439,73 +481,325 @@ function SetlistTab({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={pullFromCuration}>
-          <Sparkles className="h-3.5 w-3.5" /> Puxar Inegociáveis + Próprias
-        </Button>
-        <div className="ml-auto flex items-center gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={() => void exportPdf()}>
-            <FileDown className="h-3.5 w-3.5" /> PDF
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => void exportM3U8()}>
-            <ListMusic className="h-3.5 w-3.5" /> Rekordbox/Serato
-          </Button>
-        </div>
-      </div>
+      <MomentsBar
+        moments={plan.moments}
+        counts={Object.fromEntries(plan.moments.map((m) => [m.id, plan.setlist.filter((i) => i.moment_id === m.id).length]))}
+        onReorder={setMoments}
+        onAdd={addMoment}
+        onRename={renameMoment}
+        onRecolor={recolorMoment}
+        onDelete={deleteMoment}
+      />
+
+      <SetlistAdder library={library} exclude={plan.setlist} moments={plan.moments} onAdd={addToSetlist} />
 
       {plan.setlist.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          Setlist vazio. Use "Puxar Inegociáveis + Próprias" ou adicione faixas na Curadoria.
+          Adicione faixas acima. Marque a tag e o momento de cada uma.
         </p>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={plan.setlist.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <ol className="space-y-1">
-              {plan.setlist.map((item, idx) => {
-                const prevBlock = idx > 0 ? plan.setlist[idx - 1].block : null;
-                const showBlockHeader = item.block.trim() !== "" && item.block !== prevBlock;
-                return (
-                  <SetlistRow
-                    key={item.id}
-                    item={item}
-                    index={idx}
-                    isLast={idx === plan.setlist.length - 1}
-                    showBlockHeader={showBlockHeader}
-                    onUpdate={(patch) => updateItem(item.id, patch)}
-                    onRemove={() => removeItem(item.id)}
-                  />
-                );
-              })}
-            </ol>
+            <div className="space-y-2">
+              {groups.map(({ moment, items }) => (
+                <div key={moment?.id ?? "none"}>
+                  {(moment != null || plan.moments.length > 0) && (
+                    <MomentHeader moment={moment} count={items.length} subtotalSec={momentSubtotalSec(plan, moment?.id ?? null)} />
+                  )}
+                  {items.length === 0 ? (
+                    <p className="px-2 py-1 text-xs text-muted-foreground">Vazio. Use o seletor de momento nas faixas ou adicione acima.</p>
+                  ) : (
+                    <ol className="space-y-1">
+                      {items.map((item) => (
+                        <SetlistRow
+                          key={item.id}
+                          item={item}
+                          index={plan.setlist.findIndex((i) => i.id === item.id)}
+                          isLast={plan.setlist[plan.setlist.length - 1]?.id === item.id}
+                          moments={plan.moments}
+                          onUpdate={(patch) => updateItem(item.id, patch)}
+                          onRemove={() => removeItem(item.id)}
+                        />
+                      ))}
+                    </ol>
+                  )}
+                </div>
+              ))}
+            </div>
           </SortableContext>
         </DndContext>
       )}
 
-      <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="flex items-center gap-1.5">Tempo médio de transição (min)</Label>
-          <Input
-            type="number"
-            min={0}
-            step={0.5}
-            className="h-8 w-28"
-            value={plan.avg_transition_min}
-            onChange={(e) => onChange({ ...plan, avg_transition_min: Math.max(0, Number(e.target.value) || 0) })}
-          />
+      {/* Rodapé compacto: transição média discreta (esq.) + tempo total pequeno (dir.) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">Transição</span>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-accent"
+            onClick={() => onChange({ ...plan, avg_transition_min: Math.max(0, Math.round((plan.avg_transition_min - 0.5) * 2) / 2) })}
+            aria-label="Menos transição"
+          >
+            −
+          </button>
+          <span className="w-10 text-center text-sm font-medium tabular-nums">{plan.avg_transition_min} min</span>
+          <button
+            type="button"
+            className="flex h-6 w-6 items-center justify-center rounded border text-muted-foreground hover:bg-accent"
+            onClick={() => onChange({ ...plan, avg_transition_min: Math.round((plan.avg_transition_min + 0.5) * 2) / 2 })}
+            aria-label="Mais transição"
+          >
+            +
+          </button>
+          <InfoHint>Tempo médio que cada mixagem sobrepõe. O total do set desconta isso ({timing.transitions} transições).</InfoHint>
         </div>
-        <div className="space-y-1">
-          <Label>Tempo total do set</Label>
-          {/* Componente estático (read-only): resultado do cálculo automático. */}
-          <div className="flex h-8 items-center rounded-md border bg-background px-3 text-lg font-bold tabular-nums">
-            {fmtSetDuration(timing.totalSec)}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {timing.withDuration} faixa(s) com duração
-            {timing.missingDuration > 0 && ` · ${timing.missingDuration} sem duração`}
-            {" · "}−{Math.round(timing.transitionSec / 60)} min de transições
-          </p>
+        <div className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">Total</span>
+          <span className="font-semibold tabular-nums">{fmtSetDuration(timing.totalSec)}</span>
+          <InfoHint>
+            Soma das durações menos as transições.
+            {timing.missingDuration > 0 && ` ${timing.missingDuration} faixa(s) sem duração ficam de fora da conta.`}
+          </InfoHint>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => void exportPdf()}>
+          <FileDown className="h-3.5 w-3.5" /> PDF
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => void exportM3U8()}>
+          <ListMusic className="h-3.5 w-3.5" /> Rekordbox/Serato
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Barra de momentos (chips reordenáveis + adicionar) ───────────────────────
+const MOMENT_PALETTE = ["#8b5cf6", "#3b82f6", "#ec4899", "#f59e0b", "#10b981", "#f43f5e", "#06b6d4", "#f97316"];
+
+function MomentsBar({
+  moments,
+  counts,
+  onReorder,
+  onAdd,
+  onRename,
+  onRecolor,
+  onDelete,
+}: {
+  moments: SetMoment[];
+  counts: Record<string, number>;
+  onReorder: (m: SetMoment[]) => void;
+  onAdd: (name: string) => void;
+  onRename: (id: string, name: string) => void;
+  onRecolor: (id: string, color: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
+
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const o = moments.findIndex((m) => m.id === active.id);
+    const n = moments.findIndex((m) => m.id === over.id);
+    if (o < 0 || n < 0) return;
+    onReorder(arrayMove(moments, o, n));
+  }
+  function commitAdd(v: string) {
+    if (!v.trim()) return;
+    onAdd(v.trim());
+    setName("");
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-2">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        Momentos
+        <InfoHint>Blocos do set pensados pela pista: Warm-up, Pico, Grand Finale, ou um bloco de gênero. Arraste pra reordenar.</InfoHint>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={moments.map((m) => m.id)} strategy={horizontalListSortingStrategy}>
+            {moments.map((m) => (
+              <MomentChip
+                key={m.id}
+                moment={m}
+                count={counts[m.id] ?? 0}
+                onRename={(v) => onRename(m.id, v)}
+                onRecolor={() => {
+                  const idx = MOMENT_PALETTE.indexOf(m.color ?? "");
+                  onRecolor(m.id, MOMENT_PALETTE[(idx + 1) % MOMENT_PALETTE.length]);
+                }}
+                onDelete={() => void onDelete(m.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+
+        {adding ? (
+          <div className="flex items-center gap-1">
+            <Input
+              className="h-7 w-32 text-xs"
+              value={name}
+              autoFocus
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); commitAdd(name); }
+                if (e.key === "Escape") setAdding(false);
+              }}
+              onBlur={() => { commitAdd(name); setAdding(false); }}
+              placeholder="Nome do momento"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="flex h-7 items-center gap-1 rounded-full border border-dashed px-2.5 text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="h-3 w-3" /> Momento
+          </button>
+        )}
+      </div>
+
+      {moments.length === 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {MOMENT_SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="rounded-full bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+              onClick={() => onAdd(s)}
+            >
+              + {s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MomentChip({
+  moment,
+  count,
+  onRename,
+  onRecolor,
+  onDelete,
+}: {
+  moment: SetMoment;
+  count: number;
+  onRename: (v: string) => void;
+  onRecolor: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: moment.id });
+  const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(moment.name);
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1 rounded-full border bg-background px-1.5 py-0.5 text-xs">
+      <button type="button" className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing" {...attributes} {...listeners} aria-label="Arrastar momento">
+        <GripVertical className="h-3 w-3" />
+      </button>
+      <button
+        type="button"
+        className="h-3 w-3 shrink-0 rounded-full"
+        style={{ background: moment.color ?? "#8b5cf6" }}
+        onClick={onRecolor}
+        aria-label="Trocar cor"
+      />
+      {editing ? (
+        <input
+          className="w-24 bg-transparent text-xs outline-none"
+          value={v}
+          autoFocus
+          onChange={(e) => setV(e.target.value)}
+          onBlur={() => { onRename(v.trim() || moment.name); setEditing(false); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); onRename(v.trim() || moment.name); setEditing(false); }
+            if (e.key === "Escape") { setV(moment.name); setEditing(false); }
+          }}
+        />
+      ) : (
+        <button type="button" className="font-medium" onClick={() => { setV(moment.name); setEditing(true); }}>
+          {moment.name}
+        </button>
+      )}
+      <span className="tabular-nums text-muted-foreground">{count}</span>
+      <button type="button" className="text-muted-foreground hover:text-destructive" onClick={onDelete} aria-label="Excluir momento">
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
+
+function MomentHeader({ moment, count, subtotalSec }: { moment: SetMoment | null; count: number; subtotalSec: number }) {
+  const color = moment?.color ?? "#94a3b8";
+  return (
+    <div className="mb-1 mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color }}>
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
+      {moment ? moment.name : "Sem momento"}
+      <span className="text-muted-foreground">· {count}</span>
+      {subtotalSec > 0 && <span className="ml-auto font-normal normal-case tabular-nums text-muted-foreground">{fmtSetDuration(subtotalSec)}</span>}
+    </div>
+  );
+}
+
+// ── Adder do setlist: busca/manual + tag + momento ───────────────────────────
+function SetlistAdder({
+  library,
+  exclude,
+  moments,
+  onAdd,
+}: {
+  library: LibraryTrack[];
+  exclude: SetItem[];
+  moments: SetMoment[];
+  onAdd: (t: SetTrack, tag: TrackTag, momentId: string | null) => void;
+}) {
+  const [tag, setTag] = useState<TrackTag>("achado");
+  const [momentId, setMomentId] = useState<string | null>(null);
+
+  return (
+    <div className="rounded-lg border bg-card p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="inline-flex overflow-hidden rounded-md border text-xs">
+          {TAG_ORDER.map((t) => {
+            const Icon = TAG_ICON[t];
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTag(t)}
+                className={
+                  "flex items-center gap-1 px-2 py-1 transition " +
+                  (tag === t ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-accent")
+                }
+              >
+                <Icon className="h-3 w-3" /> {TAG_LABEL[t]}
+              </button>
+            );
+          })}
+        </div>
+        {moments.length > 0 && (
+          <select
+            className="h-7 rounded-md border bg-background px-2 text-xs"
+            value={momentId ?? ""}
+            onChange={(e) => setMomentId(e.target.value || null)}
+          >
+            <option value="">Sem momento</option>
+            {moments.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
+        <InfoHint>A tag marca o papel da faixa (achado, inegociável, autoral). O momento agrupa na pista.</InfoHint>
+      </div>
+      <TrackAdder library={library} exclude={exclude} onAdd={(t) => onAdd(t, tag, momentId)} />
     </div>
   );
 }
@@ -514,32 +808,31 @@ function SetlistRow({
   item,
   index,
   isLast,
-  showBlockHeader,
+  moments,
   onUpdate,
   onRemove,
 }: {
   item: SetItem;
   index: number;
   isLast: boolean;
-  showBlockHeader: boolean;
+  moments: SetMoment[];
   onUpdate: (patch: Partial<SetItem>) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const Icon = TAG_ICON[item.tag];
 
   return (
     <li ref={setNodeRef} style={style}>
-      {showBlockHeader && (
-        <div className="mb-1 mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-primary">
-          <span className="h-px flex-1 bg-primary/30" /> {item.block} <span className="h-px flex-1 bg-primary/30" />
-        </div>
-      )}
       <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5">
         <button type="button" className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing" {...attributes} {...listeners} aria-label="Arrastar">
           <GripVertical className="h-4 w-4" />
         </button>
         <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{index + 1}</span>
+        <span title={TAG_LABEL[item.tag]} className="shrink-0">
+          <Icon className={"h-3.5 w-3.5 " + TAG_COLOR[item.tag]} />
+        </span>
         <span className="min-w-0 flex-1 truncate text-sm">
           <span className="font-medium">{item.title}</span>
           {item.artist && <span className="text-muted-foreground"> · {item.artist}</span>}
@@ -552,21 +845,24 @@ function SetlistRow({
         {item.duration_sec != null && (
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTrackDuration(item.duration_sec)}</span>
         )}
-        <Input
-          className="h-7 w-24 text-xs"
-          value={item.block}
-          onChange={(e) => onUpdate({ block: e.target.value })}
-          placeholder="Bloco"
-          title="Nome do bloco (agrupa as faixas seguintes)"
-        />
+        <select
+          className="h-7 max-w-[8rem] shrink-0 rounded border bg-background px-1 text-xs text-muted-foreground"
+          value={item.moment_id ?? ""}
+          onChange={(e) => onUpdate({ moment_id: e.target.value || null })}
+          title="Momento"
+        >
+          <option value="">Sem momento</option>
+          {moments.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
         <button type="button" className="shrink-0 text-muted-foreground hover:text-destructive" onClick={onRemove} aria-label="Remover">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
-      {/* Transição pra próxima faixa (opcional). */}
       {!isLast && (
         <div className="ml-9 flex items-center gap-1.5 py-0.5">
-          <span className="text-[10px] uppercase text-muted-foreground">↳ transição</span>
+          <span className="text-[10px] uppercase text-muted-foreground">↳</span>
           <Input
             className="h-6 flex-1 text-xs"
             value={item.transition}
@@ -580,7 +876,6 @@ function SetlistRow({
 }
 
 // ── Export helpers ────────────────────────────────────────────────────────────
-/** Salva um arquivo de texto via diálogo nativo (mesma lógica do savePdfDoc). */
 async function saveTextFile(content: string, suggestedName: string, ext: string, filterName: string): Promise<boolean> {
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   if (isTauri) {
@@ -593,7 +888,6 @@ async function saveTextFile(content: string, suggestedName: string, ext: string,
     await writeTextFile(path, content);
     return true;
   }
-  // Fallback web: download.
   const blob = new Blob([content], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -604,7 +898,7 @@ async function saveTextFile(content: string, suggestedName: string, ext: string,
   return true;
 }
 
-/** PDF do planejamento (conceito + setlist com blocos/transições + tempo). */
+/** PDF do planejamento agrupado por Momentos. */
 async function printSetPlanPdf(gig: Gig | null, plan: SetPlan): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const { savePdfDoc } = await import("@/lib/savePdf");
@@ -630,14 +924,14 @@ async function printSetPlanPdf(gig: Gig | null, plan: SetPlan): Promise<void> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(90);
-  doc.text(`Tempo estimado do set: ${fmtSetDuration(timing.totalSec)} · ${plan.setlist.length} faixas`, mx, y);
+  doc.text(`Tempo estimado: ${fmtSetDuration(timing.totalSec)} · ${plan.setlist.length} faixas`, mx, y);
   y += 20;
   doc.setDrawColor(210);
   doc.line(mx, y, W - mx, y);
   y += 18;
 
   const paras: [string, string][] = [
-    ["Conceito e intenção", plan.concept],
+    ["Conceito", plan.concept],
     ["Papel na gig", plan.role],
     ["Objetivo", plan.goal],
   ];
@@ -660,48 +954,58 @@ async function printSetPlanPdf(gig: Gig | null, plan: SetPlan): Promise<void> {
     y += 6;
   }
 
-  ensure(24);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.setTextColor(20);
-  doc.text("Setlist", mx, y);
-  y += 18;
+  // Grupos: momentos na ordem + Sem momento no fim.
+  const groups: { name: string; items: SetItem[] }[] = plan.moments.map((m) => ({
+    name: m.name,
+    items: plan.setlist.filter((i) => i.moment_id === m.id),
+  }));
+  const orphans = plan.setlist.filter((i) => i.moment_id == null);
+  if (orphans.length > 0) groups.push({ name: "Sem momento", items: orphans });
 
-  let lastBlock: string | null = null;
-  plan.setlist.forEach((it, i) => {
-    if (it.block.trim() && it.block !== lastBlock) {
-      ensure(20);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(120);
-      doc.text(it.block.toUpperCase(), mx, y);
-      y += 14;
-      lastBlock = it.block;
-    }
-    ensure(16);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(30);
-    const label = `${i + 1}. ${it.title}${it.artist ? ` — ${it.artist}` : ""}`;
-    doc.text(label, mx, y);
-    if (it.duration_sec != null) {
-      doc.setTextColor(150);
-      doc.text(fmtTrackDuration(it.duration_sec), W - mx, y, { align: "right" });
-    }
-    y += 15;
-    if (it.transition.trim()) {
-      ensure(13);
-      doc.setFont("helvetica", "italic");
+  let n = 0;
+  for (const g of groups) {
+    if (g.items.length === 0) continue;
+    ensure(24);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(20);
+    doc.text(g.name.toUpperCase(), mx, y);
+    const sub = g.items.reduce((a, i) => a + (i.duration_sec ?? 0), 0);
+    if (sub > 0) {
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
-      doc.setTextColor(140);
-      const t = doc.splitTextToSize(`↳ ${it.transition}`, W - 2 * mx - 16) as string[];
-      for (const ln of t) {
-        ensure(12);
-        doc.text(ln, mx + 16, y);
-        y += 12;
+      doc.setTextColor(150);
+      doc.text(fmtSetDuration(sub), W - mx, y, { align: "right" });
+    }
+    y += 16;
+    for (const it of g.items) {
+      n += 1;
+      ensure(16);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(30);
+      const label = `${n}. ${it.title}${it.artist ? ` — ${it.artist}` : ""}`;
+      doc.text(label, mx, y);
+      if (it.duration_sec != null) {
+        doc.setTextColor(150);
+        doc.text(fmtTrackDuration(it.duration_sec), W - mx, y, { align: "right" });
+      }
+      y += 15;
+      if (it.transition.trim()) {
+        ensure(13);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(9);
+        doc.setTextColor(140);
+        const t = doc.splitTextToSize(`↳ ${it.transition}`, W - 2 * mx - 16) as string[];
+        for (const ln of t) {
+          ensure(12);
+          doc.text(ln, mx + 16, y);
+          y += 12;
+        }
       }
     }
-  });
+    y += 8;
+  }
 
   const saved = await savePdfDoc(doc, `set-planner-${gig ? gigDisplayName(gig) : "gig"}`);
   if (saved) toast.success("PDF do Set Planner exportado.");
