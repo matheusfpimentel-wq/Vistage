@@ -47,6 +47,7 @@ import {
   type LibraryTrack,
 } from "../library/api";
 import { useScanManager } from "../library/scanManager";
+import { keyColor, toCamelot } from "@/lib/camelot";
 
 const AUDIO_EXTS = ["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "ogg"];
 const ROW_H = 38;
@@ -67,6 +68,7 @@ const ALL_COLS: ColDef[] = [
   { id: "genre", label: "Gênero", width: "minmax(0, 1fr)", sortKey: "genre", editable: "genre" },
   { id: "bpm", label: "BPM", width: "72px", sortKey: "bpm", editable: "bpm", numeric: true },
   { id: "music_key", label: "Tom", width: "80px", sortKey: "music_key", editable: "music_key" },
+  { id: "camelot", label: "Camelot", width: "88px", sortKey: "music_key" },
   { id: "comments", label: "Comentários", width: "minmax(0, 1.6fr)", sortKey: "comments", editable: "comments" },
   { id: "duration_sec", label: "Duração", width: "84px", sortKey: "duration_sec", numeric: true },
   { id: "source", label: "Origem", width: "88px", sortKey: "source" },
@@ -79,12 +81,15 @@ const LOCKED_COL_ID = "title";
 
 const COLS_LS = "vistage.biblioteca.musicas.cols.v1";
 type SortState = { id: string; dir: "asc" | "desc" } | null;
-type ColPrefs = { order: string[]; hidden: string[]; sort: SortState };
+// widths: largura FIXA em px por coluna (override do padrão do grid). Sem entrada
+// = usa a trilha padrão (fr/px do ColDef). Preferência da máquina (localStorage).
+type ColPrefs = { order: string[]; hidden: string[]; sort: SortState; widths: Record<string, number> };
 
 const DEFAULT_PREFS: ColPrefs = {
   order: ALL_COLS.map((c) => c.id),
   hidden: ["duration_sec", "source"],
   sort: null,
+  widths: {},
 };
 
 function loadPrefs(): ColPrefs {
@@ -96,10 +101,15 @@ function loadPrefs(): ColPrefs {
     const known = new Set(ALL_COLS.map((c) => c.id));
     const order = (p.order ?? []).filter((id) => known.has(id));
     for (const c of ALL_COLS) if (!order.includes(c.id)) order.push(c.id);
+    const widths: Record<string, number> = {};
+    for (const [id, w] of Object.entries(p.widths ?? {})) {
+      if (known.has(id) && typeof w === "number" && w >= 48) widths[id] = w;
+    }
     return {
       order,
       hidden: (p.hidden ?? []).filter((id) => known.has(id)),
       sort: p.sort && known.has(p.sort.id) ? p.sort : null,
+      widths,
     };
   } catch {
     return DEFAULT_PREFS;
@@ -195,9 +205,27 @@ export function Musicas() {
   );
 
   const gridTemplate = useMemo(
-    () => `32px 48px ${visibleCols.map((c) => c.width).join(" ")} 36px`,
-    [visibleCols]
+    () =>
+      `32px 48px ${visibleCols
+        .map((c) => (prefs.widths[c.id] != null ? `${prefs.widths[c.id]}px` : c.width))
+        .join(" ")} 36px`,
+    [visibleCols, prefs.widths]
   );
+
+  // Redimensionar coluna: ao vivo (setPrefs) durante o arrasto, persiste no fim.
+  const setColWidthLive = useCallback((id: string, w: number) => {
+    setPrefs((p) => ({ ...p, widths: { ...p.widths, [id]: w } }));
+  }, []);
+  const persistColWidths = useCallback(() => {
+    setPrefs((p) => {
+      try {
+        localStorage.setItem(COLS_LS, JSON.stringify(p));
+      } catch {
+        /* ignora cota */
+      }
+      return p;
+    });
+  }, []);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -504,6 +532,8 @@ export function Musicas() {
                   locked={c.id === LOCKED_COL_ID}
                   dir={prefs.sort?.id === c.id ? prefs.sort.dir : null}
                   onClick={() => onHeaderClick(c)}
+                  onResize={setColWidthLive}
+                  onResizeEnd={persistColWidths}
                 />
               ))}
             </SortableContext>
@@ -560,6 +590,8 @@ export function Musicas() {
                         <span key={c.id} className="status">{fmtDuration(t.duration_sec)}</span>
                       ) : c.id === "source" ? (
                         <span key={c.id} className="status">{t.source === "manual" ? "Manual" : "Pasta"}</span>
+                      ) : c.id === "camelot" ? (
+                        <CamelotCell key={c.id} musicKey={t.music_key} />
                       ) : (
                         <span key={c.id} className="status" />
                       )
@@ -598,22 +630,63 @@ export function Musicas() {
   );
 }
 
-function HeaderCell({ col, locked, dir, onClick }: { col: ColDef; locked?: boolean; dir: "asc" | "desc" | null; onClick: () => void }) {
+function HeaderCell({
+  col,
+  locked,
+  dir,
+  onClick,
+  onResize,
+  onResizeEnd,
+}: {
+  col: ColDef;
+  locked?: boolean;
+  dir: "asc" | "desc" | null;
+  onClick: () => void;
+  onResize: (id: string, w: number) => void;
+  onResizeEnd: () => void;
+}) {
   // Travada (campo principal): mantém a ordenação por clique, mas sem os
   // listeners de arrasto — fica ancorada na posição.
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: col.id, disabled: locked });
+
+  // Arrasto de LARGURA na borda direita. stopPropagation impede o sortable de
+  // iniciar; mede a largura atual da célula (funciona até pras colunas em fr).
+  function onResizeStart(e: React.PointerEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    const cell = (e.currentTarget as HTMLElement).parentElement;
+    if (!cell) return;
+    const startW = cell.getBoundingClientRect().width;
+    const startX = e.clientX;
+    const move = (ev: PointerEvent) => onResize(col.id, Math.max(48, Math.round(startW + (ev.clientX - startX))));
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      onResizeEnd();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
   return (
     <span
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      style={{ transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1, position: "relative" }}
       {...attributes}
       {...(locked ? {} : listeners)}
       onClick={onClick}
-      className="flex cursor-pointer select-none items-center gap-1 hover:text-foreground"
+      className="flex cursor-pointer select-none items-center gap-1 pr-2 hover:text-foreground"
       title={locked ? "Clique pra ordenar" : "Clique pra ordenar · arraste pra reposicionar"}
     >
       {col.label}
       {dir === "asc" ? <ChevronUp className="h-3 w-3" /> : dir === "desc" ? <ChevronDown className="h-3 w-3" /> : null}
+      <span
+        onPointerDown={onResizeStart}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40"
+        title="Arraste pra mudar a largura"
+        aria-hidden
+      />
     </span>
   );
 }
@@ -645,5 +718,26 @@ function Cell({
         if (e.target.value !== initial) onSave(t.id, col, e.target.value);
       }}
     />
+  );
+}
+
+/** Célula Camelot: derivada do Tom (music_key) — chip colorido com o código. */
+function CamelotCell({ musicKey }: { musicKey: string | null }) {
+  const cam = toCamelot(musicKey);
+  const color = keyColor(musicKey);
+  return (
+    <span className="status">
+      {cam ? (
+        <span
+          className="rounded px-1 text-[10px] font-semibold tabular-nums text-white"
+          style={{ backgroundColor: color! }}
+          title={`Camelot ${cam}`}
+        >
+          {cam}
+        </span>
+      ) : (
+        EMPTY_VALUE
+      )}
+    </span>
   );
 }

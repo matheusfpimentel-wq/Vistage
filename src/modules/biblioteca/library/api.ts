@@ -172,6 +172,47 @@ export async function correlate(id: number, filePath: string): Promise<void> {
   emitDataChanged();
 }
 
+/** Extensões de áudio aceitas (espelha AUDIO_EXTS do Rust em audio.rs). */
+export const AUDIO_EXTS = ["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "ogg"];
+
+/**
+ * Vincula um arquivo à Biblioteca e devolve a faixa resultante (com as tags
+ * lidas). Se já existir uma linha com esse caminho, reaproveita; senão CRIA uma
+ * nova a partir das tags. Usado ao vincular áudio a uma faixa do Set Planner —
+ * "cada áudio vinculado alimenta também a Biblioteca".
+ */
+export async function linkFileToLibrary(filePath: string): Promise<LibraryTrack | null> {
+  const db = getDb();
+  const existing = await db.select<LibraryTrack[]>(
+    "SELECT * FROM library_tracks WHERE file_path = $1 LIMIT 1",
+    [filePath]
+  );
+  if (existing[0]) {
+    await db.execute(
+      "UPDATE library_tracks SET file_missing = 0, archived_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [existing[0].id]
+    );
+    emitDataChanged();
+    return { ...existing[0], file_missing: 0, archived_at: null };
+  }
+  const t = await invoke<ScannedTrack>("audio_read_tags", { path: filePath }).catch(() => null);
+  const dur = t?.duration_sec ?? null;
+  const res = await db.execute(
+    `INSERT INTO library_tracks
+       (title, artist, genre, bpm, music_key, comments, file_path, file_missing, duration_sec, match_key, source)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,0,$8,$9,'link')`,
+    [
+      t?.title ?? null, t?.artist ?? null, t?.genre ?? null, parseBpm(t?.bpm ?? null),
+      t?.key ?? null, t?.comments ?? null, filePath, dur, matchKey(t?.artist ?? null, t?.title ?? null, dur),
+    ]
+  );
+  const rows = await db.select<LibraryTrack[]>("SELECT * FROM library_tracks WHERE id = $1", [
+    Number(res.lastInsertId),
+  ]);
+  emitDataChanged();
+  return rows[0] ?? null;
+}
+
 /** Verifica existência dos arquivos em lote → atualiza file_missing. */
 export async function verifyFiles(): Promise<{ missing: number }> {
   const db = getDb();

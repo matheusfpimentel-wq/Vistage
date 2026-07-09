@@ -19,9 +19,11 @@ import {
   AlertTriangle,
   FileDown,
   GripVertical,
+  Link2,
   ListMusic,
   Lock,
   Music4,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -37,7 +39,8 @@ import { InfoHint } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
-import { listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
+import { AUDIO_EXTS, linkFileToLibrary, listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
+import { areHarmonic, keyColor, toCamelot } from "@/lib/camelot";
 import { gigDisplayName } from "../displayName";
 import type { Gig } from "../types";
 import { GigSetlist } from "./GigSetlist";
@@ -49,6 +52,7 @@ import {
   fmtSetDuration,
   fmtTrackDuration,
   manualTrack,
+  parseDurationInput,
   momentSubtotalSec,
   newMoment,
   regroup,
@@ -274,6 +278,9 @@ function TrackAdder({
   const [manualOpen, setManualOpen] = useState(false);
   const [mTitle, setMTitle] = useState("");
   const [mArtist, setMArtist] = useState("");
+  const [mDur, setMDur] = useState("");
+  const [mBpm, setMBpm] = useState("");
+  const [mKey, setMKey] = useState("");
 
   const excludedIds = useMemo(
     () => new Set(exclude.map((t) => t.library_track_id).filter((x): x is number => x != null)),
@@ -294,9 +301,19 @@ function TrackAdder({
       toast.error("Informe ao menos o título.");
       return;
     }
-    onAdd(manualTrack(mTitle, mArtist));
+    const bpmNum = mBpm.trim() ? Number(mBpm) : null;
+    onAdd(
+      manualTrack(mTitle, mArtist, {
+        duration_sec: parseDurationInput(mDur),
+        bpm: bpmNum != null && Number.isFinite(bpmNum) ? bpmNum : null,
+        key: mKey.trim() || null,
+      })
+    );
     setMTitle("");
     setMArtist("");
+    setMDur("");
+    setMBpm("");
+    setMKey("");
     setManualOpen(false);
   }
 
@@ -337,6 +354,18 @@ function TrackAdder({
         <div className="flex flex-wrap items-center gap-1.5">
           <Input className="h-8 w-40 text-sm" value={mTitle} onChange={(e) => setMTitle(e.target.value)} placeholder="Título" autoFocus={autoFocusManual ?? true} />
           <Input className="h-8 w-36 text-sm" value={mArtist} onChange={(e) => setMArtist(e.target.value)} placeholder="Artista" />
+          <Input className="h-8 w-20 text-sm tabular-nums" value={mDur} onChange={(e) => setMDur(e.target.value)} placeholder="mm:ss" title="Duração (mm:ss ou segundos) — opcional" />
+          <Input className="h-8 w-16 text-sm tabular-nums" value={mBpm} onChange={(e) => setMBpm(e.target.value)} placeholder="BPM" inputMode="numeric" title="BPM — opcional" />
+          <div className="relative">
+            <Input className="h-8 w-20 pr-6 text-sm" value={mKey} onChange={(e) => setMKey(e.target.value)} placeholder="Key" title="Tonalidade (ex.: Am, F#m, 8A) — opcional" />
+            {keyColor(mKey) && (
+              <span
+                className="absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: keyColor(mKey)! }}
+                title={`Camelot ${toCamelot(mKey)}`}
+              />
+            )}
+          </div>
           <Button type="button" size="sm" variant="outline" className="h-8" onClick={addManual}>Adicionar</Button>
           <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => setManualOpen(false)}>Cancelar</Button>
         </div>
@@ -515,17 +544,21 @@ function SetlistTab({
                     <p className="px-2 py-1 text-xs text-muted-foreground">Vazio. Use o seletor de momento nas faixas ou adicione acima.</p>
                   ) : (
                     <ol className="space-y-1">
-                      {items.map((item) => (
-                        <SetlistRow
-                          key={item.id}
-                          item={item}
-                          index={plan.setlist.findIndex((i) => i.id === item.id)}
-                          isLast={plan.setlist[plan.setlist.length - 1]?.id === item.id}
-                          moments={plan.moments}
-                          onUpdate={(patch) => updateItem(item.id, patch)}
-                          onRemove={() => removeItem(item.id)}
-                        />
-                      ))}
+                      {items.map((item) => {
+                        const gi = plan.setlist.findIndex((i) => i.id === item.id);
+                        return (
+                          <SetlistRow
+                            key={item.id}
+                            item={item}
+                            index={gi}
+                            isLast={gi === plan.setlist.length - 1}
+                            nextKey={plan.setlist[gi + 1]?.key ?? null}
+                            moments={plan.moments}
+                            onUpdate={(patch) => updateItem(item.id, patch)}
+                            onRemove={() => removeItem(item.id)}
+                          />
+                        );
+                      })}
                     </ol>
                   )}
                 </div>
@@ -820,6 +853,7 @@ function SetlistRow({
   item,
   index,
   isLast,
+  nextKey,
   moments,
   onUpdate,
   onRemove,
@@ -827,6 +861,7 @@ function SetlistRow({
   item: SetItem;
   index: number;
   isLast: boolean;
+  nextKey: string | null;
   moments: SetMoment[];
   onUpdate: (patch: Partial<SetItem>) => void;
   onRemove: () => void;
@@ -834,6 +869,41 @@ function SetlistRow({
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
   const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const Icon = TAG_ICON[item.tag];
+  const [editOpen, setEditOpen] = useState(false);
+
+  const cam = toCamelot(item.key);
+  const camColor = keyColor(item.key);
+  // Harmonia com a PRÓXIMA faixa (Camelot). Só marca quando ambas têm tom.
+  const bothKeys = !!cam && !!toCamelot(nextKey);
+  const harmonic = areHarmonic(item.key, nextKey);
+
+  // Vincula um arquivo de áudio: lê as tags, ALIMENTA a Biblioteca (cria/reusa a
+  // faixa) e SOBRESCREVE os campos da faixa com as tags do arquivo.
+  async function linkAudio() {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const picked = await open({
+        multiple: false,
+        title: "Vincular arquivo de áudio",
+        filters: [{ name: "Áudio", extensions: AUDIO_EXTS }],
+      });
+      if (!picked || Array.isArray(picked)) return;
+      const lib = await linkFileToLibrary(picked);
+      if (!lib) return;
+      onUpdate({
+        library_track_id: lib.id,
+        title: (lib.title ?? "").trim() || item.title,
+        artist: (lib.artist ?? "").trim() || item.artist,
+        duration_sec: lib.duration_sec ?? item.duration_sec,
+        bpm: lib.bpm ?? item.bpm,
+        key: lib.music_key ?? item.key,
+        has_audio: true,
+      });
+      toast.success("Áudio vinculado — a faixa entrou na Biblioteca.");
+    } catch (e) {
+      toast.error(`Não consegui vincular o áudio: ${String(e)}`);
+    }
+  }
 
   return (
     <li ref={setNodeRef} style={style}>
@@ -850,13 +920,40 @@ function SetlistRow({
           {item.artist && <span className="text-muted-foreground"> · {item.artist}</span>}
         </span>
         {!item.has_audio && (
-          <span title="Sem arquivo de áudio vinculado">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <button
+            type="button"
+            onClick={() => void linkAudio()}
+            title="Sem áudio — clique pra vincular um arquivo (lê as tags e alimenta a Biblioteca)"
+            className="shrink-0 text-amber-600 hover:text-foreground"
+            aria-label="Vincular áudio"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {cam && (
+          <span
+            className="shrink-0 rounded px-1 text-[10px] font-semibold tabular-nums text-white"
+            style={{ backgroundColor: camColor! }}
+            title={`Tom ${item.key} · Camelot ${cam}`}
+          >
+            {cam}
           </span>
+        )}
+        {item.bpm != null && (
+          <span className="shrink-0 text-xs tabular-nums text-muted-foreground" title="BPM">{item.bpm}</span>
         )}
         {item.duration_sec != null && (
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTrackDuration(item.duration_sec)}</span>
         )}
+        <button
+          type="button"
+          className={"shrink-0 hover:text-foreground " + (editOpen ? "text-foreground" : "text-muted-foreground")}
+          onClick={() => setEditOpen((o) => !o)}
+          title="Editar duração, BPM e tom"
+          aria-label="Editar metadados"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
         <select
           className="h-7 max-w-[8rem] shrink-0 rounded border bg-background px-1 text-xs text-muted-foreground"
           value={item.moment_id ?? ""}
@@ -872,8 +969,57 @@ function SetlistRow({
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {/* Editor de duração/BPM/tom (opcionais) */}
+      {editOpen && (
+        <div className="ml-9 flex flex-wrap items-center gap-1.5 py-1">
+          <Input
+            key={`dur-${item.duration_sec ?? ""}`}
+            className="h-7 w-20 text-xs tabular-nums"
+            defaultValue={item.duration_sec != null ? fmtTrackDuration(item.duration_sec) : ""}
+            placeholder="mm:ss"
+            title="Duração (mm:ss ou segundos)"
+            onBlur={(e) => onUpdate({ duration_sec: parseDurationInput(e.target.value) })}
+          />
+          <Input
+            className="h-7 w-16 text-xs tabular-nums"
+            value={item.bpm ?? ""}
+            placeholder="BPM"
+            inputMode="numeric"
+            onChange={(e) => {
+              const n = e.target.value.trim() ? Number(e.target.value) : null;
+              onUpdate({ bpm: n != null && Number.isFinite(n) ? n : null });
+            }}
+          />
+          <div className="relative">
+            <Input
+              className="h-7 w-24 pr-6 text-xs"
+              value={item.key ?? ""}
+              placeholder="Tom (ex.: Am, 8A)"
+              onChange={(e) => onUpdate({ key: e.target.value || null })}
+            />
+            {camColor && (
+              <span
+                className="absolute right-1.5 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-1 ring-black/10"
+                style={{ backgroundColor: camColor }}
+                title={cam ? `Camelot ${cam}` : undefined}
+              />
+            )}
+          </div>
+          <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => void linkAudio()}>
+            <Link2 className="mr-1 h-3.5 w-3.5" /> {item.has_audio ? "Trocar áudio" : "Vincular áudio"}
+          </Button>
+        </div>
+      )}
+
       {!isLast && (
         <div className="ml-9 flex items-center gap-1.5 py-0.5">
+          {bothKeys && (
+            <span
+              className={"inline-block h-2 w-2 shrink-0 rounded-full " + (harmonic ? "bg-emerald-500" : "bg-muted-foreground/40")}
+              title={harmonic ? "Transição harmônica (Camelot)" : "Fora da harmonia (Camelot)"}
+            />
+          )}
           <span className="text-[10px] uppercase text-muted-foreground">↳</span>
           <Input
             className="h-6 flex-1 text-xs"
