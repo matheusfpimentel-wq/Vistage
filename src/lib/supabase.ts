@@ -90,12 +90,29 @@ export async function adoptPortableSession(
 ): Promise<boolean> {
   const expired =
     !!sess?.captured_at && Date.now() - sess.captured_at > PORTABLE_SESSION_TTL_MS;
-  const valid = !!sess?.refresh_token && !!sess.access_token && !expired;
+  const fileValid = !!sess?.refresh_token && !!sess.access_token && !expired;
   try {
-    // Sai da conta anterior SEMPRE — a conta é do arquivo, não do computador.
-    // (best-effort: se não havia sessão, signOut é no-op.)
+    // Sessão VIVA da máquina (persistida no webview). Costuma estar MAIS FRESCA
+    // que o snapshot do arquivo: enquanto o app roda, o Supabase rotaciona o
+    // refresh_token, então o que ficou gravado no .vistage no último "Salvar"
+    // pode já estar velho. Preferir a sessão viva é o que faz "abrir já logado"
+    // funcionar no mesmo PC — antes um signOut() cego derrubava ela e punha a
+    // do arquivo (com access_token expirado + refresh rotacionado) → logout.
+    const { data: cur } = await supabase.auth.getSession();
+    const curEmail = cur.session?.user?.email ?? null;
+
+    // Já logado na MESMA conta que o arquivo quer (ou o arquivo não traz conta):
+    // mantém a sessão viva. Nada de deslogar pra recolocar uma cópia mais velha.
+    if (curEmail && (!sess?.email || curEmail === sess.email)) {
+      return true;
+    }
+
+    // Arquivo sem sessão utilizável (nunca sincronizou / expirou o TTL): não
+    // desloga a máquina à toa — segue com a sessão que houver (ou nenhuma).
+    if (!fileValid) return !!curEmail;
+
+    // Conta DIFERENTE no arquivo → troca de fato ("uma conta por arquivo").
     await supabase.auth.signOut().catch(() => {});
-    if (!valid) return false;
     const { error } = await supabase.auth.setSession({
       access_token: sess!.access_token,
       refresh_token: sess!.refresh_token,
