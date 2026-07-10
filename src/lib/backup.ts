@@ -457,6 +457,22 @@ export async function buildBackupData(): Promise<Backup> {
   // de token pela REDE (sem timeout próprio). Limita aqui: sem rede, o salvar não
   // pode ficar eterno só por causa da sessão de sync — segue sem ela.
   const session = (await withTimeout(getPortableSession(), 5000, null)) ?? undefined;
+  // Opt-in "manter login em qualquer PC": se o usuário mandou guardar a senha,
+  // ela vive CIFRADA em app_settings (mobile_sync.secret) e viaja junto da
+  // sessão pra reconectar sozinho numa máquina nova (os tokens rotacionam e
+  // vencem; a senha, não). Chave literal espelha K.secret em mobileSync.ts
+  // (import evitado p/ não puxar o grafo pesado do sync pra dentro do backup).
+  if (session) {
+    try {
+      const rows = await getDb().select<{ value: string | null }[]>(
+        "SELECT value FROM app_settings WHERE key = 'mobile_sync.secret'"
+      );
+      const secret = rows[0]?.value;
+      if (secret && secret.trim()) session.secret = secret.trim();
+    } catch {
+      // sem segredo é o caso normal (opt-in) — segue só com a sessão portátil
+    }
+  }
   return {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -508,6 +524,20 @@ export async function restoreBackupSession(backup: Backup): Promise<void> {
         `INSERT INTO app_settings (key, value) VALUES ('mobile_sync.email', $1)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
         [email.trim()]
+      );
+    }
+    // Reidrata a senha CIFRADA (opt-in "manter login em qualquer PC") no
+    // app_settings desta máquina. Necessário porque o restore PULA app_settings
+    // (MACHINE_TABLES): sem isto, uma máquina nova reconectaria pela senha do
+    // arquivo mas o próximo "Salvar" daqui não reembutiria o segredo — ele
+    // "cairia". Só grava se o arquivo trouxe segredo; nunca apaga o local à toa.
+    // Chave literal espelha K.secret em mobileSync.ts.
+    const secret = backup.session?.secret;
+    if (secret && secret.trim()) {
+      await getDb().execute(
+        `INSERT INTO app_settings (key, value) VALUES ('mobile_sync.secret', $1)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        [secret.trim()]
       );
     }
   } catch {

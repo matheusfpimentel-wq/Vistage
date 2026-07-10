@@ -1,4 +1,5 @@
 import { createClient, type Session, type User } from "@supabase/supabase-js";
+import { decryptSyncSecret } from "./crypto";
 
 // Config PÚBLICA do projeto Vistage na nuvem (protegida por RLS). É a mesma para
 // todos os DJs — cada um faz login na PRÓPRIA conta e o RLS isola as bases.
@@ -55,6 +56,15 @@ export type PortableSession = {
   /** Epoch ms de quando a sessão foi capturada (p/ o TTL). Opcional: arquivos
    *  .vistage antigos não têm — seguem válidos até a próxima gravação. */
   captured_at?: number;
+  /**
+   * Senha de sync CIFRADA (opt-in "manter login em qualquer PC"). Presente só se
+   * o usuário pediu explicitamente. Diferente dos tokens, a senha NÃO expira nem
+   * rotaciona — por isso reconecta numa máquina nova com um signInWithPassword
+   * limpo (sem o fork de refresh_token entre PCs que derrubava a sessão). É
+   * cifrada (crypto.encryptSyncSecret), mas veja o aviso lá: é ofuscação, não
+   * sigilo — a proteção real é criptografar o .vistage inteiro. Ausente = o
+   * usuário optou por NÃO guardar a senha (padrão), só a sessão portátil viaja. */
+  secret?: string | null;
 };
 
 /** Sessão portátil só vale 90 dias desde a captura — defense-in-depth: um
@@ -80,27 +90,74 @@ export async function getPortableSession(): Promise<PortableSession | null> {
 
 /**
  * ADOTA a conta de sync DO ARQUIVO recém-aberto — modelo "uma conta por
- * arquivo": a conta ativa segue o .vistage aberto, não a máquina. SEMPRE desloga
- * a conta anterior — a de outro arquivo — e entra na deste. Se o arquivo não
- * carrega sessão (nunca sincronizou) ou ela expirou, fica DESLOGADO: o usuário
- * loga de novo pra vincular este arquivo a uma conta. Retorna true se conectou.
+ * arquivo": a conta ativa segue o .vistage aberto. Tenta, em ordem: (1) manter a
+ * sessão VIVA se já for da mesma conta; (2) adotar os TOKENS do arquivo se ainda
+ * valerem; (3) — só se o usuário optou por "manter login em qualquer PC" — logar
+ * com a SENHA cifrada guardada no arquivo (cobre máquina nova e tokens vencidos:
+ * a senha não rotaciona, então o login é limpo e independente). Se nada disso
+ * der, fica deslogado e o usuário loga à mão. Retorna true se conectou.
  */
 export async function adoptPortableSession(
   sess: PortableSession | null | undefined
 ): Promise<boolean> {
   const expired =
     !!sess?.captured_at && Date.now() - sess.captured_at > PORTABLE_SESSION_TTL_MS;
-  const valid = !!sess?.refresh_token && !!sess.access_token && !expired;
+  const fileValid = !!sess?.refresh_token && !!sess.access_token && !expired;
   try {
-    // Sai da conta anterior SEMPRE — a conta é do arquivo, não do computador.
-    // (best-effort: se não havia sessão, signOut é no-op.)
-    await supabase.auth.signOut().catch(() => {});
-    if (!valid) return false;
-    const { error } = await supabase.auth.setSession({
-      access_token: sess!.access_token,
-      refresh_token: sess!.refresh_token,
-    });
-    return !error;
+    // Sessão VIVA da máquina (persistida no webview). Costuma estar MAIS FRESCA
+    // que o snapshot do arquivo: enquanto o app roda, o Supabase rotaciona o
+    // refresh_token, então o que ficou gravado no .vistage no último "Salvar"
+    // pode já estar velho. Preferir a sessão viva é o que faz "abrir já logado"
+    // funcionar no mesmo PC — antes um signOut() cego derrubava ela e punha a
+    // do arquivo (com access_token expirado + refresh rotacionado) → logout.
+    const { data: cur } = await supabase.auth.getSession();
+    const curEmail = cur.session?.user?.email ?? null;
+    let signedOut = false;
+
+    // 1) Já logado na MESMA conta que o arquivo quer (ou o arquivo não traz
+    //    conta): mantém a sessão viva — é a mais fresca. Nada de deslogar pra
+    //    recolocar uma cópia mais velha.
+    if (curEmail && (!sess?.email || curEmail === sess.email)) {
+      return true;
+    }
+
+    // 2) Tokens do arquivo ainda válidos → adota direto (sem round-trip de
+    //    login). Se havia outra conta viva, sai antes ("uma conta por arquivo").
+    if (fileValid) {
+      if (curEmail) {
+        await supabase.auth.signOut().catch(() => {});
+        signedOut = true;
+      }
+      const { error } = await supabase.auth.setSession({
+        access_token: sess!.access_token,
+        refresh_token: sess!.refresh_token,
+      });
+      if (!error) return true;
+      // Token velho (rotacionado/revogado numa máquina nova) → tenta a senha.
+    }
+
+    // 3) Sem sessão utilizável, mas o arquivo GUARDA a senha (opt-in explícito):
+    //    login limpo. É o que faz "abrir já logado" funcionar numa MÁQUINA NOVA —
+    //    signInWithPassword cria uma sessão independente, sem herdar (nem forkar)
+    //    o refresh_token do arquivo.
+    if (sess?.secret && sess.email) {
+      const pw = await decryptSyncSecret(sess.secret, sess.email);
+      if (pw) {
+        if (curEmail && curEmail !== sess.email && !signedOut) {
+          await supabase.auth.signOut().catch(() => {});
+          signedOut = true;
+        }
+        const { error } = await supabase.auth.signInWithPassword({
+          email: sess.email,
+          password: pw,
+        });
+        if (!error) return true;
+      }
+    }
+
+    // 4) Nada funcionou: não inventa estado. Se derrubamos a conta anterior por
+    //    causa do "uma conta por arquivo", segue deslogado; senão, o que houver.
+    return !!curEmail && !signedOut;
   } catch {
     return false;
   }

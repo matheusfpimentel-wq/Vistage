@@ -8,7 +8,15 @@ import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { currentUser, signIn, signOut, updatePassword, supabase } from "@/lib/supabase";
-import { getLastSyncAt, getSyncEmail, setSyncEmail, syncNow } from "@/lib/mobileSync";
+import { encryptSyncSecret } from "@/lib/crypto";
+import {
+  getLastSyncAt,
+  getSyncEmail,
+  hasSyncSecret,
+  setSyncEmail,
+  setSyncSecret,
+  syncNow,
+} from "@/lib/mobileSync";
 import { displayDocName, useDocumentStore } from "@/lib/document";
 
 export function MobileSyncSettings() {
@@ -22,6 +30,13 @@ export function MobileSyncSettings() {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [changingPw, setChangingPw] = useState(false);
+  // Opt-in "manter login em qualquer PC": guarda a senha CIFRADA no arquivo pra
+  // reconectar sozinho numa máquina nova. `rememberEverywhere` é a escolha no
+  // formulário de login; `secretStored` reflete se já há senha guardada aqui.
+  const [rememberEverywhere, setRememberEverywhere] = useState(false);
+  const [secretStored, setSecretStored] = useState(false);
+  const [enablePwForm, setEnablePwForm] = useState(false);
+  const [enablePw, setEnablePw] = useState("");
   // A conta de sync é vinculada AO ARQUIVO aberto (não ao computador): abrir
   // outro .vistage troca de conta. Mostra qual arquivo esta conta acompanha.
   const docName = displayDocName(useDocumentStore((s) => s.currentName));
@@ -37,6 +52,10 @@ export function MobileSyncSettings() {
         const savedEmail = u?.email ?? (await getSyncEmail());
         if (savedEmail) setEmail(savedEmail);
         setLastSync(await getLastSyncAt());
+        // Se já há senha guardada neste arquivo, o "manter login" já vem marcado.
+        const stored = await hasSyncSecret();
+        setSecretStored(stored);
+        setRememberEverywhere(stored);
       } finally {
         setLoading(false);
       }
@@ -50,15 +69,29 @@ export function MobileSyncSettings() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  /** Cifra a senha (amarrada ao e-mail) e guarda no arquivo — login automático. */
+  async function persistSecret(mail: string, pw: string) {
+    const packed = await encryptSyncSecret(pw, mail);
+    await setSyncSecret(packed);
+    setSecretStored(true);
+  }
+
   async function handleLogin() {
     if (!email || !password) return;
     setBusy(true);
     try {
       const u = await signIn(email.trim(), password);
       setUserEmail(u.email ?? null);
-      setPassword("");
       // Guarda o e-mail no arquivo pra pré-preencher nas próximas aberturas.
       void setSyncEmail(u.email ?? email.trim());
+      // Opt-in: guarda (ou apaga) a senha cifrada conforme a escolha do usuário.
+      if (rememberEverywhere) {
+        await persistSecret(u.email ?? email.trim(), password).catch(() => {});
+      } else {
+        await setSyncSecret(null);
+        setSecretStored(false);
+      }
+      setPassword("");
       toast.success("Conectado ao Supabase.");
       // sincroniza logo após o login (em segundo plano)
       void syncNow()
@@ -93,7 +126,42 @@ export function MobileSyncSettings() {
     setBusy(true);
     try {
       await signOut();
+      // Desconectar apaga também a senha guardada: senão a próxima abertura
+      // religaria sozinha, contrariando o "sair".
+      await setSyncSecret(null).catch(() => {});
+      setSecretStored(false);
+      setEnablePwForm(false);
       setUserEmail(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Ativa o login automático a partir do estado conectado: confirma a senha
+   *  (valida contra o Supabase) e a guarda cifrada. */
+  async function handleEnableAuto() {
+    if (!userEmail || !enablePw) return;
+    setBusy(true);
+    try {
+      await signIn(userEmail, enablePw); // valida a senha antes de guardar
+      await persistSecret(userEmail, enablePw);
+      setEnablePw("");
+      setEnablePwForm(false);
+      toast.success("Login automático ativado. A senha viaja cifrada no arquivo.");
+    } catch (e) {
+      toast.error(`Senha incorreta: ${(e as Error).message ?? String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Desativa o login automático: apaga a senha guardada neste arquivo. */
+  async function handleDisableAuto() {
+    setBusy(true);
+    try {
+      await setSyncSecret(null);
+      setSecretStored(false);
+      toast.success("Login automático desativado. A senha guardada foi apagada.");
     } finally {
       setBusy(false);
     }
@@ -111,6 +179,11 @@ export function MobileSyncSettings() {
     setChangingPw(true);
     try {
       await updatePassword(newPw);
+      // Se o login automático está ligado, reencripta com a senha NOVA — senão o
+      // segredo guardado ficaria velho e a reconexão em outro PC falharia.
+      if (secretStored && userEmail) {
+        await persistSecret(userEmail, newPw).catch(() => {});
+      }
       toast.success("Senha alterada. Use a nova senha no celular.");
       setNewPw("");
       setConfirmPw("");
@@ -121,6 +194,19 @@ export function MobileSyncSettings() {
       setChangingPw(false);
     }
   }
+
+  // Aviso do tradeoff (aparece no login E no estado conectado): guardar a senha
+  // dá login automático em outro PC, mas transforma o arquivo em credencial.
+  const autoLoginHelp = (
+    <>
+      Guarda sua senha (cifrada) dentro do arquivo .vistage pra reconectar sozinho
+      em outro computador, sem digitar de novo. Como a chave viaja junto do arquivo,
+      quem tiver o .vistage pode reusar esse login — só ative se o arquivo fica com
+      você. Para proteção de verdade, proteja o próprio .vistage com uma senha (aí a
+      senha de sync também fica cifrada por ela). Sem isto, só a sessão viaja e ela
+      pode vencer; com isto, entra sempre.
+    </>
+  );
 
   return (
     <Card>
@@ -161,8 +247,63 @@ export function MobileSyncSettings() {
                   Vinculada a {docName ? <strong>{docName}</strong> : "este documento"}. Abrir outro arquivo
                   .vistage troca pela conta dele.
                 </div>
+                <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
+                  <div className="text-xs">
+                    <div className="flex items-center gap-1 font-medium">
+                      Login automático em qualquer PC
+                      <InfoHint>{autoLoginHelp}</InfoHint>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {secretStored
+                        ? "Ativado: a senha viaja cifrada no arquivo."
+                        : "Desativado: só a sessão viaja."}
+                    </div>
+                  </div>
+                  {secretStored ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleDisableAuto()}
+                      disabled={busy}
+                    >
+                      Desativar
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEnablePwForm((v) => !v)}
+                      disabled={busy}
+                    >
+                      Ativar
+                    </Button>
+                  )}
+                </div>
               </div>
             </IntegrationActions>
+
+            {enablePwForm && !secretStored && (
+              <div className="space-y-2 rounded-md border p-3 sm:max-w-sm">
+                <Label className="text-xs">Confirme sua senha para memorizar</Label>
+                <Input
+                  type="password"
+                  value={enablePw}
+                  autoComplete="current-password"
+                  onChange={(e) => setEnablePw(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleEnableAuto();
+                  }}
+                />
+                <Button
+                  size="sm"
+                  onClick={() => void handleEnableAuto()}
+                  disabled={busy || !enablePw}
+                >
+                  {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Memorizar senha
+                </Button>
+              </div>
+            )}
 
             {showPwForm && (
               <div className="space-y-2 rounded-md border p-3 sm:max-w-sm">
@@ -218,6 +359,18 @@ export function MobileSyncSettings() {
                   if (e.key === "Enter") void handleLogin();
                 }}
               />
+              <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-3.5 w-3.5 accent-primary"
+                  checked={rememberEverywhere}
+                  onChange={(e) => setRememberEverywhere(e.target.checked)}
+                />
+                <span className="flex items-center gap-1">
+                  Manter login em qualquer computador
+                  <InfoHint>{autoLoginHelp}</InfoHint>
+                </span>
+              </label>
             </div>
             <div className="flex items-center gap-1.5">
               <Button onClick={() => void handleLogin()} disabled={busy || !email || !password}>

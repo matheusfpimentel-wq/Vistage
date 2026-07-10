@@ -26,33 +26,28 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { MONTH_NAMES, loadWrapped, type Period, type WrappedData } from "./careerWrapped";
 
 async function exportWrappedPdf(data: WrappedData): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const kit = await import("@/lib/pdfKit");
+  const { savePdfDoc } = await import("@/lib/savePdf");
+  const doc = await kit.createPdf();
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const mx = 48, cr = W - mx;
-  let y = 64;
+  const mx = kit.PDF_MARGIN, cr = W - mx;
+  const accent = kit.accentRgb();
 
-  const h1 = (t: string) => {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(20);
-    doc.text(t, mx, y); y += 30;
-  };
+  let y = kit.pdfHeader(doc, { kicker: "Carreira em números", title: data.periodLabel, accent });
+
   const h2 = (t: string) => {
-    if (y + 24 > H - 48) { doc.addPage(); y = 64; }
-    doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(30);
-    doc.text(t, mx, y); y += 20;
+    if (y + 30 > H - kit.PDF_BOTTOM) { doc.addPage(); y = 64; }
+    y = kit.pdfSection(doc, y, t, accent);
   };
   const kv = (label: string, value: string) => {
-    if (y + 18 > H - 48) { doc.addPage(); y = 64; }
-    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(60);
+    if (y + 18 > H - kit.PDF_BOTTOM) { doc.addPage(); y = 64; }
+    doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(...kit.SOFT);
     doc.text(label, mx, y);
-    doc.setFont("helvetica", "bold"); doc.setTextColor(20);
+    doc.setFont("helvetica", "bold"); doc.setTextColor(...kit.INK);
     doc.text(value, cr, y, { align: "right" });
     y += 17;
   };
-
-  h1(`Carreira em Números — ${data.periodLabel}`);
-  doc.setDrawColor(200); doc.line(mx, y, cr, y); y += 20;
 
   if (data.totalGigs > 0) {
     h2("GIGs"); y -= 4;
@@ -113,16 +108,18 @@ async function exportWrappedPdf(data: WrappedData): Promise<void> {
     y += 10;
     h2("Destaques"); y -= 4;
     for (const h of data.highlights) {
-      if (y + 16 > H - 48) { doc.addPage(); y = 64; }
-      doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(60);
-      doc.text(`• ${h.title}`, mx, y);
-      doc.setFont("helvetica", "normal"); doc.setTextColor(120);
+      if (y + 16 > H - kit.PDF_BOTTOM) { doc.addPage(); y = 64; }
+      kit.drawBullet(doc, mx + 3, y, accent);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10.5); doc.setTextColor(55, 65, 81);
+      doc.text(h.title, mx + 14, y);
+      doc.setTextColor(...kit.FAINT);
       doc.text(h.date, cr, y, { align: "right" });
       y += 16;
     }
   }
 
-  doc.save(`carreira-${data.periodSlug}.pdf`);
+  kit.pdfFooter(doc);
+  await savePdfDoc(doc, `carreira-${data.periodSlug}`);
 }
 
 function StatTile({ icon, label, value, sub, accent = false }: {
