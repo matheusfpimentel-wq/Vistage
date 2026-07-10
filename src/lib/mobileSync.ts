@@ -49,10 +49,15 @@ async function setSetting(key: string, value: string | null): Promise<void> {
 const K = {
   enabled: "mobile_sync.enabled",
   lastSyncAt: "mobile_sync.last_sync_at",
-  // E-mail da conta de sync (só o e-mail — a senha NUNCA é guardada). Serve pra
-  // pré-preencher o campo ao reabrir o arquivo. A chave literal é espelhada em
-  // backup.ts (backfill no open), então mantenha os dois em sincronia.
+  // E-mail da conta de sync. Serve pra pré-preencher o campo ao reabrir o
+  // arquivo. A chave literal é espelhada em backup.ts (backfill no open), então
+  // mantenha os dois em sincronia.
   email: "mobile_sync.email",
+  // Senha de sync CIFRADA (opt-in "manter login em qualquer PC"). Por padrão a
+  // senha NÃO é guardada — esta chave só existe se o usuário pediu. É cifrada
+  // (crypto.encryptSyncSecret) e viaja embutida em backup.session.secret pra
+  // reconectar sozinho numa máquina nova. Chave também espelhada em backup.ts.
+  secret: "mobile_sync.secret",
 } as const;
 
 export async function isSyncEnabled(): Promise<boolean> {
@@ -70,6 +75,18 @@ export async function getSyncEmail(): Promise<string | null> {
 }
 export async function setSyncEmail(email: string | null): Promise<void> {
   await setSetting(K.email, email && email.trim() ? email.trim() : null);
+}
+
+/** Senha de sync cifrada guardada no arquivo (opt-in). null se não guardada. */
+export async function getSyncSecret(): Promise<string | null> {
+  return getSetting(K.secret);
+}
+export async function setSyncSecret(packed: string | null): Promise<void> {
+  await setSetting(K.secret, packed && packed.trim() ? packed.trim() : null);
+}
+/** true se o usuário optou por guardar a senha (login automático em outro PC). */
+export async function hasSyncSecret(): Promise<boolean> {
+  return !!(await getSetting(K.secret));
 }
 
 // ── Helpers de data ─────────────────────────────────────────────────────────

@@ -40,6 +40,12 @@ function b64ToBytes(b64: string): Uint8Array {
   return bytes;
 }
 
+function bytesToB64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
 async function deriveKey(
   password: string,
   salt: Uint8Array,
@@ -204,4 +210,69 @@ export async function decryptBytes(envelope: Uint8Array, password: string): Prom
     throw new Error("Senha incorreta.");
   }
   return new Uint8Array(plain);
+}
+
+// ── Segredo pequeno AUTO-DECIFRÁVEL (senha de sync p/ "abrir já logado") ──────
+// PROPÓSITO E LIMITE — leia antes de confiar nisto:
+// Guarda a senha da sincronização DENTRO do .vistage para reconectar sozinho
+// numa máquina nova (login automático em qualquer PC, opt-in do usuário). Como
+// precisa decifrar em QUALQUER máquina sem digitar nada, a chave é DERIVADA de
+// material que viaja junto (um "pepper" fixo do app + o e-mail da conta). Ou
+// seja: isto é OFUSCAÇÃO, não sigilo forte — quem tiver o arquivo E o código
+// consegue rederivar a chave. O pepper NÃO é segredo (o repositório é público);
+// ele só amarra a derivação a este app e o e-mail evita uma chave universal.
+// Serve para: (a) a senha não ficar em texto puro/grepável no arquivo e
+// (b) herdar DE GRAÇA a cifragem FORTE quando o usuário protege o .vistage
+// inteiro com senha (envelope "VENC" acima) — aí o segredo vai junto, cifrado
+// pela senha do arquivo. A proteção real é criptografar o arquivo; isto é a
+// camada de decência por cima do que já viaja (a própria sessão já é credencial).
+const SYNC_SECRET_PEPPER = "vistage.sync-secret.v1";
+const SYNC_SECRET_ITER = 100_000; // baixo de propósito: roda no boot e o "segredo"
+// da derivação é público — iterar mais não compra sigilo, só custaria latência.
+
+/** Cifra uma string curta (a senha de sync) amarrada ao e-mail. Base64 compacto. */
+export async function encryptSyncSecret(plaintext: string, email: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(
+    `${SYNC_SECRET_PEPPER} ${email.trim().toLowerCase()}`,
+    salt,
+    SYNC_SECRET_ITER
+  );
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv as BufferSource },
+      key,
+      new TextEncoder().encode(plaintext)
+    )
+  );
+  const out = new Uint8Array(16 + 12 + cipher.length);
+  out.set(salt, 0);
+  out.set(iv, 16);
+  out.set(cipher, 28);
+  return bytesToB64(out);
+}
+
+/** Decifra o segredo de sync. Retorna null se falhar (e-mail/arquivo trocados). */
+export async function decryptSyncSecret(packed: string, email: string): Promise<string | null> {
+  try {
+    const bytes = b64ToBytes(packed);
+    if (bytes.length <= 28) return null;
+    const salt = bytes.slice(0, 16);
+    const iv = bytes.slice(16, 28);
+    const cipher = bytes.slice(28);
+    const key = await deriveKey(
+      `${SYNC_SECRET_PEPPER} ${email.trim().toLowerCase()}`,
+      salt,
+      SYNC_SECRET_ITER
+    );
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv as BufferSource },
+      key,
+      cipher as BufferSource
+    );
+    return new TextDecoder().decode(plain);
+  } catch {
+    return null;
+  }
 }
