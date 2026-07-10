@@ -8,11 +8,11 @@ import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
 import { currentUser, signIn, signOut, updatePassword, supabase } from "@/lib/supabase";
-import { encryptSyncSecret } from "@/lib/crypto";
+import { decryptSyncSecret, encryptSyncSecret } from "@/lib/crypto";
 import {
   getLastSyncAt,
   getSyncEmail,
-  hasSyncSecret,
+  getSyncSecret,
   setSyncEmail,
   setSyncSecret,
   syncNow,
@@ -33,7 +33,9 @@ export function MobileSyncSettings() {
   // Opt-in "manter login em qualquer PC": guarda a senha CIFRADA no arquivo pra
   // reconectar sozinho numa máquina nova. `rememberEverywhere` é a escolha no
   // formulário de login; `secretStored` reflete se já há senha guardada aqui.
-  const [rememberEverywhere, setRememberEverywhere] = useState(false);
+  // Vem MARCADO por padrão: o dono quer abrir e só clicar Entrar (a senha
+  // pré-preenchida). Desmarcar volta ao "só a sessão viaja" (senha não guardada).
+  const [rememberEverywhere, setRememberEverywhere] = useState(true);
   const [secretStored, setSecretStored] = useState(false);
   const [enablePwForm, setEnablePwForm] = useState(false);
   const [enablePw, setEnablePw] = useState("");
@@ -46,16 +48,21 @@ export function MobileSyncSettings() {
       try {
         const u = await currentUser();
         setUserEmail(u?.email ?? null);
-        // Pré-preenche o e-mail (a senha não é guardada, por segurança): usa o da
-        // conta conectada ou o último salvo no arquivo. Assim, se a sessão
-        // expirou, o campo já vem preenchido e basta a senha.
+        // Pré-preenche o e-mail: usa o da conta conectada ou o último salvo no
+        // arquivo. Assim, se a sessão expirou, o campo já vem preenchido.
         const savedEmail = u?.email ?? (await getSyncEmail());
         if (savedEmail) setEmail(savedEmail);
         setLastSync(await getLastSyncAt());
-        // Se já há senha guardada neste arquivo, o "manter login" já vem marcado.
-        const stored = await hasSyncSecret();
-        setSecretStored(stored);
-        setRememberEverywhere(stored);
+        // Se o dono optou por guardar a senha, DECIFRA e pré-preenche o campo —
+        // "abrir e só clicar Entrar". O segredo mora em app_settings (persiste
+        // no boot mesmo se o webview perder a sessão), então é mais confiável que
+        // depender da sessão viva. Sem segredo guardado, nada é pré-preenchido.
+        const packed = await getSyncSecret();
+        setSecretStored(!!packed);
+        if (packed && savedEmail) {
+          const pw = await decryptSyncSecret(packed, savedEmail);
+          if (pw) setPassword(pw);
+        }
       } finally {
         setLoading(false);
       }
@@ -199,12 +206,13 @@ export function MobileSyncSettings() {
   // dá login automático em outro PC, mas transforma o arquivo em credencial.
   const autoLoginHelp = (
     <>
-      Guarda sua senha (cifrada) dentro do arquivo .vistage pra reconectar sozinho
-      em outro computador, sem digitar de novo. Como a chave viaja junto do arquivo,
-      quem tiver o .vistage pode reusar esse login — só ative se o arquivo fica com
-      você. Para proteção de verdade, proteja o próprio .vistage com uma senha (aí a
-      senha de sync também fica cifrada por ela). Sem isto, só a sessão viaja e ela
-      pode vencer; com isto, entra sempre.
+      Guarda sua senha (cifrada) dentro do arquivo .vistage. Com isto, ao abrir o
+      app o campo de senha já vem preenchido — é só clicar Entrar — e num
+      computador novo a reconexão acontece sozinha. Como a chave viaja junto do
+      arquivo, quem tiver o .vistage pode reusar esse login: só ative se o arquivo
+      fica com você. Para proteção de verdade, proteja o próprio .vistage com uma
+      senha (aí a senha de sync fica cifrada por ela). Sem isto, só a sessão viaja
+      e ela pode vencer.
     </>
   );
 
@@ -250,12 +258,12 @@ export function MobileSyncSettings() {
                 <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2">
                   <div className="text-xs">
                     <div className="flex items-center gap-1 font-medium">
-                      Login automático em qualquer PC
+                      Lembrar a senha neste arquivo
                       <InfoHint>{autoLoginHelp}</InfoHint>
                     </div>
                     <div className="text-muted-foreground">
                       {secretStored
-                        ? "Ativado: a senha viaja cifrada no arquivo."
+                        ? "Ativado: abre com a senha preenchida (cifrada no arquivo)."
                         : "Desativado: só a sessão viaja."}
                     </div>
                   </div>
@@ -367,7 +375,7 @@ export function MobileSyncSettings() {
                   onChange={(e) => setRememberEverywhere(e.target.checked)}
                 />
                 <span className="flex items-center gap-1">
-                  Manter login em qualquer computador
+                  Lembrar minha senha (abre com o campo preenchido)
                   <InfoHint>{autoLoginHelp}</InfoHint>
                 </span>
               </label>
