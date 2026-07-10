@@ -101,25 +101,23 @@ export function MonthlyReportPage() {
   async function exportPdf() {
     if (!report) return;
     try {
-      const { jsPDF } = await import("jspdf");
-      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const kit = await import("@/lib/pdfKit");
+      const { savePdfDoc } = await import("@/lib/savePdf");
+      const doc = await kit.createPdf();
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const marginX = 48;
+      const marginX = kit.PDF_MARGIN;
       const contentRight = pageWidth - marginX;
+      const accent = kit.accentRgb();
       let y = 64;
 
       function checkPage(needed = 24) {
-        if (y + needed > pageHeight - 48) { doc.addPage(); y = 64; }
+        if (y + needed > pageHeight - kit.PDF_BOTTOM) { doc.addPage(); y = 64; }
       }
 
       const sectionTitle = (label: string) => {
-        checkPage(32);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(13);
-        doc.setTextColor(30);
-        doc.text(label, marginX, y);
-        y += 20;
+        checkPage(34);
+        y = kit.pdfSection(doc, y, label, accent);
       };
 
       const row = (label: string, value: string) => {
@@ -150,13 +148,7 @@ export function MonthlyReportPage() {
       };
 
       // Título
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(18);
-      doc.text(`RELATÓRIO — ${monthLabel.toUpperCase()}`, marginX, y);
-      y += 26;
-      doc.setDrawColor(200);
-      doc.line(marginX, y, contentRight, y);
-      y += 28;
+      y = kit.pdfHeader(doc, { kicker: "Relatório mensal", title: monthLabel, accent });
 
       // Financeiro resumo
       sectionTitle("Financeiro");
@@ -262,14 +254,15 @@ export function MonthlyReportPage() {
 
       // OKRs
       if (okrs.length > 0) {
-        sectionTitle(`OKRs · ${quarterOfMonth(month)}`);
+        sectionTitle(`OKRs (${quarterOfMonth(month)})`);
         for (const o of okrs) {
           const pct = Math.round(okrProgress(o) * 100);
           row(o.objective, `${pct}%`);
         }
       }
 
-      doc.save(`relatorio-${month}.pdf`);
+      kit.pdfFooter(doc);
+      await savePdfDoc(doc, `relatorio-${month}`);
       toast.success("PDF exportado");
     } catch {
       toast.error("Não foi possível exportar o PDF");

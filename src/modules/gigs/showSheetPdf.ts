@@ -1,5 +1,20 @@
 import { toast } from "@/components/ui/toaster";
 import { loadIdentity } from "@/modules/identity/api";
+import { savePdfDoc } from "@/lib/savePdf";
+import {
+  createPdf,
+  pdfHeader,
+  pdfSection,
+  pdfFooter,
+  textDuo,
+  drawBullet,
+  dotJoin,
+  accentRgb,
+  PDF_MARGIN,
+  PDF_BOTTOM,
+  SOFT,
+  FAINT,
+} from "@/lib/pdfKit";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { gigDisplayName } from "./displayName";
 import { parsePrepState, PREP_GROUPS } from "./prep";
@@ -20,8 +35,8 @@ export type ShowSheetExtra = {
 
 /**
  * Gera a Show Sheet (folha de palco) da GIG em PDF — um one-pager com o que
- * importa na hora de tocar. Mesmo motor jsPDF da ata da reunião e da ementa
- * (gera arquivo de verdade, que funciona na webview empacotada do Tauri).
+ * importa na hora de tocar. Chrome do pdfKit: texto sanitizado + separadores
+ * desenhados (nunca viram quadrado) e salvamento pelo diálogo nativo.
  * Cada seção é pulada quando está vazia.
  */
 export async function printShowSheet(gig: Gig, extra: ShowSheetExtra): Promise<void> {
@@ -34,135 +49,100 @@ export async function printShowSheet(gig: Gig, extra: ShowSheetExtra): Promise<v
       // identidade é opcional no cabeçalho
     }
 
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
+    const doc = await createPdf();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const marginX = 48;
-    const contentRight = pageWidth - marginX;
-    const contentWidth = contentRight - marginX;
-    let y = 64;
+    const mx = PDF_MARGIN;
+    const contentWidth = doc.internal.pageSize.getWidth() - mx * 2;
+    const accent = accentRgb();
+
+    const title = gigDisplayName(gig) || "Show Sheet";
+    const dateLabel = formatDate(gig.date);
+    let y = pdfHeader(doc, {
+      kicker: artistName || "Show sheet",
+      title,
+      meta: [dateLabel !== "—" ? dateLabel : null, gig.venue_name, gig.venue_city],
+      accent,
+    });
 
     function checkPage(needed = 24) {
-      if (y + needed > pageHeight - 48) {
+      if (y + needed > pageHeight - PDF_BOTTOM) {
         doc.addPage();
         y = 64;
       }
-    }
-
-    // Cabeçalho: nome do artista (se houver)
-    if (artistName) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(120);
-      doc.text(artistName.toUpperCase(), marginX, y);
-      y += 18;
-    }
-
-    // Título: nome de exibição da GIG
-    const title = gigDisplayName(gig) || "Show Sheet";
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(20);
-    const titleLines = doc.splitTextToSize(title, contentWidth) as string[];
-    doc.text(titleLines, marginX, y);
-    y += titleLines.length * 24;
-
-    // Régua de destaque (cor de marca)
-    doc.setDrawColor(124, 58, 237);
-    doc.setLineWidth(2);
-    doc.line(marginX, y - 6, contentRight, y - 6);
-    doc.setLineWidth(1);
-    y += 14;
-
-    // Meta: data · venue · cidade
-    const venueBits = [gig.venue_name, gig.venue_city].filter(
-      (x): x is string => !!x && x.trim().length > 0
-    );
-    const metaBits = [formatDate(gig.date), venueBits.join(" · ")].filter(
-      (x) => !!x && x.trim().length > 0 && x !== "—"
-    );
-    if (metaBits.length) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(90);
-      doc.text(metaBits.join("  ·  "), marginX, y);
-      y += 16;
     }
 
     // Endereço da venue (se houver)
     if (gig.venue_address && gig.venue_address.trim()) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.setTextColor(110);
+      doc.setTextColor(...SOFT);
       const addrLines = doc.splitTextToSize(gig.venue_address.trim(), contentWidth) as string[];
       for (const line of addrLines) {
         checkPage(14);
-        doc.text(line, marginX, y);
+        doc.text(line, mx, y);
         y += 13;
       }
-    }
-    y += 16;
-
-    // Helper: cabeçalho de seção (pula se não houver conteúdo via early return no caller)
-    function sectionTitle(label: string) {
-      checkPage(30);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.setTextColor(30);
-      doc.text(label, marginX, y);
-      y += 18;
+      y += 12;
     }
 
-    function bodyLine(text: string, indent = 0, size = 11, color = 60) {
+    function bodyLine(text: string, indent = 0, size = 10.5) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(size);
-      doc.setTextColor(color);
+      doc.setTextColor(55, 65, 81);
       const lines = doc.splitTextToSize(text, contentWidth - indent) as string[];
       for (const line of lines) {
         checkPage(16);
-        doc.text(line, marginX + indent, y);
+        doc.text(line, mx + indent, y);
         y += 15;
       }
     }
 
     // Cachê
     if ((gig.cache_amount ?? 0) > 0) {
-      sectionTitle("Cachê");
+      checkPage(36);
+      y = pdfSection(doc, y, "Cachê", accent);
       bodyLine(formatCurrency(gig.cache_amount));
-      y += 14;
+      y += 12;
     }
 
-    // Contato do dia
+    // Contato do dia (nome · telefone com pontinho desenhado)
     if (extra.dayContactName && extra.dayContactName.trim()) {
-      sectionTitle("Contato do dia");
-      const contact = extra.dayContactPhone
-        ? `${extra.dayContactName} · ${extra.dayContactPhone}`
-        : extra.dayContactName;
-      bodyLine(contact);
-      y += 14;
+      checkPage(36);
+      y = pdfSection(doc, y, "Contato do dia", accent);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      doc.setTextColor(55, 65, 81);
+      dotJoin(doc, [extra.dayContactName, extra.dayContactPhone ?? ""], mx, y, FAINT);
+      y += 27;
     }
 
     // Set / horários
     const slots = extra.slots.filter((s) => s.start || s.end);
     if (slots.length > 0) {
-      sectionTitle("Set / horários");
-      const slotText = slots
-        .map((s) => (s.start && s.end ? `${s.start}–${s.end}` : s.start || s.end))
-        .join("  ·  ");
-      bodyLine(slotText);
-      y += 14;
+      checkPage(36);
+      y = pdfSection(doc, y, "Set / horários", accent);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      doc.setTextColor(55, 65, 81);
+      const slotTexts = slots.map((s) => (s.start && s.end ? `${s.start}-${s.end}` : s.start || s.end || ""));
+      dotJoin(doc, slotTexts, mx, y, FAINT);
+      y += 27;
     }
 
-    // Setlist
+    // Setlist (título · artista com pontinho desenhado)
     if (extra.tracks.length > 0) {
-      sectionTitle("Setlist");
+      checkPage(36);
+      y = pdfSection(doc, y, "Setlist", accent);
       extra.tracks.forEach((t, i) => {
-        const artist = t.artist?.trim();
-        const label = artist ? `${t.title} — ${artist}` : t.title;
-        bodyLine(`${i + 1}. ${label}`, 0, 10, 70);
+        checkPage(16);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(...FAINT);
+        doc.text(String(i + 1), mx + 12, y, { align: "right" });
+        textDuo(doc, mx + 20, y, contentWidth - 20, t.title, t.artist?.trim());
+        y += 15;
       });
-      y += 14;
+      y += 12;
     }
 
     // Preparação (apenas itens feitos)
@@ -171,29 +151,53 @@ export async function printShowSheet(gig: Gig, extra: ShowSheetExtra): Promise<v
       .filter((it) => prepState[it.id] === 1)
       .map((it) => it.label);
     if (doneLabels.length > 0) {
-      sectionTitle("Preparação");
+      checkPage(36);
+      y = pdfSection(doc, y, "Preparação", accent);
       for (const label of doneLabels) {
-        bodyLine(`• ${label}`, 0, 10, 70);
+        checkPage(14);
+        drawBullet(doc, mx + 3, y, accent);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(55, 65, 81);
+        doc.text(label, mx + 14, y);
+        y += 14;
       }
-      y += 14;
+      y += 12;
     }
 
     // VIP / cortesias
     const vipLists = extra.vipLists.filter((l) => l.members.length > 0);
     if (vipLists.length > 0) {
-      sectionTitle("VIP / cortesias");
+      checkPage(36);
+      y = pdfSection(doc, y, "VIP / cortesias", accent);
       for (const list of vipLists) {
-        bodyLine(list.name, 0, 11, 40);
-        list.members.forEach((m, i) => bodyLine(`${i + 1}. ${m}`, 12, 10, 70));
+        checkPage(16);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(55, 65, 81);
+        doc.text(list.name, mx, y);
+        y += 15;
+        list.members.forEach((m, i) => {
+          checkPage(14);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.setTextColor(...FAINT);
+          doc.text(String(i + 1), mx + 22, y, { align: "right" });
+          doc.setTextColor(55, 65, 81);
+          doc.text(m, mx + 30, y);
+          y += 14;
+        });
         y += 6;
       }
-      y += 8;
     }
+
+    pdfFooter(doc, artistName || "Vistage");
 
     const safe =
       title.trim().toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") ||
       "gig";
-    doc.save(`show-sheet-${safe}.pdf`);
+    const saved = await savePdfDoc(doc, `show-sheet-${safe}`);
+    if (saved) toast.success(`Show Sheet salva: show-sheet-${safe}.pdf`);
   } catch (e) {
     toast.error(`Não foi possível gerar a Show Sheet: ${String(e)}`);
   }

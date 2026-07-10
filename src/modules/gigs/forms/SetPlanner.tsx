@@ -41,6 +41,7 @@ import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { AUDIO_EXTS, linkFileToLibrary, listTracks, type LibraryTrack } from "@/modules/biblioteca/library/api";
 import { areHarmonic, keyColor, toCamelot } from "@/lib/camelot";
+import type { Rgb } from "@/lib/pdfKit";
 import { gigDisplayName } from "../displayName";
 import type { Gig } from "../types";
 import { GigSetlist } from "./GigSetlist";
@@ -1056,38 +1057,38 @@ async function saveTextFile(content: string, suggestedName: string, ext: string,
   return true;
 }
 
-/** PDF do planejamento agrupado por Momentos. */
+/** PDF do planejamento agrupado por Momentos — chrome do pdfKit: separadores e
+ *  marcadores DESENHADOS (nunca viram quadrado), momentos com a cor salva,
+ *  chip Camelot colorido por faixa e rodapé com página. */
 async function printSetPlanPdf(gig: Gig | null, plan: SetPlan): Promise<void> {
-  const { jsPDF } = await import("jspdf");
   const { savePdfDoc } = await import("@/lib/savePdf");
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const kit = await import("@/lib/pdfKit");
+  const doc = await kit.createPdf();
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const mx = 48;
-  let y = 60;
+  const mx = kit.PDF_MARGIN;
   const timing = computeSetTiming(plan);
+  const accent = kit.accentRgb();
+
+  let y = kit.pdfHeader(doc, {
+    kicker: "Set Planner",
+    title: gig ? gigDisplayName(gig) : "GIG",
+    meta: [
+      `Tempo estimado: ${fmtSetDuration(timing.totalSec)}`,
+      `${plan.setlist.length} faixa${plan.setlist.length === 1 ? "" : "s"}`,
+      plan.avg_transition_min > 0 ? `transição média ${plan.avg_transition_min} min` : null,
+    ],
+    accent,
+  });
 
   const ensure = (need: number) => {
-    if (y + need > H - 48) {
+    if (y + need > H - kit.PDF_BOTTOM) {
       doc.addPage();
-      y = 60;
+      y = 64;
     }
   };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(20);
-  doc.text(`Set Planner — ${gig ? gigDisplayName(gig) : "GIG"}`, mx, y);
-  y += 22;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(90);
-  doc.text(`Tempo estimado: ${fmtSetDuration(timing.totalSec)} · ${plan.setlist.length} faixas`, mx, y);
-  y += 20;
-  doc.setDrawColor(210);
-  doc.line(mx, y, W - mx, y);
-  y += 18;
-
+  // Conceito / papel / objetivo
   const paras: [string, string][] = [
     ["Conceito", plan.concept],
     ["Papel na gig", plan.role],
@@ -1097,74 +1098,97 @@ async function printSetPlanPdf(gig: Gig | null, plan: SetPlan): Promise<void> {
     if (!val.trim()) continue;
     ensure(40);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(40);
-    doc.text(label, mx, y);
-    y += 15;
+    doc.setFontSize(9);
+    doc.setTextColor(...kit.SOFT);
+    doc.text(label.toUpperCase(), mx, y, { charSpace: 0.8 });
+    y += 13;
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(70);
+    doc.setFontSize(10.5);
+    doc.setTextColor(55, 65, 81);
     const lines = doc.splitTextToSize(val, W - 2 * mx) as string[];
     for (const ln of lines) {
       ensure(14);
       doc.text(ln, mx, y);
       y += 14;
     }
-    y += 6;
+    y += 8;
   }
+  if (paras.some(([, v]) => v.trim())) y += 4;
 
-  // Grupos: momentos na ordem + Sem momento no fim.
-  const groups: { name: string; items: SetItem[] }[] = plan.moments.map((m) => ({
+  // Grupos: momentos na ordem (cada um com a própria cor) + Sem momento no fim.
+  const groups: { name: string; color: Rgb | null; items: SetItem[] }[] = plan.moments.map((m) => ({
     name: m.name,
+    color: m.color ? kit.hexToRgb(m.color) : null,
     items: plan.setlist.filter((i) => i.moment_id === m.id),
   }));
   const orphans = plan.setlist.filter((i) => i.moment_id == null);
-  if (orphans.length > 0) groups.push({ name: "Sem momento", items: orphans });
+  if (orphans.length > 0) groups.push({ name: "Sem momento", color: null, items: orphans });
+
+  // Colunas fixas à direita: [chip Camelot][BPM][duração]
+  const durRight = W - mx;
+  const bpmRight = W - mx - 36;
+  const chipW = 26;
+  const chipLeft = W - mx - 66 - chipW;
+  const textX = mx + 24;
+  const textMaxW = chipLeft - 10 - textX;
 
   let n = 0;
   for (const g of groups) {
     if (g.items.length === 0) continue;
-    ensure(24);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(20);
-    doc.text(g.name.toUpperCase(), mx, y);
+    ensure(34);
     const sub = g.items.reduce((a, i) => a + (i.duration_sec ?? 0), 0);
-    if (sub > 0) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(150);
-      doc.text(fmtSetDuration(sub), W - mx, y, { align: "right" });
-    }
-    y += 16;
+    y = kit.pdfSection(doc, y, g.name, g.color ?? accent, sub > 0 ? fmtSetDuration(sub) : undefined);
     for (const it of g.items) {
       n += 1;
-      ensure(16);
+      ensure(18);
+      // nº da faixa (coluna estreita, alinhado à direita)
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor(30);
-      const label = `${n}. ${it.title}${it.artist ? ` — ${it.artist}` : ""}`;
-      doc.text(label, mx, y);
+      doc.setFontSize(9.5);
+      doc.setTextColor(...kit.FAINT);
+      doc.text(String(n), mx + 14, y, { align: "right" });
+      // coluna direita: duração, BPM e chip Camelot colorido
       if (it.duration_sec != null) {
-        doc.setTextColor(150);
-        doc.text(fmtTrackDuration(it.duration_sec), W - mx, y, { align: "right" });
+        doc.text(fmtTrackDuration(it.duration_sec), durRight, y, { align: "right" });
       }
-      y += 15;
+      if (it.bpm != null) {
+        doc.setFontSize(9);
+        doc.text(String(it.bpm), bpmRight, y, { align: "right" });
+      }
+      const cam = toCamelot(it.key);
+      if (cam) {
+        const hsl = keyColor(it.key);
+        const c = (hsl && kit.parseHsl(hsl)) || accent;
+        doc.setFillColor(...c);
+        doc.roundedRect(chipLeft, y - 8, chipW, 11, 2.5, 2.5, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text(cam, chipLeft + chipW / 2, y - 0.5, { align: "center" });
+        doc.setFont("helvetica", "normal");
+      }
+      // título · artista com ponto desenhado
+      doc.setFontSize(10.5);
+      kit.textDuo(doc, textX, y, textMaxW, it.title, it.artist);
+      y += 16;
       if (it.transition.trim()) {
         ensure(13);
         doc.setFont("helvetica", "italic");
         doc.setFontSize(9);
-        doc.setTextColor(140);
-        const t = doc.splitTextToSize(`↳ ${it.transition}`, W - 2 * mx - 16) as string[];
-        for (const ln of t) {
+        doc.setTextColor(...kit.FAINT);
+        const t = doc.splitTextToSize(it.transition, W - 2 * mx - 40) as string[];
+        t.forEach((ln, i) => {
           ensure(12);
-          doc.text(ln, mx + 16, y);
+          if (i === 0) kit.drawElbow(doc, textX, y, kit.FAINT);
+          doc.text(ln, textX + 12, y);
           y += 12;
-        }
+        });
+        doc.setFont("helvetica", "normal");
       }
     }
-    y += 8;
+    y += 10;
   }
 
+  kit.pdfFooter(doc);
   const saved = await savePdfDoc(doc, `set-planner-${gig ? gigDisplayName(gig) : "gig"}`);
   if (saved) toast.success("PDF do Set Planner exportado.");
 }

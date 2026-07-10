@@ -222,66 +222,56 @@ export function briefingToMarkdown(b: Briefing): string {
   return out.join("\n");
 }
 
-/** Exporta o briefing em PDF (jsPDF), com marca d'água "rascunho" se aplicável. */
+/** Exporta o briefing em PDF com o chrome do pdfKit (texto sanitizado, marcadores
+ *  desenhados — nada de "quadrado") e marca d'água "rascunho" se aplicável. */
 export async function exportBriefingPdf(b: Briefing): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const kit = await import("@/lib/pdfKit");
+  const doc = await kit.createPdf();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const marginX = 48;
-  const contentW = pageW - marginX * 2;
-  let y = 64;
-  const checkPage = (needed = 20) => {
-    if (y + needed > pageH - 48) { doc.addPage(); y = 64; if (b.draft) watermark(); }
-  };
+  const mx = kit.PDF_MARGIN;
+  const contentW = pageW - mx * 2;
+  const accent = kit.accentRgb();
+
   const watermark = () => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(64);
-    doc.setTextColor(235);
+    doc.setTextColor(235, 235, 235);
     doc.text("RASCUNHO", pageW / 2, pageH / 2, { align: "center", angle: 30 });
-    doc.setTextColor(20);
   };
   if (b.draft) watermark();
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.setTextColor(20);
-  const titleLines = doc.splitTextToSize(b.title, contentW) as string[];
-  doc.text(titleLines, marginX, y);
-  y += titleLines.length * 22;
+  // O subtítulo vira meta com pontinhos desenhados ("Briefing" já está no kicker).
+  const metaParts = b.subtitle.split(" · ").filter((p) => p.trim() && p.trim() !== "Briefing");
+  let y = kit.pdfHeader(doc, { kicker: "Briefing", title: b.title, meta: metaParts, accent });
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(120);
-  const subLines = doc.splitTextToSize(b.subtitle, contentW) as string[];
-  doc.text(subLines, marginX, y);
-  y += subLines.length * 14 + 8;
-
-  doc.setDrawColor(210);
-  doc.line(marginX, y, pageW - marginX, y);
-  y += 22;
+  const checkPage = (needed = 20) => {
+    if (y + needed > pageH - kit.PDF_BOTTOM) {
+      doc.addPage();
+      y = 64;
+      if (b.draft) watermark();
+    }
+  };
 
   for (const sec of b.sections) {
-    checkPage(30);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(30);
-    doc.text(sec.heading, marginX, y);
-    y += 18;
+    checkPage(34);
+    y = kit.pdfSection(doc, y, sec.heading, accent);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(60);
+    doc.setFontSize(10.5);
     for (const line of sec.lines) {
-      const wrapped = doc.splitTextToSize(`•  ${line}`, contentW - 8) as string[];
-      for (const w of wrapped) {
+      const wrapped = doc.splitTextToSize(line, contentW - 14) as string[];
+      wrapped.forEach((w, i) => {
         checkPage(15);
-        doc.text(w, marginX, y);
+        if (i === 0) kit.drawBullet(doc, mx + 3, y, accent);
+        doc.setTextColor(55, 65, 81);
+        doc.text(w, mx + 14, y);
         y += 15;
-      }
+      });
     }
-    y += 10;
+    y += 12;
   }
 
+  kit.pdfFooter(doc);
   const safe = b.title.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "briefing";
   await savePdfDoc(doc, `briefing-${safe}`);
 }

@@ -41,71 +41,49 @@ export function riderToText(items: RiderItem[], partyTitle: string, partyDate: s
 }
 
 export async function printRiderPdf(items: RiderItem[], partyTitle: string, partyDate: string | null): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  const pageWidth = doc.internal.pageSize.getWidth();
+  const kit = await import("@/lib/pdfKit");
+  const { savePdfDoc } = await import("@/lib/savePdf");
+  const doc = await kit.createPdf();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 48;
-  const contentRight = pageWidth - marginX;
-  const contentWidth = contentRight - marginX;
-  let y = 64;
+  const mx = kit.PDF_MARGIN;
+  const contentWidth = doc.internal.pageSize.getWidth() - mx * 2;
+  const accent = kit.accentRgb();
+
+  let y = kit.pdfHeader(doc, {
+    kicker: "Rider técnico",
+    title: partyTitle || "Festa",
+    meta: [partyDate ? formatDate(partyDate) : null],
+    accent,
+  });
 
   function checkPage(needed = 24) {
-    if (y + needed > pageHeight - 48) {
+    if (y + needed > pageHeight - kit.PDF_BOTTOM) {
       doc.addPage();
       y = 64;
     }
   }
 
-  // Título
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
-  doc.setTextColor(20);
-  const title = `Rider técnico — ${partyTitle || "Festa"}`;
-  const titleLines = doc.splitTextToSize(title, contentWidth) as string[];
-  doc.text(titleLines, marginX, y);
-  y += titleLines.length * 24;
-
-  // Régua de destaque
-  doc.setDrawColor(124, 58, 237);
-  doc.setLineWidth(2);
-  doc.line(marginX, y - 6, contentRight, y - 6);
-  doc.setLineWidth(1);
-  y += 14;
-
-  if (partyDate) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(90);
-    doc.text(formatDate(partyDate), marginX, y);
-    y += 18;
-  }
-
   for (const { category, rows } of groupByCategory(items)) {
-    checkPage(30);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(40);
-    doc.text(category, marginX, y);
-    y += 16;
-
+    checkPage(34);
+    y = kit.pdfSection(doc, y, category, accent);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(60);
+    doc.setFontSize(10.5);
     for (const r of rows) {
-      const qty = r.quantity && r.quantity > 1 ? `${r.quantity}× ` : "";
+      const qty = r.quantity && r.quantity > 1 ? `${r.quantity}x ` : "";
       const by = r.by ? `  (${r.by})` : "";
-      const text = `•  ${qty}${r.item}${by}`;
-      const wrapped = doc.splitTextToSize(text, contentWidth - 12) as string[];
-      for (const line of wrapped) {
+      const wrapped = doc.splitTextToSize(`${qty}${r.item}${by}`, contentWidth - 14) as string[];
+      wrapped.forEach((line, i) => {
         checkPage(14);
-        doc.text(line, marginX + 12, y);
+        if (i === 0) kit.drawBullet(doc, mx + 3, y, accent);
+        doc.setTextColor(55, 65, 81);
+        doc.text(line, mx + 14, y);
         y += 14;
-      }
+      });
     }
-    y += 10;
+    y += 12;
   }
 
+  kit.pdfFooter(doc);
   const safe = (partyTitle || "festa").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "festa";
-  doc.save(`rider-${safe}.pdf`);
+  await savePdfDoc(doc, `rider-${safe}`);
 }
