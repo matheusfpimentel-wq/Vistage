@@ -35,12 +35,23 @@
 
 html, body, #root { height: 100%; margin: 0; }
 
+/* O html é quem pinta o "canvas" (letterbox/overscroll do WebKit). Sem isto, a
+   área fora do viewport aparece PRETA no iOS em vez da cor do app. */
+html { background: var(--bg); }
+
 body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 16px;
   overscroll-behavior-y: none;
+  /* iOS standalone (PWA instalado) + status bar translúcida: o WebKit calcula
+     100% como "tela MENOS a barra de status" e pinta a partir do topo — sobra
+     uma FAIXA PRETA embaixo com a altura do inset do notch/Dynamic Island e a
+     tabbar (fixed, bottom: 0) flutua acima dela. Esticar o documento nessa
+     mesma medida faz a página cobrir a tela física inteira. Fora do iOS
+     standalone o env() é 0 e nada muda. */
+  min-height: calc(100% + env(safe-area-inset-top));
 }
 
 /* Aurora de fundo — blobs de cor suaves e fixos atrás de tudo. É isso que dá
