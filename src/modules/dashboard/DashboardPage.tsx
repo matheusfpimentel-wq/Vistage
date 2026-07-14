@@ -63,6 +63,7 @@ import type { ClassSession } from "@/modules/classes/types";
 import { EMPTY_VALUE, formatCurrency, formatDate, formatRating, todayISO, toLocalISODate } from "@/lib/format";
 import { useHiddenModules } from "@/lib/moduleVisibility";
 import type { ChartPeriod } from "@/modules/dashboard/charts";
+import { RitualsCard } from "@/modules/productivity/RitualsCard";
 
 // Recharts (~150kb) só carrega quando o painel Financeiro é expandido.
 const FinanceDashboard = lazy(() =>
@@ -189,6 +190,7 @@ export function DashboardPage() {
       <TabsContent value="overview" className="space-y-6">
         {data ? (
           <>
+            <RitualsCard />
             <KpiRow data={data} hidden={hidden} />
             <div className="grid gap-4 lg:grid-cols-2">
               {!hidden.has("/gigs") && <GigsCard data={data} />}
