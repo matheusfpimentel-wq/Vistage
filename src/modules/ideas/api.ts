@@ -43,7 +43,11 @@ export type IdeaFilters = {
 
 export async function listIdeas(filters: IdeaFilters = {}): Promise<Idea[]> {
   const db = getDb();
-  const where: string[] = [];
+  // Ideias que JÁ ganharam um fim (converted_id) saem da lista principal e vão
+  // pra aba "Executadas" — o backlog "a executar" fica só com o que falta fazer.
+  // Vale para todos os consumidores (mural, colisão, provocação, links): ideia
+  // executada é "resolvida", não candidata a novo trabalho.
+  const where: string[] = ["converted_id IS NULL"];
   const params: unknown[] = [];
 
   if (filters.category && filters.category !== "Todas") {
@@ -75,6 +79,27 @@ export async function listIdeas(filters: IdeaFilters = {}): Promise<Idea[]> {
   // Sort estável → empate preserva a ordem do SQL (updated_at DESC).
   ideas.sort((a, b) => (b.currentHeat ?? b.heat) - (a.currentHeat ?? a.heat));
   return ideas;
+}
+
+/**
+ * Banco de ideias EXECUTADAS: as que já ganharam um fim (converted_id não nulo).
+ * Alimenta a aba "Executadas" — cada uma com o selo do que virou + link. Ordena
+ * pelas mais recentes (a execução mais nova primeiro). Aceita busca por texto.
+ */
+export async function listExecutedIdeas(search = ""): Promise<Idea[]> {
+  const db = getDb();
+  const where: string[] = ["converted_id IS NOT NULL"];
+  const params: unknown[] = [];
+  if (search.trim().length > 0) {
+    const q = `%${search.trim()}%`;
+    params.push(q, q);
+    where.push(`(title LIKE $${params.length - 1} OR body LIKE $${params.length})`);
+  }
+  const rows = await db.select<IdeaRow[]>(
+    `SELECT * FROM ideas WHERE ${where.join(" AND ")} ORDER BY updated_at DESC`,
+    params
+  );
+  return rows.map(rowToIdea);
 }
 
 export async function createIdea(input: IdeaCreateInput): Promise<number> {
@@ -150,19 +175,38 @@ export async function deleteIdea(id: number): Promise<void> {
   emitDataChanged();
 }
 
-/** Registra o alvo da conversão. A maturação 'Pronta' acumula as convertidas. */
+/**
+ * Registra o FIM da ideia (o que ela virou). NÃO mexe na maturação de propósito:
+ * "Pronta" = pronta pra executar (Eixo B), enquanto ter um fim (converted_id) é a
+ * dimensão separada de "já executada". A ideia sai da lista principal e entra na
+ * aba "Executadas" por causa do converted_id, não do status.
+ */
 export async function markIdeaAsConverted(
   ideaId: number,
   to: IdeaConversion,
   newId: number
 ): Promise<void> {
-  const db = getDb();
-  await db.execute(
-    `UPDATE ideas SET converted_to = $1, converted_id = $2, maturation = 'Pronta',
-                      updated_at = CURRENT_TIMESTAMP
+  await getDb().execute(
+    `UPDATE ideas SET converted_to = $1, converted_id = $2, updated_at = CURRENT_TIMESTAMP
       WHERE id = $3`,
     [to, newId, ideaId]
   );
+  emitDataChanged();
+}
+
+/**
+ * Desfaz o fim: a ideia volta pro backlog "a executar" (sai da aba Executadas).
+ * NÃO apaga o que ela gerou (a GIG/track/doc/nota continuam lá) — só solta o
+ * vínculo, reaquecendo o relógio pra ela voltar viva à lista.
+ */
+export async function reopenIdea(id: number): Promise<void> {
+  await getDb().execute(
+    `UPDATE ideas SET converted_to = NULL, converted_id = NULL,
+                      updated_at = CURRENT_TIMESTAMP, last_touched_at = CURRENT_TIMESTAMP
+      WHERE id = $1`,
+    [id]
+  );
+  emitDataChanged();
 }
 
 // ============================================================

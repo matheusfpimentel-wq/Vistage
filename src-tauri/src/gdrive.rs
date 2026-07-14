@@ -112,6 +112,50 @@ pub fn gdrive_upload(
         .ok_or_else(|| "Resposta sem id ao subir arquivo".to_string())
 }
 
+/// Cria um Google Doc NATIVO (editável) a partir de HTML — o Drive converte o
+/// HTML no upload. Usado quando uma ideia vira um Documento: semeia um rascunho
+/// editável na pasta designada. Devolve os metadados (com webViewLink p/ abrir e
+/// guardar no cache). Reaproveita o mesmo escopo de escrita já usado no upload.
+#[tauri::command]
+pub fn gdrive_create_doc(
+    access_token: String,
+    parent_id: String,
+    name: String,
+    html: String,
+) -> Result<DriveFile, String> {
+    const GOOGLE_DOC_MIME: &str = "application/vnd.google-apps.document";
+    let boundary = "vistage_drive_boundary_7f3a91";
+    // meta.mimeType = ALVO (Google Doc); a PARTE de mídia vem como text/html →
+    // o Drive converte o HTML num Doc nativo. É a diferença pro gdrive_upload,
+    // que grava o arquivo cru sem conversão (mesma mime nos dois lados).
+    let meta = serde_json::json!({
+        "name": name,
+        "mimeType": GOOGLE_DOC_MIME,
+        "parents": [parent_id],
+    });
+
+    let mut body: Vec<u8> = Vec::with_capacity(html.len() + 512);
+    body.extend_from_slice(
+        format!("--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n").as_bytes(),
+    );
+    body.extend_from_slice(meta.to_string().as_bytes());
+    body.extend_from_slice(
+        format!("\r\n--{boundary}\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n").as_bytes(),
+    );
+    body.extend_from_slice(html.as_bytes());
+    body.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    let resp = ureq::post(
+        "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,webViewLink,modifiedTime",
+    )
+    .set("Authorization", &format!("Bearer {access_token}"))
+    .set("Content-Type", &format!("multipart/related; boundary={boundary}"))
+    .send_bytes(&body)
+    .map_err(|e| format!("Falha ao criar documento no Drive: {e}"))?;
+    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+    Ok(parse_file(&v))
+}
+
 /// Um arquivo dentro de uma pasta do Drive (Biblioteca de Documentos).
 #[derive(serde::Serialize)]
 pub struct DriveFile {

@@ -112,6 +112,18 @@ export async function createNote(folderId: number | null = null): Promise<number
   return Number(res.lastInsertId);
 }
 
+/** Cria uma nota JÁ com título + corpo (HTML). Usado pela conversão
+ *  "ideia → Conhecimento". Recalcula backlinks/tags do corpo via saveNote. */
+export async function createNoteWithContent(
+  title: string,
+  bodyHtml: string,
+  folderId: number | null = null
+): Promise<number> {
+  const id = await createNote(folderId);
+  await saveNote(id, title, bodyHtml);
+  return id;
+}
+
 export async function deleteNote(id: number): Promise<void> {
   // CASCADE limpa note_note_tags e note_links (origem e destino).
   await getDb().execute("DELETE FROM notes WHERE id = $1", [id]);

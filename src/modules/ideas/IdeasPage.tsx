@@ -23,13 +23,16 @@ import { IdeaList } from "./views/IdeaList";
 import { IdeaKanban } from "./views/IdeaKanban";
 import { IdeaBoard } from "./views/IdeaBoard";
 import { IdeaResurfaceView } from "./views/IdeaResurfaceView";
+import { IdeaExecutedView } from "./views/IdeaExecutedView";
 import { InsightDie } from "./InsightDie";
 import {
   deleteIdea,
   getIdea,
+  listExecutedIdeas,
   listIdeas,
   listResurfaceIdeas,
   markIdeaAsConverted,
+  reopenIdea,
   updateIdea,
   type IdeaFilters,
 } from "./api";
@@ -62,6 +65,7 @@ export function IdeasPage() {
   const [tab, setTab] = useModuleView<string>("ideas", "board");
   const [items, setItems] = useState<Idea[]>([]);
   const [resurface, setResurface] = useState<Idea[]>([]);
+  const [executed, setExecuted] = useState<Idea[]>([]);
   const [filters, setFilters] = useState<{
     category: CategoryFilter;
     maturation: MaturationFilter;
@@ -90,10 +94,15 @@ export function IdeasPage() {
   );
 
   const refresh = useCallback(async () => {
-    const [data, res] = await Promise.all([listIdeas(queryFilters), listResurfaceIdeas()]);
+    const [data, res, done] = await Promise.all([
+      listIdeas(queryFilters),
+      listResurfaceIdeas(),
+      listExecutedIdeas(filters.search),
+    ]);
     setItems(data);
     setResurface(res);
-  }, [queryFilters]);
+    setExecuted(done);
+  }, [queryFilters, filters.search]);
 
   useEffect(() => {
     void refresh();
@@ -175,6 +184,13 @@ export function IdeasPage() {
     // Marca/desmarca a ideia como quente (máx ↔ morna como padrão neutro).
     const next: IdeaHeat = i.heat === IDEA_HEAT_MAX ? IDEA_HEAT_NEUTRAL : IDEA_HEAT_MAX;
     await updateIdea({ id: i.id, heat: next });
+    await refresh();
+  }
+
+  async function handleReopen(i: Idea) {
+    // Desfaz o fim: a ideia volta pro backlog (sai da aba Executadas).
+    await reopenIdea(i.id);
+    toast.success(`"${i.title}" reaberta`);
     await refresh();
   }
 
@@ -267,7 +283,10 @@ export function IdeasPage() {
         }
       />
 
-      {items.length === 0 && filters.search === "" ? (
+      {items.length === 0 &&
+      executed.length === 0 &&
+      resurface.length === 0 &&
+      filters.search === "" ? (
         <div className="flex flex-col items-center gap-3 rounded-md border border-dashed p-12 text-center">
           <Lightbulb className="h-9 w-9 text-muted-foreground/60" />
           <Button size="sm" onClick={openCreate}>
@@ -291,6 +310,14 @@ export function IdeasPage() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="executadas">
+              Executadas
+              {executed.length > 0 && (
+                <span className="ml-1.5 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+                  {executed.length}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="board">
@@ -311,6 +338,15 @@ export function IdeasPage() {
               onEdit={openEdit}
               onChanged={() => void refresh()}
               onCollide={(i) => openCollision({ id: i.id, title: i.title })}
+            />
+          </TabsContent>
+
+          <TabsContent value="executadas">
+            <IdeaExecutedView
+              items={executed}
+              onEdit={openEdit}
+              onReopen={(i) => void handleReopen(i)}
+              onDelete={(id) => void handleDeleteById(id)}
             />
           </TabsContent>
         </Tabs>

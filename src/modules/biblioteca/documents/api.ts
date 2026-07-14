@@ -4,6 +4,7 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
+  createDriveDoc,
   deleteDriveFile,
   listDriveFolder,
   uploadToDriveFolder,
@@ -130,6 +131,38 @@ async function ensureDriveDoc(f: DriveFile): Promise<number> {
     [f.id, f.name, f.mime_type, f.web_view_link, f.modified_time]
   );
   return Number(res.lastInsertId);
+}
+
+/**
+ * Cria um Google Doc NATIVO (editável) a partir de HTML na pasta designada de
+ * Documentos, cacheia em drive_documents e devolve o id LOCAL + o arquivo (com
+ * link). Usado pela conversão "ideia → Documento". Lança se não houver pasta
+ * designada (o chamador avisa o usuário pra configurar a Biblioteca › Documentos).
+ */
+export async function createDocFromHtml(
+  name: string,
+  html: string
+): Promise<{ localId: number; file: DriveFile }> {
+  const folderId = await getDocFolderId();
+  if (!folderId) {
+    throw new Error(
+      "Defina a pasta de Documentos em Biblioteca › Documentos antes de gerar um documento."
+    );
+  }
+  const file = await createDriveDoc(folderId, name, html);
+  const localId = await ensureDriveDoc(file);
+  emitDataChanged();
+  return { localId, file };
+}
+
+/** Link web (Drive) de um documento pelo id LOCAL (drive_documents.id). Usado
+ *  pela aba Executadas pra abrir o Doc que a ideia virou. */
+export async function getDocDriveLink(localId: number): Promise<string | null> {
+  const rows = await getDb().select<{ web_view_link: string | null }[]>(
+    "SELECT web_view_link FROM drive_documents WHERE id = $1",
+    [localId]
+  );
+  return rows[0]?.web_view_link ?? null;
 }
 
 export type { EntityLinkType, EntityOption };

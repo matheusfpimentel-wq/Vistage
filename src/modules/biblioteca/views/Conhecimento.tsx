@@ -29,7 +29,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { RichNoteEditor } from "../components/RichNoteEditor";
 import { NoteMindMap } from "../components/NoteMindMap";
 import { Button } from "@/components/ui/button";
@@ -110,6 +110,23 @@ export function Conhecimento() {
   const [hidden, setHidden] = useState<HiddenViews>(loadHiddenViews);
   const [view, setView] = useModuleView<string>("conhecimento-view", "notas");
   const [graph, setGraph] = useState<NoteGraph>({ nodes: [], edges: [] });
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Deep-link ?note=<id> (ex.: "Executadas" nas Ideias abrindo a nota que a
+  // ideia virou): seleciona a nota na visão de notas e limpa o param.
+  useEffect(() => {
+    const n = searchParams.get("note");
+    if (!n) return;
+    const id = Number(n);
+    if (Number.isFinite(id)) {
+      setView("notas");
+      setSelectedId(id);
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("note");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const loadGraph = useCallback(async () => {
     try {
