@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Music2, FileText, NotebookPen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModuleView } from "@/lib/moduleView";
@@ -10,6 +12,14 @@ export function BibliotecaPage() {
     "biblioteca",
     "conhecimento"
   );
+  // Deep-link ?tab= (ex.: vindo de "Executadas" nas Ideias, abrindo a nota
+  // resultante em Conhecimento). Só força a aba na chegada; o ?note= é lido lá.
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t === "musicas" || t === "documentos" || t === "conhecimento") setTab(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   return (
     <div className="space-y-4">

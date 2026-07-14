@@ -30,7 +30,17 @@ export const IDEA_HEAT_MAX = 5;
 /** Nível "neutro" pra onde o atalho de quente volta ao desmarcar. */
 export const IDEA_HEAT_NEUTRAL = 3;
 
-export type IdeaConversion = "task" | "content" | "gig" | "track";
+export type IdeaConversion = "task" | "content" | "gig" | "track" | "document" | "note";
+
+/** Rótulo do FIM (o que a ideia virou) — usado no selo da aba Executadas. */
+export const IDEA_CONVERSION_LABELS: Record<IdeaConversion, string> = {
+  task: "Tarefa",
+  content: "Conteúdo",
+  gig: "GIG",
+  track: "Produção musical",
+  document: "Documento",
+  note: "Conhecimento",
+};
 
 /** Procedência da ideia (de onde ela nasceu) — dimensão de rastreabilidade. */
 export const IDEA_SOURCES = [

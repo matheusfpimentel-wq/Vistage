@@ -158,6 +158,17 @@ export async function uploadToDriveFolder(
   return invoke<string>("gdrive_upload", { accessToken: token, parentId: folderId, name, contentB64, mime });
 }
 
+/** Cria um Google Doc NATIVO (editável) a partir de HTML numa pasta do Drive.
+ *  Devolve os metadados (com web_view_link p/ abrir e guardar no cache). */
+export async function createDriveDoc(
+  folderId: string,
+  name: string,
+  html: string
+): Promise<DriveFile> {
+  const token = await getValidToken();
+  return invoke<DriveFile>("gdrive_create_doc", { accessToken: token, parentId: folderId, name, html });
+}
+
 /** Exclui um arquivo do Drive pelo id (requer escopo de escrita). */
 export async function deleteDriveFile(fileId: string): Promise<void> {
   const token = await getValidToken();

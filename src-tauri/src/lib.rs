@@ -52,6 +52,7 @@ pub fn run() {
             gcal::gcal_list_events,
             gdrive::gdrive_ensure_folder,
             gdrive::gdrive_upload,
+            gdrive::gdrive_create_doc,
             gdrive::gdrive_download,
             gdrive::gdrive_delete,
             gdrive::gdrive_list_folder,

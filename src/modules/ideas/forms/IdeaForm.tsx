@@ -48,6 +48,8 @@ import {
 } from "../types";
 import { createContent } from "@/modules/content/api";
 import { createTask } from "@/modules/tasks/api";
+import { createDocFromHtml, openDoc } from "@/modules/biblioteca/documents/api";
+import { createNoteWithContent } from "@/modules/biblioteca/notesApi";
 import { getDb } from "@/lib/db";
 import { useUnsavedConfirm } from "@/lib/dirty";
 import { onEnterSave } from "@/lib/formEnter";
@@ -138,7 +140,24 @@ const CONVERSION_OPTIONS = [
   { label: "Produção musical", converted_to: "track" as const, description: null },
   { label: "Conteúdo", converted_to: "content" as const, description: null },
   { label: "Aula", converted_to: "task" as const, description: "Aula" },
+  { label: "Documento", converted_to: "document" as const, description: null },
+  { label: "Conhecimento", converted_to: "note" as const, description: null },
 ];
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Corpo (texto puro da ideia) → HTML: parágrafos por linha em branco, <br> nas
+ *  quebras simples. Serve tanto pro Google Doc quanto pra nota do Conhecimento. */
+function bodyToHtml(body: string | null | undefined): string {
+  const text = (body ?? "").trim();
+  if (!text) return "<p></p>";
+  return text
+    .split(/\n{2,}/)
+    .map((par) => `<p>${escapeHtml(par).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
 
 export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onConvertToEntity, onDelete }: Props) {
   const [state, setStateRaw] = useState<IdeaCreateInput>(EMPTY);
@@ -331,6 +350,23 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
         });
         await markIdeaAsConverted(idea.id, "task", taskId);
         toast.success(`Convertida em Tarefa: ${option.label}`);
+      } else if (option.converted_to === "document") {
+        // Cria um Google Doc NATIVO (título + corpo da ideia) na pasta de
+        // Documentos e abre no navegador. Requer Drive + pasta designada.
+        const title = state.title.trim() || "Documento";
+        const html = `<h1>${escapeHtml(title)}</h1>${bodyToHtml(state.body)}`;
+        const { localId, file } = await createDocFromHtml(title, html);
+        await markIdeaAsConverted(idea.id, "document", localId);
+        if (file.web_view_link) void openDoc(file.web_view_link);
+        toast.success("Convertida em Documento (Google Doc criado)");
+      } else if (option.converted_to === "note") {
+        // Cria uma nota no Conhecimento (título + corpo da ideia). É local.
+        const noteId = await createNoteWithContent(
+          state.title.trim() || "Nota",
+          bodyToHtml(state.body)
+        );
+        await markIdeaAsConverted(idea.id, "note", noteId);
+        toast.success("Convertida em Conhecimento (nota criada)");
       } else if (option.converted_to === "gig" || option.converted_to === "track") {
         // Abre o formulário REAL da entidade — a IdeasPage marca a conversão
         // (com o id verdadeiro) quando o usuário salvar.
