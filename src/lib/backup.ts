@@ -118,6 +118,9 @@ const TABLES = [
   "document_links",          // drive_document_id → drive_documents
   "document_groups",         // Documentos — grupos locais (não toca no Drive)
   "document_group_members",  // drive_file_id (PK) → group_id → document_groups (CASCADE)
+  // ── Produtividade (rituais) ────────────────────────────────────────────────
+  "priorities",              // Top 3 do dia/semana — task_id → tasks (anulável, DEFERRED_FK)
+  "journal_entries",         // reflexão do dia/semana (sem deps)
 ] as const;
 
 type TableName = (typeof TABLES)[number];
@@ -929,6 +932,9 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   // adiado p/ a 2ª passagem, descartando referência órfã em vez de quebrar.
   performance_weak_points: { gig_id: "gigs" },
   performance_moments: { gig_id: "gigs" },
+  // Top 3: task_id é anulável (ON DELETE SET NULL) — se a tarefa vinculada sumir,
+  // a prioridade sobrevive como texto livre (referência órfã vira NULL).
+  priorities: { task_id: "tasks" },
 };
 
 export async function restoreBackup(backup: Backup): Promise<{
