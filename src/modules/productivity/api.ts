@@ -170,6 +170,17 @@ export async function listOpenTasksToday(): Promise<OpenTask[]> {
   );
 }
 
+/** Tarefas ESTRITAMENTE atrasadas (vencidas antes de hoje) — passo da revisão. */
+export async function listOverdueTasks(): Promise<OpenTask[]> {
+  return getDb().select<OpenTask[]>(
+    `SELECT id, title, due_date, priority, status FROM tasks
+      WHERE status NOT IN ('Concluída', 'Cancelada')
+        AND due_date IS NOT NULL AND due_date < $1
+      ORDER BY due_date ASC`,
+    [todayISO()]
+  );
+}
+
 /** Candidatas pro picker do Top 3 — abertas, vencimento primeiro. */
 export async function listTaskCandidates(limit = 60): Promise<OpenTask[]> {
   return getDb().select<OpenTask[]>(
