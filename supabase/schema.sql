@@ -257,6 +257,32 @@ drop trigger if exists trg_bump on public.tasks_mirror;
 create trigger trg_bump after insert or update or delete on public.tasks_mirror
   for each row execute function public.bump_sync_rev();
 
+-- ── Leitura: Top 3 do dia/semana (produtividade → "Top 3 de hoje" no celular) ─
+-- Snapshot dos itens do Top 3 (ritual de encerramento + revisão semanal). O
+-- celular lê scope='day' + target_date=hoje; marcar concluído é feito no desktop.
+create table if not exists public.priorities_mirror (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  source_id   text not null,                       -- id local do item
+  scope       text not null,                       -- 'day' | 'week'
+  target_date date not null,                       -- YYYY-MM-DD (o dia, ou a 2ª-feira)
+  sort        integer not null default 0,
+  title       text not null,
+  done        boolean not null default false,
+  updated_at  timestamptz not null default now(),
+  unique (user_id, source_id)
+);
+create index if not exists idx_priorities_user on public.priorities_mirror (user_id);
+
+alter table public.priorities_mirror enable row level security;
+drop policy if exists "own rows" on public.priorities_mirror;
+create policy "own rows" on public.priorities_mirror
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop trigger if exists trg_bump on public.priorities_mirror;
+create trigger trg_bump after insert or update or delete on public.priorities_mirror
+  for each row execute function public.bump_sync_rev();
+
 -- ============================================================================
 -- Web push (resumo diário + lembretes + foco) — Fase 4
 -- ============================================================================
