@@ -57,6 +57,7 @@ pub fn run() {
             gdrive::gdrive_delete,
             gdrive::gdrive_list_folder,
             gdrive::gdrive_file_meta,
+            gdrive::gdrive_rename,
             audio::audio_scan_folder,
             audio::audio_scan_folder_bg,
             audio::audio_read_tags,

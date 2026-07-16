@@ -223,6 +223,26 @@ pub fn gdrive_delete(access_token: String, file_id: String) -> Result<(), String
     Ok(())
 }
 
+/// Renomeia um arquivo do Drive pelo id. Requer escopo de escrita (`drive`).
+/// Devolve os metadados atualizados (com o novo nome).
+#[tauri::command]
+pub fn gdrive_rename(
+    access_token: String,
+    file_id: String,
+    name: String,
+) -> Result<DriveFile, String> {
+    let url = format!(
+        "https://www.googleapis.com/drive/v3/files/{}?fields=id,name,mimeType,webViewLink,modifiedTime",
+        url_encode(&file_id)
+    );
+    let resp = ureq::request("PATCH", &url)
+        .set("Authorization", &format!("Bearer {access_token}"))
+        .send_json(serde_json::json!({ "name": name }))
+        .map_err(|e| format!("Falha ao renomear arquivo do Drive: {e}"))?;
+    let v: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+    Ok(parse_file(&v))
+}
+
 /// Baixa um arquivo do Drive pelo id. Devolve o conteúdo em base64.
 #[tauri::command]
 pub fn gdrive_download(access_token: String, file_id: String) -> Result<String, String> {

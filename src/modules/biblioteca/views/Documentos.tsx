@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Eye,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -32,6 +33,7 @@ import {
   listFolderDocs,
   openDoc,
   removeLink,
+  renameDoc,
   renameDocGroup,
   setDocFolderId,
   setDocGroup,
@@ -40,6 +42,7 @@ import {
   type DocLink,
   type DriveFile,
 } from "../documents/api";
+import { PdfViewerDialog } from "../documents/PdfViewerDialog";
 
 export function Documentos() {
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -53,6 +56,7 @@ export function Documentos() {
   // Grupos LOCAIS (não tocam no Drive): document_groups + membership por drive_file_id.
   const [groups, setGroups] = useState<DocGroup[]>([]);
   const [memberships, setMemberships] = useState<Record<string, number>>({});
+  const [viewerFile, setViewerFile] = useState<DriveFile | null>(null);
 
   const reloadGroups = useCallback(async () => {
     const [gs, mem] = await Promise.all([listDocGroups(), groupMemberships()]);
@@ -232,8 +236,15 @@ export function Documentos() {
           onDelete={(f) => void handleDelete(f)}
           onAssignGroup={(fileId, gid) => void assignGroup(fileId, gid)}
           onGroupsChanged={() => void reloadGroups()}
+          onOpenViewer={setViewerFile}
+          onReloadFiles={() => { if (folderId) void loadFiles(folderId); }}
         />
       )}
+
+      <PdfViewerDialog
+        file={viewerFile}
+        onOpenChange={(o) => { if (!o) setViewerFile(null); }}
+      />
     </div>
   );
 }
@@ -249,6 +260,8 @@ function GroupedDocs({
   onDelete,
   onAssignGroup,
   onGroupsChanged,
+  onOpenViewer,
+  onReloadFiles,
 }: {
   files: DriveFile[];
   groups: DocGroup[];
@@ -258,6 +271,8 @@ function GroupedDocs({
   onDelete: (f: DriveFile) => void;
   onAssignGroup: (fileId: string, groupId: number | null) => void;
   onGroupsChanged: () => void;
+  onOpenViewer: (f: DriveFile) => void;
+  onReloadFiles: () => void;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [newOpen, setNewOpen] = useState(false);
@@ -346,6 +361,8 @@ function GroupedDocs({
           onToggle={() => onToggleFile(f.id)}
           onDelete={() => onDelete(f)}
           onSetGroup={(gid) => onAssignGroup(f.id, gid)}
+          onOpenViewer={() => onOpenViewer(f)}
+          onRenamed={onReloadFiles}
         />
       ))}
     </ul>
@@ -468,6 +485,8 @@ function DocRow({
   onToggle,
   onDelete,
   onSetGroup,
+  onOpenViewer,
+  onRenamed,
 }: {
   file: DriveFile;
   groups: DocGroup[];
@@ -476,6 +495,8 @@ function DocRow({
   onToggle: () => void;
   onDelete: () => void;
   onSetGroup: (groupId: number | null) => void;
+  onOpenViewer: () => void;
+  onRenamed: () => void;
 }) {
   const [links, setLinks] = useState<DocLink[]>([]);
   // Seletor Tipo → Entidade (vínculo polimórfico a qualquer entidade).
@@ -483,6 +504,22 @@ function DocRow({
   const [options, setOptions] = useState<EntityOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [entityId, setEntityId] = useState<string>("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(file.name);
+  const isPdf = file.mime_type === "application/pdf";
+
+  async function saveRename() {
+    const name = renameValue.trim();
+    setRenaming(false);
+    if (!name || name === file.name) return;
+    try {
+      await renameDoc(file.id, name);
+      toast.success("Arquivo renomeado.");
+      onRenamed();
+    } catch (e) {
+      toast.error(`Não consegui renomear: ${String(e)}`);
+    }
+  }
 
   const reloadLinks = useCallback(() => {
     void linksForDoc(file.id).then(setLinks);
@@ -525,9 +562,23 @@ function DocRow({
     <li className="rounded-md border">
       <div className="flex items-center gap-2 p-2.5">
         <FileText className={"h-4 w-4 shrink-0 " + (isFolder(file.mime_type) ? "text-amber-500" : "text-muted-foreground")} />
-        <button className="flex-1 truncate text-left text-sm hover:underline" onClick={onToggle} title={file.name}>
-          {file.name}
-        </button>
+        {renaming ? (
+          <input
+            autoFocus
+            className="h-7 flex-1 rounded-md border bg-background px-2 text-sm"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void saveRename();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            onBlur={() => void saveRename()}
+          />
+        ) : (
+          <button className="flex-1 truncate text-left text-sm hover:underline" onClick={onToggle} title={file.name}>
+            {file.name}
+          </button>
+        )}
         {canGroup && (
           <select
             className="h-7 max-w-[9rem] rounded-md border bg-background px-1.5 text-xs text-muted-foreground"
@@ -541,9 +592,26 @@ function DocRow({
             ))}
           </select>
         )}
+        {isPdf && !renaming && (
+          <button className="text-primary" title="Visualizar PDF" onClick={onOpenViewer}>
+            <Eye className="h-4 w-4" />
+          </button>
+        )}
         {file.web_view_link && (
           <button className="text-primary" title="Abrir no Drive" onClick={() => void openDoc(file.web_view_link)}>
             <ExternalLink className="h-4 w-4" />
+          </button>
+        )}
+        {!isFolder(file.mime_type) && !renaming && (
+          <button
+            className="text-muted-foreground hover:text-foreground"
+            title="Renomear"
+            onClick={() => {
+              setRenameValue(file.name);
+              setRenaming(true);
+            }}
+          >
+            <Pencil className="h-4 w-4" />
           </button>
         )}
         {!isFolder(file.mime_type) && (

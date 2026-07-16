@@ -175,6 +175,13 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
   await invoke("gdrive_delete", { accessToken: token, fileId });
 }
 
+/** Renomeia um arquivo do Drive pelo id (requer escopo de escrita). Devolve os
+ *  metadados atualizados (com o novo nome). */
+export async function renameDriveFile(fileId: string, name: string): Promise<DriveFile> {
+  const token = await getValidToken();
+  return invoke<DriveFile>("gdrive_rename", { accessToken: token, fileId, name });
+}
+
 // ── Pastas (raiz "Vistage" + subpasta por módulo, em português) ───────────────
 const folderCache = new Map<string, string>();
 

@@ -6,7 +6,9 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import {
   createDriveDoc,
   deleteDriveFile,
+  downloadMediaFromDrive,
   listDriveFolder,
+  renameDriveFile,
   uploadToDriveFolder,
   type DriveFile,
 } from "@/lib/gdrive";
@@ -110,6 +112,23 @@ export async function deleteDoc(driveFileId: string): Promise<void> {
     await db.execute("DELETE FROM drive_documents WHERE id = $1", [rows[0].id]);
   }
   emitDataChanged();
+}
+
+/** Renomeia o arquivo NO DRIVE (não é só um rótulo local) e sincroniza o cache
+ *  drive_documents, se houver. Devolve os metadados atualizados. */
+export async function renameDoc(driveFileId: string, name: string): Promise<DriveFile> {
+  const file = await renameDriveFile(driveFileId, name.trim());
+  await getDb().execute(
+    "UPDATE drive_documents SET name = $1, cached_at = CURRENT_TIMESTAMP WHERE drive_file_id = $2",
+    [file.name, driveFileId]
+  );
+  emitDataChanged();
+  return file;
+}
+
+/** Baixa os bytes do arquivo (base64) — usado pelo visor de PDF embutido. */
+export async function downloadDocB64(driveFileId: string): Promise<string> {
+  return downloadMediaFromDrive(driveFileId);
 }
 
 /** Garante uma linha no cache drive_documents (sem apagar associações) e devolve o id local. */
