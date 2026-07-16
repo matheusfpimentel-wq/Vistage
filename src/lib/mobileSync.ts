@@ -540,6 +540,31 @@ async function buildTasks(uid: string) {
   }));
 }
 
+// ── Top 3 do dia/semana (produtividade → "Top 3 de hoje" no celular) ────────
+// Espelha os itens do ritual de encerramento / revisão semanal a partir de hoje
+// (dia atual + amanhã já montado à noite + semana). O celular filtra scope+data.
+async function buildPriorities(uid: string) {
+  const db = getDb();
+  const today = toLocalISODate(new Date());
+  const rows = await db.select<
+    { id: number; scope: string; target_date: string; sort: number; title: string; done: number }[]
+  >(
+    `SELECT id, scope, target_date, sort, title, done FROM priorities
+      WHERE target_date >= $1
+      ORDER BY scope, target_date, sort`,
+    [today]
+  );
+  return rows.map((p) => ({
+    user_id: uid,
+    source_id: String(p.id),
+    scope: p.scope,
+    target_date: p.target_date,
+    sort: p.sort,
+    title: p.title,
+    done: !!p.done,
+  }));
+}
+
 // ── Catálogo pesquisável (consulta no celular) ──────────────────────────────
 type CatalogRow = {
   user_id: string;
@@ -1043,13 +1068,14 @@ export async function pushMirror(): Promise<void> {
   if (!user) throw new Error("Não autenticado no Supabase.");
   const uid = user.id;
 
-  const [agenda, finance, cooling, focus, catalog, tasks, alerts, provocations, strategy, career] = await Promise.all([
+  const [agenda, finance, cooling, focus, catalog, tasks, priorities, alerts, provocations, strategy, career] = await Promise.all([
     buildAgenda(uid),
     buildFinance(uid),
     buildCooling(uid),
     buildFocus(uid),
     buildCatalog(uid),
     buildTasks(uid),
+    buildPriorities(uid),
     buildAlerts(uid),
     buildProvocations(uid),
     buildStrategy(uid),
@@ -1086,6 +1112,12 @@ export async function pushMirror(): Promise<void> {
   await supabase.from("tasks_mirror").delete().eq("user_id", uid);
   if (tasks.length) {
     const { error } = await supabase.from("tasks_mirror").insert(tasks);
+    if (error) throw error;
+  }
+  // Top 3 do dia/semana (produtividade): snapshot.
+  await supabase.from("priorities_mirror").delete().eq("user_id", uid);
+  if (priorities.length) {
+    const { error } = await supabase.from("priorities_mirror").insert(priorities);
     if (error) throw error;
   }
   // alertas (sininho = MESMOS do PC): snapshot.

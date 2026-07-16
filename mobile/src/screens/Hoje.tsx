@@ -187,11 +187,14 @@ type ComingItem = {
   onTap: () => void;
 };
 
+// ── Top 3 do dia (produtividade → ritual de encerramento no desktop) ────────
+type Prio = { source_id: string; title: string; done: boolean; sort: number; target_date: string };
+
 // ── Cache offline do digest ─────────────────────────────────────────────────
 type HomeSnapshot = {
   agenda: Agenda[]; cooling: Cold[]; gigs: GigRow[]; tracks: TrackRow[]; parties: PartyRow[]; classes: ClassRow[];
   contents?: ContentRow[]; strategy?: StrategyPayload | null; career?: CareerPayload | null;
-  ideasCount?: number; tasksCount?: number;
+  ideasCount?: number; tasksCount?: number; top3?: Prio[];
   streak: number; at: number;
 };
 const CACHE_KEY = "vistage.home.cache";
@@ -248,6 +251,7 @@ export function Hoje({
   const [career, setCareer] = useState<CareerPayload | null>(null);
   const [ideasCount, setIdeasCount] = useState(0);
   const [tasksCount, setTasksCount] = useState(0);
+  const [top3all, setTop3] = useState<Prio[]>([]);
   const [stratOpen, setStratOpen] = useState(false);
   const [careerOpen, setCareerOpen] = useState(false);
   const [localGigs, setLocalGigs] = useState<LocalGig[]>([]);
@@ -265,13 +269,14 @@ export function Hoje({
     setCatTracks(s.tracks); setCatParties(s.parties); setCatClasses(s.classes ?? []);
     setCatContents(s.contents ?? []); setStrategy(s.strategy ?? null); setCareer(s.career ?? null);
     setIdeasCount(s.ideasCount ?? 0); setTasksCount(s.tasksCount ?? 0);
+    setTop3(s.top3 ?? []);
     setStreak(s.streak);
   }, []);
 
   const load = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [a, c, g, tr, pa, cl, cn, st, ca, idn, tkn, s] = await Promise.all([
+      const [a, c, g, tr, pa, cl, cn, st, ca, idn, tkn, pr, s] = await Promise.all([
         supabase.from("agenda_mirror").select("id, source, source_id, title, start_at, location").order("start_at", { ascending: true }).limit(80),
         supabase.from("contact_today").select("id, source_id, name, reason, handle").limit(120),
         supabase.from("catalog_mirror").select("source_id, title, meta, search_text").eq("kind", "gig").limit(200),
@@ -283,6 +288,7 @@ export function Hoje({
         supabase.from("career_stats").select("payload").maybeSingle(),
         supabase.from("catalog_mirror").select("*", { count: "exact", head: true }).eq("kind", "idea"),
         supabase.from("tasks_mirror").select("*", { count: "exact", head: true }),
+        supabase.from("priorities_mirror").select("source_id, title, done, sort, target_date").eq("scope", "day").order("target_date", { ascending: true }).order("sort", { ascending: true }).limit(30),
         loadStreak(),
       ]);
       // Falha total de rede (todas as leituras com erro) → cai no cache.
@@ -299,6 +305,7 @@ export function Hoje({
       const careerPayload = (ca.data?.payload ?? null) as CareerPayload | null;
       const nIdeas = idn.count ?? 0;
       const nTasks = tkn.count ?? 0;
+      const top3Rows = (pr.data ?? []) as Prio[];
 
       setAgenda(agendaRows);
       setCooling(coolingRows);
@@ -311,6 +318,7 @@ export function Hoje({
       setCareer(careerPayload);
       setIdeasCount(nIdeas);
       setTasksCount(nTasks);
+      setTop3(top3Rows);
       setStreak(s);
       // GIGs criadas no celular ainda não sincronizadas: reconcilia contra o espelho.
       setLocalGigs(
@@ -322,7 +330,7 @@ export function Hoje({
         )
       );
       setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
-      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, classes: classRows, contents: contentRows, strategy: strategyPayload, career: careerPayload, ideasCount: nIdeas, tasksCount: nTasks, streak: s, at: Date.now() });
+      saveSnapshot({ agenda: agendaRows, cooling: coolingRows, gigs: gigRows, tracks: trackRows, parties: partyRows, classes: classRows, contents: contentRows, strategy: strategyPayload, career: careerPayload, ideasCount: nIdeas, tasksCount: nTasks, top3: top3Rows, streak: s, at: Date.now() });
     } catch {
       // Sem rede: mostra o último sync (legível offline).
       const snap = readSnapshot();
@@ -391,6 +399,9 @@ export function Hoje({
   }
 
   const today = localToday();
+
+  // Top 3 de hoje — montado no ritual de encerramento do desktop (scope='day').
+  const top3 = top3all.filter((p) => p.target_date === today).sort((a, b) => a.sort - b.sort).slice(0, 3);
 
   // GIG de HOJE (variante "dia de GIG").
   const todayGig = catGigs
@@ -581,6 +592,26 @@ export function Hoje({
 
       {/* Variante "dia de GIG" — lidera com a noite. */}
       {todayGig && <GigDayHero gig={todayGig} onFocus={goFocus} onCheckin={() => setCheckinOpen(true)} onMedia={() => setMediaOpen(true)} />}
+
+      {/* (1.5) Top 3 de hoje — prioridades montadas no ritual de encerramento
+          (desktop). Read-only aqui: marcar é feito no PC. */}
+      {top3.length > 0 && (
+        <section className="home-section">
+          <h2 className="section-head">Top 3 de hoje</h2>
+          <section className="card">
+            <ul className="mini-list">
+              {top3.map((p, i) => (
+                <li key={p.source_id} className="top3-row">
+                  <span className={"top3-dot" + (p.done ? " done" : "")} aria-hidden>
+                    {p.done ? "✓" : i + 1}
+                  </span>
+                  <span className={"top3-title" + (p.done ? " done" : "")}>{p.title}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </section>
+      )}
 
       {/* (2) VEM AÍ — só futuros (músicas em produção, GIGs, festas, aulas,
           conteúdos), em grade de duas colunas. */}
