@@ -2582,6 +2582,33 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE note_links ADD COLUMN manual INTEGER NOT NULL DEFAULT 0;
     `,
   },
+  {
+    version: 185,
+    description:
+      "Produtividade — rituais: priorities (Top 3 do dia/semana, com task_id opcional) + journal_entries (reflexão do dia/semana). Tabelas novas — registradas em backup/restore, na limpeza de documento e no CSV.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS priorities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL DEFAULT 'day',          -- 'day' | 'week'
+        target_date TEXT NOT NULL,                  -- YYYY-MM-DD (o dia, ou a 2ª-feira da semana)
+        sort INTEGER NOT NULL DEFAULT 0,
+        title TEXT NOT NULL DEFAULT '',
+        task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL,
+        done INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_priorities_scope_date ON priorities(scope, target_date);
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL DEFAULT 'day',          -- 'day' | 'week'
+        entry_date TEXT NOT NULL,                   -- YYYY-MM-DD
+        body TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_journal_scope_date ON journal_entries(scope, entry_date);
+    `,
+  },
 ];
 
 
