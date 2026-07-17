@@ -21,9 +21,10 @@ const WEEKLY_NUDGE_DAYS = 7;
 
 /**
  * Card do Ritual de encerramento na home: mostra o "Top 3 de hoje" (montado na
- * noite anterior, marcável), o botão "Fechar o dia" e o atalho "Revisar semana".
- * À noite, se o dia ainda não foi fechado, um empurrãozinho discreto aparece; se
- * a revisão semanal está atrasada (>7 dias), o botão da semana ganha destaque.
+ * noite anterior, marcável) e o botão "Fechar o dia". A revisão semanal fica
+ * como um ícone discreto no canto (calendário) — tingido de azul quando está
+ * atrasada (>7 dias); à noite, se o dia não foi fechado, "Fechar o dia" ganha
+ * destaque.
  */
 export function RitualsCard() {
   const [items, setItems] = useState<Priority[]>([]);
@@ -65,13 +66,16 @@ export function RitualsCard() {
         <CardTitle className="flex items-center gap-2 text-base">
           <Sun className="h-4 w-4" /> Top 3 de hoje
         </CardTitle>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Button
-            size="sm"
-            variant={weekDue ? "default" : "outline"}
+            size="icon"
+            variant="ghost"
+            className={cn("h-8 w-8 text-muted-foreground", weekDue && "text-sky-500")}
+            title={weekDue ? "Revisar a semana (faz tempo desde a última)" : "Revisar a semana"}
+            aria-label="Revisar a semana"
             onClick={() => setWeekOpen(true)}
           >
-            <CalendarCheck className="h-4 w-4" /> Revisar semana
+            <CalendarCheck className="h-4 w-4" />
           </Button>
           <Button
             size="sm"
@@ -108,13 +112,6 @@ export function RitualsCard() {
         )}
         {eveningNudge && items.length > 0 && (
           <p className="mt-2 text-xs text-amber-500">Você ainda não fechou o dia de hoje.</p>
-        )}
-        {weekDue && (
-          <p className="mt-2 text-xs text-sky-500">
-            {lastWeekly
-              ? "Faz mais de uma semana desde a última revisão."
-              : "Que tal fazer sua primeira revisão semanal?"}
-          </p>
         )}
       </CardContent>
       <ShutdownDialog open={open} onOpenChange={setOpen} onDone={() => void load()} />
