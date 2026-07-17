@@ -69,7 +69,6 @@ jobs:
           name: vistage-${{ matrix.platform }}
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
           retention-days: 14
