@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarCheck, Moon, Sun } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
@@ -16,15 +16,15 @@ import {
   type Priority,
 } from "./api";
 
-/** Dias sem revisar a semana antes do empurrãozinho aparecer. */
+/** Dias sem revisar a semana antes do botão da semana ganhar destaque. */
 const WEEKLY_NUDGE_DAYS = 7;
 
 /**
- * Card do Ritual de encerramento na home: mostra o "Top 3 de hoje" (montado na
- * noite anterior, marcável) e o botão "Fechar o dia". A revisão semanal fica
- * como um ícone discreto no canto (calendário) — tingido de azul quando está
- * atrasada (>7 dias); à noite, se o dia não foi fechado, "Fechar o dia" ganha
- * destaque.
+ * Surface COMPACTA dos rituais na home: uma barra fina com "Top 3 de hoje" +
+ * os atalhos "Revisar semana" e "Fechar o dia". Só quando há Top 3 é que a
+ * lista marcável aparece abaixo — vazio, fica só a barra (não come várias
+ * linhas da home à toa). "Fechar o dia" ganha destaque à noite; "Revisar
+ * semana", quando passa de 7 dias sem revisão.
  */
 export function RitualsCard() {
   const [items, setItems] = useState<Priority[]>([]);
@@ -54,6 +54,7 @@ export function RitualsCard() {
   const notClosedToday = lastClose !== todayISO();
   const eveningNudge = notClosedToday && new Date().getHours() >= 17;
   const weekDue = daysSinceISO(lastWeekly) >= WEEKLY_NUDGE_DAYS;
+  const doneCount = items.filter((p) => p.done).length;
 
   async function toggle(p: Priority) {
     await togglePriorityDone(p.id, !p.done);
@@ -62,20 +63,23 @@ export function RitualsCard() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Sun className="h-4 w-4" /> Top 3 de hoje
-        </CardTitle>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Sun className="h-4 w-4 text-muted-foreground" />
+          Top 3 de hoje
+          {items.length > 0 && (
+            <span className="text-xs font-normal text-muted-foreground">
+              {doneCount}/{items.length}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5">
           <Button
-            size="icon"
-            variant="ghost"
-            className={cn("h-8 w-8 text-muted-foreground", weekDue && "text-sky-500")}
-            title={weekDue ? "Revisar a semana (faz tempo desde a última)" : "Revisar a semana"}
-            aria-label="Revisar a semana"
+            size="sm"
+            variant={weekDue ? "default" : "outline"}
             onClick={() => setWeekOpen(true)}
           >
-            <CalendarCheck className="h-4 w-4" />
+            <CalendarCheck className="h-4 w-4" /> Revisar semana
           </Button>
           <Button
             size="sm"
@@ -85,35 +89,24 @@ export function RitualsCard() {
             <Moon className="h-4 w-4" /> Fechar o dia
           </Button>
         </div>
-      </CardHeader>
-      <CardContent>
-        {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {notClosedToday
-              ? "Feche o dia à noite pra amanhã já começar com seu Top 3 pronto."
-              : "Sem Top 3 definido pra hoje."}
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {items.map((p) => (
-              <li key={p.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 accent-primary"
-                  checked={p.done}
-                  onChange={() => void toggle(p)}
-                />
-                <span className={cn("text-sm", p.done && "text-muted-foreground line-through")}>
-                  {p.title}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        {eveningNudge && items.length > 0 && (
-          <p className="mt-2 text-xs text-amber-500">Você ainda não fechou o dia de hoje.</p>
-        )}
-      </CardContent>
+      </div>
+      {items.length > 0 && (
+        <ul className="space-y-1.5 border-t px-4 py-3">
+          {items.map((p) => (
+            <li key={p.id} className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 accent-primary"
+                checked={p.done}
+                onChange={() => void toggle(p)}
+              />
+              <span className={cn("text-sm", p.done && "text-muted-foreground line-through")}>
+                {p.title}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <ShutdownDialog open={open} onOpenChange={setOpen} onDone={() => void load()} />
       <WeeklyReviewDialog open={weekOpen} onOpenChange={setWeekOpen} onDone={() => void load()} />
     </Card>
