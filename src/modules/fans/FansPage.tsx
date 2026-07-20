@@ -956,6 +956,19 @@ function FanCard({
   const daysAgo = last
     ? Math.floor((Date.now() - new Date(last).getTime()) / 86400000)
     : null;
+  const initials = f.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const lastLabel =
+    daysAgo == null ? null : daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`;
+  const metaLine =
+    [
+      f.city || null,
+      lastLabel ? `contato ${lastLabel}` : null,
+      interactionCount > 0
+        ? `${interactionCount} interaç${interactionCount === 1 ? "ão" : "ões"}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ") || null;
   return (
     <div
       role="button"
@@ -964,14 +977,17 @@ function FanCard({
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") onOpen();
       }}
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-card text-left transition hover:border-primary hover:shadow-md"
+      className="group relative flex cursor-pointer items-center gap-3 overflow-hidden glass-panel p-3 text-left transition hover:border-primary hover:shadow-md"
     >
       {/* ações no hover */}
-      <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+      <div
+        className="absolute bottom-2 right-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
           size="icon"
           variant="secondary"
-          className="h-7 w-7 shadow-sm"
+          className="h-7 w-7 bg-card shadow-sm"
           aria-label="Editar"
           onClick={(e) => {
             e.stopPropagation();
@@ -983,7 +999,7 @@ function FanCard({
         <Button
           size="icon"
           variant="secondary"
-          className="h-7 w-7 shadow-sm"
+          className="h-7 w-7 bg-card shadow-sm"
           aria-label="Excluir"
           onClick={(e) => {
             e.stopPropagation();
@@ -993,44 +1009,36 @@ function FanCard({
           <Trash2 className="h-3.5 w-3.5 text-destructive" />
         </Button>
       </div>
-      <div className="h-28 w-full bg-muted">
+      {/* avatar redondo (igual ao card de CRM) */}
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-muted text-lg">
         {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={f.name}
-            className="h-full w-full object-cover transition group-hover:scale-105"
-          />
+          <img src={photoUrl} alt={f.name} className="h-full w-full object-cover object-top" />
         ) : (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
-            <User className="h-8 w-8" />
+          <div className="flex h-full w-full items-center justify-center font-semibold text-muted-foreground">
+            {initials || <User className="h-1/2 w-1/2" />}
           </div>
         )}
       </div>
-      <div className="space-y-1.5 p-3">
-        <div className="font-medium leading-tight">{f.name}</div>
-        <div className="flex flex-wrap items-center gap-1">
-          <LevelBadge level={f.level} />
-          <PendingTasksBadge entityType="fan" entityId={f.id} />
-          {perkCount > 0 && (
-            <Badge variant="secondary" className="gap-1" title={`${perkCount} perk(s)/brinde(s)`}>
-              <Gift className="h-3 w-3" />
-              {perkCount}
-            </Badge>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground">{f.city ?? EMPTY_VALUE}</div>
-        {groups.length > 0 && <FanGroupChips groups={groups} />}
-        {last && (
-          <div className="text-[11px] text-muted-foreground">
-            Último contato:{" "}
-            {daysAgo === 0 ? "hoje" : daysAgo === 1 ? "ontem" : `há ${daysAgo}d`}
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <span className="block truncate font-medium leading-tight">{f.name}</span>
+        {metaLine && (
+          <span className="block truncate text-xs text-muted-foreground">{metaLine}</span>
+        )}
+        {(groups.length > 0 || perkCount > 0) && (
+          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+            {groups.length > 0 && <FanGroupChips groups={groups} max={2} />}
+            {perkCount > 0 && (
+              <Badge variant="secondary" className="gap-1" title={`${perkCount} perk(s)/brinde(s)`}>
+                <Gift className="h-3 w-3" />
+                {perkCount}
+              </Badge>
+            )}
           </div>
         )}
-        {interactionCount > 0 && (
-          <div className="text-[11px] text-muted-foreground">
-            {interactionCount} interaç{interactionCount === 1 ? "ão" : "ões"}
-          </div>
-        )}
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <LevelBadge level={f.level} />
+        <PendingTasksBadge entityType="fan" entityId={f.id} />
       </div>
     </div>
   );
