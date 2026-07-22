@@ -51,6 +51,7 @@ import { LevelBadge } from "./components/LevelBadge";
 import { FanForm } from "./forms/FanForm";
 import { FanDetail } from "./forms/FanDetail";
 import { FanClubConfigSurface } from "./components/FanClubConfigSurface";
+import { FanClubOverview } from "./components/FanClubOverview";
 import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
@@ -206,9 +207,9 @@ export function FansPage() {
       /* storage indisponível */
     }
   }, []);
-  // "Próximas ações" (valor "hoje") é a aba PADRÃO — mas a última aberta fica
-  // guardada (localStorage), pra o módulo reabrir onde o usuário deixou.
-  const [section, setSection] = useModuleView<"fas" | "hoje" | "grupos" | "config">("fans-section", "hoje");
+  // "Visão geral" (a pirâmide do clube) é a aba PADRÃO — mas a última aberta
+  // fica guardada (localStorage), pra o módulo reabrir onde o usuário deixou.
+  const [section, setSection] = useModuleView<"geral" | "fas" | "hoje" | "grupos" | "config">("fans-section", "geral");
   // Linhas augmentadas com campos derivados pra ordenar Grupo/Contato/Interações
   // (que não mapeiam direto num campo do Fan). FanRow estende Fan, então o que
   // consome `sortedFans` como Fan[] (ex.: GroupedFansView) segue funcionando.
@@ -375,6 +376,9 @@ export function FansPage() {
     <div className="space-y-4">
       <Tabs value={section} onValueChange={(v) => setSection(v as typeof section)}>
         <TabsList>
+          <TabsTrigger value="geral" className="gap-1.5">
+            <Users className="h-3.5 w-3.5" /> Visão geral
+          </TabsTrigger>
           <TabsTrigger value="fas">Fãs</TabsTrigger>
           <TabsTrigger value="hoje">Próximas ações</TabsTrigger>
           <TabsTrigger value="grupos">Grupos</TabsTrigger>
@@ -382,6 +386,19 @@ export function FansPage() {
             <Settings2 className="h-3.5 w-3.5" /> Configurar
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="geral">
+          <FanClubOverview
+            onOpenLevel={(level) => {
+              setFilters(queryToRoster({ level }));
+              setSection("fas");
+            }}
+            onOpenFan={(id) => {
+              setDetailId(id);
+              setDetailOpen(true);
+            }}
+          />
+        </TabsContent>
 
         <TabsContent value="fas" className="space-y-4">
       <div className="flex items-start gap-2">
