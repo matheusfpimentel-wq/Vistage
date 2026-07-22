@@ -10,6 +10,7 @@ import {
   Heart,
   LayoutGrid,
   List,
+  MessageCircle,
   Pencil,
   Play,
   Plus,
@@ -1644,7 +1645,18 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
                     <div className="text-xs text-muted-foreground">
                       {g.origin && <span>Origem: {g.origin}</span>}
                       {g.origin && g.whatsapp_group && <span> · </span>}
-                      {g.whatsapp_group && <span>{g.whatsapp_group}</span>}
+                      {g.whatsapp_group && (
+                        <a
+                          href={g.whatsapp_group}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-emerald-500 hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                          title={g.whatsapp_group}
+                        >
+                          <MessageCircle className="h-3 w-3" /> Grupo WhatsApp
+                        </a>
+                      )}
                     </div>
                   )}
                   {(members[g.id] ?? []).map((m) => {
