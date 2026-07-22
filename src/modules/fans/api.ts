@@ -99,7 +99,9 @@ export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
   }
   if (filters.minDays != null) {
     params.push(filters.minDays);
-    where.push(`last_interaction_at IS NOT NULL AND julianday('now') - julianday(last_interaction_at) >= $${params.length}`);
+    // Inclui quem NUNCA teve contato (last_interaction_at nulo) — são os mais
+    // frios, que mais precisam de ativação, e antes sumiam deste filtro.
+    where.push(`(last_interaction_at IS NULL OR julianday('now') - julianday(last_interaction_at) >= $${params.length})`);
   }
   if (filters.maxDays != null) {
     params.push(filters.maxDays);
@@ -1183,6 +1185,28 @@ export async function listVipFansDerived(): Promise<
 
 // ===== GIG presence (gig_fans) =====
 
+/**
+ * Presença num show conta como "toque": adianta o last_interaction_at do fã pra
+ * a DATA da GIG — mas só se ela for passada/hoje e mais recente que o último
+ * contato. Sem isto, o público conquistado no palco sumia da "Reativar" e do
+ * "Esfriando" (que exigem last_interaction_at). Presença pré-marcada em show
+ * futuro NÃO conta (a data está à frente).
+ */
+async function touchFanFromGigPresence(gigId: number, fanId: number): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE fans
+        SET last_interaction_at = (SELECT date FROM gigs WHERE id = $1),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+        AND (SELECT date FROM gigs WHERE id = $1) IS NOT NULL
+        AND (SELECT date FROM gigs WHERE id = $1) <= date('now')
+        AND (last_interaction_at IS NULL
+             OR last_interaction_at < (SELECT date FROM gigs WHERE id = $1))`,
+    [gigId, fanId]
+  );
+}
+
 export async function setGigFans(gigId: number, fanIds: number[]): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM gig_fans WHERE gig_id = $1", [gigId]);
@@ -1191,6 +1215,7 @@ export async function setGigFans(gigId: number, fanIds: number[]): Promise<void>
       "INSERT OR IGNORE INTO gig_fans (gig_id, fan_id) VALUES ($1, $2)",
       [gigId, fanId]
     );
+    await touchFanFromGigPresence(gigId, fanId);
   }
   emitDataChanged();
 }
@@ -1201,6 +1226,7 @@ export async function addGigFan(gigId: number, fanId: number): Promise<void> {
     "INSERT OR IGNORE INTO gig_fans (gig_id, fan_id) VALUES ($1, $2)",
     [gigId, fanId]
   );
+  await touchFanFromGigPresence(gigId, fanId);
   emitDataChanged();
 }
 
@@ -1350,6 +1376,12 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
             SELECT 1 FROM fan_interactions fi
              WHERE fi.fan_id = f.id AND fi.date >= date('now','-21 days')
           )
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t JOIN task_links tl ON tl.task_id = t.id
+             WHERE tl.entity_type = 'fan' AND tl.entity_id = f.id
+               AND t.status NOT IN ('Concluída','Cancelada')
+               AND t.description LIKE '%[fan-action:agradecer]%'
+          )
         GROUP BY f.id
         ORDER BY gig_date DESC
         LIMIT 50`
@@ -1364,24 +1396,41 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
          FROM fans
         WHERE nivel_changed_at IS NOT NULL
           AND nivel_changed_at >= date('now','-14 days')
-          AND level IN ('Fã','Superfã','Embaixador')
+          -- Só níveis que SÓ se alcança subindo (Superfã/Embaixador): evita
+          -- festejar "subiu para Fã" quando na verdade o fã CAIU de Superfã —
+          -- nivel_changed_at marca qualquer transição, inclusive descida.
+          AND level IN ('Superfã','Embaixador')
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t JOIN task_links tl ON tl.task_id = t.id
+             WHERE tl.entity_type = 'fan' AND tl.entity_id = fans.id
+               AND t.status NOT IN ('Concluída','Cancelada')
+               AND t.description LIKE '%[fan-action:parabenizar]%'
+          )
         ORDER BY nivel_changed_at DESC
         LIMIT 50`
     )
     .catch(() => [] as (TodayRow & { changed: string })[]);
 
-  // Reativar: fã/superfã/embaixador sem contato há 30+ dias (decaindo de nível).
+  // Reativar: fã/superfã/embaixador sem contato há 30+ dias — OU que nunca teve
+  // contato registrado (last nulo), pra o público de show/importado não sumir.
+  // Exclui quem já tem tarefa de reativação aberta (não reincide após agir).
   const reativar = await db
-    .select<(TodayRow & { last: string })[]>(
+    .select<(TodayRow & { last: string | null })[]>(
       `SELECT id AS fan_id, name, level, city, photo_path, last_interaction_at AS last
          FROM fans
         WHERE level IN ('Fã','Superfã','Embaixador')
-          AND last_interaction_at IS NOT NULL
-          AND last_interaction_at < date('now','-30 days')
-        ORDER BY last_interaction_at ASC
+          AND (last_interaction_at IS NULL
+               OR last_interaction_at < date('now','-30 days'))
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t JOIN task_links tl ON tl.task_id = t.id
+             WHERE tl.entity_type = 'fan' AND tl.entity_id = fans.id
+               AND t.status NOT IN ('Concluída','Cancelada')
+               AND t.description LIKE '%[fan-action:reativar]%'
+          )
+        ORDER BY last_interaction_at ASC NULLS FIRST
         LIMIT 50`
     )
-    .catch(() => [] as (TodayRow & { last: string })[]);
+    .catch(() => [] as (TodayRow & { last: string | null })[]);
 
   // Convidar pro próximo show: esteve num show recente (mesma janela do
   // "Agradecer", presença nos últimos 21 dias) e ainda NÃO tem um convite
@@ -1417,14 +1466,20 @@ export async function loadFanToday(): Promise<FanTodayBuckets> {
       `SELECT f.id AS fan_id, f.name AS name, f.level AS level, f.city AS city, f.photo_path AS photo_path, c.birthday AS birthday
          FROM fans f
          JOIN contacts c ON c.id = f.contact_id
-        WHERE c.birthday IS NOT NULL AND length(c.birthday) >= 10`
+        WHERE c.birthday IS NOT NULL AND length(c.birthday) >= 10
+          AND NOT EXISTS (
+            SELECT 1 FROM tasks t JOIN task_links tl ON tl.task_id = t.id
+             WHERE tl.entity_type = 'fan' AND tl.entity_id = f.id
+               AND t.status NOT IN ('Concluída','Cancelada')
+               AND t.description LIKE '%[fan-action:aniversarios]%'
+          )`
     )
     .catch(() => [] as (TodayRow & { birthday: string })[]);
 
   return {
     agradecer: agradecer.map((r) => ({ ...stripRow(r), detail: `esteve num show ${relDays(daysSinceISO(r.gig_date))}` })),
     parabenizar: parabenizar.map((r) => ({ ...stripRow(r), detail: `subiu para ${r.level}` })),
-    reativar: reativar.map((r) => ({ ...stripRow(r), detail: `sem contato há ${daysSinceISO(r.last)}d` })),
+    reativar: reativar.map((r) => ({ ...stripRow(r), detail: r.last ? `sem contato há ${daysSinceISO(r.last)}d` : "sem contato registrado" })),
     convidar: convidar.map((r) => ({
       ...stripRow(r),
       detail: next ? `esteve num show ${relDays(daysSinceISO(r.gig_date))} · ${next.name}` : "",

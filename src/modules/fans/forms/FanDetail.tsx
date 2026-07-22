@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Loader2, Mic2, Plus, Star, UserCheck } from "lucide-react";
+import { Instagram, Loader2, Mail, MessageCircle, Mic2, Plus, Star, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,7 +32,8 @@ import {
 import { createContact, listContacts } from "@/modules/crm/api";
 import type { Contact } from "@/modules/crm/types";
 import type { Fan, FanCreateInput } from "../types";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPhoneBR, waLink } from "@/lib/format";
+import { useUnsavedConfirm } from "@/lib/dirty";
 import { useImageUrl } from "@/lib/uploads";
 
 type Props = {
@@ -73,10 +74,14 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [linking, setLinking] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const confirmClose = useUnsavedConfirm(dirty);
   const navigate = useNavigate();
 
-  const setState = (updater: (prev: FanCreateInput) => FanCreateInput) =>
+  const setState = (updater: (prev: FanCreateInput) => FanCreateInput) => {
     setStateRaw((s) => (s ? updater(s) : s));
+    setDirty(true);
+  };
 
   async function refresh() {
     if (!fanId) return;
@@ -89,6 +94,7 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
       ]);
       setFan(f);
       setStateRaw(f ? fanToState(f) : null);
+      setDirty(false);
       setGigs(gs);
       setVipGigs(vips);
     } finally {
@@ -173,7 +179,7 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
   if (!fanId) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => onOpenChange(v))}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         {loading || !fan || !state ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
@@ -197,6 +203,7 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
                   {fan.origem && (
                     <p className="text-xs text-muted-foreground">Origem: {fan.origem}</p>
                   )}
+                  <FanContactActions fan={fan} />
                 </div>
               </div>
             </DialogHeader>
@@ -312,6 +319,50 @@ export function FanDetail({ open, onOpenChange, fanId }: Props) {
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Atalhos de contato do fã (1 toque): WhatsApp, e-mail e Instagram. Só mostra os
+ * que existem. Ativar um fã É mandar mensagem — antes era copiar-e-colar.
+ */
+function FanContactActions({ fan }: { fan: Fan }) {
+  const wa = waLink(fan.phone);
+  const handle = fan.instagram?.trim().replace(/^@/, "") || null;
+  const insta = handle ? `https://instagram.com/${handle}` : null;
+  const mail = fan.email?.trim() ? `mailto:${fan.email.trim()}` : null;
+  if (!wa && !insta && !mail) return null;
+  const base = "inline-flex h-7 w-7 items-center justify-center rounded-md transition";
+  return (
+    <div className="flex items-center gap-1.5 pt-0.5">
+      {wa && (
+        <a
+          href={wa}
+          target="_blank"
+          rel="noreferrer"
+          className={`${base} text-emerald-500 hover:bg-emerald-500/10`}
+          title={`WhatsApp: ${formatPhoneBR(fan.phone)}`}
+        >
+          <MessageCircle className="h-4 w-4" />
+        </a>
+      )}
+      {mail && (
+        <a href={mail} className={`${base} text-muted-foreground hover:bg-muted`} title={fan.email ?? undefined}>
+          <Mail className="h-4 w-4" />
+        </a>
+      )}
+      {insta && (
+        <a
+          href={insta}
+          target="_blank"
+          rel="noreferrer"
+          className={`${base} text-muted-foreground hover:bg-muted`}
+          title={`@${handle}`}
+        >
+          <Instagram className="h-4 w-4" />
+        </a>
+      )}
+    </div>
   );
 }
 
