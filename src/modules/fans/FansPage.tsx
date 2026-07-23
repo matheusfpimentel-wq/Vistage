@@ -397,6 +397,7 @@ export function FansPage() {
               setDetailId(id);
               setDetailOpen(true);
             }}
+            onOpenToday={() => setSection("hoje")}
           />
         </TabsContent>
 
