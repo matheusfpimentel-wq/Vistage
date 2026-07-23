@@ -175,6 +175,23 @@ export type FanListMember = {
 export type FanListCreateInput = Omit<FanList, "id" | "created_at" | "updated_at">;
 
 // ============================================================
+// Convite / RSVP (fan_invites) — funil pré-show. "Compareceu" NÃO é um status
+// aqui: é derivado cruzando com gig_fans, a fonte única de presença real.
+// ============================================================
+
+export const FAN_INVITE_STATUSES = ["convidado", "confirmado", "recusado"] as const;
+export type FanInviteStatus = (typeof FAN_INVITE_STATUSES)[number];
+
+/** Um convite (fã × show) com o nome do fã e a presença real já cruzados. */
+export type FanInviteRow = {
+  invite_id: number;
+  fan_id: number;
+  fan_name: string;
+  status: FanInviteStatus;
+  attended: boolean;
+};
+
+// ============================================================
 // Perks / VIP / brindes — clube de fãs
 // ============================================================
 

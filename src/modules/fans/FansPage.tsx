@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   List,
   ListPlus,
+  Mail,
   MessageCircle,
   Pencil,
   Play,
@@ -59,6 +60,7 @@ import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
   addFanToGroupIfAbsent,
+  bulkInviteFans,
   createFanGroup,
   createGroupedFanTask,
   deleteFan,
@@ -81,6 +83,7 @@ import {
   updateFanGroup,
   listFanGroupStats,
   listFanEngagementScores,
+  nextNonSocialGig,
   type FanFilters,
 } from "./api";
 import { listGigs } from "@/modules/gigs/api";
@@ -367,6 +370,23 @@ export function FansPage() {
       }
       toast.success(`Tag "${tag}" adicionada a ${ids.length} fã(s)`);
       await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  /** Convida os selecionados pro próximo show não-social — mesmo alvo que a
+   *  Próximas ações já usa pra "convidar", sem picker novo. */
+  async function handleBulkInvite() {
+    const ids = [...selected];
+    try {
+      const next = await nextNonSocialGig();
+      if (!next) {
+        toast.error("Nenhum show marcado à frente pra convidar.");
+        return;
+      }
+      await bulkInviteFans(ids, next.id);
+      toast.success(`${ids.length} convidado(s) pra "${next.name}"`);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
     }
@@ -702,6 +722,9 @@ export function FansPage() {
             </select>
             <BulkInlineInput icon={Tag} label="+ Tag" placeholder="Nome da tag" submitLabel="Adicionar" onSubmit={handleBulkTag} />
             <BulkInlineInput icon={ListPlus} label="Criar tarefa" placeholder="Título da tarefa" submitLabel="Criar" onSubmit={handleBulkTask} />
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => void handleBulkInvite()}>
+              <Mail className="h-3.5 w-3.5" /> Convidar pro show
+            </Button>
             <Button size="sm" variant="destructive" className="h-7 gap-1.5 text-xs" onClick={() => void handleBulkDelete()}>
               <Trash2 className="h-3.5 w-3.5" /> Excluir
             </Button>

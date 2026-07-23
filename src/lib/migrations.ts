@@ -2609,6 +2609,26 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_journal_scope_date ON journal_entries(scope, entry_date);
     `,
   },
+  {
+    version: 186,
+    description:
+      "Clube de Fãs — convite/RSVP: fan_invites (fan_id+gig_id únicos; status convidado/confirmado/recusado). Tabela nova — registrada em backup/restore, na limpeza de documento (via TABLES) e no CSV. 'Compareceu' não é um status aqui: é derivado cruzando com gig_fans, que já é a fonte única de presença real.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS fan_invites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fan_id INTEGER NOT NULL,
+        gig_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'convidado',   -- 'convidado' | 'confirmado' | 'recusado'
+        invited_at TEXT NOT NULL DEFAULT (datetime('now')),
+        responded_at TEXT,
+        UNIQUE (fan_id, gig_id),
+        FOREIGN KEY (fan_id) REFERENCES fans(id) ON DELETE CASCADE,
+        FOREIGN KEY (gig_id) REFERENCES gigs(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_fan_invites_gig ON fan_invites(gig_id);
+      CREATE INDEX IF NOT EXISTS idx_fan_invites_fan ON fan_invites(fan_id);
+    `,
+  },
 ];
 
 

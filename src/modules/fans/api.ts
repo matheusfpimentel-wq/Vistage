@@ -18,6 +18,8 @@ import type {
   FanListMember,
   FanInteraction,
   FanInteractionType,
+  FanInviteRow,
+  FanInviteStatus,
   FanLevel,
   FanPerk,
   FanPerkCreateInput,
@@ -1345,6 +1347,62 @@ export async function listGigsForFan(
       ORDER BY g.date DESC NULLS LAST, g.id DESC`,
     [fanId]
   );
+}
+
+// ===== Convite / RSVP (fan_invites) =====
+// Funil pré-show: convidado → confirmado/recusado. Ligado ao QUE JÁ EXISTE
+// (o próximo show não-social, gig_fans pra presença real) — não duplica nada.
+
+/**
+ * Convida fãs pro show (idempotente: INSERT OR IGNORE — reconvidar não duplica
+ * nem regride quem já respondeu de volta pra "convidado"). Usado pela ação em
+ * massa "Convidar pro show" da Lista.
+ */
+export async function bulkInviteFans(fanIds: number[], gigId: number): Promise<void> {
+  const db = getDb();
+  for (const fanId of fanIds) {
+    await db.execute(
+      `INSERT OR IGNORE INTO fan_invites (fan_id, gig_id, status) VALUES ($1, $2, 'convidado')`,
+      [fanId, gigId]
+    );
+  }
+  emitDataChanged();
+}
+
+/** Marca a resposta de um convite. "convidado" de volta limpa responded_at. */
+export async function setInviteStatus(id: number, status: FanInviteStatus): Promise<void> {
+  const db = getDb();
+  await db.execute(
+    `UPDATE fan_invites
+        SET status = $1,
+            responded_at = CASE WHEN $1 = 'convidado' THEN NULL ELSE CURRENT_TIMESTAMP END
+      WHERE id = $2`,
+    [status, id]
+  );
+  emitDataChanged();
+}
+
+/**
+ * Convites de um show, com o nome do fã e a presença real já cruzada com
+ * gig_fans (attended). Confirmados primeiro, depois aguardando, depois quem
+ * recusou.
+ */
+export async function listInvitesForGig(gigId: number): Promise<FanInviteRow[]> {
+  const db = getDb();
+  const rows = await db
+    .select<{ invite_id: number; fan_id: number; fan_name: string; status: FanInviteStatus; attended: number }[]>(
+      `SELECT fi.id AS invite_id, f.id AS fan_id, f.name AS fan_name, fi.status AS status,
+              CASE WHEN gf.fan_id IS NOT NULL THEN 1 ELSE 0 END AS attended
+         FROM fan_invites fi
+         JOIN fans f ON f.id = fi.fan_id
+         LEFT JOIN gig_fans gf ON gf.fan_id = fi.fan_id AND gf.gig_id = fi.gig_id
+        WHERE fi.gig_id = $1
+        ORDER BY CASE fi.status WHEN 'confirmado' THEN 0 WHEN 'convidado' THEN 1 ELSE 2 END,
+                 f.name COLLATE NOCASE ASC`,
+      [gigId]
+    )
+    .catch(() => [] as { invite_id: number; fan_id: number; fan_name: string; status: FanInviteStatus; attended: number }[]);
+  return rows.map((r) => ({ ...r, attended: !!r.attended }));
 }
 
 // ===== Superfície "Hoje" — fila de ação sobre o dado existente =====
