@@ -49,6 +49,8 @@ function rowToFan(r: FanRow): Fan {
 
 export type FanFilters = {
   level?: FanLevel | "Todos";
+  /** Inclui o nível escolhido e os superiores (ordem de FAN_LEVELS), não só o exato. */
+  levelAndAbove?: boolean;
   city?: string;
   search?: string;
   /** Pertence a este grupo (fan_group_members). */
@@ -74,8 +76,16 @@ export async function listFans(filters: FanFilters = {}): Promise<Fan[]> {
   const params: unknown[] = [];
 
   if (filters.level && filters.level !== "Todos") {
-    params.push(filters.level);
-    where.push(`level = $${params.length}`);
+    if (filters.levelAndAbove) {
+      const idx = FAN_LEVELS.indexOf(filters.level);
+      const atLeast = idx >= 0 ? FAN_LEVELS.slice(0, idx + 1) : [filters.level];
+      const placeholders = atLeast.map((_, i) => `$${params.length + i + 1}`).join(", ");
+      where.push(`level IN (${placeholders})`);
+      params.push(...atLeast);
+    } else {
+      params.push(filters.level);
+      where.push(`level = $${params.length}`);
+    }
   }
   if (filters.city && filters.city.trim().length > 0) {
     params.push(`%${filters.city.trim()}%`);
@@ -319,25 +329,53 @@ function scoreToLevel(score: number, th: Required<FanScoreThresholds>): FanLevel
   return "Possível fã";
 }
 
+type ScoringWeights = {
+  weightPresenca: number;
+  weightFeedback: number;
+  weightInteracao: number;
+  weightGig: number;
+  weightCompra: number;
+  weightIndicacao: number;
+  halfLifeDays: number;
+};
+
+function resolveScoring(rules: FanUpgradeRules): ScoringWeights {
+  const cfg = rules.scoring ?? {};
+  return {
+    weightPresenca: cfg.weightPresenca ?? SCORING_DEFAULTS.weightPresenca,
+    weightFeedback: cfg.weightFeedback ?? SCORING_DEFAULTS.weightFeedback,
+    weightInteracao: cfg.weightInteracao ?? SCORING_DEFAULTS.weightInteracao,
+    weightGig: cfg.weightGig ?? SCORING_DEFAULTS.weightGig,
+    weightCompra: cfg.weightCompra ?? SCORING_DEFAULTS.weightCompra,
+    weightIndicacao: cfg.weightIndicacao ?? SCORING_DEFAULTS.weightIndicacao,
+    halfLifeDays: cfg.halfLifeDays && cfg.halfLifeDays > 0 ? cfg.halfLifeDays : SCORING_DEFAULTS.halfLifeDays,
+  };
+}
+
+function weightForInteraction(type: string, w: ScoringWeights): number {
+  return type === "Presença"
+    ? w.weightPresenca
+    : type === "Feedback"
+      ? w.weightFeedback
+      : type === "Compra"
+        ? w.weightCompra
+        : type === "Indicação"
+          ? w.weightIndicacao
+          : w.weightInteracao;
+}
+
 async function computeFanScoreAndLevel(
   fanId: number,
   preRules?: FanUpgradeRules
 ): Promise<{ score: number; level: FanLevel }> {
   const db = getDb();
-  const cfg = (preRules ?? (await loadFanUpgradeRules())).scoring ?? {};
-  const wPres = cfg.weightPresenca ?? SCORING_DEFAULTS.weightPresenca;
-  const wFb = cfg.weightFeedback ?? SCORING_DEFAULTS.weightFeedback;
-  const wInt = cfg.weightInteracao ?? SCORING_DEFAULTS.weightInteracao;
-  const wGig = cfg.weightGig ?? SCORING_DEFAULTS.weightGig;
-  const wCompra = cfg.weightCompra ?? SCORING_DEFAULTS.weightCompra;
-  const wIndic = cfg.weightIndicacao ?? SCORING_DEFAULTS.weightIndicacao;
-  const halfLife =
-    cfg.halfLifeDays && cfg.halfLifeDays > 0 ? cfg.halfLifeDays : SCORING_DEFAULTS.halfLifeDays;
+  const rules = preRules ?? (await loadFanUpgradeRules());
+  const w = resolveScoring(rules);
   const th: Required<FanScoreThresholds> = {
-    quaseFa: cfg.thresholds?.quaseFa ?? SCORING_DEFAULTS.thresholds.quaseFa,
-    fa: cfg.thresholds?.fa ?? SCORING_DEFAULTS.thresholds.fa,
-    superfa: cfg.thresholds?.superfa ?? SCORING_DEFAULTS.thresholds.superfa,
-    embaixador: cfg.thresholds?.embaixador ?? SCORING_DEFAULTS.thresholds.embaixador,
+    quaseFa: rules.scoring?.thresholds?.quaseFa ?? SCORING_DEFAULTS.thresholds.quaseFa,
+    fa: rules.scoring?.thresholds?.fa ?? SCORING_DEFAULTS.thresholds.fa,
+    superfa: rules.scoring?.thresholds?.superfa ?? SCORING_DEFAULTS.thresholds.superfa,
+    embaixador: rules.scoring?.thresholds?.embaixador ?? SCORING_DEFAULTS.thresholds.embaixador,
   };
 
   let score = 0;
@@ -346,17 +384,7 @@ async function computeFanScoreAndLevel(
     [fanId]
   );
   for (const it of interactions) {
-    const w =
-      it.type === "Presença"
-        ? wPres
-        : it.type === "Feedback"
-          ? wFb
-          : it.type === "Compra"
-            ? wCompra
-            : it.type === "Indicação"
-              ? wIndic
-              : wInt;
-    score += decayedWeight(it.date, w, halfLife);
+    score += decayedWeight(it.date, weightForInteraction(it.type, w), w.halfLifeDays);
   }
   // presenças reais em shows: audiência marcada na GIG, datada pela data do show
   const gigs = await db.select<{ date: string | null }[]>(
@@ -364,7 +392,7 @@ async function computeFanScoreAndLevel(
     [fanId]
   );
   for (const g of gigs) {
-    score += decayedWeight(g.date, wGig, halfLife);
+    score += decayedWeight(g.date, w.weightGig, w.halfLifeDays);
   }
 
   // Indicações: fãs que declaram ter sido indicados por ESTE fã (campo "Indicado
@@ -376,7 +404,7 @@ async function computeFanScoreAndLevel(
     [fanId]
   );
   for (const r of referred) {
-    score += decayedWeight(r.created_at, wIndic, halfLife);
+    score += decayedWeight(r.created_at, w.weightIndicacao, w.halfLifeDays);
   }
 
   return { score, level: scoreToLevel(score, th) };
@@ -385,6 +413,41 @@ async function computeFanScoreAndLevel(
 /** Score de engajamento atual de um fã (com decaimento). Para exibição. */
 export async function fanEngagementScore(fanId: number): Promise<number> {
   return (await computeFanScoreAndLevel(fanId)).score;
+}
+
+/**
+ * Score de engajamento de TODOS os fãs de uma vez (3 queries fixas, não uma
+ * por fã) — pra mostrar/ordenar por engajamento no roster sem N+1. Fã sem
+ * nenhum sinal simplesmente não entra no mapa (chamador usa `?? 0`).
+ */
+export async function listFanEngagementScores(): Promise<Map<number, number>> {
+  const db = getDb();
+  const w = resolveScoring(await loadFanUpgradeRules());
+  const scores = new Map<number, number>();
+  const bump = (id: number, v: number) => scores.set(id, (scores.get(id) ?? 0) + v);
+
+  const interactions = await db.select<{ fan_id: number; date: string; type: string }[]>(
+    `SELECT fan_id, date, type FROM fan_interactions`
+  );
+  for (const it of interactions) {
+    bump(it.fan_id, decayedWeight(it.date, weightForInteraction(it.type, w), w.halfLifeDays));
+  }
+
+  const gigs = await db.select<{ fan_id: number; date: string | null }[]>(
+    `SELECT gf.fan_id AS fan_id, g.date AS date FROM gig_fans gf JOIN gigs g ON g.id = gf.gig_id`
+  );
+  for (const g of gigs) {
+    bump(g.fan_id, decayedWeight(g.date, w.weightGig, w.halfLifeDays));
+  }
+
+  const referred = await db.select<{ indicated_by_fan_id: number; created_at: string | null }[]>(
+    `SELECT indicated_by_fan_id, created_at FROM fans WHERE indicated_by_fan_id IS NOT NULL`
+  );
+  for (const r of referred) {
+    bump(r.indicated_by_fan_id, decayedWeight(r.created_at, w.weightIndicacao, w.halfLifeDays));
+  }
+
+  return scores;
 }
 
 /**
