@@ -7,15 +7,25 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Crown, Flame, Heart, ListChecks, Mic2, Snowflake, Sparkles, TrendingUp, UserPlus, type LucideIcon } from "lucide-react";
+import { Check, Crown, Flame, Heart, ListChecks, Mail, Mic2, Snowflake, Sparkles, TrendingUp, UserPlus, X, type LucideIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toaster";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { SkeletonCards } from "@/components/shared/Skeleton";
 import { cn } from "@/lib/utils";
 import { DATA_CHANGED } from "@/lib/events";
-import { toLocalYearMonth } from "@/lib/format";
-import { listFans, loadFanToday, topFansByPresence, type FanTodayBuckets } from "../api";
-import { FAN_LEVELS, type Fan, type FanLevel } from "../types";
+import { formatDate, toLocalYearMonth } from "@/lib/format";
+import {
+  listFans,
+  listInvitesForGig,
+  loadFanToday,
+  nextNonSocialGig,
+  setInviteStatus,
+  topFansByPresence,
+  type FanTodayBuckets,
+} from "../api";
+import { FAN_LEVELS, type Fan, type FanInviteRow, type FanInviteStatus, type FanLevel } from "../types";
 import type { FanSuggestionKey } from "../suggestions";
 
 /**
@@ -129,12 +139,21 @@ export function FanClubOverview({
   const [topPresence, setTopPresence] = useState<{ fan_id: number; name: string; gigs: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<FanLevel | null>(null);
+  const [nextGig, setNextGig] = useState<{ id: number; name: string; date: string } | null>(null);
+  const [invites, setInvites] = useState<FanInviteRow[]>([]);
 
   const load = useCallback(async () => {
-    const [fs, b, tp] = await Promise.all([listFans({}), loadFanToday(), topFansByPresence(5)]);
+    const [fs, b, tp, next] = await Promise.all([
+      listFans({}),
+      loadFanToday(),
+      topFansByPresence(5),
+      nextNonSocialGig(),
+    ]);
     setFans(fs);
     setBuckets(b);
     setTopPresence(tp);
+    setNextGig(next);
+    setInvites(next ? await listInvitesForGig(next.id) : []);
     setLoading(false);
   }, []);
 
@@ -153,6 +172,14 @@ export function FanClubOverview({
   const acoesHoje = buckets
     ? buckets.agradecer.length + buckets.convidar.length + buckets.parabenizar.length + buckets.reativar.length + buckets.aniversarios.length
     : 0;
+
+  async function respond(inviteId: number, status: FanInviteStatus) {
+    try {
+      await setInviteStatus(inviteId, status);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
 
   if (loading) return <SkeletonCards />;
 
@@ -310,6 +337,60 @@ export function FanClubOverview({
           </div>
         </div>
       </div>
+
+      {nextGig && (
+        <div className="glass-panel space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Mail className="h-3.5 w-3.5" /> Convidados · {nextGig.name} · {formatDate(nextGig.date)}
+            </div>
+            {invites.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {invites.filter((i) => i.status === "confirmado").length} confirmaram · {invites.filter((i) => i.status === "convidado").length} aguardando
+              </span>
+            )}
+          </div>
+          {invites.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Selecione fãs na Lista e use "Convidar pro show" pra começar o funil deste show.
+            </p>
+          ) : (
+            <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+              {invites.map((inv) => (
+                <div key={inv.invite_id} className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm">
+                  <button onClick={() => onOpenFan(inv.fan_id)} className="flex-1 truncate text-left hover:text-primary">
+                    {inv.fan_name}
+                  </button>
+                  {inv.attended ? (
+                    <Badge variant="success">Compareceu</Badge>
+                  ) : inv.status === "confirmado" ? (
+                    <Badge variant="success">Confirmou</Badge>
+                  ) : inv.status === "recusado" ? (
+                    <Badge variant="secondary">Recusou</Badge>
+                  ) : (
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        onClick={() => void respond(inv.invite_id, "confirmado")}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-500 hover:bg-emerald-500/10"
+                        title="Confirmou"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => void respond(inv.invite_id, "recusado")}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                        title="Recusou"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

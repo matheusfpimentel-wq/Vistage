@@ -10,15 +10,19 @@ import {
   Heart,
   LayoutGrid,
   List,
+  ListPlus,
+  Mail,
   MessageCircle,
   Pencil,
   Play,
   Plus,
   Save,
   Settings2,
+  Tag,
   Trash2,
   User,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import {
   DndContext,
@@ -56,7 +60,9 @@ import { FanTodayView } from "./components/FanTodayView";
 import {
   addFanGroupMember,
   addFanToGroupIfAbsent,
+  bulkInviteFans,
   createFanGroup,
+  createGroupedFanTask,
   deleteFan,
   deleteFanGroup,
   deleteFanSegment,
@@ -73,8 +79,11 @@ import {
   parseFanSegmentCriterios,
   runFanAutoRules,
   removeFanGroupMember,
+  updateFan,
   updateFanGroup,
   listFanGroupStats,
+  listFanEngagementScores,
+  nextNonSocialGig,
   type FanFilters,
 } from "./api";
 import { listGigs } from "@/modules/gigs/api";
@@ -99,6 +108,7 @@ type ViewMode = "cards" | "list";
 // Filtros do roster (versão "form", em strings) + conversão pro FanFilters da API.
 type RosterFilters = {
   level: LevelFilter;
+  levelAndAbove: boolean;
   city: string;
   search: string;
   groupId: string;
@@ -111,11 +121,12 @@ type RosterFilters = {
 };
 
 const EMPTY_FILTERS: RosterFilters = {
-  level: "Todos", city: "", search: "", groupId: "", origem: "", minDays: "", hasPerk: "", ambassador: false, attendedGigId: "", wasVip: "",
+  level: "Todos", levelAndAbove: false, city: "", search: "", groupId: "", origem: "", minDays: "", hasPerk: "", ambassador: false, attendedGigId: "", wasVip: "",
 };
 
 function rosterToQuery(f: RosterFilters): FanFilters {
   const q: FanFilters = { level: f.level, city: f.city, search: f.search };
+  if (f.level !== "Todos" && f.levelAndAbove) q.levelAndAbove = true;
   if (f.groupId) q.groupId = Number(f.groupId);
   if (f.origem) q.origem = f.origem;
   if (f.minDays) q.minDays = Number(f.minDays);
@@ -130,6 +141,7 @@ function rosterToQuery(f: RosterFilters): FanFilters {
 function queryToRoster(q: FanFilters): RosterFilters {
   return {
     level: (q.level as LevelFilter) ?? "Todos",
+    levelAndAbove: q.levelAndAbove === true,
     city: q.city ?? "",
     search: q.search ?? "",
     groupId: q.groupId != null ? String(q.groupId) : "",
@@ -166,6 +178,7 @@ type FanRow = Fan & {
   _group: string | null;
   _contact: string | null;
   _interactions: number;
+  _score: number;
 };
 
 export function FansPage() {
@@ -174,9 +187,12 @@ export function FansPage() {
   const [loading, setLoading] = useState(true);
   const [interactionCounts, setInteractionCounts] = useState<Map<number, number>>(new Map());
   const [perkCounts, setPerkCounts] = useState<Map<number, number>>(new Map());
+  const [scores, setScores] = useState<Map<number, number>>(new Map());
   // Mapa fã→grupos (multi-grupo): chips na lista + visão agrupada em pastas.
   const [groupMap, setGroupMap] = useState<Map<number, { id: number; name: string }[]>>(new Map());
   const [filters, setFilters] = useState<RosterFilters>({ ...EMPTY_FILTERS });
+  // Seleção múltipla — só a view Lista opera em massa (grupo/tag/tarefa/excluir).
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   // Dados auxiliares dos dropdowns de filtro (carregados uma vez).
   const [groups, setGroups] = useState<FanGroup[]>([]);
   const [gigOptions, setGigOptions] = useState<{ id: number; label: string }[]>([]);
@@ -220,13 +236,15 @@ export function FansPage() {
         _group: (groupMap.get(f.id) ?? []).map((g) => g.name).join(", ") || null,
         _contact: f.instagram ?? f.email ?? f.phone ?? null,
         _interactions: interactionCounts.get(f.id) ?? 0,
+        _score: scores.get(f.id) ?? 0,
       })),
-    [fans, groupMap, interactionCounts]
+    [fans, groupMap, interactionCounts, scores]
   );
   const { sorted: sortedFans, sortKey, sortDir, handleSort } = useTableSort(fanRows);
   const cols = useResizableColumns("fans", [
     { id: "name", width: 240, min: 140 },
     { id: "level", width: 120 },
+    { id: "score", width: 110 },
     { id: "city", width: 150 },
     { id: "group", width: 160 },
     { id: "contact", width: 180 },
@@ -250,18 +268,20 @@ export function FansPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, counts, perks, gmap, gs] = await Promise.all([
+      const [data, counts, perks, gmap, gs, sc] = await Promise.all([
         listFans(queryFilters),
         listFanInteractionCounts().catch(() => new Map<number, number>()),
         listFanPerkCounts().catch(() => new Map<number, number>()),
         listFanGroupMap().catch(() => new Map<number, { id: number; name: string }[]>()),
         listFanGroups().catch(() => [] as FanGroup[]),
+        listFanEngagementScores().catch(() => new Map<number, number>()),
       ]);
       setFans(data);
       setInteractionCounts(counts);
       setPerkCounts(perks);
       setGroupMap(gmap);
       setGroups(gs);
+      setScores(sc);
     } catch (e) {
       toast.error(`Erro ao carregar fãs: ${String(e)}`);
     } finally {
@@ -272,6 +292,11 @@ export function FansPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Muda o filtro → a seleção antiga não corresponde mais ao que está na tela.
+  useEffect(() => {
+    setSelected(new Set());
+  }, [queryFilters]);
 
   // Roda as ações programadas (regras gatilho→ação) uma vez ao abrir o Clube de
   // Fãs, DEPOIS do primeiro load. Idempotente (marcador [auto:<ruleId>] por
@@ -317,6 +342,78 @@ export function FansPage() {
     try {
       await deleteFan(f.id);
       toast.success("Fã excluído");
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleBulkGroup(groupId: number) {
+    const ids = [...selected];
+    try {
+      for (const id of ids) await addFanToGroupIfAbsent(groupId, id);
+      const g = groups.find((gr) => gr.id === groupId);
+      toast.success(`${ids.length} adicionado(s) a "${g?.name ?? "grupo"}"`);
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleBulkTag(tag: string) {
+    const ids = [...selected];
+    try {
+      for (const id of ids) {
+        const f = fans.find((x) => x.id === id);
+        if (!f || f.tags.includes(tag)) continue;
+        await updateFan({ id, tags: [...f.tags, tag] });
+      }
+      toast.success(`Tag "${tag}" adicionada a ${ids.length} fã(s)`);
+      await refresh();
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  /** Convida os selecionados pro próximo show não-social — mesmo alvo que a
+   *  Próximas ações já usa pra "convidar", sem picker novo. */
+  async function handleBulkInvite() {
+    const ids = [...selected];
+    try {
+      const next = await nextNonSocialGig();
+      if (!next) {
+        toast.error("Nenhum show marcado à frente pra convidar.");
+        return;
+      }
+      await bulkInviteFans(ids, next.id);
+      toast.success(`${ids.length} convidado(s) pra "${next.name}"`);
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleBulkTask(title: string) {
+    try {
+      await createGroupedFanTask([...selected], title);
+      toast.success("Tarefa criada");
+    } catch (e) {
+      toast.error(`Erro: ${String(e)}`);
+    }
+  }
+
+  async function handleBulkDelete() {
+    const ids = [...selected];
+    const ok = await confirmDialog({
+      title: "Excluir fãs",
+      description: `Excluir ${ids.length} fã(s)? Interações vinculadas também serão removidas.`,
+      confirmLabel: "Excluir",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      for (const id of ids) await deleteFan(id);
+      toast.success(`${ids.length} fã(s) excluído(s)`);
+      setSelected(new Set());
       await refresh();
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -415,12 +512,25 @@ export function FansPage() {
         filters={
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <FilterSelect
-                label="Nível"
-                value={filters.level}
-                onChange={(v) => setFilters((f) => ({ ...f, level: v as LevelFilter }))}
-                options={[{ value: "Todos", label: "Todos os níveis" }, ...FAN_LEVELS.map((l) => ({ value: l, label: l }))]}
-              />
+              <div className="space-y-1">
+                <FilterSelect
+                  label="Nível"
+                  value={filters.level}
+                  onChange={(v) => setFilters((f) => ({ ...f, level: v as LevelFilter }))}
+                  options={[{ value: "Todos", label: "Todos os níveis" }, ...FAN_LEVELS.map((l) => ({ value: l, label: l }))]}
+                />
+                {filters.level !== "Todos" && (
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={filters.levelAndAbove}
+                      onChange={(e) => setFilters((f) => ({ ...f, levelAndAbove: e.target.checked }))}
+                      className="h-3.5 w-3.5 rounded"
+                    />
+                    {filters.level} e acima
+                  </label>
+                )}
+              </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Cidade</label>
                 <Input
@@ -591,20 +701,69 @@ export function FansPage() {
         </div>
         </PendingTasksProvider>
       ) : (
+        <div className="space-y-2">
+        {selected.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-1.5 text-xs">
+            <span className="text-muted-foreground">
+              {selected.size} selecionado{selected.size !== 1 ? "s" : ""}
+            </span>
+            <select
+              className="h-7 rounded-md border bg-background px-1.5 text-xs"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) void handleBulkGroup(Number(e.target.value));
+                e.target.value = "";
+              }}
+            >
+              <option value="">+ Grupo</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <BulkInlineInput icon={Tag} label="+ Tag" placeholder="Nome da tag" submitLabel="Adicionar" onSubmit={handleBulkTag} />
+            <BulkInlineInput icon={ListPlus} label="Criar tarefa" placeholder="Título da tarefa" submitLabel="Criar" onSubmit={handleBulkTask} />
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => void handleBulkInvite()}>
+              <Mail className="h-3.5 w-3.5" /> Convidar pro show
+            </Button>
+            <Button size="sm" variant="destructive" className="h-7 gap-1.5 text-xs" onClick={() => void handleBulkDelete()}>
+              <Trash2 className="h-3.5 w-3.5" /> Excluir
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelected(new Set())}>
+              Limpar seleção
+            </Button>
+          </div>
+        )}
         <div className="overflow-x-auto rounded-md border">
-          <table className="table-fixed text-sm" style={{ width: tableWidth }}>
+          <table className="table-fixed text-sm" style={{ width: tableWidth + 36 }}>
             <colgroup>
+              <col style={{ width: 36 }} />
               {cols.defs.map((c) => (
                 <col key={c.id} style={cols.colStyle(c.id)} />
               ))}
             </colgroup>
             <thead className="bg-muted/50 text-xs tracking-wide text-muted-foreground">
               <tr>
+                <th className="px-3 py-2">
+                  <input
+                    type="checkbox"
+                    checked={sortedFans.length > 0 && selected.size === sortedFans.length}
+                    onChange={() =>
+                      setSelected((cur) =>
+                        cur.size === sortedFans.length ? new Set() : new Set(sortedFans.map((r) => r.id))
+                      )
+                    }
+                    className="h-3.5 w-3.5 rounded"
+                    aria-label="Selecionar todos"
+                  />
+                </th>
                 <SortableHeader<FanRow> col="name" label="Nome" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("name")} />
                 </SortableHeader>
                 <SortableHeader<FanRow> col="level" label="Nível" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("level")} />
+                </SortableHeader>
+                <SortableHeader<FanRow> col="_score" label="Engajamento" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
+                  <ColResizer {...cols.resizer("score")} />
                 </SortableHeader>
                 <SortableHeader<FanRow> col="city" label="Cidade" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left">
                   <ColResizer {...cols.resizer("city")} />
@@ -636,11 +795,30 @@ export function FansPage() {
                     className="cursor-pointer border-t transition-colors hover:bg-muted/40"
                     onClick={() => openDetail(f)}
                   >
+                    <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(f.id)}
+                        onChange={() =>
+                          setSelected((cur) => {
+                            const next = new Set(cur);
+                            if (next.has(f.id)) next.delete(f.id);
+                            else next.add(f.id);
+                            return next;
+                          })
+                        }
+                        className="h-3.5 w-3.5 rounded"
+                        aria-label={`Selecionar ${f.name}`}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <FanListAvatar fan={f} />
                     </td>
                     <td className="px-3 py-2">
                       <LevelBadge level={f.level} />
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+                      {Math.round(f._score)}
                     </td>
                     <td className="px-3 py-2 text-muted-foreground">
                       {f.city ?? EMPTY_VALUE}
@@ -700,6 +878,7 @@ export function FansPage() {
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
         </TabsContent>
@@ -1106,6 +1285,64 @@ function FanGroupChips({
  * Criar grupo inline (sem sair da lista): botão "Novo grupo" que abre um input
  * curtinho ali do lado; Enter cria, Esc cancela. Usa `createFanGroup` via callback.
  */
+/** Botão que vira campo de texto (Enter submete) — usado na barra de seleção em massa. */
+function BulkInlineInput({
+  icon: Icon,
+  label,
+  placeholder,
+  submitLabel,
+  onSubmit,
+}: {
+  icon: LucideIcon;
+  label: string;
+  placeholder: string;
+  submitLabel: string;
+  onSubmit: (value: string) => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  async function submit() {
+    const v = value.trim();
+    if (!v) return;
+    await onSubmit(v);
+    setValue("");
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={() => setOpen(true)}>
+        <Icon className="h-3.5 w-3.5" /> {label}
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        ref={inputRef}
+        className="h-7 w-44 text-xs"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+          else if (e.key === "Escape") { setValue(""); setOpen(false); }
+        }}
+      />
+      <Button size="sm" className="h-7 text-xs" onClick={() => void submit()} disabled={!value.trim()}>
+        {submitLabel}
+      </Button>
+    </div>
+  );
+}
+
 function NewGroupInline({ onCreate }: { onCreate: (name: string) => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");

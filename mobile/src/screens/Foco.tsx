@@ -1279,7 +1279,7 @@ export function Foco() {
     void showFocusNotification(notifBody());
     notifRef.current = window.setInterval(() => {
       void showFocusNotification(notifBody());
-    }, 30_000);
+    }, 30 * 60 * 1000);
   }
 
   function start() {
