@@ -107,18 +107,27 @@ function weekStartISO(): string {
 }
 /** Offset local ("-03:00") na data dada — pra o timestamptz do Supabase guardar
  *  o INSTANTE certo. Sem isso, "20:00" sem fuso virava UTC e o celular voltava
- *  3h a menos. Meio-dia evita pular o dia ao calcular o offset. */
+ *  3h a menos. Meio-dia evita pular o dia ao calcular o offset. Só usa os 10
+ *  primeiros caracteres (a DATA): um valor com hora já embutida por engano
+ *  (ex.: "2026-08-02T20:30:00" numa coluna que deveria ser só data) virava
+ *  "...T20:30:00T12:00:00" → Invalid Date → NaN → "-NaN:NaN", rejeitado pelo
+ *  Postgres ("invalid input syntax for type timestamp with time zone") e
+ *  travando a sincronização inteira a cada tentativa. Fallback +00:00 se,
+ *  mesmo assim, a data não for válida — nunca mais deixa vazar NaN. */
 function tzOffset(date: string): string {
-  const mins = -new Date(`${date}T12:00:00`).getTimezoneOffset();
+  const d = new Date(`${date.slice(0, 10)}T12:00:00`);
+  const mins = Number.isNaN(d.getTime()) ? 0 : -d.getTimezoneOffset();
   const sign = mins >= 0 ? "+" : "-";
   const a = Math.abs(mins);
   return `${sign}${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`;
 }
 
 /** Combina data + hora "HH:MM" num timestamp COM fuso local. Sem hora → meia-noite
- *  local (o celular trata meia-noite como "dia inteiro" na exibição). */
+ *  local (o celular trata meia-noite como "dia inteiro" na exibição). `date` só
+ *  usa os 10 primeiros caracteres — tolera um valor com hora já embutida. */
 function startAt(date: string, time: string | null): string {
-  return `${date}T${time ?? "00:00"}:00${tzOffset(date)}`;
+  const pureDate = date.slice(0, 10);
+  return `${pureDate}T${time ?? "00:00"}:00${tzOffset(pureDate)}`;
 }
 
 // ── Builders do espelho (lêem o banco LOCAL) ────────────────────────────────
