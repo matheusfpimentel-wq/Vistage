@@ -22,7 +22,35 @@ function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 }
 
-function todayISO() { return new Date().toISOString().slice(0, 10); }
+// Fuso do dono do app. O resumo é sobre o DIA DELE, não sobre o dia UTC do
+// servidor — sem isso um show às 22h (02h UTC do dia seguinte) some da lista.
+const TZ = "America/Sao_Paulo";
+
+/** Data de hoje NO FUSO LOCAL (en-CA formata como YYYY-MM-DD). */
+function todayISO() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+}
+
+/** Offset local ("-03:00") pra fechar a janela do dia em timestamptz. Fallback
+ *  no horário de Brasília se o runtime não tiver `longOffset`. */
+function tzOffset(): string {
+  try {
+    const s = new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "longOffset" })
+      .format(new Date());
+    return s.match(/GMT([+-]\d{2}:\d{2})/)?.[1] ?? "-03:00";
+  } catch {
+    return "-03:00";
+  }
+}
+
+/** "22:00" no fuso local, a partir do timestamptz. */
+function hhmm(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, hour: "2-digit", minute: "2-digit" })
+    .format(d);
+}
 
 async function getSecrets(): Promise<Record<string, string>> {
   const { data } = await admin.from("app_secrets").select("key, value");
@@ -33,16 +61,17 @@ async function getSecrets(): Promise<Record<string, string>> {
 
 async function buildSummary(userId: string): Promise<{ title: string; body: string }> {
   const today = todayISO();
+  const off = tzOffset();
   const { data: agenda } = await admin
     .from("agenda_mirror")
     .select("source, title, start_at")
     .eq("user_id", userId)
-    .gte("start_at", today + "T00:00:00")
-    .lte("start_at", today + "T23:59:59")
+    .gte("start_at", `${today}T00:00:00${off}`)
+    .lte("start_at", `${today}T23:59:59${off}`)
     .order("start_at");
   const { data: contacts } = await admin
     .from("contact_today").select("name").eq("user_id", userId).limit(3);
-  const items = (agenda ?? []) as { source: string; title: string }[];
+  const items = (agenda ?? []) as { source: string; title: string; start_at: string | null }[];
   const gigs = items.filter((i) => i.source === "gig");
   const tasks = items.filter((i) => i.source === "task");
   const follow = (contacts ?? []) as { name: string }[];
@@ -51,9 +80,15 @@ async function buildSummary(userId: string): Promise<{ title: string; body: stri
   if (tasks.length) parts.push(`${tasks.length} tarefa${tasks.length > 1 ? "s" : ""}`);
   if (follow.length) parts.push(`${follow.length} esfriando`);
   const title = parts.length ? `Hoje: ${parts.join(", ")}` : "Resumo do dia";
+  // Hora na frente do item: sem ela a lista não diz nada acionável de manhã.
+  // Meia-noite = "sem hora" no espelho (tarefa por vencimento, show sem horário
+  // definido) e vira só o título, nunca um "00:00" que não quer dizer nada.
   const body = items.length
-    ? items.slice(0, 4).map((i) => i.title).join(" · ")
-    : "Sem compromissos marcados pra hoje. \u{1F3B9}";
+    ? items.slice(0, 4).map((i) => {
+        const h = hhmm(i.start_at);
+        return h && h !== "00:00" ? `${h} ${i.title}` : i.title;
+      }).join(" · ")
+    : "Nada marcado pra hoje.";
   return { title, body };
 }
 

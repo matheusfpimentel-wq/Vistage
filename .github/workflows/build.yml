@@ -71,4 +71,7 @@ jobs:
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: warn
-          retention-days: 14
+          # 90 é o teto do GitHub em repositório público. Com 14 dias o
+          # instalador sumia antes da próxima leva de mudanças e não dava pra
+          # reinstalar sem refazer o build à mão.
+          retention-days: 90
