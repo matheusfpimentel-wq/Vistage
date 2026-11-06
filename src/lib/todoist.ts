@@ -9,6 +9,7 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { getDb } from "./db";
 import { emitDataChanged } from "./events";
+import { toEpochMs } from "./format";
 import type { TaskPriority, TaskStatus } from "@/modules/tasks/types";
 
 // ────────────────────────────────────────────────
@@ -289,27 +290,6 @@ function vistagePriorityToTodoist(p: TaskPriority): number {
 }
 
 // ────────────────────────────────────────────────
-// Comparação de timestamps
-// ────────────────────────────────────────────────
-
-/**
- * Normaliza um timestamp para epoch ms antes de comparar. Sem isso a sync
- * comparava strings de formatos diferentes:
- *  - Todoist/lastSync: ISO-UTC com 'T' e 'Z' ("2026-06-17T20:49:24.000000Z")
- *  - updated_at local: CURRENT_TIMESTAMP do SQLite ("2026-06-17 20:49:24"),
- *    com espaço e SEM zona — e em UTC.
- * Como ' ' (0x20) < 'T' (0x54), `local > lastSync` dava SEMPRE falso e as
- * edições locais nunca eram empurradas pro Todoist. O espaço também faria o
- * JS ler a data como horário local; por isso normalizamos pra ISO-UTC.
- */
-function toEpochMs(ts: string | null | undefined): number {
-  if (!ts) return 0;
-  const iso = ts.includes("T") ? ts : `${ts.replace(" ", "T")}Z`;
-  const ms = Date.parse(iso);
-  return Number.isNaN(ms) ? 0 : ms;
-}
-
-// ────────────────────────────────────────────────
 // Sincronização bidirecional
 // ────────────────────────────────────────────────
 
@@ -343,23 +323,54 @@ export async function syncTodoist(): Promise<SyncResult> {
   // que ainda apareça na resposta da API por timing.
   const tombstoned = await flushTombstones(token);
 
-  // Busca tarefas locais (não canceladas) e tarefas do Todoist em paralelo
+  // Busca TODAS as tarefas locais (inclusive canceladas) e as do Todoist em
+  // paralelo. A query antes filtrava `status <> 'Cancelada'`, e isso causava
+  // dois defeitos de uma vez:
+  //   1. a cancelada ficava fora de `localByTodoistId`, então o passo 1 não
+  //      reconhecia a tarefa remota como já vinculada e INSERIA uma cópia nova
+  //      com o mesmo todoist_id (não há índice UNIQUE na coluna pra barrar) —
+  //      cancelar uma GIG ressuscitava a tarefa, duplicada e "A fazer";
+  //   2. os passos 2 e 4 iteram sobre essa lista, então nenhum
+  //      close/delete remoto era alcançado para ela.
   const [localTasks, todoistTasks] = await Promise.all([
     db.select<LocalTask[]>(
       `SELECT id, title, description, priority, status, due_date, todoist_id, updated_at
-         FROM tasks WHERE status <> 'Cancelada'`
+         FROM tasks`
     ),
     fetchProjectTasks(token, projectId),
   ]);
 
   const todoistById = new Map(todoistTasks.map((t) => [t.id, t]));
+  // Mapa COMPLETO (inclui canceladas) — é o que impede a ressurreição.
   const localByTodoistId = new Map(
     localTasks.filter((t) => t.todoist_id).map((t) => [t.todoist_id!, t])
   );
+  // Os passos de sincronização de campo só olham tarefas vivas; as canceladas
+  // são resolvidas no passo 0 abaixo.
+  const activeTasks = localTasks.filter((t) => t.status !== "Cancelada");
 
   // Lido UMA vez: representa a sync anterior e não muda até o fim (só gravamos
   // KEY_LAST_SYNC no final). Todas as comparações usam o mesmo valor.
   const lastSync = await getSetting(KEY_LAST_SYNC);
+
+  // ── 0. Cancelada aqui → sai do Todoist ────────────────────────────────────
+  // Cancelar uma GIG cancela as tarefas vinculadas ainda abertas
+  // (syncGigLinkedTasksStatus), e é daqui que isso chega ao Todoist.
+  // `tombstoneTodoistTask` tenta o DELETE e, se a rede falhar, grava a lápide
+  // pro `flushTombstones` reenviar na próxima sync — então cancelar offline não
+  // se perde. Limpa o `todoist_id` local pra não reprocessar a cada sync.
+  // Tarefa CONCLUÍDA nunca entra aqui (o espelhamento não cancela concluídas),
+  // então o histórico no Todoist permanece.
+  for (const lt of localTasks) {
+    if (lt.status !== "Cancelada" || !lt.todoist_id) continue;
+    await tombstoneTodoistTask(lt.todoist_id);
+    await db.execute("UPDATE tasks SET todoist_id = NULL WHERE id = $1", [lt.id]);
+    // Entra no conjunto de lápides DESTA rodada: `todoistTasks` foi buscado
+    // antes do DELETE e ainda traz essa tarefa, então sem isto o passo 1 a
+    // re-importaria como nova — a mesma ressurreição, por outro caminho.
+    tombstoned.add(lt.todoist_id);
+    result.completed++;
+  }
 
   // ── 1. Puxa tarefas do Todoist que não existem localmente ──────────────────
   for (const tt of todoistTasks) {
@@ -393,7 +404,7 @@ export async function syncTodoist(): Promise<SyncResult> {
   }
 
   // ── 2. Para tarefas locais com todoist_id, sincroniza estado ───────────────
-  for (const lt of localTasks) {
+  for (const lt of activeTasks) {
     if (!lt.todoist_id) continue;
     const tt = todoistById.get(lt.todoist_id);
 
@@ -436,8 +447,8 @@ export async function syncTodoist(): Promise<SyncResult> {
   }
 
   // ── 3. Empurra tarefas locais sem todoist_id para o Todoist ────────────────
-  const localWithoutTodoist = localTasks.filter(
-    (t) => !t.todoist_id && t.status !== "Concluída" && t.status !== "Cancelada"
+  const localWithoutTodoist = activeTasks.filter(
+    (t) => !t.todoist_id && t.status !== "Concluída"
   );
   for (const lt of localWithoutTodoist) {
     const tt = await createTodoistTask(token, projectId, {
@@ -454,7 +465,9 @@ export async function syncTodoist(): Promise<SyncResult> {
   }
 
   // ── 4. Atualiza campos de tarefas locais já vinculadas que mudaram ─────────
-  for (const lt of localTasks) {
+  // É por aqui que o RENAME chega ao Todoist: `updateGig` renomeia a tarefa de
+  // preparação e carimba `updated_at`, e o `toEpochMs` abaixo compara direito.
+  for (const lt of activeTasks) {
     if (!lt.todoist_id) continue;
     if (lt.status === "Concluída") continue;
     const tt = todoistById.get(lt.todoist_id);

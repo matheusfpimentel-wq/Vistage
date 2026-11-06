@@ -132,3 +132,26 @@ export function toLocalYearMonth(d: Date = new Date()): string {
 export function todayISO(): string {
   return toLocalISODate();
 }
+
+/**
+ * Timestamp → epoch ms, para COMPARAR carimbos de formatos diferentes.
+ *
+ * Os dois formatos que convivem no app:
+ *  - ISO-UTC, com 'T' e 'Z' ("2026-06-17T20:49:24.000Z") — o que as APIs e o
+ *    `new Date().toISOString()` produzem;
+ *  - `CURRENT_TIMESTAMP` do SQLite ("2026-06-17 20:49:24") — com espaço, sem
+ *    zona, e em UTC.
+ *
+ * Comparar as duas strings direto é um bug silencioso: como ' ' (0x20) é menor
+ * que 'T' (0x54), `local > lastSync` dá SEMPRE falso dentro do mesmo dia, e
+ * nenhuma edição local é empurrada. Isso já aconteceu no sync do Todoist e de
+ * novo no do Google Calendar — por isso o helper mora aqui, e não privado num
+ * dos dois. O espaço também faria o JS ler a data como horário LOCAL, então
+ * normalizamos pra ISO-UTC antes do parse.
+ */
+export function toEpochMs(ts: string | null | undefined): number {
+  if (!ts) return 0;
+  const iso = ts.includes("T") ? ts : `${ts.replace(" ", "T")}Z`;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? 0 : ms;
+}
