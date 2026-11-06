@@ -40,6 +40,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useModuleView } from "@/lib/moduleView";
 import { useConfirm } from "@/components/ui/confirm";
 import { exportTransactionsCsv } from "@/lib/csv";
+import { DATA_CHANGED } from "@/lib/events";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 type KindFilter = TransactionKind | "all";
@@ -158,6 +159,15 @@ export function FinancePage() {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  // A receita de GIG é escrita pelo módulo de GIGs, não por esta tela. Sem
+  // escutar `DATA_CHANGED`, editar o cachê e voltar pro Financeiro mostrava o
+  // valor antigo até trocar de filtro ou remontar a página.
+  useEffect(() => {
+    const onChange = () => void refresh();
+    window.addEventListener(DATA_CHANGED, onChange);
+    return () => window.removeEventListener(DATA_CHANGED, onChange);
   }, [refresh]);
 
   function openCreate(kind: TransactionKind) {

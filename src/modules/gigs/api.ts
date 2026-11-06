@@ -203,6 +203,22 @@ export async function createGig(input: GigCreateInput): Promise<number> {
   return id;
 }
 
+/**
+ * Campos da GIG que o lançamento no Financeiro deriva. Mudar qualquer um deles
+ * exige re-sincronizar a receita: pagamento e cachê definem o VALOR, os nomes
+ * definem a DESCRIÇÃO e as datas definem o DIA do lançamento.
+ */
+const FINANCE_RELEVANT_FIELDS = [
+  "payment_status",
+  "cache_amount",
+  "cache_paid_pct",
+  "event_name",
+  "venue_name",
+  "recurring_event_name",
+  "date",
+  "payment_due_date",
+] as const;
+
 export async function updateGig(input: GigUpdateInput): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
@@ -342,7 +358,17 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se
   // já existia sincronização (para refletir mudanças no valor do cachê).
   // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
-  if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
+  //
+  // Os campos de NOME e DATA entram na lista porque a descrição e a data do
+  // lançamento são derivadas deles (`label` e `txDate` logo abaixo). Antes a
+  // condição só olhava pagamento/cachê, então renomear a GIG ou mudar a data
+  // deixava a receita com o texto e o dia antigos até o backfill diário
+  // (retroactiveSyncAllLinked) passar — até um dia de descompasso.
+  // Não cria lançamento à toa: sem pagamento e sem linha sincronizada,
+  // syncGigPaymentTransaction não insere nada.
+  if (
+    FINANCE_RELEVANT_FIELDS.some((f) => f in rest)
+  ) {
     try {
       const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null; payment_method: string | null; payment_task_id: number | null }[]>(
         "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id, payment_method, payment_task_id FROM gigs WHERE id = $1", [id]

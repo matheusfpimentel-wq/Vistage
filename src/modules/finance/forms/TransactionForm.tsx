@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Loader2, Music } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ExternalLink, Loader2, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -259,6 +260,19 @@ export function TransactionForm({
   const sym = currencySymbol(state.currency);
   const isLocked = state.gig_sync === 1 || state.class_sync === 1;
   const lockedSource = state.gig_sync === 1 ? "GIG" : "aula";
+  // Origem do lançamento sincronizado, com o deep-link pra editá-la. O aviso
+  // antes era texto morto: dizia "edite a GIG" sem dar como chegar nela, e o
+  // link existia só na LISTAGEM de transações. As três rotas já aceitam
+  // `?open=<id>`, que é o padrão do app (replicado em 9 páginas).
+  // (GIG, aula e festa são todos femininos, então a frase não muda de gênero.)
+  const origin =
+    state.gig_sync === 1 && state.gig_id
+      ? { nome: "GIG", to: `/gigs?open=${state.gig_id}` }
+      : state.class_sync === 1 && state.class_id
+        ? { nome: "aula", to: `/aulas?open=${state.class_id}` }
+        : state.party_id
+          ? { nome: "festa", to: `/festas?open=${state.party_id}` }
+          : null;
   const selectedCategoryName = categories.find((c) => c.id === state.category_id)?.name ?? "";
   const isAulaCategory = selectedCategoryName === "Aulas / Mentorias";
   const isRoyaltiesCategory = selectedCategoryName === "Royalties";
@@ -276,11 +290,25 @@ export function TransactionForm({
         </DialogHeader>
 
         <div className="space-y-4">
-          {(isLocked || state.party_id) && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-              {isLocked
-                ? `Este lançamento é sincronizado automaticamente pela ${lockedSource} vinculada. Para alterar valores, edite a ${lockedSource}.`
-                : "Este lançamento é sincronizado automaticamente pela festa vinculada. Para alterar valores, edite a festa."}
+          {origin && (
+            <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <span>
+                Sincronizado automaticamente pela {origin.nome} vinculada. Os
+                campos abaixo são só leitura: para alterar, edite a {origin.nome}.
+              </span>
+              <Link
+                to={origin.to}
+                // Fecha o diálogo antes de navegar: ele é controlado pelo pai e
+                // continuaria montado por cima da outra tela. Nada se perde,
+                // porque aqui os campos são só leitura.
+                onClick={() => onOpenChange(false)}
+                className="shrink-0"
+              >
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1">
+                  Abrir {origin.nome}
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
             </div>
           )}
           {!transaction && (
