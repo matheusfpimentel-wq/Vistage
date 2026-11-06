@@ -618,8 +618,15 @@ export async function clearDocumentData(): Promise<void> {
  */
 export async function hasAnyDocumentData(): Promise<boolean> {
   const db = getDb();
+  const migrated = documentTablesMigrated();
   for (const t of TABLES) {
     if (MACHINE_TABLES.includes(t)) continue;
+    // Tem que concordar com clearDocumentData sobre o que é "em branco". Antes
+    // do 1º save, ele POUPA estas tabelas do wipe (pra não apagar dado que ainda
+    // não viajou pro arquivo); se aqui elas contassem, um documento recém-zerado
+    // seria julgado "com dados" e Abrir/Novo pediriam pra salvar um doc vazio.
+    // Invariante: depois de clearDocumentData(), isto devolve false.
+    if (!migrated && PENDING_MIGRATION_TABLES.includes(t)) continue;
     try {
       if (t === "document_settings") {
         // Preferências de tela (tema, colunas, filtros...) não contam como

@@ -26,14 +26,16 @@ export function UnsavedCloseGuard() {
   // a janela fechar (em vez de reabrir o diálogo num loop).
   const confirmed = useRef(false);
 
-  // Toda mudança de dados FEITA PELO USUÁRIO marca o documento como não salvo.
-  // Mudanças durante o boot (recorrências, sync de vínculos, follow-ups) não
-  // contam — por isso o portão `bootSettled`. Sem ele, o app abriria sempre
-  // "sujo" e o fechamento ficaria preso no diálogo de salvar.
+  // O evento serve de GATILHO para reavaliar, não de prova de que mudou: quem
+  // decide é o contador de linhas escritas (revision.ts). Antes, isto marcava
+  // sujo a cada `DATA_CHANGED`, inclusive os emitidos por escrita de máquina
+  // (carimbo de sync, por exemplo), e o documento aparecia alterado sem o
+  // usuário ter tocado em nada. O portão `bootSettled` continua porque o
+  // baseline só é tirado quando o boot assenta.
   useEffect(() => {
     const onChange = () => {
       if (!useDocumentStore.getState().bootSettled) return;
-      useDocumentStore.getState().markDirty();
+      if (!useDocumentStore.getState().recomputeDirty()) return;
       // Flag síncrona que sobrevive a um crash → recuperação no próximo boot.
       markUnsavedWork();
     };
