@@ -272,15 +272,19 @@ function fileKind(rel: string): "media" | "doc" | "other" {
 export function isDriveMedia(rel: string): boolean {
   const r = rel.replace(/\\/g, "/").replace(/^\/+/, "").toLowerCase();
   const top = r.split("/")[0];
+  // Só a PASTA decide — o nome do arquivo não. Desde que o upload passou a
+  // preservar o nome original, casar no caminho inteiro mandaria pro Drive um
+  // "manual-de-fontes.ttf" que deve ficar local.
+  const folder = r.slice(0, r.lastIndexOf("/") + 1);
   // 1) política de PASTA — quais módulos podem ir pro Drive.
   let pathOk: boolean;
   if (top === "identity") {
     // logo/isótipo/fontes ficam LOCAIS; galeria/presskit/manual vão pro Drive.
     pathOk =
-      r.startsWith("identity/photos/") ||
-      r.includes("presskit") ||
-      r.includes("brand") ||
-      r.includes("manual");
+      folder.startsWith("identity/photos/") ||
+      folder.includes("presskit") ||
+      folder.includes("brand") ||
+      folder.includes("manual");
   } else {
     pathOk = ["gigs", "tracks", "music", "content", "parties", "equipment", "finance"].includes(top);
   }

@@ -82,9 +82,71 @@ function getExtension(path: string): string {
   return (m ? m[1] : "bin").toLowerCase();
 }
 
+/** Nome do arquivo (sem pasta) a partir de um caminho de qualquer SO. */
+export function baseName(path: string): string {
+  return path.split(/[\\/]/).pop() ?? "";
+}
+
+// Nomes de dispositivo reservados no Windows: um arquivo "CON.pdf" não pode ser
+// criado, então prefixamos com "_".
+const WIN_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+// Teto do miolo do nome. O caminho final é uploadsDir + subpasta + nome, e o
+// Windows ainda tem limite prático de 260 caracteres por caminho; 80 deixa folga
+// pra uma pasta de uploads num caminho fundo.
+const MAX_STEM = 80;
+
+/**
+ * Transforma o nome ORIGINAL do arquivo em um nome seguro pro sistema de
+ * arquivos, preservando o que a pessoa reconhece ("Presskit MAZIK 2026.pdf").
+ * Só mexe no que é inválido: caracteres proibidos, pontos/espaços no fim
+ * (Windows corta), nome reservado e comprimento. Devolve null quando não sobra
+ * nada utilizável, pra quem chamou cair no nome gerado.
+ */
+function safeStem(original: string): string | null {
+  const withoutExt = original.replace(/\.[a-zA-Z0-9]+$/, "");
+  const cleaned = withoutExt
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .slice(0, MAX_STEM)
+    .replace(/[.\s]+$/g, "");
+  if (!cleaned) return null;
+  return WIN_RESERVED.test(cleaned) ? `_${cleaned}` : cleaned;
+}
+
+/**
+ * Primeiro nome livre em `dir` para `stem.ext`, acrescentando " (2)", " (3)"…
+ * em caso de colisão. Desiste depois de um número razoável de tentativas e
+ * devolve null, pra quem chamou cair no nome gerado em vez de travar o upload.
+ */
+async function freeFileName(dir: string, stem: string, ext: string): Promise<string | null> {
+  for (let i = 1; i <= 50; i++) {
+    const candidate = i === 1 ? `${stem}.${ext}` : `${stem} (${i}).${ext}`;
+    try {
+      if (!(await exists(joinPath(dir, candidate)))) return candidate;
+    } catch {
+      return null; // não deu pra checar: não arrisca sobrescrever
+    }
+  }
+  return null;
+}
+
+/** Nome gerado (sem relação com o original) — fallback de último recurso. */
+function stampName(ext: string): string {
+  return `${Date.now().toString(36) + Math.random().toString(36).slice(2, 7)}.${ext}`;
+}
+
 /**
  * Copia o arquivo escolhido para uma subpasta dentro de `uploadsDir` e retorna
  * o caminho ABSOLUTO do destino. Subpastas são criadas se não existirem.
+ *
+ * O nome ORIGINAL é preservado (só sanitizado), porque é por ele que a pessoa
+ * reconhece e baixa o arquivo — antes gravávamos um nome gerado e a interface
+ * mostrava "mh2k9x7a3f.pdf" no lugar de "Presskit MAZIK 2026.pdf". Em colisão,
+ * vira " (2)", " (3)"… O nome gerado continua como rede: se o original não
+ * sobreviver à sanitização ou a checagem de colisão falhar, cai nele.
  */
 export async function saveAttachment(
   sourcePath: string,
@@ -95,8 +157,9 @@ export async function saveAttachment(
   const dir = joinPath(cfg.uploadsDir, subdir);
   if (!(await exists(dir))) await mkdir(dir, { recursive: true });
   const ext = getExtension(sourcePath);
-  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const filename = `${stamp}.${ext}`;
+  const stem = safeStem(baseName(sourcePath));
+  const filename =
+    (stem ? await freeFileName(dir, stem, ext) : null) ?? stampName(ext);
   const dest = joinPath(dir, filename);
   await copyFile(sourcePath, dest);
 
@@ -135,8 +198,9 @@ export async function saveBytesToUploads(
   const dir = joinPath(cfg.uploadsDir, subdir);
   if (!(await exists(dir))) await mkdir(dir, { recursive: true });
   const safeExt = (ext || "bin").replace(/[^a-z0-9]/gi, "").toLowerCase() || "bin";
-  const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  const filename = `${stamp}.${safeExt}`;
+  // Aqui a fonte são BYTES (mídia vinda do relay do celular): não existe nome
+  // original pra preservar, então o nome gerado é o certo.
+  const filename = stampName(safeExt);
   const dest = joinPath(dir, filename);
   await writeFile(dest, bytes);
 
