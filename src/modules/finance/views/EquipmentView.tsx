@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,8 @@ import {
 import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
+import { useUnsavedConfirm } from "@/lib/dirty";
+import { clearDraft, readDraft, writeDraft } from "@/lib/formDraft";
 
 const STATE_VARIANT: Record<
   EquipmentState,
@@ -45,6 +47,32 @@ const STATE_VARIANT: Record<
   Quebrado: "destructive",
   Estoque: "warning",
 };
+
+type FormState = {
+  name: string;
+  purchase_date: string;
+  purchase_value: string;
+  eq_state: EquipmentState;
+  location: string;
+  notes: string;
+  quantity: string;
+  category: string;
+  photo_path: string | null;
+};
+
+const EMPTY_FORM: FormState = {
+  name: "",
+  purchase_date: "",
+  purchase_value: "",
+  eq_state: "Em uso",
+  location: "",
+  notes: "",
+  quantity: "1",
+  category: "",
+  photo_path: null,
+};
+
+const DRAFT_KEY = "equipment.new";
 
 export function EquipmentView() {
   const [items, setItems] = useState<Equipment[]>([]);
@@ -183,17 +211,14 @@ function EquipmentForm({
   onSaved: () => void;
   allItems: Equipment[];
 }) {
-  const [state, setState] = useState({
-    name: "",
-    purchase_date: "" as string,
-    purchase_value: "" as string,
-    eq_state: "Em uso" as EquipmentState,
-    location: "",
-    notes: "",
-    quantity: "1",
-    category: "",
-    photo_path: null as string | null,
-  });
+  const [state, setState] = useState<FormState>(EMPTY_FORM);
+  // Snapshot do estado em que o formulário ABRIU. "Sujo" é a diferença contra
+  // ele — assim editar um item e desfazer na mão não conta como alteração.
+  const openedWith = useRef<FormState>(EMPTY_FORM);
+  const [draftOffer, setDraftOffer] = useState<FormState | null>(null);
+  const draftTimer = useRef<number | null>(null);
+
+  const dirty = JSON.stringify(state) !== JSON.stringify(openedWith.current);
 
   const categorySuggestions = useMemo(
     () => Array.from(new Set(allItems.map((i) => i.category).filter(Boolean) as string[])),
@@ -201,32 +226,51 @@ function EquipmentForm({
   );
 
   useEffect(() => {
-    if (equipment) {
-      setState({
-        name: equipment.name,
-        purchase_date: equipment.purchase_date ?? "",
-        purchase_value: equipment.purchase_value?.toString() ?? "",
-        eq_state: equipment.state,
-        location: equipment.location ?? "",
-        notes: equipment.notes ?? "",
-        quantity: String(equipment.quantity ?? 1),
-        category: equipment.category ?? "",
-        photo_path: equipment.photo_path ?? null,
-      });
+    const base: FormState = equipment
+      ? {
+          name: equipment.name,
+          purchase_date: equipment.purchase_date ?? "",
+          purchase_value: equipment.purchase_value?.toString() ?? "",
+          eq_state: equipment.state,
+          location: equipment.location ?? "",
+          notes: equipment.notes ?? "",
+          quantity: String(equipment.quantity ?? 1),
+          category: equipment.category ?? "",
+          photo_path: equipment.photo_path ?? null,
+        }
+      : EMPTY_FORM;
+    setState(base);
+    openedWith.current = base;
+    // Rascunho só vale pra item NOVO: num item existente, restaurar valores
+    // antigos por cima de um registro que mudou desde então faria mais mal que
+    // bem. E ele é OFERECIDO, não aplicado — aplicar sozinho surpreende.
+    if (open && !equipment) {
+      const saved = readDraft<FormState>(DRAFT_KEY);
+      setDraftOffer(saved && JSON.stringify(saved) !== JSON.stringify(EMPTY_FORM) ? saved : null);
     } else {
-      setState({
-        name: "",
-        purchase_date: "",
-        purchase_value: "",
-        eq_state: "Em uso",
-        location: "",
-        notes: "",
-        quantity: "1",
-        category: "",
-        photo_path: null,
-      });
+      setDraftOffer(null);
     }
   }, [equipment, open]);
+
+  // Autosave do rascunho (1s depois da última tecla), só pra item novo.
+  useEffect(() => {
+    if (!open || equipment) return;
+    if (draftTimer.current) window.clearTimeout(draftTimer.current);
+    if (!dirty) return;
+    draftTimer.current = window.setTimeout(() => writeDraft(DRAFT_KEY, state), 1000);
+    return () => {
+      if (draftTimer.current) window.clearTimeout(draftTimer.current);
+    };
+  }, [state, dirty, open, equipment]);
+
+  /** Fecha de verdade: descarta o rascunho (a saída foi deliberada). */
+  function discardAndClose() {
+    if (draftTimer.current) window.clearTimeout(draftTimer.current);
+    if (!equipment) clearDraft(DRAFT_KEY);
+    onOpenChange(false);
+  }
+
+  const confirmClose = useUnsavedConfirm(dirty);
 
   async function handleSubmit() {
     if (!state.name.trim()) {
@@ -250,6 +294,10 @@ function EquipmentForm({
       else await createEquipment(payload);
       toast.success("Salvo");
       onSaved();
+      // Salvou → o rascunho cumpriu seu papel.
+      if (draftTimer.current) window.clearTimeout(draftTimer.current);
+      if (!equipment) clearDraft(DRAFT_KEY);
+      openedWith.current = state; // deixa de estar sujo antes de fechar
       onOpenChange(false);
     } catch (e) {
       toast.error(`Erro: ${String(e)}`);
@@ -257,12 +305,45 @@ function EquipmentForm({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => confirmClose(v, () => (v ? onOpenChange(true) : discardAndClose()))}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{equipment ? "Editar item" : "Novo item"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          {draftOffer && (
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Você tinha um preenchimento não salvo
+                {draftOffer.name.trim() ? ` ("${draftOffer.name.trim()}")` : ""}.
+              </span>
+              <div className="flex shrink-0 gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    clearDraft(DRAFT_KEY);
+                    setDraftOffer(null);
+                  }}
+                >
+                  Descartar
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setState(draftOffer);
+                    setDraftOffer(null);
+                  }}
+                >
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                  Restaurar
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Nome <span className="text-destructive">*</span></Label>
             <Input
@@ -364,7 +445,7 @@ function EquipmentForm({
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => confirmClose(false, discardAndClose)}>
             Cancelar
           </Button>
           <Button onClick={handleSubmit}>Salvar</Button>
