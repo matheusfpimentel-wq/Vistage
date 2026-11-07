@@ -14,6 +14,8 @@ import {
   NotebookPen,
   PartyPopper,
   Search,
+  ShoppingCart,
+  Speaker,
   Store,
   Users,
   Wallet,
@@ -74,6 +76,8 @@ const KIND_ICON: Record<SearchHit["kind"], React.ComponentType<{ className?: str
   party: PartyPopper,
   library_track: Library,
   note: NotebookPen,
+  equipment: Speaker,
+  equipment_wish: ShoppingCart,
 };
 
 type QuickAction = {

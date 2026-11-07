@@ -39,6 +39,8 @@ const TABLES = [
   "music_projects",
   "finance_categories",
   "equipment",
+  // Desejos (o que se quer comprar). DEPOIS de equipment: equipment_id → equipment.
+  "equipment_wishlist",
   "work_sessions",
   "energy_logs",
   "highlights",
@@ -918,6 +920,12 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   },
   finance_recurring: { category_id: "finance_categories" },
   equipment: { transaction_id: "finance_transactions" },
+  // Desejos: equipment_id é anulável (ON DELETE SET NULL). equipment vem ANTES
+  // na ordem topológica, então o adiamento não é por ordem — é pra descartar
+  // referência órfã quando o backup não traz a tabela equipment (versão antiga
+  // do app): sem isso, o id apontaria pra uma linha de equipment que ficou no
+  // banco e pertence a outro item.
+  equipment_wishlist: { equipment_id: "equipment" },
   fan_group_members: { fan_id: "fans" },
   student_packages: { package_id: "class_packages" },
   classes: { student_package_id: "student_packages" },

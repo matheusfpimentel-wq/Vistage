@@ -2646,6 +2646,30 @@ export const MIGRATIONS: Migration[] = [
       ALTER TABLE equipment ADD COLUMN resale_updated_at TEXT;
     `,
   },
+  {
+    version: 189,
+    description:
+      "Patrimônio — Desejos: equipment_wishlist, a lista do que se QUER comprar (antes do dinheiro sair). Tabela nova — registrada em backup/restore, na limpeza de documento (via TABLES) e no CSV. equipment_id aponta pro item de Patrimônio gerado ao marcar 'Comprei' (ON DELETE SET NULL: excluir o equipamento não apaga o histórico do desejo). Nome 'equipment_wishlist' e não 'objetivos' porque ao lado de okrs a segunda palavra confundiria duas coisas diferentes. saved_amount é anotação de planejamento, NÃO registro financeiro: não existe lançamento correspondente e por isso ele não entra em nenhum total do Financeiro.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS equipment_wishlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT,
+        estimated_value REAL,
+        priority TEXT NOT NULL DEFAULT 'Média',     -- 'Alta' | 'Média' | 'Baixa'
+        target_date TEXT,                            -- prazo desejado (YYYY-MM-DD)
+        link TEXT,
+        notes TEXT,
+        saved_amount REAL NOT NULL DEFAULT 0,        -- quanto já foi separado (anotação)
+        status TEXT NOT NULL DEFAULT 'Desejado',     -- 'Desejado' | 'Comprado' | 'Descartado'
+        equipment_id INTEGER,                        -- item de Patrimônio gerado
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        purchased_at TEXT,
+        FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE SET NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_equipment_wishlist_status ON equipment_wishlist(status);
+    `,
+  },
 ];
 
 

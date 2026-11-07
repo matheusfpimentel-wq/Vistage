@@ -6,6 +6,9 @@ import type {
   Equipment,
   EquipmentCreateInput,
   EquipmentUpdateInput,
+  EquipmentWish,
+  EquipmentWishCreateInput,
+  EquipmentWishUpdateInput,
   FinanceCategory,
   FinanceRecurring,
   FinanceRecurringCreateInput,
@@ -862,6 +865,75 @@ export async function deleteEquipment(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM equipment WHERE id = $1", [id]);
   emitDataChanged();
+}
+
+// ============================================================
+// Patrimônio - Desejos (lista de compra)
+// ============================================================
+
+export async function listWishes(): Promise<EquipmentWish[]> {
+  const db = getDb();
+  // Ordem: o que ainda está na fila primeiro, depois prioridade, depois prazo.
+  // CASE em vez de ORDER BY priority: alfabeticamente 'Alta' < 'Baixa' < 'Média'
+  // colocaria Baixa no meio.
+  return db.select<EquipmentWish[]>(`
+    SELECT * FROM equipment_wishlist
+    ORDER BY
+      CASE status WHEN 'Desejado' THEN 0 WHEN 'Comprado' THEN 1 ELSE 2 END,
+      CASE priority WHEN 'Alta' THEN 0 WHEN 'Média' THEN 1 ELSE 2 END,
+      target_date IS NULL, target_date ASC,
+      name COLLATE NOCASE ASC
+  `);
+}
+
+export async function createWish(input: EquipmentWishCreateInput): Promise<number> {
+  const db = getDb();
+  const cols = Object.keys(input);
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+  const values = cols.map((k) => (input as Record<string, unknown>)[k]);
+  const res = await db.execute(
+    `INSERT INTO equipment_wishlist (${cols.join(", ")}) VALUES (${placeholders})`,
+    values
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updateWish(input: EquipmentWishUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((k) => (rest as Record<string, unknown>)[k]);
+  values.push(id);
+  await db.execute(
+    `UPDATE equipment_wishlist SET ${sets} WHERE id = $${values.length}`,
+    values
+  );
+  emitDataChanged();
+}
+
+export async function deleteWish(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM equipment_wishlist WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+/**
+ * Fecha o desejo apontando pro item de Patrimônio que nasceu dele. Idempotente:
+ * chamar duas vezes com o mesmo par não duplica nada (é só UPDATE por id).
+ */
+export async function markWishPurchased(
+  wishId: number,
+  equipmentId: number | null
+): Promise<void> {
+  await updateWish({
+    id: wishId,
+    status: "Comprado",
+    equipment_id: equipmentId,
+    purchased_at: new Date().toISOString().slice(0, 10),
+  });
 }
 
 // ============================================================

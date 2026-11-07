@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Download, Plus, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -215,7 +216,20 @@ export function FinancePage() {
     .reduce((s, t) => s + t.amount, 0);
   const monthBalance = monthIncome - monthExpense;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useModuleView<string>("finance", "transactions");
+
+  // Deep-link da busca global: ?tab=<aba> cai na aba pedida. Grava na
+  // preferência (useModuleView) de propósito — você foi pra lá, é onde quer
+  // estar na próxima vez — e limpa o parâmetro pra o F5 não re-forçar.
+  useEffect(() => {
+    const wanted = searchParams.get("tab");
+    if (!wanted) return;
+    setTab(wanted);
+    const next = new URLSearchParams(searchParams);
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={setTab}>

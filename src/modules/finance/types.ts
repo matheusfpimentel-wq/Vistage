@@ -159,3 +159,48 @@ export type Equipment = {
 export type EquipmentCreateInput = Omit<Equipment, "id" | "resale_value" | "resale_updated_at"> &
   Partial<Pick<Equipment, "resale_value" | "resale_updated_at">>;
 export type EquipmentUpdateInput = Partial<EquipmentCreateInput> & { id: number };
+
+export const WISHLIST_PRIORITIES = ["Alta", "Média", "Baixa"] as const;
+export type WishlistPriority = (typeof WISHLIST_PRIORITIES)[number];
+
+export const WISHLIST_STATUSES = ["Desejado", "Comprado", "Descartado"] as const;
+export type WishlistStatus = (typeof WISHLIST_STATUSES)[number];
+
+/**
+ * Desejo de compra: o que se QUER comprar, antes de o dinheiro sair. É a lista
+ * de intenção; quando a compra acontece, o desejo gera um item de Patrimônio e
+ * guarda o `equipment_id` pra manter o histórico de "quanto tempo isso ficou na
+ * fila e por quanto eu acabei pagando".
+ */
+export type EquipmentWish = {
+  id: number;
+  name: string;
+  category: string | null;
+  estimated_value: number | null;
+  priority: WishlistPriority;
+  /** Prazo desejado — colorido pelos tokens de urgência, nunca cor local. */
+  target_date: string | null;
+  link: string | null;
+  notes: string | null;
+  /**
+   * Quanto já foi separado pra essa compra. É ANOTAÇÃO de planejamento, não
+   * registro financeiro: não existe lançamento correspondente, então não entra
+   * em nenhum total do Financeiro (que segue sendo a fonte única de dinheiro).
+   */
+  saved_amount: number;
+  status: WishlistStatus;
+  /** Item de Patrimônio gerado ao marcar "Comprei" (anulável). */
+  equipment_id: number | null;
+  created_at: string;
+  purchased_at: string | null;
+};
+
+export type EquipmentWishCreateInput = Omit<
+  EquipmentWish,
+  "id" | "created_at" | "status" | "equipment_id" | "purchased_at"
+> & {
+  status?: WishlistStatus;
+  equipment_id?: number | null;
+  purchased_at?: string | null;
+};
+export type EquipmentWishUpdateInput = Partial<EquipmentWishCreateInput> & { id: number };
