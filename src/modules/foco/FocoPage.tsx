@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Clock, Flame, Plus, Smartphone, Star, Trash2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Clock, Flame, Pencil, Plus, Smartphone, Star, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
 import { InfoHint } from "@/components/ui/tooltip";
@@ -57,6 +57,7 @@ import {
   type PeakFocusHour,
   type SessionMarkers,
 } from "./api";
+import { PastSessionForm } from "./forms/PastSessionForm";
 
 function formatHours(minutes: number): string {
   const total = Math.round(minutes);
@@ -87,6 +88,9 @@ export function FocoPage() {
   const [streak, setStreak] = useState(0);
   const [peakHour, setPeakHour] = useState<PeakFocusHour>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // Registrar/editar sessão: o mesmo formulário serve aos dois (null = nova).
+  const [pastOpen, setPastOpen] = useState(false);
+  const [editingSession, setEditingSession] = useState<WorkSession | null>(null);
   const [tab, setTab] = useState("foco");
   const [markerCounts, setMarkerCounts] = useState<Map<string, { weak: number; moments: number }>>(new Map());
 
@@ -238,14 +242,35 @@ export function FocoPage() {
         </Card>
       )}
 
-      {sessions.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Sessões registradas</CardTitle>
-            <CardDescription>
-              {sessions.length} sessão{sessions.length !== 1 ? "ões" : ""} encerrada{sessions.length !== 1 ? "s" : ""}.
-            </CardDescription>
-          </CardHeader>
+      {/* Sempre renderizado (antes só aparecia com sessões): é daqui que se
+          registra uma sessão passada, e esse caminho tem que existir justamente
+          quando ainda não há nenhuma. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Sessões registradas</CardTitle>
+              <CardDescription>
+                {sessions.length > 0
+                  ? `${sessions.length} sessão${sessions.length !== 1 ? "ões" : ""} encerrada${sessions.length !== 1 ? "s" : ""}.`
+                  : "Nenhuma sessão encerrada ainda."}
+              </CardDescription>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0 gap-1"
+              onClick={() => {
+                setEditingSession(null);
+                setPastOpen(true);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Registrar sessão passada
+            </Button>
+          </div>
+        </CardHeader>
+        {sessions.length > 0 && (
           <CardContent>
             <div className="space-y-1">
               {sessions.map((s) => (
@@ -254,12 +279,23 @@ export function FocoPage() {
                   session={s}
                   markerCount={s.focus_session_id ? markerCounts.get(s.focus_session_id) : undefined}
                   onRefresh={refresh}
+                  onEdit={() => {
+                    setEditingSession(s);
+                    setPastOpen(true);
+                  }}
                 />
               ))}
             </div>
           </CardContent>
-        </Card>
-      )}
+        )}
+      </Card>
+
+      <PastSessionForm
+        open={pastOpen}
+        onOpenChange={setPastOpen}
+        session={editingSession}
+        onSaved={refresh}
+      />
       </TabsContent>
 
       <TabsContent value="highlights">
@@ -338,10 +374,12 @@ function SessionRow({
   session: s,
   markerCount,
   onRefresh,
+  onEdit,
 }: {
   session: WorkSession;
   markerCount?: { weak: number; moments: number };
   onRefresh: () => void;
+  onEdit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [markers, setMarkers] = useState<SessionMarkers | null>(null);
@@ -413,12 +451,37 @@ function SessionRow({
         {s.energy_level != null && (
           <div className="shrink-0 text-xs text-muted-foreground">E:{s.energy_level} F:{s.focus_level}</div>
         )}
+        {s.is_retroactive === 1 && (
+          <span
+            className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+            title="Lançada à mão depois do fato"
+          >
+            manual
+          </span>
+        )}
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 shrink-0"
+          onClick={onEdit}
+          aria-label="Editar sessão"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
         <Button
           size="icon"
           variant="ghost"
           className="h-7 w-7 shrink-0"
           onClick={async () => {
-            if (!(await confirmDialog({ title: "Excluir", description: "Excluir esta sessão de foco?", confirmLabel: "Excluir", destructive: true }))) return;
+            // Confirmação (e não desfazer) porque a sessão pode ter marcadores
+            // do Modo Foco ligados por focus_session_id: eles NÃO são apagados
+            // junto e ficariam inalcançáveis. O §9 do UI_GUIDELINES pede que o
+            // diálogo diga o que vai junto.
+            const orphans = (markerCount?.weak ?? 0) + (markerCount?.moments ?? 0);
+            const description = orphans
+              ? `Excluir esta sessão de foco? Os ${orphans} marcador(es) capturados no celular deixam de ser acessíveis.`
+              : "Excluir esta sessão de foco?";
+            if (!(await confirmDialog({ title: "Excluir", description, confirmLabel: "Excluir", destructive: true }))) return;
             try {
               await deleteSession(s.id);
               toast.success("Sessão removida");

@@ -2631,6 +2631,12 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_fan_invites_fan ON fan_invites(fan_id);
     `,
   },
+  {
+    version: 187,
+    description:
+      "Energia & Foco — work_sessions.is_retroactive: marca a sessão registrada DEPOIS do fato (lançada à mão, sem cronômetro) para poder filtrá-la das estatísticas. Por padrão conta normalmente nos totais; o flag só torna possível separar. Importa porque loadFocusStreak conta dias distintos de started_at, então uma sessão lançada no passado reescreve a sequência histórica. Coluna nova viaja sozinha no backup (SELECT *) e work_sessions já está em TABLES e no CSV. Aditiva/idempotente.",
+    sql: `ALTER TABLE work_sessions ADD COLUMN is_retroactive INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];
 
 
