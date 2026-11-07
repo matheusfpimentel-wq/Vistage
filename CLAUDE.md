@@ -20,7 +20,7 @@ Leia antes de codar: `STATE.md` (estado do projeto), `UI_GUIDELINES.md` (regras 
 5. Ao fechar: `tsc` + build limpos, teste manual do fluxo crítico e **STATE.md atualizado**.
 
 ## Migrations e dados (zona crítica)
-- Migrations vivem em `src/lib/migrations.ts`, versionadas e **aditivas** (versão mais alta neste clone: **v186** — confira sempre em `_migrations`). Nunca editar migration antiga: criar nova. Reversível quando viável; jamais quebrar dados existentes.
+- Migrations vivem em `src/lib/migrations.ts`, versionadas e **aditivas** (versão mais alta neste clone: **v189** — confira sempre em `_migrations`). Nunca editar migration antiga: criar nova. Reversível quando viável; jamais quebrar dados existentes.
 - **Toda tabela nova** deve ser registrada em `buildBackupData`/`restoreBackup` (`src/lib/backup.ts`), na limpeza de documento (`src/lib/document.ts`) e no export CSV. Tabela fora do backup = perda **silenciosa** de dados = 🔴 crítico.
 - Vínculos automáticos entre módulos são **idempotentes** (IDs em colunas como `task_id`, `content_ids[]`).
 
@@ -37,7 +37,8 @@ Cobertura **deliberadamente estreita**: só a zona crítica (migrations, backup,
 - `src/test/sqliteDb.ts` — adaptador. Converte os placeholders `$N` pros `?` posicionais **preservando reuso de índice** (o app faz `SET value = $2` e `($3 IS NULL OR id <> $3)`).
 - `src/test/fixture.ts` — banco no schema do `BASELINE_VERSION` com registros de Patrimônio, Financeiro e GIGs. **Ao adicionar migration, não mexa no BASELINE_VERSION**: ele tem que seguir apontando pro schema anterior, senão o teste de migração deixa de exercitar a subida.
 - `src/lib/migrations.test.ts` — sobe do baseline sem perder linha nem valor de Patrimônio; idempotência; sem versão duplicada ou fora de ordem; todo `ADD COLUMN NOT NULL` com `DEFAULT`.
-- `src/lib/backup.test.ts` — round-trip **para um banco NOVO** (o caso de abrir o `.vistage` em outra máquina). Reabrir no mesmo banco não prova nada: `restoreBackup` só limpa e reinsere as tabelas presentes no backup, então uma tabela esquecida no array `TABLES` ficaria intocada e a comparação passaria. Verificado por mutação: comentar `"equipment"` em `TABLES` quebra o teste.
+- `src/lib/backup.test.ts` — round-trip **para um banco NOVO** (o caso de abrir o `.vistage` em outra máquina). Reabrir no mesmo banco não prova nada: `restoreBackup` só limpa e reinsere as tabelas presentes no backup, então uma tabela esquecida no array `TABLES` ficaria intocada e a comparação passaria. Verificado por mutação: comentar `"equipment"` ou `"equipment_wishlist"` em `TABLES` quebra o teste. Tabela nova **precisa de linha semeada aqui** — tabela vazia no backup passa batido.
+- `src/modules/finance/equipmentExpense.test.ts` — vínculo Patrimônio ↔ Financeiro: lançar a despesa de um item não pode criar um SEGUNDO item (`createTransaction` espelha a categoria "Equipamentos"), a despesa entra na data da compra, o espelhamento normal continua funcionando, a busca de duplicata ignora despesa já vinculada, e editar o valor no Patrimônio converge nos dois lados sem ida-e-volta. Mocka também `@/lib/events` (`window.dispatchEvent` não existe em Node) — fronteira de navegador, não lógica.
 
 `runMigrations(db, { upTo })` existe só pros testes montarem o schema anterior; o app nunca passa `upTo`.
 

@@ -1,4 +1,4 @@
-# STATE.md — MusicGest
+# STATE.md — Vistage
 
 Briefing pra qualquer Claude (ou pessoa) retomar o projeto rapidamente.
 Última atualização: Batch P (Limpeza, code splitting, documentação — README reescrito, vite.config.ts manualChunks, build limpo, tsc limpo).
@@ -35,12 +35,11 @@ desenvolvedor. Lê código vagamente. Pede mudanças de UX e features.
 
 ## 3. Branch / repo / CI
 
-- **Repo**: `matheusfpimentel-wq/gm-`
-- **Branch de trabalho**: `claude/music-business-management-TL7Cf`
-- **PR aberto**: #1 (rastreia o CI)
+- **Repo**: `matheusfpimentel-wq/Vistage` (público — nunca commitar segredo)
 - **CI**: `.github/workflows/build.yml` — builda macOS e Windows a cada push,
-  artifacts ficam em Actions > último run > Artifacts
-- **Sem código no main** ainda; tudo na branch acima
+  artifacts ficam em Actions > último run > Artifacts. Retenção: 90 dias
+  (eram 14, e o executável expirava antes de ser baixado).
+- O código vive no `main`; o trabalho entra por branch + PR.
 
 ---
 
@@ -145,9 +144,17 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 | v16 | `highlights` — momentos marcantes cumulativos |
 | v17 | `okrs` — OKRs trimestrais com key_results JSON |
 | v18 | `decisions` — decision log estruturado |
+| … | **A tabela acima parou de ser mantida na v18.** O schema está muito à frente — a fonte de verdade é o array `MIGRATIONS` em `src/lib/migrations.ts` (cada entrada tem `description`) e a tabela `_migrations` do banco aberto. Não reconstrua este histórico a mão: ele duplicaria o que já está versionado no código. |
+| v187 | `work_sessions.is_retroactive` — sessão de foco lançada à mão depois do fato |
+| v188 | `equipment.resale_value` + `equipment.resale_updated_at` — valor de revenda estimado e quando foi estimado |
+| v189 | `equipment_wishlist` — Desejos: o que se quer comprar, com `equipment_id` do item gerado |
 
 Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 1x via tabela `_migrations`.
+
+**Zona crítica tem teste** (`npm test`): migração sobre fixture do schema
+anterior, round-trip do backup pra banco novo, e o vínculo
+Patrimônio ↔ Financeiro. Detalhe de como rodar e do que cobre: `CLAUDE.md`.
 
 ---
 
@@ -197,7 +204,11 @@ Migrations são idempotentes; nada de DESTRUTIVO. Cada migration roda
 - **CSV import** assume header bate com colunas do banco (a UI sugere
   exportar primeiro pra ver formato). Validação é só "coluna existe na
   tabela"
-- **Anexos não no backup JSON** — manualmente copiar pasta uploads/
+- **Patrimônio não aparece no espelho do celular** (`mobileSync.ts`) — é só
+  desktop, de propósito; nada a aplicar no Supabase pelas tabelas de Patrimônio
+- **O espelhamento Financeiro ↔ Patrimônio compara o NOME da categoria**
+  (`category_name === "Equipamentos"`) e essa categoria **não é protegida**:
+  renomeá-la quebra o vínculo automático em silêncio
 
 ---
 
