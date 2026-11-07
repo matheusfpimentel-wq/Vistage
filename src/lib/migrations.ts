@@ -4,7 +4,9 @@ import type { BatchStatement, Db } from "./db";
 // Para adicionar uma nova, basta empilhar no array com o próximo `version`.
 type Migration = { version: number; description: string; sql: string };
 
-const MIGRATIONS: Migration[] = [
+// Exportado pros testes conferirem invariantes do array (versão duplicada, fora
+// de ordem, ADD COLUMN NOT NULL sem DEFAULT). O app usa só runMigrations.
+export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     description: "schema inicial: gigs, crm, tarefas, financeiro, equipamentos, settings",
@@ -2652,8 +2654,18 @@ function parseAlter(stmt: string): { table: string; column: string } | null {
   return { table: m[1], column: m[2] };
 }
 
-/** Executa todas as migrations pendentes na ordem. Idempotente. */
-export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
+/**
+ * Executa todas as migrations pendentes na ordem. Idempotente.
+ *
+ * `upTo` para no número dado (inclusive). Em produção nunca é passado — serve
+ * pros testes montarem um banco no schema de uma versão ANTERIOR e então rodar
+ * o runner de novo pra aplicar as migrations novas por cima, que é exatamente o
+ * caminho real de quem abre um .vistage antigo com o app atualizado.
+ */
+export async function runMigrations(
+  db: Db,
+  opts?: { upTo?: number }
+): Promise<{ applied: number[] }> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version INTEGER PRIMARY KEY,
@@ -2669,6 +2681,7 @@ export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
   const applied: number[] = [];
 
   for (const m of MIGRATIONS) {
+    if (opts?.upTo !== undefined && m.version > opts.upTo) continue;
     if (already.has(m.version)) continue;
     const statements = m.sql
       .split(/;/)
