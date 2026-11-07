@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { ExternalLink, Pencil, Plus, RotateCcw, Trash2, Wallet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Badge } from "@/components/ui/badge";
@@ -24,10 +25,13 @@ import {
 import { toast } from "@/components/ui/toaster";
 import {
   createEquipment,
+  createEquipmentExpense,
   deleteEquipment,
+  findExpenseCandidates,
   listEquipment,
   markWishPurchased,
   updateEquipment,
+  type ExpenseCandidate,
 } from "../api";
 import {
   EQUIPMENT_STATES,
@@ -45,6 +49,10 @@ import { clearDraft, readDraft, writeDraft } from "@/lib/formDraft";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModuleView } from "@/lib/moduleView";
 import { WishlistView } from "./WishlistView";
+import {
+  BackfillExpensesDialog,
+  DuplicateExpenseDialog,
+} from "./EquipmentExpenseDialogs";
 
 const STATE_VARIANT: Record<
   EquipmentState,
@@ -96,6 +104,12 @@ export function EquipmentView() {
   // apontando pro id gerado.
   const [fromWish, setFromWish] = useState<EquipmentWish | null>(null);
   const [prefill, setPrefill] = useState<FormState | null>(null);
+  const [backfillOpen, setBackfillOpen] = useState(false);
+  // Despesa possivelmente duplicada: o item já está salvo, falta decidir o
+  // lançamento. Fica no pai porque o formulário do item já fechou.
+  const [dup, setDup] = useState<{ eq: Equipment; candidates: ExpenseCandidate[] } | null>(
+    null
+  );
   const { sorted, sortKey, sortDir, handleSort } = useTableSort(items);
 
   async function refresh() {
@@ -106,6 +120,42 @@ export function EquipmentView() {
     () => new Map(items.map((i) => [i.id, i])),
     [items]
   );
+
+  /**
+   * Lança a despesa da compra deste item, DEPOIS de checar se ela já existe no
+   * Financeiro. Com candidata, pergunta; sem candidata, lança direto — perguntar
+   * quando não há nada parecido seria só um clique a mais.
+   */
+  async function launchExpenseFor(equipmentId: number) {
+    const fresh = await listEquipment();
+    setItems(fresh);
+    const eq = fresh.find((i) => i.id === equipmentId);
+    if (!eq || !eq.purchase_date || eq.purchase_value == null) return;
+    if (eq.transaction_id != null) return; // já vinculado: nada a lançar
+    try {
+      const candidates = await findExpenseCandidates({
+        name: eq.name,
+        value: eq.purchase_value,
+        date: eq.purchase_date,
+      });
+      if (candidates.length > 0) {
+        setDup({ eq, candidates });
+        return;
+      }
+      await createEquipmentExpense({
+        id: eq.id,
+        name: eq.name,
+        purchase_date: eq.purchase_date,
+        purchase_value: eq.purchase_value,
+      });
+      await refresh();
+      toast.success(`Despesa lançada em ${formatDate(eq.purchase_date)}`);
+    } catch (e) {
+      // O ITEM continua salvo: só o lançamento falhou. Dizer isso evita que o
+      // usuário cadastre tudo de novo achando que nada foi gravado.
+      toast.error(`Item salvo, mas a despesa falhou: ${String(e)}`);
+    }
+  }
 
   /**
    * "Comprei": abre o formulário de item de Patrimônio JÁ PREENCHIDO com o que
@@ -146,7 +196,16 @@ export function EquipmentView() {
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleDelete(eq: Equipment) {
-    if (!(await confirmDialog({ title: "Excluir", description: `Excluir "${eq.name}" do patrimônio?`, confirmLabel: "Excluir", destructive: true }))) return;
+    // Com despesa vinculada o diálogo DIZ o que acontece com ela (§9). E ela
+    // FICA: você gastou aquele dinheiro, e isso continua verdade depois de
+    // vender ou perder o item — apagar a despesa reescreveria o fechamento de
+    // um mês passado. Quem quiser mesmo apagar faz isso no Financeiro, onde o
+    // número mora.
+    const desc =
+      eq.transaction_id != null
+        ? `Excluir "${eq.name}" do patrimônio? A despesa vinculada no Financeiro CONTINUA lá — o gasto aconteceu de verdade. Se quiser apagá-la também, faça isso no Financeiro.`
+        : `Excluir "${eq.name}" do patrimônio?`;
+    if (!(await confirmDialog({ title: "Excluir", description: desc, confirmLabel: "Excluir", destructive: true }))) return;
     await deleteEquipment(eq.id);
     await refresh();
     toast.success("Item excluído");
@@ -188,16 +247,25 @@ export function EquipmentView() {
       <TabsContent value="items" className="space-y-4">
         <div className="flex items-center justify-between">
           <div />
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setPrefill(null);
-              setFromWish(null);
-              setOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" /> Novo item
-          </Button>
+          <div className="flex gap-2">
+            {items.some(
+              (i) => i.purchase_date && i.purchase_value != null && i.transaction_id == null
+            ) && (
+              <Button variant="outline" onClick={() => setBackfillOpen(true)}>
+                <Wallet className="h-4 w-4" /> Despesas que faltam
+              </Button>
+            )}
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setPrefill(null);
+                setFromWish(null);
+                setOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" /> Novo item
+            </Button>
+          </div>
         </div>
 
         {items.length > 0 && (
@@ -358,7 +426,24 @@ export function EquipmentView() {
           await markWishPurchased(fromWish.id, id);
           toast.success(`"${fromWish.name}" saiu dos desejos`);
         }}
+        onLaunchExpense={launchExpenseFor}
         allItems={items}
+      />
+
+      <DuplicateExpenseDialog
+        open={dup !== null}
+        onOpenChange={(v) => {
+          if (!v) setDup(null);
+        }}
+        equipment={dup?.eq ?? null}
+        candidates={dup?.candidates ?? []}
+        onDone={refresh}
+      />
+
+      <BackfillExpensesDialog
+        open={backfillOpen}
+        onOpenChange={setBackfillOpen}
+        onDone={refresh}
       />
     </Tabs>
   );
@@ -371,6 +456,7 @@ function EquipmentForm({
   prefill,
   onSaved,
   onCreated,
+  onLaunchExpense,
   allItems,
 }: {
   open: boolean;
@@ -381,6 +467,8 @@ function EquipmentForm({
   onSaved: () => void;
   /** Chamado só na CRIAÇÃO, com o id gerado. */
   onCreated?: (id: number) => void | Promise<void>;
+  /** Chamado quando o usuário pediu pra lançar a despesa da compra. */
+  onLaunchExpense?: (equipmentId: number) => void | Promise<void>;
   allItems: Equipment[];
 }) {
   const [state, setState] = useState<FormState>(EMPTY_FORM);
@@ -389,6 +477,7 @@ function EquipmentForm({
   const openedWith = useRef<FormState>(EMPTY_FORM);
   const [draftOffer, setDraftOffer] = useState<FormState | null>(null);
   const draftTimer = useRef<number | null>(null);
+  const [launchExpense, setLaunchExpense] = useState(true);
 
   const dirty = JSON.stringify(state) !== JSON.stringify(openedWith.current);
 
@@ -413,6 +502,7 @@ function EquipmentForm({
         }
       : (prefill ?? EMPTY_FORM);
     setState(base);
+    setLaunchExpense(true);
     // O preenchimento inicial faz parte do estado em que o form ABRIU: sem
     // isso, um form recém-aberto a partir de um desejo já nasceria "sujo" e
     // pediria confirmação pra fechar sem o usuário ter digitado nada.
@@ -450,6 +540,15 @@ function EquipmentForm({
     onOpenChange(false);
   }
 
+  // A oferta só existe quando há o que lançar (data E valor) e o item ainda não
+  // tem despesa. Item já vinculado não reaparece com a oferta — lançaria em
+  // dobro a mesma compra.
+  const canLaunch =
+    equipment?.transaction_id == null &&
+    !!state.purchase_date &&
+    !!state.purchase_value &&
+    parseFloat(state.purchase_value) > 0;
+
   const confirmClose = useUnsavedConfirm(dirty);
 
   async function handleSubmit() {
@@ -482,16 +581,21 @@ function EquipmentForm({
       photo_path: state.photo_path,
     };
     try {
+      let savedId: number;
       if (equipment) {
         await updateEquipment({ id: equipment.id, ...payload });
+        savedId = equipment.id;
       } else {
-        const newId = await createEquipment(payload);
+        savedId = await createEquipment(payload);
         // Fecha o desejo DEPOIS de o item existir: se o insert falhar, o
         // desejo continua na fila em vez de sumir sem item nenhum.
-        await onCreated?.(newId);
+        await onCreated?.(savedId);
       }
       toast.success("Salvo");
       onSaved();
+      // A despesa é lançada pelo PAI, depois de checar duplicata: o diálogo de
+      // escolha não caberia aqui, porque este formulário fecha em seguida.
+      if (canLaunch && launchExpense) void onLaunchExpense?.(savedId);
       // Salvou → o rascunho cumpriu seu papel.
       if (draftTimer.current) window.clearTimeout(draftTimer.current);
       if (!equipment && !prefill) clearDraft(DRAFT_KEY);
@@ -622,6 +726,44 @@ function EquipmentForm({
               />
             </div>
           </div>
+          {equipment?.transaction_id != null && (
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span>
+                Este item tem despesa vinculada no Financeiro. Mudar valor ou
+                data de compra aqui muda os dois — é a mesma compra.
+              </span>
+              <Link
+                to="/financeiro"
+                onClick={() => onOpenChange(false)}
+                className="shrink-0"
+              >
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1">
+                  Abrir Financeiro
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
+
+          {canLaunch && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                checked={launchExpense}
+                onChange={(e) => setLaunchExpense(e.target.checked)}
+              />
+              <span>
+                Lançar essa compra como despesa no Financeiro
+                <span className="block text-xs text-muted-foreground">
+                  Entra em {formatDate(state.purchase_date)}, na categoria
+                  Equipamentos — não no mês de hoje. Se já existir despesa
+                  parecida, eu pergunto antes de lançar.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Estado</Label>

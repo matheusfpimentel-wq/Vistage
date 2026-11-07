@@ -26,6 +26,7 @@ import {
   createTransaction,
   listCategories,
   updateTransaction,
+  equipmentForTransaction,
 } from "../api";
 import { getDb } from "@/lib/db";
 import {
@@ -156,6 +157,21 @@ export function TransactionForm({
   const [errors, setErrors] = useState<{ amount?: string; date?: string; rate?: string }>({});
   const [dirty, setDirty] = useState(false);
   const confirmClose = useUnsavedConfirm(dirty);
+
+  // Item de Patrimônio que esta despesa comprou. Lido por consulta própria, e
+  // não por JOIN no TX_COLUMNS: `equipment.transaction_id` é muitos-pra-um
+  // (três itens na mesma nota fiscal), então um JOIN na query compartilhada
+  // multiplicaria a transação em três linhas em TODA listagem do Financeiro.
+  const [linkedEquipment, setLinkedEquipment] = useState<{ id: number; name: string } | null>(
+    null
+  );
+  useEffect(() => {
+    if (!open || !transaction) {
+      setLinkedEquipment(null);
+      return;
+    }
+    void equipmentForTransaction(transaction.id).then(setLinkedEquipment);
+  }, [open, transaction]);
 
   useEffect(() => {
     if (transaction) setState(txToState(transaction));
@@ -306,6 +322,29 @@ export function TransactionForm({
               >
                 <Button type="button" variant="outline" size="sm" className="h-7 gap-1">
                   Abrir {origin.nome}
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
+          {linkedEquipment && (
+            // Neutro de propósito: ao contrário da receita de GIG, esta despesa
+            // NÃO é só leitura. Editar valor ou data aqui atualiza o item de
+            // Patrimônio (o espelhamento já existia), então um aviso âmbar de
+            // "campos bloqueados" estaria mentindo.
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span>
+                Compra do item{" "}
+                <strong className="text-foreground">{linkedEquipment.name}</strong>{" "}
+                no Patrimônio. Mudar valor ou data aqui muda os dois.
+              </span>
+              <Link
+                to="/financeiro?tab=equipment"
+                onClick={() => onOpenChange(false)}
+                className="shrink-0"
+              >
+                <Button type="button" variant="outline" size="sm" className="h-7 gap-1">
+                  Abrir Patrimônio
                   <ExternalLink className="h-3 w-3" />
                 </Button>
               </Link>
