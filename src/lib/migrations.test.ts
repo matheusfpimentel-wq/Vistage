@@ -58,6 +58,14 @@ describe("migrations", () => {
       "SELECT COUNT(*) AS n FROM equipment WHERE transaction_id IS NOT NULL"
     );
     expect(linked[0].n).toBe(1);
+
+    // 4. A coluna de revenda NASCE VAZIA. A migração não pode inventar
+    //    estimativa a partir do valor de compra — se inventasse, o total de
+    //    revenda apareceria preenchido sem o usuário ter estimado nada.
+    const resale = await db.select<{ n: number }[]>(
+      "SELECT COUNT(*) AS n FROM equipment WHERE resale_value IS NOT NULL OR resale_updated_at IS NOT NULL"
+    );
+    expect(resale[0].n).toBe(0);
   });
 
   it("é idempotente: rodar de novo não aplica nada nem muda o banco", async () => {

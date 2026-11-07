@@ -145,7 +145,17 @@ export type Equipment = {
   quantity: number;
   category: string | null;
   photo_path: string | null;
+  /** Estimativa de quanto o item vale HOJE. Opcional — pode ficar vazia. */
+  resale_value: number | null;
+  /** Quando a estimativa de revenda foi feita, pra saber se está velha. */
+  resale_updated_at: string | null;
 };
 
-export type EquipmentCreateInput = Omit<Equipment, "id">;
+// Os campos de revenda ficam OPCIONAIS na criação: `Equipment` descreve a linha
+// do banco (onde as colunas existem, anuláveis), mas há call sites que montam o
+// objeto COMPLETO à mão — ex.: o cadastro rápido de equipamento no GigForm.
+// Exigi-los ali quebraria o literal sem necessidade: um item nasce sem
+// estimativa de revenda.
+export type EquipmentCreateInput = Omit<Equipment, "id" | "resale_value" | "resale_updated_at"> &
+  Partial<Pick<Equipment, "resale_value" | "resale_updated_at">>;
 export type EquipmentUpdateInput = Partial<EquipmentCreateInput> & { id: number };

@@ -2637,6 +2637,15 @@ export const MIGRATIONS: Migration[] = [
       "Energia & Foco — work_sessions.is_retroactive: marca a sessão registrada DEPOIS do fato (lançada à mão, sem cronômetro) para poder filtrá-la das estatísticas. Por padrão conta normalmente nos totais; o flag só torna possível separar. Importa porque loadFocusStreak conta dias distintos de started_at, então uma sessão lançada no passado reescreve a sequência histórica. Coluna nova viaja sozinha no backup (SELECT *) e work_sessions já está em TABLES e no CSV. Aditiva/idempotente.",
     sql: `ALTER TABLE work_sessions ADD COLUMN is_retroactive INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    version: 188,
+    description:
+      "Patrimônio — valor de revenda: equipment.resale_value (estimativa de quanto o item vale hoje, opcional) e equipment.resale_updated_at (quando a estimativa foi feita, pra saber se está velha). O valor de COMPRA não muda de coluna: já se chama purchase_value desde a v1, então renomear o rótulo para 'Valor de compra' é só interface, sem migration. Colunas novas viajam sozinhas no backup (SELECT *). Aditivas/idempotentes.",
+    sql: `
+      ALTER TABLE equipment ADD COLUMN resale_value REAL;
+      ALTER TABLE equipment ADD COLUMN resale_updated_at TEXT;
+    `,
+  },
 ];
 
 

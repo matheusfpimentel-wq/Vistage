@@ -32,7 +32,9 @@ import {
   type Equipment,
   type EquipmentState,
 } from "../types";
-import { EMPTY_VALUE, formatCurrency, formatDate } from "@/lib/format";
+import { EMPTY_VALUE, formatCurrency, formatDate, todayISO } from "@/lib/format";
+import { InfoHint } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { AttachmentField } from "@/components/shared/AttachmentField";
 import { SortableHeader, useTableSort } from "@/lib/useTableSort";
 import { useUnsavedConfirm } from "@/lib/dirty";
@@ -52,6 +54,7 @@ type FormState = {
   name: string;
   purchase_date: string;
   purchase_value: string;
+  resale_value: string;
   eq_state: EquipmentState;
   location: string;
   notes: string;
@@ -64,6 +67,7 @@ const EMPTY_FORM: FormState = {
   name: "",
   purchase_date: "",
   purchase_value: "",
+  resale_value: "",
   eq_state: "Em uso",
   location: "",
   notes: "",
@@ -95,6 +99,32 @@ export function EquipmentView() {
     toast.success("Item excluído");
   }
 
+  // Totais. Não existia nenhum aqui antes.
+  //
+  // A diferença é calculada só sobre os itens que têm OS DOIS valores. Comparar
+  // o investido TOTAL contra a soma das revendas estimadas daria um prejuízo
+  // falso enquanto a maioria dos itens não tiver estimativa — o número pareceria
+  // catastrófico por falta de dado, não por perda de valor.
+  //
+  // Também não multiplica por `quantity`: a coluna da tabela mostra o valor
+  // cru, e um total que não fecha com a soma do que está na tela confunde mais
+  // do que informa.
+  const totals = useMemo(() => {
+    let invested = 0;
+    let resale = 0;
+    let investedComparable = 0;
+    let comparableCount = 0;
+    for (const it of items) {
+      invested += it.purchase_value ?? 0;
+      if (it.resale_value != null) {
+        resale += it.resale_value;
+        investedComparable += it.purchase_value ?? 0;
+        comparableCount++;
+      }
+    }
+    return { invested, resale, delta: resale - investedComparable, comparableCount };
+  }, [items]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -109,6 +139,48 @@ export function EquipmentView() {
         </Button>
       </div>
 
+      {items.length > 0 && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="text-xs text-muted-foreground">Total investido</div>
+            <div className="mt-0.5 text-xl font-semibold tabular-nums">
+              {formatCurrency(totals.invested)}
+            </div>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              Revenda estimada
+              <InfoHint>
+                Soma só dos itens que têm estimativa de revenda preenchida
+                ({totals.comparableCount} de {items.length}).
+              </InfoHint>
+            </div>
+            <div className="mt-0.5 text-xl font-semibold tabular-nums">
+              {formatCurrency(totals.resale)}
+            </div>
+          </div>
+          <div className="rounded-lg border bg-card px-3 py-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              Diferença
+              <InfoHint>
+                Revenda estimada menos o que foi pago, comparando APENAS os
+                {" "}{totals.comparableCount} item(ns) que têm os dois valores. Incluir os
+                itens sem estimativa mostraria um prejuízo que é falta de dado,
+                não perda de valor.
+              </InfoHint>
+            </div>
+            <div
+              className={cn(
+                "mt-0.5 text-xl font-semibold tabular-nums",
+                totals.delta < 0 && "text-destructive"
+              )}
+            >
+              {totals.comparableCount === 0 ? EMPTY_VALUE : formatCurrency(totals.delta)}
+            </div>
+          </div>
+        </div>
+      )}
+
       {items.length === 0 ? (
         <div className="rounded-md border border-dashed p-12 text-center text-sm text-muted-foreground">
           Sem itens no patrimônio.
@@ -121,7 +193,8 @@ export function EquipmentView() {
                 <SortableHeader<Equipment> col="name" label="Item" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <SortableHeader<Equipment> col="state" label="Estado" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <SortableHeader<Equipment> col="purchase_date" label="Compra" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
-                <SortableHeader<Equipment> col="purchase_value" label="Valor" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
+                <SortableHeader<Equipment> col="purchase_value" label="Valor de compra" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
+                <SortableHeader<Equipment> col="resale_value" label="Revenda" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-right" />
                 <SortableHeader<Equipment> col="location" label="Localização" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} className="px-3 py-2 text-left" />
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
@@ -153,6 +226,20 @@ export function EquipmentView() {
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">
                     {formatCurrency(it.purchase_value)}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums">
+                    {it.resale_value == null ? (
+                      <span className="text-muted-foreground">{EMPTY_VALUE}</span>
+                    ) : (
+                      <>
+                        {formatCurrency(it.resale_value)}
+                        {it.resale_updated_at && (
+                          <div className="text-[11px] font-normal text-muted-foreground">
+                            est. {formatDate(it.resale_updated_at)}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {it.location ?? EMPTY_VALUE}
@@ -231,6 +318,7 @@ function EquipmentForm({
           name: equipment.name,
           purchase_date: equipment.purchase_date ?? "",
           purchase_value: equipment.purchase_value?.toString() ?? "",
+          resale_value: equipment.resale_value?.toString() ?? "",
           eq_state: equipment.state,
           location: equipment.location ?? "",
           notes: equipment.notes ?? "",
@@ -277,10 +365,22 @@ function EquipmentForm({
       toast.error("O nome é obrigatório");
       return;
     }
+    const resaleValue = state.resale_value ? parseFloat(state.resale_value) : null;
     const payload = {
       name: state.name.trim(),
       purchase_date: state.purchase_date || null,
       purchase_value: state.purchase_value ? parseFloat(state.purchase_value) : null,
+      resale_value: resaleValue,
+      // Carimba a data da estimativa SOZINHO, só quando o valor de revenda
+      // muda — pedir a data ao usuário seria um campo a mais pra errar, e o que
+      // importa é saber se a estimativa está velha. Valor apagado limpa o
+      // carimbo; valor inalterado preserva o carimbo antigo.
+      resale_updated_at:
+        resaleValue == null
+          ? null
+          : resaleValue === (equipment?.resale_value ?? null)
+            ? (equipment?.resale_updated_at ?? todayISO())
+            : todayISO(),
       state: state.eq_state,
       location: state.location || null,
       notes: state.notes || null,
@@ -393,13 +493,33 @@ function EquipmentForm({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Valor (R$)</Label>
+              <Label>Valor de compra (R$)</Label>
               <Input
                 type="number"
                 step={0.01}
                 value={state.purchase_value}
                 onChange={(e) =>
                   setState((s) => ({ ...s, purchase_value: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1">
+                <Label>Valor de revenda (R$)</Label>
+                <InfoHint>
+                  Quanto você estima que o item valha hoje. Opcional. A data da
+                  estimativa é carimbada sozinha quando você muda esse valor.
+                </InfoHint>
+              </div>
+              <Input
+                type="number"
+                step={0.01}
+                placeholder="Opcional"
+                value={state.resale_value}
+                onChange={(e) =>
+                  setState((s) => ({ ...s, resale_value: e.target.value }))
                 }
               />
             </div>
