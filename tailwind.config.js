@@ -2,6 +2,13 @@
 export default {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  // O Tailwind PODA regras de @layer base cujo seletor tem classe que não
+  // aparece no conteúdo escaneado. Hoje `.theme-command` sobrevive só porque a
+  // string literal está em src/lib/theme.ts — se alguém trocar aquele
+  // `classList.toggle("theme-command", …)` por uma string montada, o tema some
+  // do CSS inteiro, sem erro de build e sem teste quebrando. A safelist tira
+  // essa dependência acidental.
+  safelist: ["dark", "theme-command"],
   theme: {
     container: {
       center: true,
@@ -52,6 +59,10 @@ export default {
         bad: "hsl(var(--bad) / <alpha-value>)",
         info: "hsl(var(--info) / <alpha-value>)",
         star: "hsl(var(--star) / <alpha-value>)",
+      },
+      fontFamily: {
+        // Lê o token, pra o tema poder trocar a família (ver index.css).
+        mono: ["var(--font-mono)"],
       },
       borderRadius: {
         lg: "var(--radius)",

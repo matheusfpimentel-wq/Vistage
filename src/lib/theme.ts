@@ -1,7 +1,23 @@
 import { create } from "zustand";
 import { getDb } from "./db";
 
-export type Theme = "light" | "dark";
+/**
+ * "command" = Centro de Comando: um tema ESCURO (ver applyToDom — ele mantém a
+ * classe .dark), com fundo em camadas, grade sutil e estados em LED. Os valores
+ * ficam no bloco `.theme-command` do index.css, nunca aqui: `applyAccent`
+ * apaga tokens neutros inline.
+ */
+export type Theme = "light" | "dark" | "command";
+
+/**
+ * Um tema claro só: o resto herda tudo o que é escuro. Exportada porque o
+ * toast e o botão de tema precisam da MESMA noção — com `theme === "dark"`
+ * escrito à mão, o Centro de Comando cairia no lado claro em cada um deles
+ * (toast branco sobre tela escura, ícone trocado).
+ */
+export function isDarkTheme(t: Theme): boolean {
+  return t !== "light";
+}
 export type Accent =
   | "violet"
   | "blue"
@@ -106,7 +122,7 @@ const COLOR_MODE_TOKENS = [
 
 export function applyAccent(accent: Accent, theme: Theme) {
   const def = ACCENTS.find((a) => a.id === accent) ?? ACCENTS[0];
-  const dark = theme === "dark";
+  const dark = isDarkTheme(theme);
   const s = document.documentElement.style;
   const primary = dark ? def.primaryDark : def.primaryLight;
   // Inline no <html> sobrepõe os defaults do :root / .dark do index.css.
@@ -124,8 +140,25 @@ export function applyAccent(accent: Accent, theme: Theme) {
 }
 
 function applyToDom(theme: Theme, accent: Accent) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
+  const root = document.documentElement;
+  // O Centro de Comando CARREGA .dark junto: é um tema escuro, e as utilities
+  // `dark:` que sobraram no código (17) têm que continuar valendo. Sem isso,
+  // elas cairiam no valor de tema claro dentro de um tema escuro.
+  root.classList.toggle("dark", isDarkTheme(theme));
+  root.classList.toggle("theme-command", theme === "command");
   applyAccent(accent, theme);
+}
+
+/**
+ * Normaliza o que veio do localStorage ou do documento. Tema desconhecido cai
+ * no escuro — é o que torna a remoção deste tema (ou de qualquer outro) uma
+ * mudança segura, e o mesmo caminho que o tema "color" removido já usa.
+ */
+function parseTheme(value: string | null | undefined, fallback: Theme): Theme {
+  if (value === "light" || value === "color") return "light"; // "color": 3º tema removido
+  if (value === "dark") return "dark";
+  if (value === "command") return "command";
+  return fallback;
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
@@ -150,14 +183,15 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ sidebarLayout: l });
   },
   toggle() {
-    get().setTheme(get().theme === "dark" ? "light" : "dark");
+    // Alterna só claro/escuro. O Centro de Comando é escolha explícita nas
+    // Configurações: cair nele por atalho de teclado surpreenderia. Estando
+    // nele, o atalho leva pro claro (o oposto, já que ele é escuro).
+    get().setTheme(get().theme === "light" ? "dark" : "light");
   },
   hydrate() {
     // Dark é o padrão. Só respeitamos uma escolha explícita salva. ("color" era
     // um 3º tema removido — migra pra claro, que era a base dele.)
-    const storedTheme = localStorage.getItem(LS_THEME);
-    const theme: Theme =
-      storedTheme === "light" || storedTheme === "color" ? "light" : "dark";
+    const theme: Theme = parseTheme(localStorage.getItem(LS_THEME), "dark");
     const storedAccent = localStorage.getItem(LS_ACCENT) as Accent | null;
     const accent: Accent = ACCENTS.some((a) => a.id === storedAccent)
       ? (storedAccent as Accent)
@@ -181,8 +215,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const dt = map.get("theme");
       const da = map.get("accent");
       const ds = map.get("sidebarLayout");
-      const theme: Theme =
-        dt === "dark" ? "dark" : dt === "light" || dt === "color" ? "light" : get().theme;
+      const theme: Theme = parseTheme(dt, get().theme);
       const accent: Accent = ACCENTS.some((a) => a.id === da) ? (da as Accent) : get().accent;
       const sidebarLayout: SidebarLayout = ds === "rail" || ds === "classic" ? ds : get().sidebarLayout;
       localStorage.setItem(LS_THEME, theme);
