@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { runMigrations } from "./migrations";
+import { bumpRevision, bumpRevisionBatch } from "./revision";
 
 type QueryResult = { rowsAffected: number; lastInsertId: number };
 
@@ -29,12 +30,21 @@ const dbProxy: Db = {
     return invoke<T>("db_select", { sql, params: params ?? [] });
   },
   async execute(sql: string, params?: unknown[]): Promise<QueryResult> {
-    return invoke<QueryResult>("db_execute", { sql, params: params ?? [] });
+    const res = await invoke<QueryResult>("db_execute", { sql, params: params ?? [] });
+    // Único ponto por onde passa toda escrita avulsa — é aqui que o contador de
+    // "o documento mudou" se alimenta, em vez de depender de evento emitido à mão.
+    bumpRevision(sql, res.rowsAffected);
+    return res;
   },
   async executeBatch(statements: BatchStatement[]): Promise<number> {
-    return invoke<number>("db_execute_batch", {
+    const affected = await invoke<number>("db_execute_batch", {
       statements: statements.map((s) => ({ sql: s.sql, params: s.params ?? [] })),
     });
+    bumpRevisionBatch(
+      statements.map((s) => s.sql),
+      affected
+    );
+    return affected;
   },
 };
 

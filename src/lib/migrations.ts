@@ -4,7 +4,9 @@ import type { BatchStatement, Db } from "./db";
 // Para adicionar uma nova, basta empilhar no array com o próximo `version`.
 type Migration = { version: number; description: string; sql: string };
 
-const MIGRATIONS: Migration[] = [
+// Exportado pros testes conferirem invariantes do array (versão duplicada, fora
+// de ordem, ADD COLUMN NOT NULL sem DEFAULT). O app usa só runMigrations.
+export const MIGRATIONS: Migration[] = [
   {
     version: 1,
     description: "schema inicial: gigs, crm, tarefas, financeiro, equipamentos, settings",
@@ -2629,6 +2631,45 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_fan_invites_fan ON fan_invites(fan_id);
     `,
   },
+  {
+    version: 187,
+    description:
+      "Energia & Foco — work_sessions.is_retroactive: marca a sessão registrada DEPOIS do fato (lançada à mão, sem cronômetro) para poder filtrá-la das estatísticas. Por padrão conta normalmente nos totais; o flag só torna possível separar. Importa porque loadFocusStreak conta dias distintos de started_at, então uma sessão lançada no passado reescreve a sequência histórica. Coluna nova viaja sozinha no backup (SELECT *) e work_sessions já está em TABLES e no CSV. Aditiva/idempotente.",
+    sql: `ALTER TABLE work_sessions ADD COLUMN is_retroactive INTEGER NOT NULL DEFAULT 0;`,
+  },
+  {
+    version: 188,
+    description:
+      "Patrimônio — valor de revenda: equipment.resale_value (estimativa de quanto o item vale hoje, opcional) e equipment.resale_updated_at (quando a estimativa foi feita, pra saber se está velha). O valor de COMPRA não muda de coluna: já se chama purchase_value desde a v1, então renomear o rótulo para 'Valor de compra' é só interface, sem migration. Colunas novas viajam sozinhas no backup (SELECT *). Aditivas/idempotentes.",
+    sql: `
+      ALTER TABLE equipment ADD COLUMN resale_value REAL;
+      ALTER TABLE equipment ADD COLUMN resale_updated_at TEXT;
+    `,
+  },
+  {
+    version: 189,
+    description:
+      "Patrimônio — Desejos: equipment_wishlist, a lista do que se QUER comprar (antes do dinheiro sair). Tabela nova — registrada em backup/restore, na limpeza de documento (via TABLES) e no CSV. equipment_id aponta pro item de Patrimônio gerado ao marcar 'Comprei' (ON DELETE SET NULL: excluir o equipamento não apaga o histórico do desejo). Nome 'equipment_wishlist' e não 'objetivos' porque ao lado de okrs a segunda palavra confundiria duas coisas diferentes. saved_amount é anotação de planejamento, NÃO registro financeiro: não existe lançamento correspondente e por isso ele não entra em nenhum total do Financeiro.",
+    sql: `
+      CREATE TABLE IF NOT EXISTS equipment_wishlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category TEXT,
+        estimated_value REAL,
+        priority TEXT NOT NULL DEFAULT 'Média',     -- 'Alta' | 'Média' | 'Baixa'
+        target_date TEXT,                            -- prazo desejado (YYYY-MM-DD)
+        link TEXT,
+        notes TEXT,
+        saved_amount REAL NOT NULL DEFAULT 0,        -- quanto já foi separado (anotação)
+        status TEXT NOT NULL DEFAULT 'Desejado',     -- 'Desejado' | 'Comprado' | 'Descartado'
+        equipment_id INTEGER,                        -- item de Patrimônio gerado
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        purchased_at TEXT,
+        FOREIGN KEY (equipment_id) REFERENCES equipment(id) ON DELETE SET NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_equipment_wishlist_status ON equipment_wishlist(status);
+    `,
+  },
 ];
 
 
@@ -2652,8 +2693,18 @@ function parseAlter(stmt: string): { table: string; column: string } | null {
   return { table: m[1], column: m[2] };
 }
 
-/** Executa todas as migrations pendentes na ordem. Idempotente. */
-export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
+/**
+ * Executa todas as migrations pendentes na ordem. Idempotente.
+ *
+ * `upTo` para no número dado (inclusive). Em produção nunca é passado — serve
+ * pros testes montarem um banco no schema de uma versão ANTERIOR e então rodar
+ * o runner de novo pra aplicar as migrations novas por cima, que é exatamente o
+ * caminho real de quem abre um .vistage antigo com o app atualizado.
+ */
+export async function runMigrations(
+  db: Db,
+  opts?: { upTo?: number }
+): Promise<{ applied: number[] }> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS _migrations (
       version INTEGER PRIMARY KEY,
@@ -2669,6 +2720,7 @@ export async function runMigrations(db: Db): Promise<{ applied: number[] }> {
   const applied: number[] = [];
 
   for (const m of MIGRATIONS) {
+    if (opts?.upTo !== undefined && m.version > opts.upTo) continue;
     if (already.has(m.version)) continue;
     const statements = m.sql
       .split(/;/)

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { getDb } from "./db";
 import { decideDrift } from "./gcalDrift";
+import { toEpochMs } from "./format";
 
 const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
 const SETTINGS_KEYS = {
@@ -440,9 +441,15 @@ export async function syncAll(): Promise<{
       await stampGigSynced(g.id);
       pushed += 1;
     } else if (
-      cfg.lastSyncAt &&
-      g.updated_at &&
-      g.updated_at > cfg.lastSyncAt
+      // Comparação por EPOCH, não por string. `g.updated_at` vem do SQLite
+      // ("2026-06-17 20:49:24", com espaço) e `cfg.lastSyncAt` é ISO
+      // ("...T20:49:24.000Z"); como ' ' < 'T', comparar as strings dava sempre
+      // falso dentro do mesmo dia e NENHUMA edição de GIG era empurrada pro
+      // Google. Era a causa de cancelar/renomear não refletir na agenda: o
+      // evento já carrega `status: "cancelled"` e o título novo, mas o push
+      // nunca acontecia. Mesmo bug que o sync do Todoist já tinha corrigido.
+      !cfg.lastSyncAt ||
+      (g.updated_at && toEpochMs(g.updated_at) > toEpochMs(cfg.lastSyncAt))
     ) {
       await invoke<void>("gcal_update_event", {
         accessToken,

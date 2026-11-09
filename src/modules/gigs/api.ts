@@ -4,6 +4,7 @@ import { emitDataChanged } from "@/lib/events";
 import type { Gig, GigCreateInput, GigUpdateInput, GigStatus } from "./types";
 import { averageRating } from "./types";
 import { parsePrepState, prepProgress } from "./prep";
+import { gigDisplayName } from "./displayName";
 
 const GIG_COLUMNS = [
   "id",
@@ -203,6 +204,22 @@ export async function createGig(input: GigCreateInput): Promise<number> {
   return id;
 }
 
+/**
+ * Campos da GIG que o lançamento no Financeiro deriva. Mudar qualquer um deles
+ * exige re-sincronizar a receita: pagamento e cachê definem o VALOR, os nomes
+ * definem a DESCRIÇÃO e as datas definem o DIA do lançamento.
+ */
+const FINANCE_RELEVANT_FIELDS = [
+  "payment_status",
+  "cache_amount",
+  "cache_paid_pct",
+  "event_name",
+  "venue_name",
+  "recurring_event_name",
+  "date",
+  "payment_due_date",
+] as const;
+
 export async function updateGig(input: GigUpdateInput): Promise<void> {
   const db = getDb();
   const { id, ...rest } = input;
@@ -342,7 +359,17 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
   // Só sincroniza se o payment_status ficou num estado de pagamento real, ou se
   // já existia sincronização (para refletir mudanças no valor do cachê).
   // Evita duplicatas: sempre usa upsert por gig_id+gig_sync=1 em syncGigPaymentTransaction.
-  if ("payment_status" in rest || "cache_amount" in rest || "cache_paid_pct" in rest) {
+  //
+  // Os campos de NOME e DATA entram na lista porque a descrição e a data do
+  // lançamento são derivadas deles (`label` e `txDate` logo abaixo). Antes a
+  // condição só olhava pagamento/cachê, então renomear a GIG ou mudar a data
+  // deixava a receita com o texto e o dia antigos até o backfill diário
+  // (retroactiveSyncAllLinked) passar — até um dia de descompasso.
+  // Não cria lançamento à toa: sem pagamento e sem linha sincronizada,
+  // syncGigPaymentTransaction não insere nada.
+  if (
+    FINANCE_RELEVANT_FIELDS.some((f) => f in rest)
+  ) {
     try {
       const row = await db.select<{ payment_status: string | null; cache_amount: number | null; cache_paid_pct: number | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null; date: string | null; payment_due_date: string | null; promoter_contact_id: number | null; payment_method: string | null; payment_task_id: number | null }[]>(
         "SELECT payment_status, cache_amount, cache_paid_pct, event_name, venue_name, recurring_event_name, date, payment_due_date, promoter_contact_id, payment_method, payment_task_id FROM gigs WHERE id = $1", [id]
@@ -419,10 +446,18 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
       }
     } catch { /* não interrompe */ }
   }
-  // Sync prep task due_date when gig date changes, and title when event_name/venue_name changes
-  if ("date" in rest || "event_name" in rest || "venue_name" in rest) {
-    const rows = await db.select<{ prep_task_id: number | null; date: string | null; event_name: string | null; venue_name: string | null }[]>(
-      "SELECT prep_task_id, date, event_name, venue_name FROM gigs WHERE id = $1", [id]
+  // Sync prep task due_date when gig date changes, and title when the gig is renamed.
+  // `recurring_event_name` entra na condição porque ele faz parte do NOME da GIG
+  // em todo o resto do app (gigDisplayName, usado na lista, no calendário e no
+  // evento do Google) — sem ele, trocar a marca recorrente não renomeava a tarefa.
+  if (
+    "date" in rest ||
+    "event_name" in rest ||
+    "venue_name" in rest ||
+    "recurring_event_name" in rest
+  ) {
+    const rows = await db.select<{ prep_task_id: number | null; date: string | null; event_name: string | null; venue_name: string | null; recurring_event_name: string | null }[]>(
+      "SELECT prep_task_id, date, event_name, venue_name, recurring_event_name FROM gigs WHERE id = $1", [id]
     );
     const prepTaskId = rows[0]?.prep_task_id;
     if (prepTaskId) {
@@ -438,13 +473,24 @@ export async function updateGig(input: GigUpdateInput): Promise<void> {
         }
         taskUpdate.due_date = prepDue;
       }
-      if ("event_name" in rest || "venue_name" in rest) {
-        const eventName = ("event_name" in rest ? rest.event_name as string | null : rows[0]?.event_name) ?? null;
+      if ("event_name" in rest || "venue_name" in rest || "recurring_event_name" in rest) {
         const venueName = ("venue_name" in rest ? rest.venue_name as string : rows[0]?.venue_name) ?? "";
-        const title = eventName
-          ? `Preparação - ${eventName}`
+        // Mesma resolução de nome do resto do app, em vez de uma segunda regra
+        // só pra tarefa: antes, uma GIG recorrente SEM event_name virava
+        // "Preparação - GIG 2026-08-02" enquanto o evento no Google se chamava
+        // "Caliente". O padrão "Preparação - <nome>" não muda; o que melhora é
+        // de onde <nome> vem.
+        const name = gigDisplayName({
+          event_name: ("event_name" in rest ? rest.event_name as string | null : rows[0]?.event_name) ?? null,
+          venue_name: venueName,
+          recurring_event_name:
+            ("recurring_event_name" in rest
+              ? (rest.recurring_event_name as string | null)
+              : rows[0]?.recurring_event_name) ?? null,
+        });
+        taskUpdate.title = name
+          ? `Preparação - ${name}`
           : `Preparação - GIG ${("date" in rest ? rest.date as string | null : rows[0]?.date) ?? "sem data"}`;
-        taskUpdate.title = title;
         taskUpdate.description = venueName || null;
       }
       await updateTask(taskUpdate);
@@ -560,13 +606,25 @@ export async function deleteGig(id: number): Promise<void> {
     "DELETE FROM finance_transactions WHERE gig_id = $1",
     [id]
   );
-  // Apaga tarefas vinculadas à GIG pelo gig_id
-  await db.execute("DELETE FROM tasks WHERE gig_id = $1", [id]);
-  await db.execute("DELETE FROM gigs WHERE id = $1", [id]);
-  // Apaga a prep task da GIG se existir
-  if (prepTaskId) {
-    await db.execute("DELETE FROM tasks WHERE id = $1", [prepTaskId]);
+  // Apaga as tarefas vinculadas ROTEANDO POR `deleteTask`, não com DELETE cru.
+  // O DELETE cru pulava a lápide do Todoist, então a tarefa voltava da nuvem na
+  // sync seguinte como se fosse nova — e aí sem GIG nenhuma pra se vincular.
+  // `deleteTask` já resolve isso (e tem fallback se a lápide falhar antes de
+  // ser gravada), então aqui é só não contornar o caminho certo.
+  const taskRows = await db.select<{ id: number }[]>(
+    "SELECT id FROM tasks WHERE gig_id = $1",
+    [id]
+  );
+  const taskIds = new Set(taskRows.map((r) => r.id));
+  if (prepTaskId) taskIds.add(prepTaskId); // pode não ter gig_id preenchido
+  const { deleteTask } = await import("@/modules/tasks/api");
+  for (const taskId of taskIds) {
+    await deleteTask(taskId).catch(() => {
+      // Falha numa tarefa não pode impedir a exclusão da GIG; o pior caso é
+      // uma tarefa órfã, visível e removível à mão.
+    });
   }
+  await db.execute("DELETE FROM gigs WHERE id = $1", [id]);
   emitDataChanged();
 }
 
@@ -779,8 +837,12 @@ export async function setGigTracks(
 
 export async function createGigPrepTask(gig: Gig): Promise<number> {
   const { createTask } = await import("@/modules/tasks/api");
-  const title = gig.event_name
-    ? `Preparação - ${gig.event_name}`
+  // Mesma resolução de nome usada na renomeação (updateGig) e no resto do app —
+  // as duas tinham que bater, senão criar e depois renomear davam títulos
+  // diferentes pra mesma GIG.
+  const name = gigDisplayName(gig);
+  const title = name
+    ? `Preparação - ${name}`
     : `Preparação - GIG ${gig.date ?? "sem data"}`;
   // A preparação vence 2 dias antes da GIG, pra não aparecer empilhada com
   // ela no mesmo dia do calendário e dar margem real de preparo.

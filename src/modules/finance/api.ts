@@ -6,6 +6,9 @@ import type {
   Equipment,
   EquipmentCreateInput,
   EquipmentUpdateInput,
+  EquipmentWish,
+  EquipmentWishCreateInput,
+  EquipmentWishUpdateInput,
   FinanceCategory,
   FinanceRecurring,
   FinanceRecurringCreateInput,
@@ -172,7 +175,22 @@ async function getTransaction(
 }
 
 export async function createTransaction(
-  input: FinanceTransactionCreateInput
+  input: FinanceTransactionCreateInput,
+  opts?: {
+    /**
+     * Item de Patrimônio que JÁ EXISTE e é o dono desta despesa (cadastro
+     * vindo do Patrimônio). Sem isso, `syncEquipmentForTransaction` não acha
+     * item vinculado a uma transação recém-criada e CRIA UM SEGUNDO — o item
+     * apareceria duplicado em Patrimônio a cada cadastro.
+     *
+     * Não é coluna: é só um aviso pro sync desta chamada. O vínculo
+     * persistido continua sendo `equipment.transaction_id`, que é
+     * muitos-pra-um (três itens na mesma nota fiscal) — uma coluna
+     * `finance_transactions.equipment_id` seria uma segunda representação do
+     * mesmo link, 1:1, menos expressiva, e com duas fontes de verdade.
+     */
+    adoptEquipmentId?: number;
+  }
 ): Promise<number> {
   const db = getDb();
   const cols = Object.keys(input);
@@ -183,7 +201,7 @@ export async function createTransaction(
     values
   );
   const newId = Number(res.lastInsertId);
-  await syncEquipmentForTransaction(newId);
+  await syncEquipmentForTransaction(newId, opts?.adoptEquipmentId);
   emitDataChanged();
   return newId;
 }
@@ -231,8 +249,21 @@ export async function deleteTransaction(id: number): Promise<void> {
  * quando ela for uma despesa da categoria "Equipamentos". Se a transação
  * já tiver um item linkado, atualiza o valor/data; senão cria.
  */
-async function syncEquipmentForTransaction(transactionId: number): Promise<void> {
+async function syncEquipmentForTransaction(
+  transactionId: number,
+  adoptEquipmentId?: number
+): Promise<void> {
   const db = getDb();
+  // Vínculo DITO pelo chamador: só grava e sai. O item de Patrimônio é a
+  // origem do dado aqui, então não há nome/valor a espelhar de volta nem
+  // desvínculo por categoria a decidir — e, sobretudo, nada a inserir.
+  if (adoptEquipmentId != null) {
+    await db.execute(
+      "UPDATE equipment SET transaction_id = $1 WHERE id = $2",
+      [transactionId, adoptEquipmentId]
+    );
+    return;
+  }
   const tx = await getTransaction(transactionId);
   if (!tx) return;
   const isEquipment =
@@ -855,6 +886,35 @@ export async function updateEquipment(
     `UPDATE equipment SET ${sets} WHERE id = $${values.length}`,
     values
   );
+
+  // Item com despesa vinculada: valor e data mudam NOS DOIS lugares, senão o
+  // Financeiro ficaria dizendo que o CDJ custou 4200 enquanto o Patrimônio diz
+  // 3900. É SQL cru de propósito: passar por `updateTransaction` reentraria em
+  // `syncEquipmentForTransaction`, que escreveria o mesmo valor de volta no
+  // item. Com SQL cru não há ida e volta — e os dois lados convergem no mesmo
+  // número na primeira passada.
+  const touchesMoney = "purchase_value" in rest || "purchase_date" in rest;
+  if (!touchesMoney) return;
+  const linked = await db.select<{ transaction_id: number | null }[]>(
+    "SELECT transaction_id FROM equipment WHERE id = $1",
+    [id]
+  );
+  const txId = linked[0]?.transaction_id ?? null;
+  if (txId == null) return;
+  const row = await db.select<{ purchase_value: number | null; purchase_date: string | null }[]>(
+    "SELECT purchase_value, purchase_date FROM equipment WHERE id = $1",
+    [id]
+  );
+  const eq = row[0];
+  if (!eq) return;
+  await db.execute(
+    `UPDATE finance_transactions
+        SET amount = COALESCE($1, amount),
+            date = COALESCE($2, date),
+            updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3`,
+    [eq.purchase_value, eq.purchase_date, txId]
+  );
   emitDataChanged();
 }
 
@@ -862,6 +922,220 @@ export async function deleteEquipment(id: number): Promise<void> {
   const db = getDb();
   await db.execute("DELETE FROM equipment WHERE id = $1", [id]);
   emitDataChanged();
+}
+
+/** Nome da categoria que o espelhamento Financeiro ↔ Patrimônio observa. */
+export const EQUIPMENT_CATEGORY = "Equipamentos";
+
+/**
+ * Id da categoria "Equipamentos" (despesa). Ela vem do seed da v2, mas NÃO é
+ * protegida: pode ter sido excluída. Nesse caso recria, porque é o gatilho do
+ * espelhamento — sem ela a despesa nasceria fora do vínculo. Recriar é reparo,
+ * não invenção.
+ */
+export async function ensureEquipmentCategoryId(): Promise<number> {
+  const db = getDb();
+  const found = await db.select<{ id: number }[]>(
+    "SELECT id FROM finance_categories WHERE name = $1 AND kind = 'expense'",
+    [EQUIPMENT_CATEGORY]
+  );
+  if (found[0]) return found[0].id;
+  const res = await db.execute(
+    "INSERT INTO finance_categories (name, kind, is_default, is_protected) VALUES ($1, 'expense', 0, 0)",
+    [EQUIPMENT_CATEGORY]
+  );
+  return Number(res.lastInsertId);
+}
+
+export type ExpenseCandidate = {
+  id: number;
+  date: string;
+  description: string | null;
+  amount: number;
+  category_name: string | null;
+};
+
+/**
+ * Despesas que PODEM ser a compra deste item, pra não lançar em dobro o que já
+ * está no Financeiro. O filtro é valor igual OU descrição parecida, sempre
+ * dentro de ±7 dias da data de aquisição, e só despesas que ainda não têm item
+ * de Patrimônio vinculado.
+ *
+ * Valor igual é o sinal forte; a descrição entra porque centavos de frete fazem
+ * o valor divergir ("4199,90" contra "4200") e aí só o nome casa.
+ */
+export async function findExpenseCandidates(opts: {
+  name: string;
+  value: number | null;
+  date: string;
+}): Promise<ExpenseCandidate[]> {
+  const db = getDb();
+  // Primeiro token com 4+ caracteres: "CDJ-3000 (par)" → "CDJ-3000". Tokens
+  // curtos ("par", "de") casariam com qualquer coisa.
+  const token = opts.name
+    .split(/[\s(),/]+/)
+    .find((w) => w.length >= 4);
+  return db.select<ExpenseCandidate[]>(
+    `SELECT ${TX_COLUMNS} ${TX_FROM}
+      WHERE t.kind = 'expense'
+        AND t.date BETWEEN date($1, '-7 days') AND date($1, '+7 days')
+        AND NOT EXISTS (SELECT 1 FROM equipment e WHERE e.transaction_id = t.id)
+        AND (
+          ($2 IS NOT NULL AND t.amount = $2)
+          OR ($3 IS NOT NULL AND t.description LIKE '%' || $3 || '%')
+        )
+      ORDER BY ABS(julianday(t.date) - julianday($1)), t.id DESC
+      LIMIT 10`,
+    [opts.date, opts.value, token ?? null]
+  );
+}
+
+/** Liga um item de Patrimônio a uma despesa que já existia. */
+export async function linkEquipmentExpense(
+  equipmentId: number,
+  transactionId: number
+): Promise<void> {
+  const db = getDb();
+  await db.execute("UPDATE equipment SET transaction_id = $1 WHERE id = $2", [
+    transactionId,
+    equipmentId,
+  ]);
+  emitDataChanged();
+}
+
+/**
+ * Cria a despesa da compra deste item, COM A DATA DA AQUISIÇÃO (o ponto do
+ * item 10: a despesa é retroativa, não entra no mês em que o item foi
+ * cadastrado). Valor integral — o Financeiro não tem parcelamento.
+ */
+export async function createEquipmentExpense(eq: {
+  id: number;
+  name: string;
+  purchase_date: string;
+  purchase_value: number;
+}): Promise<number> {
+  const categoryId = await ensureEquipmentCategoryId();
+  return createTransaction(
+    {
+      kind: "expense",
+      amount: eq.purchase_value,
+      date: eq.purchase_date,
+      description: eq.name,
+      category_id: categoryId,
+      gig_id: null,
+      contact_id: null,
+      class_id: null,
+      student_package_id: null,
+      track_id: null,
+      party_id: null,
+      music_cost_id: null,
+      gig_sync: 0,
+      class_sync: 0,
+      status: "Pago",
+      payment_method: null,
+      expense_type: "Variável",
+      receipt_file_path: null,
+      tax_relevant: 0,
+      recurring_id: null,
+    },
+    { adoptEquipmentId: eq.id }
+  );
+}
+
+/** Item de Patrimônio que esta despesa comprou (pro link inverso). */
+export async function equipmentForTransaction(
+  transactionId: number
+): Promise<{ id: number; name: string } | null> {
+  const db = getDb();
+  const rows = await db.select<{ id: number; name: string }[]>(
+    "SELECT id, name FROM equipment WHERE transaction_id = $1 ORDER BY id LIMIT 1",
+    [transactionId]
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Itens com data de aquisição e SEM despesa vinculada — a fila do backfill.
+ * Nada é criado por esta função: ela só lista pra a tela de pré-visualização.
+ */
+export async function equipmentMissingExpense(): Promise<Equipment[]> {
+  const db = getDb();
+  return db.select<Equipment[]>(
+    `SELECT * FROM equipment
+      WHERE purchase_date IS NOT NULL
+        AND purchase_value IS NOT NULL
+        AND transaction_id IS NULL
+      ORDER BY purchase_date DESC`
+  );
+}
+
+// ============================================================
+// Patrimônio - Desejos (lista de compra)
+// ============================================================
+
+export async function listWishes(): Promise<EquipmentWish[]> {
+  const db = getDb();
+  // Ordem: o que ainda está na fila primeiro, depois prioridade, depois prazo.
+  // CASE em vez de ORDER BY priority: alfabeticamente 'Alta' < 'Baixa' < 'Média'
+  // colocaria Baixa no meio.
+  return db.select<EquipmentWish[]>(`
+    SELECT * FROM equipment_wishlist
+    ORDER BY
+      CASE status WHEN 'Desejado' THEN 0 WHEN 'Comprado' THEN 1 ELSE 2 END,
+      CASE priority WHEN 'Alta' THEN 0 WHEN 'Média' THEN 1 ELSE 2 END,
+      target_date IS NULL, target_date ASC,
+      name COLLATE NOCASE ASC
+  `);
+}
+
+export async function createWish(input: EquipmentWishCreateInput): Promise<number> {
+  const db = getDb();
+  const cols = Object.keys(input);
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(", ");
+  const values = cols.map((k) => (input as Record<string, unknown>)[k]);
+  const res = await db.execute(
+    `INSERT INTO equipment_wishlist (${cols.join(", ")}) VALUES (${placeholders})`,
+    values
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export async function updateWish(input: EquipmentWishUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest);
+  if (cols.length === 0) return;
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  const values = cols.map((k) => (rest as Record<string, unknown>)[k]);
+  values.push(id);
+  await db.execute(
+    `UPDATE equipment_wishlist SET ${sets} WHERE id = $${values.length}`,
+    values
+  );
+  emitDataChanged();
+}
+
+export async function deleteWish(id: number): Promise<void> {
+  const db = getDb();
+  await db.execute("DELETE FROM equipment_wishlist WHERE id = $1", [id]);
+  emitDataChanged();
+}
+
+/**
+ * Fecha o desejo apontando pro item de Patrimônio que nasceu dele. Idempotente:
+ * chamar duas vezes com o mesmo par não duplica nada (é só UPDATE por id).
+ */
+export async function markWishPurchased(
+  wishId: number,
+  equipmentId: number | null
+): Promise<void> {
+  await updateWish({
+    id: wishId,
+    status: "Comprado",
+    equipment_id: equipmentId,
+    purchased_at: new Date().toISOString().slice(0, 10),
+  });
 }
 
 // ============================================================

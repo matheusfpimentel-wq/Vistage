@@ -17,7 +17,9 @@ export type SearchHit = {
     | "track"
     | "party"
     | "library_track"
-    | "note";
+    | "note"
+    | "equipment"
+    | "equipment_wish";
   id: number;
   title: string;
   subtitle: string;
@@ -38,7 +40,7 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
   // Módulos ocultos (Perfil) não contribuem resultados — pula a query inteira.
   const hidden = getHiddenModules();
 
-  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties, libraryTracks, notes] = await Promise.all([
+  const [gigs, contacts, tasks, txs, venues, suppliers, fans, contents, ideas, students, tracks, parties, libraryTracks, notes, equipment, wishes] = await Promise.all([
     hidden.has("/gigs") ? Promise.resolve([]) : db.select<
       {
         id: number;
@@ -168,6 +170,25 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       `SELECT id, title FROM notes
         WHERE title LIKE $1 OR body LIKE $1
         ORDER BY updated_at DESC LIMIT $2`,
+      [like, limit]
+    ),
+    // Patrimônio não estava na busca — procurar "CDJ" achava a DESPESA e não o
+    // item que você tem. Entrou junto com Desejos: um desejo encontrável sem o
+    // item correspondente seria pior que nenhum dos dois.
+    db.select<
+      { id: number; name: string; category: string | null; state: string }[]
+    >(
+      `SELECT id, name, category, state FROM equipment
+        WHERE name LIKE $1 OR category LIKE $1 OR location LIKE $1 OR notes LIKE $1
+        ORDER BY name COLLATE NOCASE LIMIT $2`,
+      [like, limit]
+    ),
+    db.select<
+      { id: number; name: string; category: string | null; status: string }[]
+    >(
+      `SELECT id, name, category, status FROM equipment_wishlist
+        WHERE name LIKE $1 OR category LIKE $1 OR notes LIKE $1
+        ORDER BY name COLLATE NOCASE LIMIT $2`,
       [like, limit]
     ),
   ]);
@@ -309,6 +330,26 @@ export async function globalSearch(query: string, limit = 8): Promise<SearchHit[
       route: "/biblioteca",
     });
   }
+  // A rota leva à sub-aba certa: Patrimônio é sub-aba do Financeiro, e cair em
+  // Transações depois de procurar um equipamento é um beco.
+  for (const e of equipment) {
+    hits.push({
+      kind: "equipment",
+      id: e.id,
+      title: e.name,
+      subtitle: [e.category, e.state].filter(Boolean).join(" · "),
+      route: "/financeiro?tab=equipment",
+    });
+  }
+  for (const w of wishes) {
+    hits.push({
+      kind: "equipment_wish",
+      id: w.id,
+      title: w.name,
+      subtitle: [w.category, w.status].filter(Boolean).join(" · "),
+      route: "/financeiro?tab=equipment&sub=wishlist",
+    });
+  }
   return hits;
 }
 
@@ -327,4 +368,6 @@ export const KIND_LABEL: Record<SearchHit["kind"], string> = {
   party: "Festa",
   library_track: "Música",
   note: "Nota",
+  equipment: "Patrimônio",
+  equipment_wish: "Desejo",
 };

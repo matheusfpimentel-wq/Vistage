@@ -9,6 +9,7 @@ Leia antes de codar: `STATE.md` (estado do projeto), `UI_GUIDELINES.md` (regras 
 ## Comandos
 - `npm run dev` · `npm run tauri:dev` — desenvolvimento
 - `npm run build` — roda `tsc --noEmit && vite build`; **precisa terminar limpo antes de fechar qualquer batch**
+- `npm test` — Vitest (`vitest run`); `npm run test:watch` pro modo contínuo
 - `npm run tauri:build` — build desktop
 
 ## Fluxo de execução
@@ -19,18 +20,27 @@ Leia antes de codar: `STATE.md` (estado do projeto), `UI_GUIDELINES.md` (regras 
 5. Ao fechar: `tsc` + build limpos, teste manual do fluxo crítico e **STATE.md atualizado**.
 
 ## Migrations e dados (zona crítica)
-- Migrations vivem em `src/lib/migrations.ts`, versionadas e **aditivas** (versão mais alta neste clone: **v181** — confira sempre em `_migrations`). Nunca editar migration antiga: criar nova. Reversível quando viável; jamais quebrar dados existentes.
+- Migrations vivem em `src/lib/migrations.ts`, versionadas e **aditivas** (versão mais alta neste clone: **v189** — confira sempre em `_migrations`). Nunca editar migration antiga: criar nova. Reversível quando viável; jamais quebrar dados existentes.
 - **Toda tabela nova** deve ser registrada em `buildBackupData`/`restoreBackup` (`src/lib/backup.ts`), na limpeza de documento (`src/lib/document.ts`) e no export CSV. Tabela fora do backup = perda **silenciosa** de dados = 🔴 crítico.
 - Vínculos automáticos entre módulos são **idempotentes** (IDs em colunas como `task_id`, `content_ids[]`).
 
 ## UI
 A autoridade é o `UI_GUIDELINES.md` — obedecer integralmente. Destaques: explicações só atrás de "?"; **nenhum modal perde alteração** (`useUnsavedConfirm` em todo Dialog com formulário); fonte única de verdade (dinheiro vive no Financeiro; o resto é read-through); campos de texto longo em auto-grow; exclusões seguem a política desfazer vs. confirmar; busca global e sidebar atualizadas ao criar entidades novas; lazy-load de páginas novas.
 
-## Testes (dívida assumida — prioridade ao tocar nesta área)
-Hoje **não há testes nem vitest** no projeto. Ao mexer em backup, restore ou migrations, criar antes de alterar:
-1. **Round-trip:** popular fixture → `buildBackupData` → `restoreBackup` → todas as tabelas batem linha a linha (FKs religadas, caminhos reescritos).
-2. **Migração:** aplicar v1→atual em banco vazio **e** em banco populado com schema antigo; nenhuma linha perdida e `_migrations` fechando consistente.
-Stack sugerida: Vitest (o projeto já é Vite) + `cargo test` no `src-tauri`.
+## Testes (`npm test`)
+Cobertura **deliberadamente estreita**: só a zona crítica (migrations, backup, restore). Não é meta cobrir o app.
+
+**Stack:** Vitest + **better-sqlite3**. Roda em Node, fora do Tauri. O `node:sqlite` nativo não serve porque o CI está pinado em Node 20 e ele só existe no 22+.
+
+**Como funciona:** mocka-se **uma** fronteira, o `invoke` do `@tauri-apps/api/core` (`src/test/sqliteDb.ts`), que despacha `db_select`/`db_execute`/`db_execute_batch` pro SQLite em memória. Tudo acima dela é o código de produção — `getDb()`, `runMigrations` com o pré-filtro de ALTER e o lote atômico, `buildBackupData`, `restoreBackup`. Testar uma cópia da lógica não provaria nada.
+
+- `src/test/sqliteDb.ts` — adaptador. Converte os placeholders `$N` pros `?` posicionais **preservando reuso de índice** (o app faz `SET value = $2` e `($3 IS NULL OR id <> $3)`).
+- `src/test/fixture.ts` — banco no schema do `BASELINE_VERSION` com registros de Patrimônio, Financeiro e GIGs. **Ao adicionar migration, não mexa no BASELINE_VERSION**: ele tem que seguir apontando pro schema anterior, senão o teste de migração deixa de exercitar a subida.
+- `src/lib/migrations.test.ts` — sobe do baseline sem perder linha nem valor de Patrimônio; idempotência; sem versão duplicada ou fora de ordem; todo `ADD COLUMN NOT NULL` com `DEFAULT`.
+- `src/lib/backup.test.ts` — round-trip **para um banco NOVO** (o caso de abrir o `.vistage` em outra máquina). Reabrir no mesmo banco não prova nada: `restoreBackup` só limpa e reinsere as tabelas presentes no backup, então uma tabela esquecida no array `TABLES` ficaria intocada e a comparação passaria. Verificado por mutação: comentar `"equipment"` ou `"equipment_wishlist"` em `TABLES` quebra o teste. Tabela nova **precisa de linha semeada aqui** — tabela vazia no backup passa batido.
+- `src/modules/finance/equipmentExpense.test.ts` — vínculo Patrimônio ↔ Financeiro: lançar a despesa de um item não pode criar um SEGUNDO item (`createTransaction` espelha a categoria "Equipamentos"), a despesa entra na data da compra, o espelhamento normal continua funcionando, a busca de duplicata ignora despesa já vinculada, e editar o valor no Patrimônio converge nos dois lados sem ida-e-volta. Mocka também `@/lib/events` (`window.dispatchEvent` não existe em Node) — fronteira de navegador, não lógica.
+
+`runMigrations(db, { upTo })` existe só pros testes montarem o schema anterior; o app nunca passa `upTo`.
 
 ## Segurança
 O repositório é **público**: nunca commitar segredos, chaves ou tokens (nem deixar no histórico). Tokens OAuth (Google/Todoist/Notion) sempre criptografados e nunca logados. Mudanças em CSP ou escopo de filesystem: **propor, não aplicar** sem confirmação.

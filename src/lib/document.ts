@@ -11,6 +11,7 @@ import {
 } from "./backup";
 import { rotateBackup } from "./rotatingBackup";
 import { clearUnsavedWork } from "./recovery";
+import { revision } from "./revision";
 import { toast } from "@/components/ui/toaster";
 
 // "Documento" no estilo Office: um arquivo .vistage que contém TODOS os dados
@@ -94,6 +95,12 @@ type DocumentState = {
   /** true quando há mudanças não salvas no documento aberto (ou no não-salvo). */
   dirty: boolean;
   /**
+   * Valor do contador de escritas (`revision()`) no último ponto em que o
+   * documento estava em sincronia com o arquivo: fim do boot, save, saveAs ou
+   * documento novo. "Sujo" é simplesmente `revision() > baseline`.
+   */
+  baseline: number;
+  /**
    * Vira true quando as escritas automáticas de inicialização terminam. Antes
    * disso, mudanças de dados NÃO contam como "sujo" — o boot gera recorrências,
    * sincroniza vínculos e cria follow-ups, e nada disso é edição do usuário.
@@ -102,6 +109,10 @@ type DocumentState = {
   bootSettled: boolean;
   markDirty: () => void;
   markClean: () => void;
+  /** Re-ancora o contador: daqui pra frente, só o que mudar conta como sujo. */
+  rebaseline: () => void;
+  /** Recalcula `dirty` a partir do contador. Devolve o valor novo. */
+  recomputeDirty: () => boolean;
   /** Marca o fim do boot: o documento está limpo e mudanças passam a contar. */
   settleBoot: () => void;
   /** Abre um .vistage pelo diálogo, substituindo o documento atual. */
@@ -130,17 +141,47 @@ type GetState = () => DocumentState;
  * Sem nada a perder, segue direto (return true). Devolve false só quando a troca
  * deve ser abortada.
  */
+/**
+ * Espera as escritas automáticas de boot assentarem, com o MESMO teto de 8s do
+ * App.tsx. Antes de assentar, o baseline ainda não foi tirado e o contador
+ * inclui as escritas de inicialização — comparar nesse instante acusaria "sujo"
+ * sem o usuário ter editado nada. Abrir/Novo é ação deliberada e pode esperar o
+ * instante que isso leva; se estourar o teto, o contador segue inflado e a
+ * guarda pergunta por garantia (o lado seguro).
+ */
+function waitBootSettled(timeoutMs = 8000): Promise<void> {
+  if (useDocumentStore.getState().bootSettled) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const unsub = useDocumentStore.subscribe((s) => {
+      if (s.bootSettled) finish();
+    });
+  });
+}
+
 async function guardUnsaved(get: GetState): Promise<boolean> {
-  const { currentPath, dirty, bootSettled } = get();
+  await waitBootSettled();
+  const { currentPath } = get();
   // Rede de segurança contra perda SILENCIOSA — nunca descartar sem perguntar.
-  // - COM caminho: confia em `dirty`. PORÉM, se o boot ainda não "assentou"
-  //   (bootSettled=false), o rastreio de "sujo" nem estava ligado — então um
-  //   dirty=false NÃO é confiável (foi esse o bug de perda de dados): perguntar
-  //   por garantia. Vale 1 clique a mais contra o risco de apagar o documento.
-  // - SEM caminho: pergunta se há qualquer dado preenchido na réplica.
+  // "Sujo" agora vem do CONTADOR de linhas escritas (revision.ts), não de um
+  // flag alimentado por evento: `dirty=false` passa a ser confiável sozinho, e
+  // por isso o antigo `|| !bootSettled` saiu daqui — era ele que fazia o app
+  // perguntar em TODA abertura dentro dos primeiros 8 segundos.
+  // SEM caminho: também olha se há qualquer dado preenchido na réplica, porque
+  // um documento sem título pode ter conteúdo vindo de um restore (que não
+  // passa pelo contador desta sessão).
+  const changed = get().recomputeDirty();
   const hasUnsaved = currentPath
-    ? dirty || !bootSettled
-    : await hasAnyDocumentData().catch(() => false);
+    ? changed
+    : changed || (await hasAnyDocumentData().catch(() => false));
   if (!hasUnsaved) return true;
 
   const choice = await askUnsaved();
@@ -157,7 +198,7 @@ async function applyOpened(set: SetState, backup: Backup, path: string): Promise
   await restoreBackup(backup);
   await restoreBackupSession(backup);
   localStorage.setItem(LS_KEY, path);
-  set({ currentPath: path, currentName: fileName(path), dirty: false });
+  set({ currentPath: path, currentName: fileName(path), dirty: false, baseline: revision() });
   toast.success(`Documento aberto: ${fileName(path)}. Recarregando…`);
   setTimeout(() => reloadKeepingData(), 800);
 }
@@ -167,10 +208,23 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
   currentName: fileName(localStorage.getItem(LS_KEY)),
   busy: false,
   dirty: false,
+  baseline: 0,
   bootSettled: false,
-  markDirty: () => set({ dirty: true }),
-  markClean: () => set({ dirty: false }),
-  settleBoot: () => set({ bootSettled: true, dirty: false }),
+  // Sujo GRUDENTO: usado na recuperação de crash, em que as linhas foram
+  // escritas numa sessão ANTERIOR e o contador desta começa em zero — sem o
+  // baseline negativo, o próximo recomputeDirty() diria "limpo" e o usuário
+  // perderia o que acabou de recuperar.
+  markDirty: () => set({ dirty: true, baseline: -1 }),
+  markClean: () => set({ dirty: false, baseline: revision() }),
+  rebaseline: () => set({ baseline: revision(), dirty: false }),
+  recomputeDirty: () => {
+    const next = revision() > get().baseline;
+    if (next !== get().dirty) set({ dirty: next });
+    return next;
+  },
+  // O baseline só pode ser tirado DEPOIS das escritas de boot, senão elas
+  // contariam como edição do usuário.
+  settleBoot: () => set({ bootSettled: true, dirty: false, baseline: revision() }),
 
   open: async () => {
     if (get().busy) return;
@@ -202,7 +256,9 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       // "Uma conta por arquivo": um documento em branco não tem conta de sync —
       // desloga a do arquivo anterior pra não vazar dados dele pro celular.
       await import("./supabase").then(({ signOut }) => signOut().catch(() => {}));
-      set({ currentPath: null, currentName: null, dirty: false });
+      // Baseline DEPOIS do clearDocumentData: os DELETEs do wipe contam no
+      // contador, e um documento recém-zerado não está "sujo".
+      set({ currentPath: null, currentName: null, dirty: false, baseline: revision() });
       toast.success("Novo documento em branco. Recarregando…");
       setTimeout(() => reloadKeepingData(), 600);
     } catch (e) {
@@ -219,7 +275,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
     set({ busy: true });
     try {
       const { skipped } = await saveBackupToPath(path);
-      set({ dirty: false });
+      set({ dirty: false, baseline: revision() });
       clearUnsavedWork(); // salvou no .vistage → nada a recuperar
       // Backup rotativo (rede de segurança) — best-effort, não bloqueia.
       void rotateBackup(path);
@@ -257,7 +313,7 @@ export const useDocumentStore = create<DocumentState>((set, get) => ({
       if (!path) return false;
       const { skipped } = await saveBackupToPath(path);
       localStorage.setItem(LS_KEY, path);
-      set({ currentPath: path, currentName: fileName(path), dirty: false });
+      set({ currentPath: path, currentName: fileName(path), dirty: false, baseline: revision() });
       clearUnsavedWork();
       void rotateBackup(path);
       if (skipped.length > 0) {

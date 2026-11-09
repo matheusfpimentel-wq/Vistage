@@ -39,6 +39,11 @@ export const CSV_ENTITIES = [
     label: "Categorias financeiras",
     table: "finance_categories",
   },
+  // Patrimônio não tinha export/import CSV nenhum, apesar de estar no backup
+  // desde sempre. Entrou junto com o valor de revenda, que é o tipo de campo
+  // que se quer editar em planilha.
+  { key: "equipment", label: "Patrimônio", table: "equipment" },
+  { key: "equipment_wishlist", label: "Patrimônio: desejos", table: "equipment_wishlist" },
   { key: "work_sessions", label: "Sessões de trabalho", table: "work_sessions" },
   { key: "energy_logs", label: "Logs de energia", table: "energy_logs" },
   { key: "highlights", label: "Highlights", table: "highlights" },

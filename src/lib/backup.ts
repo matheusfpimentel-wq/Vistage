@@ -39,6 +39,8 @@ const TABLES = [
   "music_projects",
   "finance_categories",
   "equipment",
+  // Desejos (o que se quer comprar). DEPOIS de equipment: equipment_id → equipment.
+  "equipment_wishlist",
   "work_sessions",
   "energy_logs",
   "highlights",
@@ -618,8 +620,15 @@ export async function clearDocumentData(): Promise<void> {
  */
 export async function hasAnyDocumentData(): Promise<boolean> {
   const db = getDb();
+  const migrated = documentTablesMigrated();
   for (const t of TABLES) {
     if (MACHINE_TABLES.includes(t)) continue;
+    // Tem que concordar com clearDocumentData sobre o que é "em branco". Antes
+    // do 1º save, ele POUPA estas tabelas do wipe (pra não apagar dado que ainda
+    // não viajou pro arquivo); se aqui elas contassem, um documento recém-zerado
+    // seria julgado "com dados" e Abrir/Novo pediriam pra salvar um doc vazio.
+    // Invariante: depois de clearDocumentData(), isto devolve false.
+    if (!migrated && PENDING_MIGRATION_TABLES.includes(t)) continue;
     try {
       if (t === "document_settings") {
         // Preferências de tela (tema, colunas, filtros...) não contam como
@@ -911,6 +920,12 @@ const DEFERRED_FK: Partial<Record<TableName, Record<string, TableName>>> = {
   },
   finance_recurring: { category_id: "finance_categories" },
   equipment: { transaction_id: "finance_transactions" },
+  // Desejos: equipment_id é anulável (ON DELETE SET NULL). equipment vem ANTES
+  // na ordem topológica, então o adiamento não é por ordem — é pra descartar
+  // referência órfã quando o backup não traz a tabela equipment (versão antiga
+  // do app): sem isso, o id apontaria pra uma linha de equipment que ficou no
+  // banco e pertence a outro item.
+  equipment_wishlist: { equipment_id: "equipment" },
   fan_group_members: { fan_id: "fans" },
   student_packages: { package_id: "class_packages" },
   classes: { student_package_id: "student_packages" },

@@ -33,6 +33,9 @@ export type WorkSession = {
   /** UUID gerado no celular que liga esta sessão aos marcadores ao vivo do Modo
    *  Foco (performance_weak_points/moments). Null em sessões criadas no PC. */
   focus_session_id: string | null;
+  /** 1 quando a sessão foi lançada À MÃO depois do fato, em vez de cronometrada.
+   *  Conta normalmente nos totais; o flag só permite separá-la. */
+  is_retroactive: number;
   created_at: string;
 };
 
@@ -281,6 +284,140 @@ export async function listSessions(limit = 50): Promise<WorkSession[]> {
 export async function deleteSession(id: number): Promise<void> {
   const db = getDb();
   await db.execute(`DELETE FROM work_sessions WHERE id = $1`, [id]);
+  emitDataChanged();
+}
+
+// ── Sessão retroativa e edição ───────────────────────────────────────────────
+// `startSession`/`endSession` gravam `new Date().toISOString()` fixo, então não
+// servem pra lançar uma sessão passada. Estas duas funções são o caminho de
+// quem esqueceu de ligar o cronômetro.
+
+export type PastSessionInput = {
+  activity_type: ActivityType;
+  /** ISO completo, com hora. */
+  started_at: string;
+  ended_at: string;
+  energy_level: number | null;
+  focus_level: number | null;
+  notes: string | null;
+  context_type?: string | null;
+  context_id?: number | null;
+};
+
+/** Erro de validação legível, pra UI mostrar sem traduzir. */
+export class SessionRangeError extends Error {}
+
+/**
+ * Valida o intervalo de uma sessão lançada à mão. Lança SessionRangeError.
+ * Separada da escrita pra UI poder validar enquanto o usuário digita.
+ */
+export function validateSessionRange(started_at: string, ended_at: string): void {
+  const ini = Date.parse(started_at);
+  const fim = Date.parse(ended_at);
+  if (Number.isNaN(ini) || Number.isNaN(fim)) {
+    throw new SessionRangeError("Data ou hora inválida.");
+  }
+  if (fim <= ini) {
+    throw new SessionRangeError("O fim tem que ser depois do início.");
+  }
+  // Tolera 1 min de folga pro caso de o usuário lançar "agora mesmo" e o
+  // relógio virar entre digitar e salvar.
+  if (ini > Date.now() + 60_000) {
+    throw new SessionRangeError("Não dá pra registrar uma sessão no futuro.");
+  }
+  if (fim > Date.now() + 60_000) {
+    throw new SessionRangeError("O fim não pode estar no futuro.");
+  }
+}
+
+/**
+ * Sessões JÁ REGISTRADAS que se sobrepõem ao intervalo dado. É aviso, não
+ * impedimento: tocar e gerenciar ao mesmo tempo acontece, e o pedido pede
+ * avisar sem bloquear.
+ */
+export async function overlappingSessions(
+  started_at: string,
+  ended_at: string,
+  exceptId?: number
+): Promise<WorkSession[]> {
+  const db = getDb();
+  return db.select<WorkSession[]>(
+    `SELECT * FROM work_sessions
+      WHERE ended_at IS NOT NULL
+        AND started_at < $1
+        AND ended_at > $2
+        AND ($3 IS NULL OR id <> $3)
+      ORDER BY started_at DESC`,
+    [ended_at, started_at, exceptId ?? null]
+  );
+}
+
+/**
+ * Registra uma sessão passada. Nasce com `ended_at` preenchido de propósito:
+ * `getActiveSession` procura `ended_at IS NULL`, então uma sessão retroativa sem
+ * fim seria confundida com a sessão em andamento e sequestraria o cronômetro.
+ */
+export async function createPastSession(input: PastSessionInput): Promise<number> {
+  validateSessionRange(input.started_at, input.ended_at);
+  const db = getDb();
+  const res = await db.execute(
+    `INSERT INTO work_sessions
+       (started_at, ended_at, activity_type, energy_level, focus_level, notes,
+        context_type, context_id, is_retroactive)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)`,
+    [
+      input.started_at,
+      input.ended_at,
+      input.activity_type,
+      input.energy_level,
+      input.focus_level,
+      input.notes,
+      input.context_type ?? null,
+      input.context_id ?? null,
+    ]
+  );
+  emitDataChanged();
+  return Number(res.lastInsertId);
+}
+
+export type SessionUpdateInput = {
+  id: number;
+  activity_type?: ActivityType;
+  started_at?: string;
+  ended_at?: string;
+  energy_level?: number | null;
+  focus_level?: number | null;
+  notes?: string | null;
+};
+
+/**
+ * Edita uma sessão já registrada — não existia nenhuma forma de corrigir uma
+ * sessão, só excluir. Não mexe em `is_retroactive`: corrigir a hora de uma
+ * sessão cronometrada não a transforma em lançamento manual.
+ */
+export async function updateSession(input: SessionUpdateInput): Promise<void> {
+  const db = getDb();
+  const { id, ...rest } = input;
+  const cols = Object.keys(rest) as (keyof typeof rest)[];
+  if (cols.length === 0) return;
+
+  if (rest.started_at !== undefined || rest.ended_at !== undefined) {
+    const cur = await db.select<{ started_at: string; ended_at: string | null }[]>(
+      "SELECT started_at, ended_at FROM work_sessions WHERE id = $1",
+      [id]
+    );
+    const ini = rest.started_at ?? cur[0]?.started_at;
+    const fim = rest.ended_at ?? cur[0]?.ended_at;
+    // Sessão em andamento (sem fim) não passa por aqui: a UI de edição só lista
+    // sessões encerradas.
+    if (ini && fim) validateSessionRange(ini, fim);
+  }
+
+  const sets = cols.map((c, i) => `${c} = $${i + 1}`).join(", ");
+  await db.execute(`UPDATE work_sessions SET ${sets} WHERE id = $${cols.length + 1}`, [
+    ...cols.map((c) => rest[c] ?? null),
+    id,
+  ]);
   emitDataChanged();
 }
 

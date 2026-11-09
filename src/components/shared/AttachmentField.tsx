@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, ImageIcon, Paperclip, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { confirmDialog } from "@/components/ui/confirm";
@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/toaster";
 import {
   DOC_EXTS,
   IMAGE_EXTS,
+  baseName,
   deleteAttachment,
   openAttachment,
   pickFile,
@@ -31,6 +32,22 @@ type Props = {
   square?: boolean;
 };
 
+/**
+ * O drag-drop do Tauri é da JANELA, não do elemento: todo campo de anexo
+ * montado recebe o mesmo evento. Quem decide se o arquivo é "deste" campo é a
+ * posição do cursor, que vem em pixels FÍSICOS e precisa ser dividida pelo
+ * devicePixelRatio pra comparar com o retângulo em pixels CSS.
+ */
+function cursorInside(el: HTMLElement | null, pos: { x: number; y: number }): boolean {
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return false; // não renderizado/oculto
+  const dpr = window.devicePixelRatio || 1;
+  const x = pos.x / dpr;
+  const y = pos.y / dpr;
+  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+}
+
 export function AttachmentField({
   label,
   value,
@@ -42,28 +59,96 @@ export function AttachmentField({
 }: Props) {
   const preview = useImageUrl(variant === "image" ? value : null);
   const [working, setWorking] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const exts = variant === "image" ? IMAGE_EXTS : [...DOC_EXTS, ...IMAGE_EXTS];
+
+  /** Copia o arquivo para uploads/ e troca o valor do campo. */
+  const accept = useCallback(
+    async (src: string) => {
+      setWorking(true);
+      try {
+        const dest = await saveAttachment(src, subdir);
+        // remove o anterior pra não deixar lixo
+        if (value && value !== dest) await deleteAttachment(value);
+        onChange(dest);
+        toast.success(`Anexado: ${baseName(dest)}`);
+      } catch (e) {
+        toast.error(`Erro: ${String(e)}`);
+      } finally {
+        setWorking(false);
+      }
+    },
+    [onChange, subdir, value]
+  );
 
   async function handlePick() {
-    setWorking(true);
-    try {
-      const exts = variant === "image" ? IMAGE_EXTS : [...DOC_EXTS, ...IMAGE_EXTS];
-      const src = await pickFile({
-        title: `Selecionar ${label.toLowerCase()}`,
-        extensions: exts,
-        filterName: variant === "image" ? "Imagens" : "Documentos",
-      });
-      if (!src) return;
-      const dest = await saveAttachment(src, subdir);
-      // remove o anterior pra não deixar lixo
-      if (value && value !== dest) await deleteAttachment(value);
-      onChange(dest);
-      toast.success("Arquivo anexado");
-    } catch (e) {
+    const src = await pickFile({
+      title: `Selecionar ${label.toLowerCase()}`,
+      extensions: exts,
+      filterName: variant === "image" ? "Imagens" : "Documentos",
+    }).catch((e) => {
       toast.error(`Erro: ${String(e)}`);
-    } finally {
-      setWorking(false);
-    }
+      return null;
+    });
+    if (!src) return;
+    await accept(src);
   }
+
+  // O listener é assinado UMA vez; o que muda entre renders viaja por ref, pra
+  // não re-assinar o evento da janela a cada tecla digitada no formulário.
+  const onDropRef = useRef<(paths: string[]) => void>(() => {});
+  useEffect(() => {
+    onDropRef.current = (paths) => {
+      const src = paths[0];
+      if (!src) return;
+      // O filtro do diálogo nativo NÃO vale pra arrastar: qualquer arquivo chega
+      // aqui, então a validação de tipo tem que ser nossa.
+      const ext = baseName(src).split(".").pop()?.toLowerCase() ?? "";
+      if (!exts.includes(ext)) {
+        toast.error(`"${baseName(src)}" não é um tipo aceito aqui (${exts.join(", ")}).`);
+        return;
+      }
+      if (paths.length > 1) {
+        toast.warning(`Este campo guarda um arquivo só — usei "${baseName(src)}".`);
+      }
+      void accept(src);
+    };
+  }, [accept, exts]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    void (async () => {
+      try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+        const un = await getCurrentWebview().onDragDropEvent((event) => {
+          const p = event.payload;
+          if (p.type === "leave") {
+            setDragOver(false);
+            return;
+          }
+          const inside = cursorInside(rootRef.current, p.position);
+          if (p.type === "over") {
+            setDragOver(inside);
+            return;
+          }
+          // "drop"
+          setDragOver(false);
+          if (inside) onDropRef.current(p.paths);
+        });
+        if (disposed) un();
+        else unlisten = un;
+      } catch {
+        // Fora do Tauri (ou API indisponível): só o clique funciona, sem erro.
+      }
+    })();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
 
   async function handleRemove() {
     if (!value) return;
@@ -81,15 +166,19 @@ export function AttachmentField({
     }
   }
 
+  // Realce de "solte aqui" — mesmo anel do estado enfatizado, mais forte.
+  const dropRing = dragOver && "border-primary ring-2 ring-primary/50";
+
   if (variant === "image") {
     return (
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" ref={rootRef}>
         <Label>{label}</Label>
         {value ? (
           <div
             className={cn(
               "relative overflow-hidden rounded-md border bg-muted",
-              emphasized && "ring-1 ring-primary/40"
+              emphasized && "ring-1 ring-primary/40",
+              dropRing
             )}
           >
             {preview ? (
@@ -136,11 +225,12 @@ export function AttachmentField({
             className={cn(
               "flex w-full flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed text-sm text-muted-foreground transition hover:border-primary hover:text-primary",
               square ? "aspect-square" : "h-32",
-              emphasized && "border-primary/40"
+              emphasized && "border-primary/40",
+              dropRing
             )}
           >
             <ImageIcon className="h-6 w-6" />
-            {!square && <span>Clique pra adicionar imagem</span>}
+            {!square && <span>{dragOver ? "Solte aqui" : "Clique ou arraste uma imagem"}</span>}
             {!square && <span className="text-xs opacity-70">JPG, PNG, WebP, GIF</span>}
           </button>
         )}
@@ -149,12 +239,17 @@ export function AttachmentField({
   }
 
   // document variant
-  const filename = value?.split(/[\\/]/).pop() ?? null;
+  const filename = value ? baseName(value) : null;
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5" ref={rootRef}>
       <Label>{label}</Label>
       {value ? (
-        <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2",
+            dropRing
+          )}
+        >
           <button
             type="button"
             onClick={handleOpen}
@@ -188,10 +283,13 @@ export function AttachmentField({
           type="button"
           onClick={handlePick}
           disabled={working}
-          className="flex w-full items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground transition hover:border-primary hover:text-primary"
+          className={cn(
+            "flex w-full items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground transition hover:border-primary hover:text-primary",
+            dropRing
+          )}
         >
           <Paperclip className="h-4 w-4" />
-          Anexar arquivo
+          {dragOver ? "Solte aqui" : "Anexar ou arrastar arquivo"}
         </button>
       )}
     </div>

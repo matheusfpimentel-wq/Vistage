@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Download, Plus, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,6 +41,7 @@ import { useNewItemShortcut } from "@/lib/shortcuts";
 import { useModuleView } from "@/lib/moduleView";
 import { useConfirm } from "@/components/ui/confirm";
 import { exportTransactionsCsv } from "@/lib/csv";
+import { DATA_CHANGED } from "@/lib/events";
 import { ModuleToolbar } from "@/components/shared/ModuleToolbar";
 
 type KindFilter = TransactionKind | "all";
@@ -160,6 +162,15 @@ export function FinancePage() {
     void refresh();
   }, [refresh]);
 
+  // A receita de GIG é escrita pelo módulo de GIGs, não por esta tela. Sem
+  // escutar `DATA_CHANGED`, editar o cachê e voltar pro Financeiro mostrava o
+  // valor antigo até trocar de filtro ou remontar a página.
+  useEffect(() => {
+    const onChange = () => void refresh();
+    window.addEventListener(DATA_CHANGED, onChange);
+    return () => window.removeEventListener(DATA_CHANGED, onChange);
+  }, [refresh]);
+
   function openCreate(kind: TransactionKind) {
     setEditing(null);
     setDefaultKind(kind);
@@ -205,7 +216,20 @@ export function FinancePage() {
     .reduce((s, t) => s + t.amount, 0);
   const monthBalance = monthIncome - monthExpense;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useModuleView<string>("finance", "transactions");
+
+  // Deep-link da busca global: ?tab=<aba> cai na aba pedida. Grava na
+  // preferência (useModuleView) de propósito — você foi pra lá, é onde quer
+  // estar na próxima vez — e limpa o parâmetro pra o F5 não re-forçar.
+  useEffect(() => {
+    const wanted = searchParams.get("tab");
+    if (!wanted) return;
+    setTab(wanted);
+    const next = new URLSearchParams(searchParams);
+    next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={setTab}>
