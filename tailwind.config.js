@@ -43,6 +43,15 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Cores semânticas de estado (ver o bloco de tokens em index.css).
+        // Levam `<alpha-value>` porque o app pinta fundo translúcido o tempo
+        // todo (`bg-emerald-600/20` nos badges): sem isso, `bg-ok/20` sairia
+        // opaco e a troca de classe por token mudaria a aparência.
+        ok: "hsl(var(--ok) / <alpha-value>)",
+        warn: "hsl(var(--warn) / <alpha-value>)",
+        bad: "hsl(var(--bad) / <alpha-value>)",
+        info: "hsl(var(--info) / <alpha-value>)",
+        star: "hsl(var(--star) / <alpha-value>)",
       },
       borderRadius: {
         lg: "var(--radius)",

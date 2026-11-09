@@ -552,7 +552,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             <TabsTrigger value="ratings">
               Avaliações
               {avg !== null && (
-                <span className="ml-2 rounded bg-amber-500/20 px-1.5 text-xs text-amber-500">
+                <span className="ml-2 rounded bg-star/20 px-1.5 text-xs text-star">
                   {formatRating(avg)}
                 </span>
               )}
@@ -588,11 +588,11 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                 </div>
                 {liveMarkers.momentsByTipo.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="text-xs font-medium text-ok">
                       Pontos fortes:
                     </span>
                     {liveMarkers.momentsByTipo.map((m) => (
-                      <span key={m.tipo} className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
+                      <span key={m.tipo} className="rounded bg-ok/10 px-1.5 py-0.5 text-xs text-ok">
                         {STRONG_TIPO_LABEL[m.tipo] ?? m.tipo} ×{m.count}
                       </span>
                     ))}
@@ -612,11 +612,11 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                 )}
                 {liveMarkers.weakByTipo.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    <span className="text-xs font-medium text-warn">
                       Pontos fracos:
                     </span>
                     {liveMarkers.weakByTipo.map((w) => (
-                      <span key={w.tipo} className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 dark:text-amber-300">
+                      <span key={w.tipo} className="rounded bg-warn/10 px-1.5 py-0.5 text-xs text-warn">
                         {WEAK_TIPO_LABEL[w.tipo] ?? w.tipo} ×{w.count}
                       </span>
                     ))}
@@ -734,7 +734,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
                   className={cn(
                     "border-l px-3 py-1.5 transition",
                     state.is_special
-                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium"
+                      ? "bg-star/10 text-star font-medium"
                       : "bg-background text-muted-foreground hover:bg-accent"
                   )}
                 >
@@ -745,7 +745,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
             {avg !== null && (
               <div className="rounded-md border bg-muted/40 p-3 text-sm">
                 <span className="text-muted-foreground">Média geral: </span>
-                <span className="text-lg font-semibold text-amber-500">
+                <span className="text-lg font-semibold text-star">
                   {formatRating(avg)}
                 </span>
                 <span className="text-muted-foreground"> / 5,0</span>
@@ -815,7 +815,7 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
         </Tabs>
 
         {required && !complete && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600">
+          <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 p-3 text-sm text-warn">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
               Esta GIG foi marcada como <strong>Concluída</strong>. Preencha as
@@ -875,10 +875,10 @@ export const DebriefForm = forwardRef<DebriefHandle, Props>(function DebriefForm
           <DialogTitle className="flex items-center gap-2">
             Debrief: {gig.venue_name}
             {complete ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              <CheckCircle2 className="h-4 w-4 text-ok" />
             ) : (
               required && (
-                <span className="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-normal text-amber-500">
+                <span className="rounded bg-warn/20 px-2 py-0.5 text-xs font-normal text-warn">
                   obrigatório
                 </span>
               )

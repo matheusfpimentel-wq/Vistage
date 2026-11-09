@@ -251,7 +251,7 @@ export function OrcamentoTab({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Receita</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums text-emerald-500">{formatCurrency(revenue)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-ok">{formatCurrency(revenue)}</div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
             Ingressos {formatCurrency(ticketRevenue)} · Patrocínio {formatCurrency(sponsorRevenue)}
             {pnl.barRevenue > 0 && ` · Bar ${formatCurrency(pnl.barRevenue)}`}
@@ -259,7 +259,7 @@ export function OrcamentoTab({
         </div>
         <div className="rounded-md border p-3">
           <div className="text-xs text-muted-foreground">Custo</div>
-          <div className="mt-1 text-lg font-semibold tabular-nums text-red-400">{formatCurrency(pnl.costActual)}</div>
+          <div className="mt-1 text-lg font-semibold tabular-nums text-bad">{formatCurrency(pnl.costActual)}</div>
           <div className="mt-0.5 text-[11px] text-muted-foreground">
             Projetado {formatCurrency(pnl.costProjected)}
             {pnl.compVariableCost > 0 && ` · Cortesias ${formatCurrency(pnl.compVariableCost)}`}
@@ -270,7 +270,7 @@ export function OrcamentoTab({
           <div
             className={cn(
               "mt-1 text-lg font-semibold tabular-nums",
-              net >= 0 ? "text-emerald-500" : "text-red-400"
+              net >= 0 ? "text-ok" : "text-bad"
             )}
           >
             {formatCurrency(net)}
@@ -291,7 +291,7 @@ export function OrcamentoTab({
           </span>
           <span className="text-muted-foreground">
             Lucro/cabeça{" "}
-            <strong className={cn("tabular-nums", (pnl.netPerHead ?? 0) >= 0 ? "text-emerald-500" : "text-red-400")}>
+            <strong className={cn("tabular-nums", (pnl.netPerHead ?? 0) >= 0 ? "text-ok" : "text-bad")}>
               {pnl.netPerHead != null ? formatCurrency(pnl.netPerHead) : EMPTY_VALUE}
             </strong>
           </span>
@@ -317,7 +317,7 @@ export function OrcamentoTab({
             return (
               <span className="text-muted-foreground">
                 Δ{" "}
-                <strong className={cn("tabular-nums", Math.abs(diff) < 1 ? "text-muted-foreground" : diff > 0 ? "text-red-400" : "text-emerald-500")}>
+                <strong className={cn("tabular-nums", Math.abs(diff) < 1 ? "text-muted-foreground" : diff > 0 ? "text-bad" : "text-ok")}>
                   {diff >= 0 ? "+" : "−"}{formatCurrency(Math.abs(diff))}
                 </strong>
               </span>
@@ -353,8 +353,8 @@ export function OrcamentoTab({
       )}
 
       {party.status === "Realizada" && party.financial_synced === 0 && (
-        <div className="flex items-center gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3">
-          <span className="flex-1 text-sm text-amber-400">
+        <div className="flex items-center gap-3 rounded-md border border-warn/30 bg-warn/10 p-3">
+          <span className="flex-1 text-sm text-warn">
             Festa realizada mas não sincronizada com o Financeiro.
           </span>
           <Button size="sm" onClick={() => void handleSync()} disabled={syncing}>
@@ -384,7 +384,7 @@ export function OrcamentoTab({
       {/* Receitas lançadas (kind='receita', ex.: Receita de bar, patrocínio avulso). */}
       {receitaItems.length > 0 && (
         <div className="overflow-hidden rounded-md border">
-          <div className="flex items-center justify-between border-b bg-emerald-500/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          <div className="flex items-center justify-between border-b bg-ok/5 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             <span>Receitas lançadas</span>
             <Button variant="ghost" size="sm" className="h-6 gap-1 text-xs" onClick={() => openAdd("receita")}>
               <Plus className="h-3.5 w-3.5" /> Receita
@@ -395,7 +395,7 @@ export function OrcamentoTab({
               <li key={r.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
                 <span className="min-w-0 flex-1 truncate">{r.description ?? EMPTY_VALUE}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">proj {formatCurrency(r.projected_amount)}</span>
-                <span className="shrink-0 font-medium tabular-nums text-emerald-500">
+                <span className="shrink-0 font-medium tabular-nums text-ok">
                   {r.actual_amount != null ? formatCurrency(r.actual_amount) : EMPTY_VALUE}
                 </span>
                 <Button
@@ -469,8 +469,8 @@ export function OrcamentoTab({
                   // Só é "material" um desvio DIFERENTE de zero (com limiar 0, uma
                   // linha em cima do orçamento — 0% — não é desvio material).
                   const material = v != null && v.pct !== 0 && Math.abs(v.pct) >= materiality;
-                  const varTone = v == null ? "text-muted-foreground" : v.abs > 0 ? "text-red-400" : v.abs < 0 ? "text-emerald-500" : "text-muted-foreground";
-                  const statusTone = item.status === "pago" ? "text-emerald-500" : item.status === "confirmado" ? "text-sky-400" : "text-muted-foreground";
+                  const varTone = v == null ? "text-muted-foreground" : v.abs > 0 ? "text-bad" : v.abs < 0 ? "text-ok" : "text-muted-foreground";
+                  const statusTone = item.status === "pago" ? "text-ok" : item.status === "confirmado" ? "text-info" : "text-muted-foreground";
                   return (
                     <tr key={item.id} className="border-b last:border-0 hover:bg-muted/20">
                       <td className="px-3 py-2 align-top text-xs text-muted-foreground">{item.category}</td>
@@ -531,7 +531,7 @@ export function OrcamentoTab({
                 {sub === "execucao" && (
                   <>
                     <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(realTotal)}</td>
-                    <td className={cn("px-3 py-2 text-right tabular-nums", varianceTotal > 0 ? "text-red-400" : varianceTotal < 0 ? "text-emerald-500" : "")}>
+                    <td className={cn("px-3 py-2 text-right tabular-nums", varianceTotal > 0 ? "text-bad" : varianceTotal < 0 ? "text-ok" : "")}>
                       {varianceTotal >= 0 ? "+" : "−"}{formatCurrency(Math.abs(varianceTotal))}
                     </td>
                     <td className="px-3 py-2" />

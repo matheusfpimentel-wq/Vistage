@@ -28,6 +28,29 @@
     /* Urgência (A.2): overdue reusa o negativo; soon = âmbar AA no claro. */
     --urg-overdue: hsl(var(--destructive));
     --urg-soon: #b45309;
+
+    /*
+     * Cores SEMÂNTICAS de estado. Existem porque o app pintava os mesmos cinco
+     * papéis com 587 classes fixas de paleta espalhadas em 88 arquivos — e um
+     * terceiro tema não tem como redefinir `text-amber-400`.
+     *
+     * Os valores são os shades que o código já usava (Tailwind 3.4.19), então
+     * trocar a classe pelo token não muda a aparência. O que MUDA, de
+     * propósito: a maioria das ocorrências não tinha variante `dark:` (40x
+     * `text-amber-400`, 47x `text-emerald-500` iguais nos dois temas), e no
+     * tema claro isso fica com contraste ruim. Aqui cada papel tem o shade
+     * certo por tema: 600 no claro, 400 no escuro.
+     *
+     * `--bad` é separado de `--destructive` apesar de valer o mesmo hoje:
+     * destructive é AÇÃO que apaga, bad é NÚMERO negativo. Um tema pode querer
+     * o botão de excluir mais alarmante que um saldo no vermelho. Mesmo
+     * raciocínio que o --urg-overdue acima, que também referencia sem fundir.
+     */
+    --ok: 161 93.5% 30.4%;    /* emerald-600 — positivo, pago, confirmado, meta batida */
+    --warn: 32 94.6% 43.7%;   /* amber-600  — atenção, pendente, meio da escala */
+    --bad: 0 72.2% 50.6%;     /* red-600    — negativo, perdido, abaixo da meta */
+    --info: 200 98% 39.4%;    /* sky-600    — informativo, em andamento */
+    --star: 41 96.1% 40.4%;   /* yellow-600 — destaque/favorito (estrela, líder) */
   }
 
   .dark {
@@ -53,6 +76,13 @@
     --ring: 263 80% 68%;
     /* Urgência (A.2): âmbar mais claro pro contraste no escuro. */
     --urg-soon: #f59e0b;
+
+    /* Shade 400 das mesmas famílias — o claro usa 600 (ver comentário acima). */
+    --ok: 158 64.4% 51.6%;    /* emerald-400 */
+    --warn: 43 96.4% 56.3%;   /* amber-400 */
+    --bad: 0 90.6% 70.8%;     /* red-400 */
+    --info: 198 93.2% 59.6%;  /* sky-400 */
+    --star: 48 95.8% 53.1%;   /* yellow-400 */
   }
 }
 
