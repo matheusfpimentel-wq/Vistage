@@ -350,8 +350,8 @@ export function TaskForm({
                     className={[
                       "flex h-8 w-8 items-center justify-center rounded-md border text-sm font-semibold transition",
                       state.energy_required != null && level <= state.energy_required
-                        ? "border-amber-500 bg-amber-500 text-white"
-                        : "border-input bg-background text-muted-foreground hover:border-amber-400 hover:text-amber-500",
+                        ? "border-warn bg-warn text-white"
+                        : "border-input bg-background text-muted-foreground hover:border-warn hover:text-warn",
                     ].join(" ")}
                     aria-label={`Energia ${level}`}
                   >

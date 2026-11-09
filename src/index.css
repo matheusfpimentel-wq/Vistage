@@ -38,19 +38,33 @@
      * trocar a classe pelo token não muda a aparência. O que MUDA, de
      * propósito: a maioria das ocorrências não tinha variante `dark:` (40x
      * `text-amber-400`, 47x `text-emerald-500` iguais nos dois temas), e no
-     * tema claro isso fica com contraste ruim. Aqui cada papel tem o shade
-     * certo por tema: 600 no claro, 400 no escuro.
+     * tema claro isso fica com contraste ruim — MEDIDO: os cinco papéis ficavam
+     * entre 1,53:1 e 2,77:1 sobre branco, todos abaixo de 3:1. Aqui cada papel
+     * tem o shade certo por tema: 700 no claro, 400 no escuro, e aí os cinco
+     * passam de 4,5:1 (AA para texto normal, que é o caso — status aqui é
+     * text-xs/text-[11px], não texto grande). O shade 600 chegava só a
+     * AA-grande em três deles e deixava warn em 3,20 e star em 2,91.
+     *
+     * warn e star no claro levam 0,8 ponto de luminosidade a menos que o
+     * amber-700/yellow-700 exatos. Motivo medido: sobre a PRÓPRIA tinta de 10%
+     * (`bg-warn/10` com `text-warn`, que é como as caixas de aviso são feitas)
+     * eles paravam em 4,37:1. Com o ajuste dão 4,52 e 4,54 — e a diferença é
+     * imperceptível a olho.
+     *
+     * O --warn no claro cai justamente em amber-700, o MESMO valor que o
+     * --urg-soon acima já usava com o comentário "âmbar AA no claro". O arquivo
+     * já tinha a resposta; agora os dois concordam.
      *
      * `--bad` é separado de `--destructive` apesar de valer o mesmo hoje:
      * destructive é AÇÃO que apaga, bad é NÚMERO negativo. Um tema pode querer
      * o botão de excluir mais alarmante que um saldo no vermelho. Mesmo
      * raciocínio que o --urg-overdue acima, que também referencia sem fundir.
      */
-    --ok: 161 93.5% 30.4%;    /* emerald-600 — positivo, pago, confirmado, meta batida */
-    --warn: 32 94.6% 43.7%;   /* amber-600  — atenção, pendente, meio da escala */
-    --bad: 0 72.2% 50.6%;     /* red-600    — negativo, perdido, abaixo da meta */
-    --info: 200 98% 39.4%;    /* sky-600    — informativo, em andamento */
-    --star: 41 96.1% 40.4%;   /* yellow-600 — destaque/favorito (estrela, líder) */
+    --ok: 163 93.5% 24.3%;    /* emerald-700 — positivo, pago, confirmado, meta batida */
+    --warn: 26 90.5% 36.3%;   /* ~amber-700  — atenção, pendente, meio da escala */
+    --bad: 0 73.7% 41.8%;     /* red-700     — negativo, perdido, abaixo da meta */
+    --info: 201 96.3% 32.2%;  /* sky-700     — informativo, em andamento */
+    --star: 35 91.7% 32.1%;   /* ~yellow-700 — destaque/favorito (estrela, líder) */
   }
 
   .dark {

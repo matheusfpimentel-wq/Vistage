@@ -147,8 +147,8 @@ export function PortfolioView({ tracks }: Props) {
                     className={cn(
                       "tabular-nums font-semibold",
                       g.pct !== null && g.pct >= 70
-                        ? "text-emerald-400"
-                        : "text-amber-400"
+                        ? "text-ok"
+                        : "text-warn"
                     )}
                   >
                     {g.pct !== null ? `${g.pct}%` : EMPTY_VALUE}
@@ -229,7 +229,7 @@ export function PortfolioView({ tracks }: Props) {
                         {track.current_stage}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-amber-400">
+                    <td className="px-3 py-2 text-right tabular-nums text-warn">
                       {days}d
                     </td>
                   </tr>

@@ -23,9 +23,9 @@ export function KpiCard({
         className={cn(
           "mt-0.5 text-2xl font-semibold tabular-nums",
           trend === "up"
-            ? "text-emerald-500"
+            ? "text-ok"
             : trend === "down"
-              ? "text-red-400"
+              ? "text-bad"
               : "text-primary"
         )}
       >

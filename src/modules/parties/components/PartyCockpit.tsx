@@ -86,8 +86,8 @@ function Kpi({
       <div
         className={cn(
           "mt-0.5 text-base font-semibold tabular-nums",
-          tone === "good" && "text-emerald-500",
-          tone === "bad" && "text-red-400"
+          tone === "good" && "text-ok",
+          tone === "bad" && "text-bad"
         )}
       >
         {value}

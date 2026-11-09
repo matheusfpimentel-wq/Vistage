@@ -81,7 +81,7 @@ export function DebriefItemList({
                   className={cn(
                     "shrink-0 rounded p-1.5 transition",
                     item.taskId
-                      ? "text-emerald-600 dark:text-emerald-400"
+                      ? "text-ok"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
                   )}
                   onClick={async () => {
@@ -100,7 +100,7 @@ export function DebriefItemList({
                   className={cn(
                     "shrink-0 rounded p-1.5 transition",
                     item.ideaId
-                      ? "text-amber-600 dark:text-amber-400"
+                      ? "text-warn"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
                   )}
                   onClick={async () => {
@@ -118,7 +118,7 @@ export function DebriefItemList({
                   className={cn(
                     "shrink-0 rounded p-1.5 transition",
                     item.contactId
-                      ? "text-sky-600 dark:text-sky-400"
+                      ? "text-info"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   )}
                   onClick={() => setPickingFor(pickingFor === idx ? null : idx)}
@@ -138,7 +138,7 @@ export function DebriefItemList({
 
             {item.contactId && item.contactName && (
               <div className="flex items-center gap-1 pl-1">
-                <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-xs text-sky-700 dark:text-sky-300">
+                <span className="inline-flex items-center gap-1 rounded-full bg-info/10 px-2 py-0.5 text-xs text-info">
                   <User className="h-3 w-3" />
                   {item.contactName}
                   <button

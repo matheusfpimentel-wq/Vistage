@@ -79,7 +79,7 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Pr
               {i.currentHeat != null && heatBucket(i.currentHeat) < i.heat && (
                 <Badge
                   variant="outline"
-                  className="gap-0.5 border-sky-500/30 text-xs text-sky-500"
+                  className="gap-0.5 border-info/30 text-xs text-info"
                   title="Esfriando pela inatividade: toque pra reaquecer"
                 >
                   <TrendingDown className="h-3 w-3" /> esfriando
@@ -99,8 +99,8 @@ export function IdeaBoard({ items, onEdit, onToggleHot, onDelete, onCreate }: Pr
               className={cn(
                 "absolute right-8 top-2 rounded p-0.5 transition",
                 i.heat === IDEA_HEAT_MAX
-                  ? "flex text-red-500"
-                  : "hidden text-muted-foreground hover:text-red-500 group-hover:flex"
+                  ? "flex text-bad"
+                  : "hidden text-muted-foreground hover:text-bad group-hover:flex"
               )}
               aria-label={i.heat === IDEA_HEAT_MAX ? "Desmarcar ideia quente" : "Marcar como ideia quente"}
               title={i.heat === IDEA_HEAT_MAX ? "Ideia quente" : "Marcar como quente"}

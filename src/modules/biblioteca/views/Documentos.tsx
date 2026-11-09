@@ -561,7 +561,7 @@ function DocRow({
   return (
     <li className="rounded-md border">
       <div className="flex items-center gap-2 p-2.5">
-        <FileText className={"h-4 w-4 shrink-0 " + (isFolder(file.mime_type) ? "text-amber-500" : "text-muted-foreground")} />
+        <FileText className={"h-4 w-4 shrink-0 " + (isFolder(file.mime_type) ? "text-warn" : "text-muted-foreground")} />
         {renaming ? (
           <input
             autoFocus

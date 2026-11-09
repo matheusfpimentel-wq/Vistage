@@ -263,7 +263,7 @@ export function PastSessionForm({
           ) : null}
 
           {overlaps.length > 0 && (
-            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+            <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
               Já existe {overlaps.length === 1 ? "uma sessão" : `${overlaps.length} sessões`} nesse
               intervalo ({overlaps.map((o) => o.activity_type).join(", ")}). Dá pra salvar mesmo
               assim.

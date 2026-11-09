@@ -97,7 +97,7 @@ function TrackCard({
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{TRACK_KIND_LABEL[track.kind]}</span>
         {days !== null && (
-          <span className={cn("tabular-nums", stalled && "text-amber-500")}>
+          <span className={cn("tabular-nums", stalled && "text-warn")}>
             {days}d no stage
           </span>
         )}

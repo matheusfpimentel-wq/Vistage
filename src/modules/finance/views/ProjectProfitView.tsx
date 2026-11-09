@@ -87,7 +87,7 @@ function ProfitTable({ data }: { data: ProjectProfit[] }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-end gap-2">
-        <span className="text-sm font-semibold tabular-nums text-emerald-500">
+        <span className="text-sm font-semibold tabular-nums text-ok">
           {formatCurrency(totalProfit)}
         </span>
       </div>
@@ -119,7 +119,7 @@ function ProfitTable({ data }: { data: ProjectProfit[] }) {
                   <td className="px-3 py-2 text-xs text-muted-foreground">
                     {it.date ? formatDate(it.date) : EMPTY_VALUE}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-emerald-500">
+                  <td className="px-3 py-2 text-right tabular-nums text-ok">
                     {formatCurrency(it.income)}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
@@ -128,7 +128,7 @@ function ProfitTable({ data }: { data: ProjectProfit[] }) {
                   <td
                     className={cn(
                       "px-3 py-2 text-right font-semibold tabular-nums",
-                      it.profit >= 0 ? "text-emerald-500" : "text-destructive"
+                      it.profit >= 0 ? "text-ok" : "text-destructive"
                     )}
                   >
                     {isStudent ? EMPTY_VALUE : formatCurrency(it.profit)}
@@ -182,7 +182,7 @@ function ProfitPareto({ data }: { data: ProjectProfit[] }) {
       <div className="mb-3 rounded-md border bg-muted/30 p-3 text-sm">
         <span className="font-semibold">{vitalShareOfCount}%</span> dos projetos
         {" "}({vital.length} de {earning.length}) geraram{" "}
-        <span className="font-semibold text-emerald-600">{vitalShareOfRevenue}%</span> da receita
+        <span className="font-semibold text-ok">{vitalShareOfRevenue}%</span> da receita
         {" "}({formatCurrency(cum)} de {formatCurrency(total)}).
       </div>
       <div className="space-y-1.5">
@@ -199,7 +199,7 @@ function ProfitPareto({ data }: { data: ProjectProfit[] }) {
               </span>
               <div className="flex-1 overflow-hidden rounded-full bg-muted h-2">
                 <div
-                  className={cn("h-full rounded-full", isVital ? "bg-emerald-500" : "bg-muted-foreground/40")}
+                  className={cn("h-full rounded-full", isVital ? "bg-ok" : "bg-muted-foreground/40")}
                   style={{ width: `${pct}%` }}
                 />
               </div>

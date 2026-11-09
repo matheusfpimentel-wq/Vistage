@@ -138,10 +138,10 @@ export function FanPerksList({ fanId, onChange }: Props) {
           <strong className="text-foreground">{items.length}</strong> total
         </span>
         <span>
-          <strong className="text-amber-500">{planned}</strong> planejado(s)
+          <strong className="text-warn">{planned}</strong> planejado(s)
         </span>
         <span>
-          <strong className="text-emerald-500">{delivered}</strong> entregue(s)
+          <strong className="text-ok">{delivered}</strong> entregue(s)
         </span>
       </div>
 
@@ -238,7 +238,7 @@ export function FanPerksList({ fanId, onChange }: Props) {
                     aria-label="Marcar como entregue"
                     title="Marcar como entregue"
                   >
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-4 w-4 text-ok" />
                   </Button>
                 )}
                 <Button

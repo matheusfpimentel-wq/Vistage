@@ -234,10 +234,10 @@ export function ConcretizacaoStagePanel({
                   "rounded-full border px-3 py-1 text-xs font-medium transition",
                   objetivoStatus === s
                     ? s === "atingido"
-                      ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
+                      ? "border-ok/50 bg-ok/20 text-ok"
                       : s === "parcial"
-                      ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                      : "border-red-500/50 bg-red-500/20 text-red-400"
+                      ? "border-warn/50 bg-warn/20 text-warn"
+                      : "border-bad/50 bg-bad/20 text-bad"
                     : "text-muted-foreground hover:bg-muted"
                 )}
               >
@@ -280,7 +280,7 @@ function ResultRow({ label, proj, real, fmt, hint }: {
         <span className="text-muted-foreground">→</span>
         <span className="font-semibold">{fmt(real)}</span>
         {delta != null && delta !== 0 && (
-          <span className={cn("text-[11px]", delta > 0 ? "text-emerald-400" : "text-red-400")}>
+          <span className={cn("text-[11px]", delta > 0 ? "text-ok" : "text-bad")}>
             {delta > 0 ? "▲" : "▼"} {fmt(Math.abs(delta))}
           </span>
         )}

@@ -206,7 +206,7 @@ export function WeeklyReviewDialog({
                   >
                     <span className="min-w-0 flex-1 truncate">{t.title}</span>
                     {t.due_date && (
-                      <span className="shrink-0 text-xs text-red-500">{formatDate(t.due_date)}</span>
+                      <span className="shrink-0 text-xs text-bad">{formatDate(t.due_date)}</span>
                     )}
                   </li>
                 ))}
@@ -229,7 +229,7 @@ export function WeeklyReviewDialog({
                       to={a.to}
                       className="flex items-center gap-2 rounded-md border bg-card/40 px-2.5 py-1.5 text-sm hover:bg-muted/50"
                     >
-                      <Snowflake className="h-4 w-4 shrink-0 text-sky-400" />
+                      <Snowflake className="h-4 w-4 shrink-0 text-info" />
                       <span className="min-w-0 flex-1 truncate">{a.label}</span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                     </Link>

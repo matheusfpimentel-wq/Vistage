@@ -427,7 +427,7 @@ function KPIChip({
       <div className="text-xs text-muted-foreground">{label}</div>
       <div
         className={`mt-0.5 tabular-nums font-semibold ${bold ? "text-2xl" : "text-xl"} ${
-          tone === "income" ? "text-emerald-500" : "text-destructive"
+          tone === "income" ? "text-ok" : "text-destructive"
         }`}
       >
         {value}

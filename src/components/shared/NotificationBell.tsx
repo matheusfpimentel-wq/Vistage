@@ -232,7 +232,7 @@ export function NotificationBell() {
           <span
             className={cn(
               "absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white",
-              criticalCount > 0 ? "bg-red-500" : "bg-amber-500"
+              criticalCount > 0 ? "bg-bad" : "bg-warn"
             )}
           >
             {totalCount}
@@ -281,7 +281,7 @@ export function NotificationBell() {
                         <span
                           className={cn(
                             "h-1.5 w-1.5 rounded-full",
-                            sev === "critico" ? "bg-red-500" : sev === "atencao" ? "bg-amber-500" : "bg-muted-foreground/40"
+                            sev === "critico" ? "bg-bad" : sev === "atencao" ? "bg-warn" : "bg-muted-foreground/40"
                           )}
                         />
                         {SEVERITY_BUCKET_LABEL[sev]}
@@ -290,8 +290,8 @@ export function NotificationBell() {
                     <div
                       className={cn(
                         "border-b px-3 py-2.5 text-sm last:border-0",
-                        sev === "critico" && "bg-red-500/5",
-                        sev === "atencao" && "bg-amber-500/5"
+                        sev === "critico" && "bg-bad/5",
+                        sev === "atencao" && "bg-warn/5"
                       )}
                     >
                     <div className="flex items-start gap-2">

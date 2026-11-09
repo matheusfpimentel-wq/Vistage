@@ -96,7 +96,7 @@ export function SupplierDetail({ open, onOpenChange, supplierId, onEdit }: Props
                       className={cn(
                         "h-4 w-4",
                         s <= (supplier.rating ?? 0)
-                          ? "fill-yellow-400 text-yellow-400"
+                          ? "fill-warn text-warn"
                           : "text-muted-foreground/40"
                       )}
                     />

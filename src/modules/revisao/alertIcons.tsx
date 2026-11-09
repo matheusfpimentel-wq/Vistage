@@ -28,7 +28,7 @@ export function AlertIcon({
   critical: boolean;
   className?: string;
 }) {
-  const color = critical ? "text-red-500" : "text-amber-500";
+  const color = critical ? "text-bad" : "text-warn";
   const cls = `${className} ${color}`;
   switch (icon) {
     case "clock":

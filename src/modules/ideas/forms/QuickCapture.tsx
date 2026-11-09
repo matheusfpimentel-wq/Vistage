@@ -141,7 +141,7 @@ export function QuickCapture({ open, onOpenChange }: Props) {
         {brainDump && <InsightDie />}
 
         {brainDump && savedCount > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-600">
+          <div className="flex items-center gap-2 rounded-md border border-ok/40 bg-ok/10 p-2 text-xs text-ok">
             <CheckCircle2 className="h-4 w-4" />
             {savedCount} ideia{savedCount > 1 ? "s" : ""} salva{savedCount > 1 ? "s" : ""} nesta sessão
           </div>

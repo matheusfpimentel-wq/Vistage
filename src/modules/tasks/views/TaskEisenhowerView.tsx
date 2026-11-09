@@ -35,9 +35,9 @@ const QUADRANTS: {
   cls: string;
   over: string;
 }[] = [
-  { id: "do", label: "Fazer agora", hint: "Urgente + importante", cls: "border-red-500/40 bg-red-500/5", over: "border-red-500 bg-red-500/15" },
-  { id: "schedule", label: "Agendar", hint: "Importante, não urgente", cls: "border-sky-500/40 bg-sky-500/5", over: "border-sky-500 bg-sky-500/15" },
-  { id: "delegate", label: "Delegar", hint: "Urgente, não importante", cls: "border-amber-500/40 bg-amber-500/5", over: "border-amber-500 bg-amber-500/15" },
+  { id: "do", label: "Fazer agora", hint: "Urgente + importante", cls: "border-bad/40 bg-bad/5", over: "border-bad bg-bad/15" },
+  { id: "schedule", label: "Agendar", hint: "Importante, não urgente", cls: "border-info/40 bg-info/5", over: "border-info bg-info/15" },
+  { id: "delegate", label: "Delegar", hint: "Urgente, não importante", cls: "border-warn/40 bg-warn/5", over: "border-warn bg-warn/15" },
   { id: "eliminate", label: "Eliminar / depois", hint: "Nem urgente nem importante", cls: "border-muted bg-muted/20", over: "border-foreground/40 bg-muted/50" },
 ];
 

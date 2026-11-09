@@ -98,7 +98,7 @@ export function ContentList({ items, onEdit, onDelete, density = "full" }: Props
               )}
               {c.engagement_notes && (
                 <span
-                  className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                  className="inline-flex items-center gap-1 text-ok"
                   title={c.engagement_notes}
                 >
                   <MessageSquare className="h-3 w-3" />

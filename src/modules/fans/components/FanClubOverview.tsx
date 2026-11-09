@@ -36,9 +36,9 @@ import type { FanSuggestionKey } from "../suggestions";
  */
 
 const LEVEL_META: Record<FanLevel, { icon: LucideIcon; text: string; fill: string }> = {
-  "Embaixador": { icon: Crown, text: "text-amber-500", fill: "bg-amber-500/25" },
-  "Superfã": { icon: Flame, text: "text-emerald-500", fill: "bg-emerald-500/25" },
-  "Fã": { icon: Heart, text: "text-sky-400", fill: "bg-sky-500/25" },
+  "Embaixador": { icon: Crown, text: "text-star", fill: "bg-star/25" },
+  "Superfã": { icon: Flame, text: "text-ok", fill: "bg-ok/25" },
+  "Fã": { icon: Heart, text: "text-info", fill: "bg-info/25" },
   "Quase fã": { icon: UserPlus, text: "text-muted-foreground", fill: "bg-secondary" },
   "Possível fã": { icon: Sparkles, text: "text-muted-foreground", fill: "bg-muted" },
 };
@@ -198,7 +198,7 @@ export function FanClubOverview({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
         <span><b className="font-semibold text-foreground">{total}</b> no clube</span>
         {novosMes > 0 && <span><b className="font-semibold text-foreground">+{novosMes}</b> este mês</span>}
-        {esfriandoTotal > 0 && <span><b className="font-semibold text-sky-400">{esfriandoTotal}</b> esfriando</span>}
+        {esfriandoTotal > 0 && <span><b className="font-semibold text-info">{esfriandoTotal}</b> esfriando</span>}
         {acoesHoje > 0 && <span><b className="font-semibold text-foreground">{acoesHoje}</b> ações pra hoje</span>}
       </div>
 
@@ -220,7 +220,7 @@ export function FanClubOverview({
         <div className="space-y-3">
           <div className="glass-panel space-y-2.5 p-4">
             <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-              <Snowflake className="h-3.5 w-3.5 text-sky-400" /> Esfriando
+              <Snowflake className="h-3.5 w-3.5 text-info" /> Esfriando
             </div>
             {buckets && buckets.reativar.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -228,7 +228,7 @@ export function FanClubOverview({
                   <button
                     key={f.fan_id}
                     onClick={() => onOpenFan(f.fan_id)}
-                    className="rounded-full border bg-card px-2.5 py-1 text-xs hover:border-sky-400"
+                    className="rounded-full border bg-card px-2.5 py-1 text-xs hover:border-info"
                     title={f.detail}
                   >
                     {f.name}
@@ -371,7 +371,7 @@ export function FanClubOverview({
                     <div className="flex shrink-0 gap-1">
                       <button
                         onClick={() => void respond(inv.invite_id, "confirmado")}
-                        className="flex h-6 w-6 items-center justify-center rounded-md text-emerald-500 hover:bg-emerald-500/10"
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-ok hover:bg-ok/10"
                         title="Confirmou"
                       >
                         <Check className="h-3.5 w-3.5" />

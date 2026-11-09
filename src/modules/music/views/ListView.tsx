@@ -146,7 +146,7 @@ export function ListView({
       tdClassName: (t) => {
         const days = daysInStage(t);
         const stalled = !t.standby && days !== null && days > 30;
-        return cn("px-3 py-2 text-right tabular-nums", stalled ? "text-amber-500" : "text-muted-foreground");
+        return cn("px-3 py-2 text-right tabular-nums", stalled ? "text-warn" : "text-muted-foreground");
       },
       resizable: true,
       cell: (t) => {

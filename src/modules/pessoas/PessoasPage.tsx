@@ -483,8 +483,8 @@ function RoleBadges({ roles, iconOnly = false }: { roles: Role[]; iconOnly?: boo
 }
 
 const PRIORITY_CLASS: Record<ContactPriority, string> = {
-  Alta: "bg-red-500/15 text-red-600 dark:text-red-400",
-  "Média": "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  Alta: "bg-bad/15 text-bad",
+  "Média": "bg-warn/15 text-warn",
   Baixa: "bg-muted text-muted-foreground",
 };
 

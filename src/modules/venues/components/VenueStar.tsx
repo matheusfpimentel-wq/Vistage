@@ -12,8 +12,8 @@ export function prioritySortWeight(p: VenuePriority | null): number {
 }
 
 const PRIORITY_VARIANT: Record<VenuePriority, { label: string; cls: string; dotCls: string }> = {
-  Alta:  { label: "Alta",  cls: "border-red-500/60 bg-red-500/10 text-red-600 dark:text-red-400",    dotCls: "bg-red-500" },
-  Média: { label: "Média", cls: "border-amber-500/60 bg-amber-500/10 text-amber-600 dark:text-amber-400", dotCls: "bg-amber-500" },
+  Alta:  { label: "Alta",  cls: "border-bad/60 bg-bad/10 text-bad",    dotCls: "bg-bad" },
+  Média: { label: "Média", cls: "border-warn/60 bg-warn/10 text-warn", dotCls: "bg-warn" },
   Baixa: { label: "Baixa", cls: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",       dotCls: "bg-muted-foreground/60" },
 };
 
@@ -47,8 +47,8 @@ type SelectorProps = {
 export function VenuePrioritySelector({ value, onChange }: SelectorProps) {
   const options: Array<{ val: VenuePriority | null; label: string; cls: string }> = [
     { val: null,    label: "Nenhuma", cls: "text-muted-foreground/60 border-input" },
-    { val: "Alta",  label: "Alta",    cls: "border-red-500/60 text-red-600 dark:text-red-400" },
-    { val: "Média", label: "Média",   cls: "border-amber-500/60 text-amber-600 dark:text-amber-400" },
+    { val: "Alta",  label: "Alta",    cls: "border-bad/60 text-bad" },
+    { val: "Média", label: "Média",   cls: "border-warn/60 text-warn" },
     { val: "Baixa", label: "Baixa",   cls: "border-muted-foreground/40 text-muted-foreground" },
   ];
   return (

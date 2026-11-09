@@ -496,7 +496,7 @@ export function MonthlyReportPage() {
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className={cn("h-full rounded-full", pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-primary/60")}
+                          className={cn("h-full rounded-full", pct >= 70 ? "bg-ok" : pct >= 40 ? "bg-warn" : "bg-primary/60")}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -558,7 +558,7 @@ function ReportKpi({ label, value, tone }: { label: string; value: string; tone:
     <Card>
       <CardHeader className="pb-2">
         <CardDescription className="text-xs">{label}</CardDescription>
-        <CardTitle className={cn("text-2xl tabular-nums", tone === "success" && "text-emerald-500", tone === "danger" && "text-destructive")}>
+        <CardTitle className={cn("text-2xl tabular-nums", tone === "success" && "text-ok", tone === "danger" && "text-destructive")}>
           {value}
         </CardTitle>
       </CardHeader>

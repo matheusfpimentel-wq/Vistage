@@ -340,7 +340,7 @@ function FanContactActions({ fan }: { fan: Fan }) {
           href={wa}
           target="_blank"
           rel="noreferrer"
-          className={`${base} text-emerald-500 hover:bg-emerald-500/10`}
+          className={`${base} text-ok hover:bg-ok/10`}
           title={`WhatsApp: ${formatPhoneBR(fan.phone)}`}
         >
           <MessageCircle className="h-4 w-4" />

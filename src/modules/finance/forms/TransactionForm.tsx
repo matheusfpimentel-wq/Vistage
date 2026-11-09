@@ -307,7 +307,7 @@ export function TransactionForm({
 
         <div className="space-y-4">
           {origin && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
               <span>
                 Sincronizado automaticamente pela {origin.nome} vinculada. Os
                 campos abaixo são só leitura: para alterar, edite a {origin.nome}.
@@ -358,7 +358,7 @@ export function TransactionForm({
                 disabled={isLocked}
                 className={`flex-1 rounded-md border p-2 text-sm transition ${
                   state.kind === "income"
-                    ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
+                    ? "border-ok bg-ok/10 text-ok"
                     : "border-input"
                 } disabled:cursor-not-allowed disabled:opacity-50`}
               >
@@ -567,7 +567,7 @@ export function TransactionForm({
           )}
 
           {gigHasSyncedTx && (
-            <div className="rounded-md border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-700 dark:text-yellow-400">
+            <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
               Atenção: essa GIG já tem uma receita gerada automaticamente. Criar outra aqui pode duplicar o lançamento.
             </div>
           )}

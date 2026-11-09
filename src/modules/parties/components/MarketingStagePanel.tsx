@@ -59,11 +59,11 @@ const backfillingStages = new Set<number>();
 
 function assetStatusClass(s: MarketingAssetStatus): string {
   return s === "publicada"
-    ? "bg-emerald-500/20 text-emerald-400"
+    ? "bg-ok/20 text-ok"
     : s === "aprovada"
-    ? "bg-sky-500/20 text-sky-400"
+    ? "bg-info/20 text-info"
     : s === "em_producao"
-    ? "bg-amber-500/20 text-amber-400"
+    ? "bg-warn/20 text-warn"
     : "bg-muted text-muted-foreground";
 }
 function nextAssetStatus(s: MarketingAssetStatus): MarketingAssetStatus {
@@ -515,7 +515,7 @@ function AssetsBlock({
               )}
               {a.content_id != null ? (
                 <span
-                  className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-500"
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-ok/15 px-2 py-0.5 text-[10px] font-medium text-ok"
                   title="Já tem um card no módulo Conteúdo vinculado a esta festa"
                 >
                   <Check className="h-3 w-3" /> Conteúdo

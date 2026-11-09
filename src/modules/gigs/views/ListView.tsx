@@ -147,11 +147,11 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
           <div className="font-medium flex items-center gap-1.5">
             <span className="truncate">{gigDisplayName(g)}</span>
             {g.is_special === 1 && (
-              <span className="shrink-0 text-amber-500" title="GIG especial">⭐</span>
+              <span className="shrink-0 text-warn" title="GIG especial">⭐</span>
             )}
             {cacheOverdue(g) && (
               <span
-                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-bad text-[10px] font-bold text-white"
                 title="Cachê não recebido"
               >
                 !
@@ -211,7 +211,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
       cell: (g) => {
         const avg = averageRating(g);
         return avg !== null ? (
-          <span className="text-amber-500">{formatRating(avg)}</span>
+          <span className="text-star">{formatRating(avg)}</span>
         ) : (
           EMPTY_VALUE
         );
@@ -331,11 +331,11 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
                   <div className="flex items-center gap-1.5 font-medium">
                     <span className="truncate">{gigDisplayName(g)}</span>
                     {g.is_special === 1 && (
-                      <span className="shrink-0 text-amber-500" title="GIG especial">⭐</span>
+                      <span className="shrink-0 text-warn" title="GIG especial">⭐</span>
                     )}
                     {cacheOverdue(g) && (
                       <span
-                        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                        className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-bad text-[10px] font-bold text-white"
                         title="Cachê não recebido"
                       >
                         !
@@ -359,7 +359,7 @@ export function ListView({ gigs, onEdit, onPrep, onDebrief, onDelete, onShowShee
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={g.status} />
                 {avg !== null && (
-                  <span className="text-xs text-amber-500">{formatRating(avg)}</span>
+                  <span className="text-xs text-star">{formatRating(avg)}</span>
                 )}
               </div>
               <div className="flex justify-end gap-1 border-t pt-2" onClick={(e) => e.stopPropagation()}>

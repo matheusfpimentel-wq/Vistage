@@ -142,7 +142,7 @@ export function RecurringView({ onChanged }: Props) {
                 <span
                   className={`tabular-nums font-medium ${
                     r.kind === "income"
-                      ? "text-emerald-500"
+                      ? "text-ok"
                       : "text-destructive"
                   }`}
                 >
@@ -247,7 +247,7 @@ function RecurringForm({
               onClick={() => setKind("income")}
               className={`flex-1 rounded-md border p-2 text-sm ${
                 kind === "income"
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600"
+                  ? "border-ok bg-ok/10 text-ok"
                   : "border-input"
               }`}
             >

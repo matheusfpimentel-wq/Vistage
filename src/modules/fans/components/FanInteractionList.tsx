@@ -91,8 +91,8 @@ export function FanInteractionList({ fanId, onChange }: Props) {
     <div className="space-y-4">
       <div className="flex gap-4 text-xs text-muted-foreground">
         <span><strong className="text-foreground">{counts.total}</strong> total</span>
-        <span><strong className="text-sky-500">{counts.presences}</strong> presença</span>
-        <span><strong className="text-amber-500">{counts.feedbacks}</strong> feedback</span>
+        <span><strong className="text-info">{counts.presences}</strong> presença</span>
+        <span><strong className="text-warn">{counts.feedbacks}</strong> feedback</span>
       </div>
 
       <div className="rounded-md border p-3 space-y-2">

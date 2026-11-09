@@ -176,7 +176,7 @@ export function FinancePanel({ projectId, trackId }: Props) {
 
       {royalties.length > 0 && (
         <div className="space-y-1">
-          <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+          <div className="text-xs font-medium text-ok">
             Royalties
           </div>
           <div className="grid grid-cols-[3fr_auto_auto_auto] gap-x-2 px-2 text-[10px] font-medium text-muted-foreground">
@@ -193,7 +193,7 @@ export function FinancePanel({ projectId, trackId }: Props) {
               <span className="truncate text-muted-foreground">
                 {r.description ?? EMPTY_VALUE}
               </span>
-              <span className="whitespace-nowrap text-emerald-600 dark:text-emerald-400">
+              <span className="whitespace-nowrap text-ok">
                 {formatCurrency(r.amount)}
               </span>
               <span className="whitespace-nowrap text-muted-foreground">

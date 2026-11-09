@@ -121,7 +121,7 @@ export function GateDialog({ open, onOpenChange, gate, onDecide }: Props) {
           )}
         </div>
 
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2.5 text-xs text-muted-foreground">
+        <div className="rounded-md border border-warn/30 bg-warn/5 p-2.5 text-xs text-muted-foreground">
           Reprovar não cancela: a track vai pra <strong>Stand-by</strong>{" "}
           (reativável). Evita decisões finais por impulso e o viés de sunk-cost.
         </div>

@@ -89,7 +89,7 @@ export function SettingsPage() {
       {/* ─── Backup (CSV) ────────────────────────────────────── */}
       <TabsContent value="backup" className="space-y-6">
         {/* Aviso: o .vistage carrega credenciais em texto puro */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <p className="leading-snug">
             <span className="font-medium">Cuidado ao compartilhar.</span> Para o

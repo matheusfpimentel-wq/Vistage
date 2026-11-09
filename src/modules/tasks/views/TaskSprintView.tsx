@@ -146,7 +146,7 @@ function TaskRow({
           )}
           {task.category && <Badge variant="outline">{task.category}</Badge>}
           {task.recurrence && (
-            <span className="inline-flex items-center gap-0.5 rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-sky-400">
+            <span className="inline-flex items-center gap-0.5 rounded border border-info/30 bg-info/10 px-1.5 py-0.5 text-info">
               <RotateCcw className="h-2.5 w-2.5" />
               {task.recurrence === "weekly" ? "Semanal" : "Mensal"}
             </span>

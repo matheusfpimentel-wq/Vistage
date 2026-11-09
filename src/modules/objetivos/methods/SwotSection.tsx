@@ -46,10 +46,10 @@ type SwotBaseData = {
 };
 
 const SWOT_META: Record<SwotKey, { label: string; tone: string; border: string }> = {
-  strengths: { label: "Forças", tone: "text-emerald-600", border: "border-emerald-500/30 bg-emerald-500/5" },
+  strengths: { label: "Forças", tone: "text-ok", border: "border-ok/30 bg-ok/5" },
   weaknesses: { label: "Fraquezas", tone: "text-destructive", border: "border-destructive/30 bg-destructive/5" },
-  opportunities: { label: "Oportunidades", tone: "text-sky-600", border: "border-sky-500/30 bg-sky-500/5" },
-  threats: { label: "Ameaças", tone: "text-amber-600", border: "border-amber-500/30 bg-amber-500/5" },
+  opportunities: { label: "Oportunidades", tone: "text-info", border: "border-info/30 bg-info/5" },
+  threats: { label: "Ameaças", tone: "text-warn", border: "border-warn/30 bg-warn/5" },
 };
 
 type SwotExtra = {

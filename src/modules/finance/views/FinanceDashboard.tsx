@@ -112,7 +112,7 @@ export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
       {/* KPIs do período + saldo do ano */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KPI
-          icon={<ArrowUpRight className="h-4 w-4 text-emerald-500" />}
+          icon={<ArrowUpRight className="h-4 w-4 text-ok" />}
           label={`Receitas (${label.toLowerCase()})`}
           value={formatCurrency(data.periodIncome)}
         />
@@ -218,7 +218,7 @@ export function FinanceDashboard({ refreshKey, period: periodProp }: Props) {
                         {formatDate(g.date)}
                       </span>
                     </div>
-                    <span className="tabular-nums font-medium text-emerald-500">
+                    <span className="tabular-nums font-medium text-ok">
                       {formatCurrency(g.revenue)}
                     </span>
                   </div>
@@ -286,7 +286,7 @@ function KPI({
     <Card
       className={
         tone === "positive"
-          ? "border-emerald-500/30"
+          ? "border-ok/30"
           : tone === "negative"
           ? "border-destructive/40"
           : undefined
@@ -394,7 +394,7 @@ function ProjectionRow({
       </span>
       <span
         className={`tabular-nums ${bold ? "text-base font-semibold" : ""} ${
-          tone === "positive" ? "text-emerald-500" : "text-destructive"
+          tone === "positive" ? "text-ok" : "text-destructive"
         }`}
       >
         {formatCurrency(value)}

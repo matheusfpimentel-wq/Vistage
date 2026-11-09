@@ -292,7 +292,7 @@ export function SessionOverlay() {
           onToggle={() => setPaused((p) => !p)}
         />
         {expired && (
-          <span className="text-[11px] font-medium text-amber-500">⏰ tempo previsto atingido</span>
+          <span className="text-[11px] font-medium text-warn">⏰ tempo previsto atingido</span>
         )}
       </div>
 
