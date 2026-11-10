@@ -631,7 +631,7 @@ export function GigForm({
           <DialogTitle className="flex items-center gap-2">
             {gig ? "Editar GIG" : "Nova GIG"}
             {state.is_special === 1 && (
-              <span className="text-amber-500" title="GIG especial">⭐</span>
+              <span className="text-warn" title="GIG especial">⭐</span>
             )}
           </DialogTitle>
         </DialogHeader>

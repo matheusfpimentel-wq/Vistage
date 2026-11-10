@@ -1905,7 +1905,7 @@ function FanGroupsPanel({ fans, embedded = false }: { fans: Fan[]; embedded?: bo
                           href={g.whatsapp_group}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-emerald-500 hover:underline"
+                          className="inline-flex items-center gap-1 text-ok hover:underline"
                           onClick={(e) => e.stopPropagation()}
                           title={g.whatsapp_group}
                         >

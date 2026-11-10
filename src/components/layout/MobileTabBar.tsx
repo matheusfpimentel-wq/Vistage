@@ -64,7 +64,7 @@ export function MobileTabBar() {
           <span className="relative">
             <Icon className="h-5 w-5" />
             {badge && criticalCount > 0 && (
-              <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-500 px-1 text-[8px] font-bold text-white">
+              <span className="absolute -right-2 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-bad px-1 text-[8px] font-bold text-white">
                 {criticalCount}
               </span>
             )}

@@ -446,7 +446,7 @@ function TrendIndicator({ delta }: { delta: number }) {
     <span
       className={cn(
         "flex items-center gap-1 text-xs",
-        up ? "text-emerald-500" : "text-destructive"
+        up ? "text-ok" : "text-bad"
       )}
     >
       {up ? (
@@ -582,10 +582,10 @@ function GigsCard({ data }: { data: DashData }) {
 
         <div className="flex items-center justify-between border-t pt-3 text-sm">
           <span className="flex items-center gap-1.5 text-muted-foreground">
-            <Star className="h-3.5 w-3.5 text-amber-500" />
+            <Star className="h-3.5 w-3.5 text-star" />
             Média últimas 5
           </span>
-          <span className="font-semibold text-amber-500">
+          <span className="font-semibold text-star">
             {last5Avg !== null ? formatRating(last5Avg) : EMPTY_VALUE}
           </span>
         </div>
@@ -593,7 +593,7 @@ function GigsCard({ data }: { data: DashData }) {
         {pending.length > 0 && (
           <Button asChild variant="outline" size="sm" className="w-full">
             <Link to="/gigs">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              <AlertTriangle className="h-3.5 w-3.5 text-warn" />
               Finalizar {pending.length} debrief
               {pending.length > 1 ? "s" : ""} pendente
               {pending.length > 1 ? "s" : ""}
@@ -651,7 +651,7 @@ function MusicCard({ data }: { data: DashData }) {
                     <span>{TRACK_KIND_LABEL[t.kind]}</span>
                     <span>
                       {d !== null && (
-                        <span className={d > 30 ? "text-amber-500" : ""}>
+                        <span className={d > 30 ? "text-warn" : ""}>
                           {d}d no stage
                         </span>
                       )}
@@ -665,7 +665,7 @@ function MusicCard({ data }: { data: DashData }) {
         )}
 
         {stalled.length > 0 && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600">
+          <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 p-2 text-xs text-warn">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               {stalled.length} track{stalled.length > 1 ? "s" : ""} parada
@@ -787,7 +787,7 @@ function ContentCard({ data }: { data: DashData }) {
         )}
 
         {imbalance && (
-          <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600">
+          <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 p-2 text-xs text-warn">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Desequilíbrio: <strong>{Math.round(topShare * 100)}%</strong> do
@@ -878,7 +878,7 @@ function FestasCard({ data }: { data: DashData }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {noConfirmed && data.parties.length > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-400">
+          <div className="flex items-center gap-2 rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-xs text-warn">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
             Nenhuma festa confirmada nos próximos 30 dias.
           </div>
@@ -892,8 +892,8 @@ function FestasCard({ data }: { data: DashData }) {
                 className={cn(
                   "text-xs",
                   next.status === "Confirmada" || next.status === "Em vendas"
-                    ? "border-emerald-500/30 text-emerald-400"
-                    : "border-amber-500/30 text-amber-400"
+                    ? "border-ok/30 text-ok"
+                    : "border-warn/30 text-warn"
                 )}
               >
                 {next.status}
@@ -935,7 +935,7 @@ function FestasCard({ data }: { data: DashData }) {
                 <span className="text-sm font-medium">{p.title}</span>
                 <Badge
                   variant="outline"
-                  className="shrink-0 border-amber-500/30 text-xs text-amber-400"
+                  className="shrink-0 border-warn/30 text-xs text-warn"
                 >
                   Sem data
                 </Badge>

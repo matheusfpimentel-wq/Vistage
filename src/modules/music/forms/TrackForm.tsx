@@ -761,8 +761,8 @@ export function TrackForm({
                             className={cn(
                               "ml-auto rounded px-1.5 py-0.5",
                               h.gate.decision === "approved"
-                                ? "bg-emerald-500/20 text-emerald-500"
-                                : "bg-amber-500/20 text-amber-500"
+                                ? "bg-ok/20 text-ok"
+                                : "bg-warn/20 text-warn"
                             )}
                           >
                             {h.gate.gate_id}:{" "}

@@ -312,7 +312,7 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
         <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
           Cortesias / Guest list
           <InfoHint>
-            A cortesia entra de graça: o que pesa no bolso é a <span className="text-red-400">Consumação</span> — o custo variável real por cabeça (drink, pulseira, kit). Só ela entra no líquido do P&amp;L. Se a "cortesia" tem um valor cobrado, crie um <strong>Ingresso de cortesia</strong> na lista de ingressos com o preço real.
+            A cortesia entra de graça: o que pesa no bolso é a <span className="text-bad">Consumação</span> — o custo variável real por cabeça (drink, pulseira, kit). Só ela entra no líquido do P&amp;L. Se a "cortesia" tem um valor cobrado, crie um <strong>Ingresso de cortesia</strong> na lista de ingressos com o preço real.
           </InfoHint>
         </div>
         {guests.length > 0 && (
@@ -321,7 +321,7 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
             {compCost > 0 && (
               <>
                 {" · consumação "}
-                <strong className="text-red-400">{formatCurrency(compCost)}</strong>
+                <strong className="text-bad">{formatCurrency(compCost)}</strong>
               </>
             )}
           </div>
@@ -336,7 +336,7 @@ function GuestList({ partyId, onReload }: { partyId: number; onReload: () => Pro
               {g.reason && <Badge variant="outline" className="shrink-0 text-[10px]">{g.reason}</Badge>}
               <span className="shrink-0 text-xs text-muted-foreground">×{g.quantity}</span>
               {g.unit_cost > 0 && (
-                <span className="shrink-0 text-xs text-red-400" title="Consumação — custo variável real (drink/pulseira/kit)">
+                <span className="shrink-0 text-xs text-bad" title="Consumação — custo variável real (drink/pulseira/kit)">
                   −{formatCurrency(g.quantity * g.unit_cost)}
                 </span>
               )}

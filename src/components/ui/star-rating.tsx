@@ -38,7 +38,7 @@ export function StarRating({
                 size,
                 "transition-colors",
                 full
-                  ? "fill-amber-500 text-amber-500"
+                  ? "fill-star text-star"
                   : "text-muted-foreground"
               )}
             />
@@ -47,7 +47,7 @@ export function StarRating({
                 className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden"
                 style={{ width: "50%" }}
               >
-                <Star className={cn(size, "fill-amber-500 text-amber-500")} />
+                <Star className={cn(size, "fill-star text-star")} />
               </span>
             )}
             <button

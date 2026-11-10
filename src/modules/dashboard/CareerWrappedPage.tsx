@@ -398,7 +398,7 @@ export function CareerWrappedPage() {
               <div className="space-y-1.5">
                 {data.highlights.map((h, i) => (
                   <div key={i} className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm">
-                    <Star className="h-3.5 w-3.5 shrink-0 text-yellow-500" />
+                    <Star className="h-3.5 w-3.5 shrink-0 text-star" />
                     <span className="flex-1 font-medium">{h.title}</span>
                     <span className="text-xs text-muted-foreground tabular-nums">{formatDate(h.date)}</span>
                   </div>

@@ -25,9 +25,51 @@
     --input: 260 20% 90%;
     --ring: 262 70% 56%;
     --radius: 0.625rem;
+    /* Família mono como TOKEN: não existia nenhuma definida (tailwind.config.js
+       sem fontFamily), e `tabular-nums` já é convenção do app em 203 lugares.
+       O Centro de Comando usa mono nos cabeçalhos de painel. */
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+      "Liberation Mono", monospace;
     /* Urgência (A.2): overdue reusa o negativo; soon = âmbar AA no claro. */
     --urg-overdue: hsl(var(--destructive));
     --urg-soon: #b45309;
+
+    /*
+     * Cores SEMÂNTICAS de estado. Existem porque o app pintava os mesmos cinco
+     * papéis com 587 classes fixas de paleta espalhadas em 88 arquivos — e um
+     * terceiro tema não tem como redefinir `text-amber-400`.
+     *
+     * Os valores são os shades que o código já usava (Tailwind 3.4.19), então
+     * trocar a classe pelo token não muda a aparência. O que MUDA, de
+     * propósito: a maioria das ocorrências não tinha variante `dark:` (40x
+     * `text-amber-400`, 47x `text-emerald-500` iguais nos dois temas), e no
+     * tema claro isso fica com contraste ruim — MEDIDO: os cinco papéis ficavam
+     * entre 1,53:1 e 2,77:1 sobre branco, todos abaixo de 3:1. Aqui cada papel
+     * tem o shade certo por tema: 700 no claro, 400 no escuro, e aí os cinco
+     * passam de 4,5:1 (AA para texto normal, que é o caso — status aqui é
+     * text-xs/text-[11px], não texto grande). O shade 600 chegava só a
+     * AA-grande em três deles e deixava warn em 3,20 e star em 2,91.
+     *
+     * warn e star no claro levam 0,8 ponto de luminosidade a menos que o
+     * amber-700/yellow-700 exatos. Motivo medido: sobre a PRÓPRIA tinta de 10%
+     * (`bg-warn/10` com `text-warn`, que é como as caixas de aviso são feitas)
+     * eles paravam em 4,37:1. Com o ajuste dão 4,52 e 4,54 — e a diferença é
+     * imperceptível a olho.
+     *
+     * O --warn no claro cai justamente em amber-700, o MESMO valor que o
+     * --urg-soon acima já usava com o comentário "âmbar AA no claro". O arquivo
+     * já tinha a resposta; agora os dois concordam.
+     *
+     * `--bad` é separado de `--destructive` apesar de valer o mesmo hoje:
+     * destructive é AÇÃO que apaga, bad é NÚMERO negativo. Um tema pode querer
+     * o botão de excluir mais alarmante que um saldo no vermelho. Mesmo
+     * raciocínio que o --urg-overdue acima, que também referencia sem fundir.
+     */
+    --ok: 163 93.5% 24.3%;    /* emerald-700 — positivo, pago, confirmado, meta batida */
+    --warn: 26 90.5% 36.3%;   /* ~amber-700  — atenção, pendente, meio da escala */
+    --bad: 0 73.7% 41.8%;     /* red-700     — negativo, perdido, abaixo da meta */
+    --info: 201 96.3% 32.2%;  /* sky-700     — informativo, em andamento */
+    --star: 35 91.7% 32.1%;   /* ~yellow-700 — destaque/favorito (estrela, líder) */
   }
 
   .dark {
@@ -53,6 +95,67 @@
     --ring: 263 80% 68%;
     /* Urgência (A.2): âmbar mais claro pro contraste no escuro. */
     --urg-soon: #f59e0b;
+
+    /* Shade 400 das mesmas famílias — o claro usa 600 (ver comentário acima). */
+    --ok: 158 64.4% 51.6%;    /* emerald-400 */
+    --warn: 43 96.4% 56.3%;   /* amber-400 */
+    --bad: 0 90.6% 70.8%;     /* red-400 */
+    --info: 198 93.2% 59.6%;  /* sky-400 */
+    --star: 48 95.8% 53.1%;   /* yellow-400 */
+  }
+
+  /*
+   * ── Tema "Centro de Comando" ─────────────────────────────────────────────
+   *
+   * CLASSE CSS, nunca estilo inline, e o motivo é concreto: `applyAccent`
+   * (src/lib/theme.ts) termina com `removeProperty` em COLOR_MODE_TOKENS, que
+   * são justamente os tokens neutros que este tema pinta. Pintados inline,
+   * seriam apagados a cada troca de cor de destaque.
+   *
+   * Por isso este bloco também NÃO define --primary/--ring/--accent: eles são
+   * do sistema de destaque, que os escreve inline no <html>. Mexer aqui seria
+   * perder a briga de especificidade e quebrar as 13 cores de destaque.
+   *
+   * Vem DEPOIS do .dark de propósito (mesma especificidade, o último ganha), e
+   * o <html> carrega as DUAS classes: este é um tema escuro, então as 17
+   * utilities `dark:` que sobraram no código seguem valendo.
+   *
+   * Reversível: remover este bloco e o "command" do theme.ts devolve o app aos
+   * dois temas, e quem tivesse o tema salvo cai no escuro (a migração já
+   * existe, foi usada quando o tema "color" foi removido).
+   */
+  .theme-command {
+    /* Fundo em CAMADAS: cada degrau de luminosidade separa um nível de
+       profundidade, que é o que faz um painel parecer painel. O escuro padrão
+       tem fundo e card quase idênticos (7% e 10%) com matiz violeta; aqui o
+       matiz é frio e neutro, de instrumento. */
+    --background: 215 28% 6%;
+    --foreground: 210 20% 92%;
+    --card: 215 25% 9%;
+    --card-foreground: 210 20% 92%;
+    --popover: 215 24% 12%;
+    --popover-foreground: 210 20% 92%;
+    --secondary: 215 20% 15%;
+    --secondary-foreground: 210 18% 90%;
+    --muted: 215 20% 13%;
+    --muted-foreground: 213 14% 64%;
+    /* Borda VISÍVEL: o painel é feito de linhas. No escuro padrão a borda tem
+       18% e desaparece; aqui sobe pra 23%. */
+    --border: 213 22% 23%;
+    --input: 213 22% 23%;
+    --destructive: 0 74% 58%;
+    --destructive-foreground: 0 0% 100%;
+    /* Estados como LED: mais saturados que no escuro padrão, que é o ponto do
+       tema — status tem que saltar. Contraste medido (ver o script de
+       contraste): todos acima de 7:1 sobre fundo e card. */
+    --ok: 155 75% 50%;
+    --warn: 40 96% 56%;
+    --bad: 2 88% 64%;
+    --info: 196 92% 56%;
+    --star: 46 96% 57%;
+    --urg-soon: hsl(var(--warn));
+    /* Cantos mais duros: instrumento, não cartão. */
+    --radius: 0.375rem;
   }
 }
 
@@ -74,6 +177,68 @@
     @apply bg-background text-foreground antialiased;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
       "Helvetica Neue", Arial, sans-serif;
+  }
+}
+
+@layer base {
+  /*
+   * Grade de fundo do Centro de Comando. Fica ATRÁS dos cards (que são
+   * opacos), então só aparece nas calhas entre eles — é o que a deixa sutil em
+   * vez de poluída. Em `background-attachment: fixed` a grade não "anda" com o
+   * scroll, o que faria o olho perseguir as linhas.
+   */
+  .theme-command body {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.30) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.30) 1px, transparent 1px);
+    background-size: 34px 34px;
+    background-attachment: fixed;
+  }
+
+  /*
+   * prefers-reduced-motion NÃO existia no desktop (só no mobile, em 8 blocos).
+   * Entra global, e não só no tema novo: vale pros três. Quem pede menos
+   * movimento no sistema operacional tem direito a isso no app inteiro, e o
+   * Centro de Comando só tornou a falta mais visível.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Cabeçalho de painel: a faixa com rótulo que separa um bloco do outro num
+   * painel de instrumentos. Só tem efeito no tema Centro de Comando; nos
+   * outros dois é um cabeçalho discreto normal, pra o componente poder ser
+   * usado sem condicional de tema espalhada pelas telas.
+   */
+  .panel-head {
+    @apply flex items-center gap-2 border-b px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground;
+  }
+  .theme-command .panel-head {
+    background-color: hsl(var(--secondary) / 0.6);
+    font-family: var(--font-mono);
+  }
+
+  /*
+   * LED de status: ponto com halo, do jeito que um indicador de painel é. A
+   * cor vem de `currentColor`, então `<span class="led text-ok" />` já pinta —
+   * sem variante por cor e sem cor fixa nova.
+   */
+  .led {
+    @apply inline-block h-2 w-2 shrink-0 rounded-full;
+    background-color: currentColor;
+  }
+  .theme-command .led {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 8px 0 currentColor;
   }
 }
 

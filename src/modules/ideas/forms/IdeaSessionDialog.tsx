@@ -184,7 +184,7 @@ export function IdeaSessionDialog({
                 className={cn(
                   "shrink-0 rounded-full px-3 py-1 font-mono text-sm font-semibold",
                   secondsLeft <= 10
-                    ? "bg-red-500/15 text-red-500"
+                    ? "bg-bad/15 text-bad"
                     : "bg-primary/10 text-primary"
                 )}
               >

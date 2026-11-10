@@ -75,7 +75,7 @@ export function CircularTimer({
       </svg>
       <span className="absolute inset-0 flex flex-col items-center justify-center gap-1">
         <span
-          className={cn("font-mono font-semibold tabular-nums leading-none", expired && "text-amber-500")}
+          className={cn("font-mono font-semibold tabular-nums leading-none", expired && "text-warn")}
           style={{ fontSize: size * 0.2 }}
         >
           {elapsedLabel}

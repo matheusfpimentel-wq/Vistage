@@ -179,9 +179,9 @@ export function AdvancedRulesSettings() {
                             className={cn(
                               "h-1.5 w-1.5 shrink-0 rounded-full",
                               r.severidade === "critico"
-                                ? "bg-red-500"
+                                ? "bg-bad"
                                 : r.severidade === "atencao"
-                                ? "bg-amber-500"
+                                ? "bg-warn"
                                 : "bg-muted-foreground/40"
                             )}
                             title={
@@ -194,7 +194,7 @@ export function AdvancedRulesSettings() {
                           />
                           {important && (
                             <AlertTriangle
-                              className="h-3 w-3 shrink-0 text-amber-500"
+                              className="h-3 w-3 shrink-0 text-warn"
                               aria-label="Importante: regra de dinheiro/fisco; desativar pede confirmação"
                             />
                           )}

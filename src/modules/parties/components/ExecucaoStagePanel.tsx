@@ -383,9 +383,9 @@ export function ExecucaoStagePanel({
                         onClick={() => patchCompliance(c.id, { status: cycleCompliance(c.status) })}
                         className={cn(
                           "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                          c.status === "ok" ? "bg-emerald-500/20 text-emerald-400"
+                          c.status === "ok" ? "bg-ok/20 text-ok"
                             : c.status === "na" ? "bg-muted text-muted-foreground"
-                            : "bg-amber-500/20 text-amber-400"
+                            : "bg-warn/20 text-warn"
                         )}
                         title="Avançar status"
                       >
@@ -546,9 +546,9 @@ function ConfirmGroup({ title, rows, onCycleLabel }: { title: string; rows: Conf
                 onClick={r.onCycle}
                 className={cn(
                   "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-                  r.status === "confirmado" ? "bg-emerald-500/20 text-emerald-400"
-                    : r.status === "cancelado" ? "bg-red-500/15 text-red-400"
-                    : "bg-amber-500/20 text-amber-400"
+                  r.status === "confirmado" ? "bg-ok/20 text-ok"
+                    : r.status === "cancelado" ? "bg-bad/15 text-bad"
+                    : "bg-warn/20 text-warn"
                 )}
                 title="Alternar status"
               >
@@ -563,7 +563,7 @@ function ConfirmGroup({ title, rows, onCycleLabel }: { title: string; rows: Conf
                 title="Confirmar até"
               />
               {wa ? (
-                <a href={wa} target="_blank" rel="noreferrer" className="shrink-0 text-emerald-500 hover:text-emerald-400" title="WhatsApp">
+                <a href={wa} target="_blank" rel="noreferrer" className="shrink-0 text-ok hover:text-ok" title="WhatsApp">
                   <MessageCircle className="h-4 w-4" />
                 </a>
               ) : (

@@ -66,7 +66,7 @@ export function DiagnosticsSettings() {
           {!d ? (
             <p className="text-xs text-muted-foreground">…</p>
           ) : d.errors.length === 0 ? (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            <p className="text-xs text-ok">
               Nenhum.
             </p>
           ) : (

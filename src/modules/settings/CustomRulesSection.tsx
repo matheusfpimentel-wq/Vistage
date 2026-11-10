@@ -179,7 +179,7 @@ export function CustomRulesSection({ severity }: { severity: CustomRule["severit
                   {describeRule(r)} → {isInsight ? "vira insight" : "mostra o alerta"}
                 </p>
                 {!ruleResolvable(r) && (
-                  <p className="flex items-center gap-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                  <p className="flex items-center gap-1 text-[11px] font-medium text-warn">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     Um campo desta regra não existe mais; ela não dispara. Edite para corrigir.
                   </p>
@@ -809,9 +809,9 @@ function RuleFormDialog({
                           "flex-1 rounded-md border px-2 py-1.5 text-xs transition",
                           severidade === s
                             ? s === "critico"
-                              ? "border-red-500/50 bg-red-500/10 font-medium text-red-600 dark:text-red-400"
+                              ? "border-bad/50 bg-bad/10 font-medium text-bad"
                               : s === "atencao"
-                              ? "border-amber-500/50 bg-amber-500/10 font-medium text-amber-600 dark:text-amber-400"
+                              ? "border-warn/50 bg-warn/10 font-medium text-warn"
                               : "border-primary/40 bg-primary/10 font-medium"
                             : "text-muted-foreground hover:bg-accent"
                         )}

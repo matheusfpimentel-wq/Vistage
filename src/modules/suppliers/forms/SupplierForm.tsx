@@ -281,12 +281,12 @@ export function SupplierForm({ open, onOpenChange, supplier, onSaved }: Props) {
                     key={star}
                     type="button"
                     onClick={() => { setRating(star === rating ? 0 : star); setDirty(true); }}
-                    className="text-muted-foreground transition hover:text-yellow-400"
+                    className="text-muted-foreground transition hover:text-warn"
                   >
                     <Star
                       className={cn(
                         "h-5 w-5",
-                        star <= rating ? "fill-yellow-400 text-yellow-400" : ""
+                        star <= rating ? "fill-star text-star" : ""
                       )}
                     />
                   </button>

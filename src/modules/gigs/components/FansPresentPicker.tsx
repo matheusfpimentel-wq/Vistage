@@ -58,7 +58,7 @@ export function FansPresentPicker({ value, onChange }: Props) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-1.5">
-          <Heart className="h-3.5 w-3.5 text-red-400" />
+          <Heart className="h-3.5 w-3.5 text-bad" />
           Fãs presentes
         </Label>
         <div className="flex items-center gap-2">

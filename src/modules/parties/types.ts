@@ -426,12 +426,12 @@ export function viabilityDecisionLabel(d: string | null | undefined): string {
 }
 
 export function partyStatusColor(s: PartyStatus): string {
-  return s==="Confirmada" ? "bg-emerald-500/20 text-emerald-400"
-    : s==="Em vendas" ? "bg-sky-500/20 text-sky-400"
+  return s==="Confirmada" ? "bg-ok/20 text-ok"
+    : s==="Em vendas" ? "bg-info/20 text-info"
     : s==="Realizada" ? "bg-primary/20 text-primary"
-    : s==="Cancelada" ? "bg-red-500/20 text-red-400"
+    : s==="Cancelada" ? "bg-bad/20 text-bad"
     : s==="Ideia" ? "bg-muted text-muted-foreground"
-    : "bg-amber-500/20 text-amber-400"; // Planejando
+    : "bg-warn/20 text-warn"; // Planejando
 }
 
 export function ticketTypeLabel(t: TicketType): string {

@@ -83,7 +83,7 @@ const TAG_ICON: Record<TrackTag, typeof Lock> = {
 const TAG_COLOR: Record<TrackTag, string> = {
   inegociavel: "text-rose-500",
   autoral: "text-violet-500",
-  achado: "text-amber-500",
+  achado: "text-warn",
 };
 const TAG_ORDER: TrackTag[] = ["achado", "inegociavel", "autoral"];
 const TAG_PLURAL: Record<TrackTag, string> = {
@@ -341,7 +341,7 @@ function TrackAdder({
                   <span className="font-medium">{t.title ?? "Sem título"}</span>
                   {t.artist && <span className="text-muted-foreground"> · {t.artist}</span>}
                 </span>
-                {(!t.file_path || t.file_missing === 1) && <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />}
+                {(!t.file_path || t.file_missing === 1) && <AlertTriangle className="h-3 w-3 shrink-0 text-warn" />}
                 {t.duration_sec != null && (
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{fmtTrackDuration(t.duration_sec)}</span>
                 )}
@@ -925,7 +925,7 @@ function SetlistRow({
             type="button"
             onClick={() => void linkAudio()}
             title="Sem áudio — clique pra vincular um arquivo (lê as tags e alimenta a Biblioteca)"
-            className="shrink-0 text-amber-600 hover:text-foreground"
+            className="shrink-0 text-warn hover:text-foreground"
             aria-label="Vincular áudio"
           >
             <Link2 className="h-3.5 w-3.5" />
@@ -1017,7 +1017,7 @@ function SetlistRow({
         <div className="ml-9 flex items-center gap-1.5 py-0.5">
           {bothKeys && (
             <span
-              className={"inline-block h-2 w-2 shrink-0 rounded-full " + (harmonic ? "bg-emerald-500" : "bg-muted-foreground/40")}
+              className={"inline-block h-2 w-2 shrink-0 rounded-full " + (harmonic ? "bg-ok" : "bg-muted-foreground/40")}
               title={harmonic ? "Transição harmônica (Camelot)" : "Fora da harmonia (Camelot)"}
             />
           )}

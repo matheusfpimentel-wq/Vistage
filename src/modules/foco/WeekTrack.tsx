@@ -218,7 +218,7 @@ export function WeekTrack() {
         <div className="flex items-center gap-3">
           <h2 className="text-base font-semibold">Trilha da semana</h2>
           <span
-            className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-500"
+            className="flex items-center gap-1 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn"
             title="Dias seguidos com sessão de foco"
           >
             <Flame className="h-3.5 w-3.5" /> {streak} dia{streak === 1 ? "" : "s"}
@@ -251,7 +251,7 @@ export function WeekTrack() {
 
 
       {conflicts.length > 0 && (
-        <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-600 dark:text-amber-400">
+        <div className="mx-3 mt-2 flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 p-2 text-xs text-warn">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="space-y-0.5">
             <p className="font-medium">

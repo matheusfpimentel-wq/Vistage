@@ -135,7 +135,7 @@ export function FocoPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardContent className="flex items-center gap-3 py-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-500">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-star/15 text-star">
                 <Flame className="h-5 w-5" />
               </span>
               <div>
@@ -304,7 +304,7 @@ export function FocoPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Star className="h-4 w-4 text-amber-400" />
+                <Star className="h-4 w-4 text-star" />
                 Highlights cumulativos
               </CardTitle>
               <CardDescription>Momentos marcantes da sua carreira.</CardDescription>
@@ -326,7 +326,7 @@ export function FocoPage() {
                   key={h.id}
                   className="flex items-start gap-3 rounded-md border p-3"
                 >
-                  <Star className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <Star className="mt-0.5 h-4 w-4 shrink-0 text-star" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{h.title}</span>
@@ -434,12 +434,12 @@ function SessionRow({
               <Smartphone className="h-3 w-3" />
               {markerCount!.weak > 0 && (
                 <span className="inline-flex items-center gap-0.5">
-                  <AlertTriangle className="h-3 w-3 text-amber-500" />{markerCount!.weak}
+                  <AlertTriangle className="h-3 w-3 text-warn" />{markerCount!.weak}
                 </span>
               )}
               {markerCount!.moments > 0 && (
                 <span className="inline-flex items-center gap-0.5">
-                  <Star className="h-3 w-3 text-amber-400" />{markerCount!.moments}
+                  <Star className="h-3 w-3 text-star" />{markerCount!.moments}
                 </span>
               )}
             </span>
@@ -528,11 +528,11 @@ function SessionMarkerPanel({
       {weakPoints.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+            <span className="flex items-center gap-1 text-xs font-medium text-warn">
               <AlertTriangle className="h-3.5 w-3.5" /> Pontos fracos
             </span>
             {weakByTipo.map((w) => (
-              <span key={w.tipo} className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+              <span key={w.tipo} className="rounded-full bg-warn/10 px-2 py-0.5 text-[11px] text-warn">
                 {WEAK_TIPO_LABEL[w.tipo] ?? w.tipo} ×{w.count}
               </span>
             ))}
@@ -555,11 +555,11 @@ function SessionMarkerPanel({
       {moments.length > 0 && (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-500">
+            <span className="flex items-center gap-1 text-xs font-medium text-ok">
               <Star className="h-3.5 w-3.5" /> Pontos fortes
             </span>
             {momentsByTipo.map((m) => (
-              <span key={m.tipo} className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <span key={m.tipo} className="rounded-full bg-ok/10 px-2 py-0.5 text-[11px] text-ok">
                 {STRONG_TIPO_LABEL[m.tipo] ?? m.tipo} ×{m.count}
               </span>
             ))}

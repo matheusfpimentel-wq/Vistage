@@ -221,14 +221,14 @@ export function SeriesEditionCard({
                   <span
                     className={cn(
                       "shrink-0 tabular-nums",
-                      e.attendanceRetentionPct >= 100 ? "text-emerald-500" : "text-amber-500"
+                      e.attendanceRetentionPct >= 100 ? "text-ok" : "text-warn"
                     )}
                     title="Retenção de público vs edição anterior"
                   >
                     {e.attendanceRetentionPct >= 100 ? "↑" : "↓"}{e.attendanceRetentionPct}%
                   </span>
                 )}
-                <span className={cn("shrink-0 tabular-nums", e.net >= 0 ? "text-emerald-500" : "text-red-500")}>
+                <span className={cn("shrink-0 tabular-nums", e.net >= 0 ? "text-ok" : "text-bad")}>
                   {formatCurrency(e.net)}
                 </span>
               </li>

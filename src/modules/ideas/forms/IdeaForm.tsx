@@ -658,7 +658,7 @@ export function IdeaForm({ open, onOpenChange, idea, onSaved, onConverted, onCon
           </div>
 
           {idea?.converted_to && (
-            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-600">
+            <div className="rounded-md border border-ok/40 bg-ok/10 p-2 text-xs text-ok">
               Convertida em {idea.converted_to} #{idea.converted_id}
             </div>
           )}

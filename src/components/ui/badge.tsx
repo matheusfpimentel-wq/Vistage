@@ -12,9 +12,11 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground",
         outline: "text-foreground",
-        success: "border-transparent bg-emerald-600/20 text-emerald-500",
-        warning: "border-transparent bg-amber-500/20 text-amber-500",
-        info: "border-transparent bg-sky-500/20 text-sky-400",
+        // Tokens, não paleta fixa: estas três variantes são o chip de estado de
+        // todo o app, então são o ponto de maior alcance por linha alterada.
+        success: "border-transparent bg-ok/20 text-ok",
+        warning: "border-transparent bg-warn/20 text-warn",
+        info: "border-transparent bg-info/20 text-info",
       },
     },
     defaultVariants: { variant: "default" },

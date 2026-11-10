@@ -68,7 +68,7 @@ import type { Contact } from "@/modules/crm/types";
 
 /** Ponto de status do stepper — verde concluída, âmbar em andamento, cinza pendente. */
 function stageStatusDot(s: StageStatus) {
-  return s === "concluida" ? "bg-emerald-500" : s === "em_andamento" ? "bg-amber-500" : "bg-muted-foreground/40";
+  return s === "concluida" ? "bg-ok" : s === "em_andamento" ? "bg-warn" : "bg-muted-foreground/40";
 }
 
 function stageStatusLabel(s: StageStatus) {
@@ -339,7 +339,7 @@ export function WorkflowTab({
             className={cn(
               "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition",
               expandedId === stage.id ? "bg-primary/10 ring-1 ring-primary"
-                : needsDebrief ? "bg-amber-500/10 ring-1 ring-amber-500/60 animate-pulse"
+                : needsDebrief ? "bg-warn/10 ring-1 ring-warn/60 animate-pulse"
                 : "hover:bg-muted/50"
             )}
           >

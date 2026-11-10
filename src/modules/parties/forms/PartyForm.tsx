@@ -129,8 +129,8 @@ function ConfirmChip({
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition",
         confirmed
-          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          ? "border-ok/30 bg-ok/10 text-ok"
+          : "border-warn/30 bg-warn/10 text-warn"
       )}
     >
       {confirmed ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
@@ -820,7 +820,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
                     </SelectContent>
                   </Select>
                   {candidates.length > 1 && state.venue_id == null && (
-                    <p className="text-xs text-amber-400">
+                    <p className="text-xs text-warn">
                       Vários candidatos. Escolha um venue único para confirmar.
                     </p>
                   )}
@@ -1359,7 +1359,7 @@ export function PartyForm({ open, onOpenChange, party, onSaved }: Props) {
               salvo · HH:MM"); os campos da Info só no Salvar (aviso quando dirty). */}
           <span className="min-w-0 truncate text-xs">
             {dirty ? (
-              <span className="text-amber-600 dark:text-amber-500">
+              <span className="text-warn">
                 Alterações não salvas — clique em Salvar
               </span>
             ) : savedAt ? (

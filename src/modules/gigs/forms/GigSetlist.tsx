@@ -47,7 +47,7 @@ const FORMAT_CLASS: Record<string, string> = {
   rekordbox_xml: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   rekordbox_txt: "bg-purple-500/15 text-purple-400 border-purple-500/30",
   traktor_nml: "bg-blue-500/15 text-blue-400 border-blue-500/30",
-  serato_session: "bg-green-500/15 text-green-400 border-green-500/30",
+  serato_session: "bg-ok/15 text-ok border-ok/30",
   m3u: "",
 };
 
@@ -270,7 +270,7 @@ export function GigSetlist({ gigId }: Props) {
                     <span className="text-muted-foreground">Na biblioteca:</span>
                     {added.map((t) => (
                       <Badge key={t.position} variant="outline" className="gap-1 text-[11px]">
-                        <Check className="h-3 w-3 text-emerald-500" />
+                        <Check className="h-3 w-3 text-ok" />
                         {t.title || EMPTY_VALUE}
                       </Badge>
                     ))}
@@ -301,7 +301,7 @@ export function GigSetlist({ gigId }: Props) {
                         <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(t.duration_sec)}</td>
                         <td className="px-3 py-1.5 text-right">
                           {t.library_track_id ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-500">
+                            <span className="inline-flex items-center gap-1 text-xs text-ok">
                               <Check className="h-3.5 w-3.5" /> Adicionada
                             </span>
                           ) : (

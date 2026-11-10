@@ -108,7 +108,7 @@ export function VenueDetail({ open, onOpenChange, venueId, onEdit }: Props) {
                 value={stats ? formatCurrency(stats.totalRevenue ?? 0) : EMPTY_VALUE}
               />
               <Stat
-                icon={<Star className="h-4 w-4 text-amber-500" />}
+                icon={<Star className="h-4 w-4 text-star" />}
                 label="Avaliação média"
                 value={stats?.avgRating ? formatRating(stats.avgRating) : EMPTY_VALUE}
               />

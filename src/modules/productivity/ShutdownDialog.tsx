@@ -146,7 +146,7 @@ export function ShutdownDialog({
                         onClick={() => addTaskToTop3(t)}
                       >
                         {already ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          <CheckCircle2 className="h-4 w-4 text-ok" />
                         ) : (
                           <>
                             <Plus className="h-4 w-4" /> Top 3

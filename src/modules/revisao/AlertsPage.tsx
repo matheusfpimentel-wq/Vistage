@@ -103,7 +103,7 @@ export function AlertsPage() {
         </div>
       ) : alerts.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+          <CheckCircle2 className="h-10 w-10 text-ok" />
           <p className="text-sm font-medium">Nenhum alerta no momento</p>
           <p className="max-w-xs text-xs text-muted-foreground">
             Quando algo precisar da sua atenção (GIG sem prep, cachê pendente,
@@ -140,8 +140,8 @@ function AlertSection({
   items: AlertItem[];
   onDismiss: (item: AlertItem) => void;
 }) {
-  const rowBg = severity === "critico" ? "bg-red-500/5" : severity === "atencao" ? "bg-amber-500/5" : "";
-  const dot = severity === "critico" ? "bg-red-500" : severity === "atencao" ? "bg-amber-500" : "bg-muted-foreground/40";
+  const rowBg = severity === "critico" ? "bg-bad/5" : severity === "atencao" ? "bg-warn/5" : "";
+  const dot = severity === "critico" ? "bg-bad" : severity === "atencao" ? "bg-warn" : "bg-muted-foreground/40";
   return (
     <section className="space-y-2">
       <h2 className="flex items-center gap-1.5 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

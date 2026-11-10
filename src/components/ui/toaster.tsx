@@ -1,10 +1,11 @@
 import { Toaster as Sonner } from "sonner";
-import { useThemeStore } from "@/lib/theme";
+import { isDarkTheme, useThemeStore } from "@/lib/theme";
 
 export function Toaster() {
   const theme = useThemeStore((s) => s.theme);
-  // Sonner só conhece light/dark/system; "modo cor" é família clara.
-  const sonnerTheme = theme === "dark" ? "dark" : "light";
+  // Sonner só conhece light/dark/system. Centro de Comando é família ESCURA:
+  // com `theme === "dark"` aqui, o toast saía branco sobre a tela escura.
+  const sonnerTheme = isDarkTheme(theme) ? "dark" : "light";
   return (
     <Sonner
       theme={sonnerTheme}

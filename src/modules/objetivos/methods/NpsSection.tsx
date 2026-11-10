@@ -107,7 +107,7 @@ function npsScore(rated: Gig[]): {
  */
 function npsTone(nps: number | null): string {
   if (nps == null) return "text-muted-foreground";
-  return nps >= 50 ? "text-emerald-500" : nps >= 0 ? "text-amber-500" : "text-destructive";
+  return nps >= 50 ? "text-ok" : nps >= 0 ? "text-warn" : "text-destructive";
 }
 
 function npsVerdict(nps: number | null): string {
@@ -284,8 +284,8 @@ function OverviewTab({
           </div>
         </button>
         <div className="flex-1 space-y-1.5 min-w-48">
-          <NpsBar label={NPS_CATEGORY_LABEL.promoters} count={promoters} total={rated.length} tone="bg-emerald-500" onClick={() => promoters > 0 && setDrill("promoters")} />
-          <NpsBar label={NPS_CATEGORY_LABEL.neutrals} count={neutrals} total={rated.length} tone="bg-amber-400" onClick={() => neutrals > 0 && setDrill("neutrals")} />
+          <NpsBar label={NPS_CATEGORY_LABEL.promoters} count={promoters} total={rated.length} tone="bg-ok" onClick={() => promoters > 0 && setDrill("promoters")} />
+          <NpsBar label={NPS_CATEGORY_LABEL.neutrals} count={neutrals} total={rated.length} tone="bg-warn" onClick={() => neutrals > 0 && setDrill("neutrals")} />
           <NpsBar label={NPS_CATEGORY_LABEL.detractors} count={detractors} total={rated.length} tone="bg-destructive" onClick={() => detractors > 0 && setDrill("detractors")} />
         </div>
       </div>
@@ -623,9 +623,9 @@ function surveyCategoryOf(score: number): SurveyCategory {
 function surveyScoreBadge(score: number): string {
   const cat = surveyCategoryOf(score);
   return cat === "promoters"
-    ? "bg-emerald-500 text-white"
+    ? "bg-ok text-white"
     : cat === "neutrals"
-    ? "bg-amber-400 text-black"
+    ? "bg-warn text-black"
     : "bg-destructive text-destructive-foreground";
 }
 
@@ -821,8 +821,8 @@ function SurveyTab() {
             </div>
           </div>
           <div className="flex-1 space-y-1.5 min-w-48">
-            <NpsBar label="Promotores (9-10)" count={promoters} total={count} tone="bg-emerald-500" />
-            <NpsBar label="Neutros (7-8)" count={neutrals} total={count} tone="bg-amber-400" />
+            <NpsBar label="Promotores (9-10)" count={promoters} total={count} tone="bg-ok" />
+            <NpsBar label="Neutros (7-8)" count={neutrals} total={count} tone="bg-warn" />
             <NpsBar label="Detratores (0-6)" count={detractors} total={count} tone="bg-destructive" />
           </div>
         </div>

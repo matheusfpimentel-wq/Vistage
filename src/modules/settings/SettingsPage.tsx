@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { Loader2, Moon, ShieldAlert, Sparkles, Sun } from "lucide-react";
+import {
+  Gauge,
+  Loader2,
+  Moon,
+  ShieldAlert,
+  Sparkles,
+  Sun,
+} from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModuleView } from "@/lib/moduleView";
@@ -89,7 +96,7 @@ export function SettingsPage() {
       {/* ─── Backup (CSV) ────────────────────────────────────── */}
       <TabsContent value="backup" className="space-y-6">
         {/* Aviso: o .vistage carrega credenciais em texto puro */}
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+        <div className="flex items-start gap-2.5 rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm text-warn">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <p className="leading-snug">
             <span className="font-medium">Cuidado ao compartilhar.</span> Para o
@@ -152,7 +159,18 @@ export function SettingsPage() {
                 >
                   <Moon className="h-4 w-4" /> Escuro
                 </Button>
+                <Button
+                  variant={theme === "command" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTheme("command")}
+                >
+                  <Gauge className="h-4 w-4" /> Centro de Comando
+                </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Centro de Comando é escuro, com fundo em camadas, grade sutil e
+                status em LED. A cor de destaque continua valendo nos três.
+              </p>
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Cor de destaque</p>

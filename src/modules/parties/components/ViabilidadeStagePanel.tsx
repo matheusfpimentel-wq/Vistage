@@ -376,15 +376,15 @@ export function ViabilidadeStagePanel({
               {visibleCandidates.map((c) => {
                 const isConfirmed = c.venue_id === confirmedVenueId;
                 return (
-                  <li key={c.id} className={cn("rounded-md border p-2", isConfirmed && "border-emerald-500/50 bg-emerald-500/5")}>
+                  <li key={c.id} className={cn("rounded-md border p-2", isConfirmed && "border-ok/50 bg-ok/5")}>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() => void toggleLeader(c)}
-                        className={cn("shrink-0", c.is_leader ? "text-amber-400" : "text-muted-foreground/50 hover:text-amber-400")}
+                        className={cn("shrink-0", c.is_leader ? "text-star" : "text-muted-foreground/50 hover:text-star")}
                         title={c.is_leader ? "Líder (usado no veredito sem confirmação)" : "Marcar como líder"}
                       >
-                        <Star className={cn("h-3.5 w-3.5", c.is_leader && "fill-amber-400")} />
+                        <Star className={cn("h-3.5 w-3.5", c.is_leader && "fill-star")} />
                       </button>
                       {/* Nome do venue = link pro cadastro (§2.2). */}
                       <button
@@ -396,7 +396,7 @@ export function ViabilidadeStagePanel({
                         {c.venue_name || EMPTY_VALUE}
                       </button>
                       {isConfirmed ? (
-                        <Badge className="shrink-0 bg-emerald-500/20 text-[10px] text-emerald-400">confirmado</Badge>
+                        <Badge className="shrink-0 bg-ok/20 text-[10px] text-ok">confirmado</Badge>
                       ) : (
                         <Button type="button" size="sm" variant="outline" className="h-6 shrink-0 px-2 text-[11px]" onClick={() => void confirmVenue(c)}>
                           <Check className="mr-1 h-3 w-3" /> Confirmar
@@ -635,7 +635,7 @@ export function ViabilidadeStagePanel({
             <Kpi label="Margem" value={verdict.margem != null && num(publicoEsperado) > 0 ? `${Math.round(verdict.margem * 100)}%` : EMPTY_VALUE} />
           </div>
           {verdict.revPerPerson <= 0 && (
-            <p className="text-[11px] text-amber-400">Informe o preço médio (e o % do acordo, se houver) para calcular.</p>
+            <p className="text-[11px] text-warn">Informe o preço médio (e o % do acordo, se houver) para calcular.</p>
           )}
         </div>
       </VBlockShell>
@@ -658,10 +658,10 @@ export function ViabilidadeStagePanel({
                   "rounded-full border px-3 py-1 text-xs font-medium transition",
                   decisao === d
                     ? d === "vai"
-                      ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
+                      ? "border-ok/50 bg-ok/20 text-ok"
                       : d === "ajustar"
-                      ? "border-amber-500/50 bg-amber-500/20 text-amber-400"
-                      : "border-red-500/50 bg-red-500/20 text-red-400"
+                      ? "border-warn/50 bg-warn/20 text-warn"
+                      : "border-bad/50 bg-bad/20 text-bad"
                     : "text-muted-foreground hover:bg-muted"
                 )}
               >
@@ -694,17 +694,17 @@ function lightDot(light: Verdict["light"]) {
     <span
       className={cn(
         "inline-block h-2.5 w-2.5 rounded-full",
-        light === "verde" ? "bg-emerald-500" : light === "ambar" ? "bg-amber-500" : "bg-red-500"
+        light === "verde" ? "bg-ok" : light === "ambar" ? "bg-warn" : "bg-bad"
       )}
     />
   );
 }
 function lightClass(light: Verdict["light"]) {
   return light === "verde"
-    ? "border-emerald-500/40 bg-emerald-500/5"
+    ? "border-ok/40 bg-ok/5"
     : light === "ambar"
-    ? "border-amber-500/40 bg-amber-500/5"
-    : "border-red-500/40 bg-red-500/5";
+    ? "border-warn/40 bg-warn/5"
+    : "border-bad/40 bg-bad/5";
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -721,12 +721,12 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function Kpi({ label, value, hint, danger }: { label: string; value: string; hint?: string; danger?: boolean }) {
   return (
-    <div className={cn("rounded-md border bg-muted/20 p-2.5", danger && "border-red-500/40")}>
+    <div className={cn("rounded-md border bg-muted/20 p-2.5", danger && "border-bad/40")}>
       <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
         {label}
         {hint && <InfoHint>{hint}</InfoHint>}
       </div>
-      <div className={cn("mt-0.5 text-base font-semibold tabular-nums", danger && "text-red-400")}>{value}</div>
+      <div className={cn("mt-0.5 text-base font-semibold tabular-nums", danger && "text-bad")}>{value}</div>
     </div>
   );
 }

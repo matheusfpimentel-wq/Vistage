@@ -326,7 +326,7 @@ export function TodayPage() {
                 <CardContent className="space-y-3">
                   {items.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border border-dashed py-10 text-center">
-                      <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                      <CheckCircle2 className="h-8 w-8 text-ok" />
                       <p className="text-sm font-medium">
                         Nada agendado para hoje
                       </p>

@@ -50,7 +50,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
       tdClassName: "px-3 py-2",
       cell: (t) =>
         t.kind === "income" ? (
-          <ArrowUpCircle className="h-4 w-4 text-emerald-500" />
+          <ArrowUpCircle className="h-4 w-4 text-ok" />
         ) : (
           <ArrowDownCircle className="h-4 w-4 text-destructive" />
         ),
@@ -137,7 +137,7 @@ export function TransactionList({ transactions, onEdit, onDelete }: Props) {
       cell: (t) => {
         const isIncome = t.kind === "income";
         return (
-          <span className={isIncome ? "text-emerald-500" : "text-destructive"}>
+          <span className={isIncome ? "text-ok" : "text-destructive"}>
             {isIncome ? "+" : "−"} {formatCurrency(t.amount)}
             {t.currency && t.currency !== "BRL" && t.original_amount != null && (
               <div className="text-[11px] font-normal text-muted-foreground">

@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 /** Selo "Conectado" com V circulado — vai ao lado do nome no título do card. */
 export function ConnectedBadge() {
   return (
-    <span className="flex items-center gap-1 text-xs font-normal text-emerald-500">
+    <span className="flex items-center gap-1 text-xs font-normal text-ok">
       <CheckCircle2 className="h-3.5 w-3.5" /> Conectado
     </span>
   );

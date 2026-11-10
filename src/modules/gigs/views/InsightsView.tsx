@@ -33,7 +33,7 @@ export function InsightsView({ refreshKey }: Props) {
     <label className="flex cursor-pointer items-center gap-2 text-sm">
       <input
         type="checkbox"
-        className="h-4 w-4 accent-amber-500"
+        className="h-4 w-4 accent-warn"
         checked={specialOnly}
         onChange={(e) => setSpecialOnly(e.target.checked)}
       />
@@ -72,7 +72,7 @@ export function InsightsView({ refreshKey }: Props) {
           value={formatCurrency(insights.totalCache)}
         />
         <Stat
-          icon={<Star className="h-4 w-4 text-amber-500" />}
+          icon={<Star className="h-4 w-4 text-star" />}
           label="Avaliação média"
           value={
             insights.averageRating !== null
@@ -81,7 +81,7 @@ export function InsightsView({ refreshKey }: Props) {
           }
         />
         <Stat
-          icon={<AlertTriangle className="h-4 w-4 text-amber-500" />}
+          icon={<AlertTriangle className="h-4 w-4 text-warn" />}
           label="Debriefs pendentes"
           value={insights.pendingDebriefs.toString()}
           tone={insights.pendingDebriefs > 0 ? "warning" : "default"}
@@ -123,7 +123,7 @@ export function InsightsView({ refreshKey }: Props) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-amber-500" />
+              <Trophy className="h-4 w-4 text-star" />
               Top venues (por avaliação)
             </CardTitle>
             <CardDescription>
@@ -151,7 +151,7 @@ export function InsightsView({ refreshKey }: Props) {
                         {v.gigs} GIG{v.gigs > 1 ? "s" : ""}
                       </span>
                     </div>
-                    <span className="tabular-nums text-amber-500">
+                    <span className="tabular-nums text-warn">
                       {v.avg_rating !== null ? formatRating(v.avg_rating) : EMPTY_VALUE}
                     </span>
                   </div>
@@ -199,7 +199,7 @@ export function InsightsView({ refreshKey }: Props) {
                           {formatCurrency(m.revenue)}
                         </span>
                         {m.avgRating !== null && (
-                          <span className="tabular-nums text-amber-500">
+                          <span className="tabular-nums text-warn">
                             ★ {formatRating(m.avgRating)}
                           </span>
                         )}
@@ -260,7 +260,7 @@ export function InsightsView({ refreshKey }: Props) {
                       <span className="text-xs text-muted-foreground">
                         {b.sample} GIG{b.sample > 1 ? "s" : ""}
                       </span>
-                      <span className="tabular-nums text-amber-500">
+                      <span className="tabular-nums text-warn">
                         {b.avgRating !== null ? `★ ${formatRating(b.avgRating)}` : EMPTY_VALUE}
                       </span>
                     </div>
@@ -287,7 +287,7 @@ function Stat({
   tone?: "default" | "warning";
 }) {
   return (
-    <Card className={tone === "warning" ? "border-amber-500/40" : ""}>
+    <Card className={tone === "warning" ? "border-warn/40" : ""}>
       <CardHeader className="pb-2">
         <CardDescription className="flex items-center gap-2 text-xs">
           {icon}

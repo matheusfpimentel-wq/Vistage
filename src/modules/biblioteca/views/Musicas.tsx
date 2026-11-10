@@ -570,7 +570,7 @@ export function Musicas() {
                             <TriangleAlert className="h-4 w-4" />
                           </button>
                         ) : (
-                          <span title={t.file_path} className="text-emerald-500">✓</span>
+                          <span title={t.file_path} className="text-ok">✓</span>
                         )
                       ) : (
                         <button title="Sem correlação: apontar arquivo" onClick={() => void doCorrelate(t.id)} className="text-muted-foreground hover:text-foreground">
@@ -615,9 +615,9 @@ export function Musicas() {
             <h3 className="mb-2 text-base font-semibold">Resultado do scan</h3>
             <ul className="space-y-1 text-sm">
               <li>{diff.scannedCount} arquivo(s) lidos</li>
-              <li className="text-emerald-500">{diff.newTracks.length} nova(s)</li>
-              <li className="text-sky-500">{diff.moved.length} recolocada(s) (arquivo movido)</li>
-              <li className="text-amber-500">{diff.missing.length} ausente(s) na pasta (mantidas)</li>
+              <li className="text-ok">{diff.newTracks.length} nova(s)</li>
+              <li className="text-info">{diff.moved.length} recolocada(s) (arquivo movido)</li>
+              <li className="text-warn">{diff.missing.length} ausente(s) na pasta (mantidas)</li>
             </ul>
             <div className="mt-4 flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => resetScan()}>Cancelar</Button>

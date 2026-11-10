@@ -668,7 +668,7 @@ function NoteEditor({
           }}
           title="Transformar em ideia"
         >
-          <Lightbulb className="mr-1 h-4 w-4 text-amber-400" /> Virar ideia
+          <Lightbulb className="mr-1 h-4 w-4 text-star" /> Virar ideia
         </Button>
         <Button
           size="icon"

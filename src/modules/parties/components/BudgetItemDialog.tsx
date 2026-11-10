@@ -228,14 +228,14 @@ export function BudgetItemDialog({
             <button
               type="button"
               onClick={() => changeKind("custo")}
-              className={cn("rounded px-2.5 py-1 transition", kind === "custo" ? "bg-red-500/15 font-medium text-red-400" : "text-muted-foreground")}
+              className={cn("rounded px-2.5 py-1 transition", kind === "custo" ? "bg-bad/15 font-medium text-bad" : "text-muted-foreground")}
             >
               Custo
             </button>
             <button
               type="button"
               onClick={() => changeKind("receita")}
-              className={cn("rounded px-2.5 py-1 transition", kind === "receita" ? "bg-emerald-500/15 font-medium text-emerald-500" : "text-muted-foreground")}
+              className={cn("rounded px-2.5 py-1 transition", kind === "receita" ? "bg-ok/15 font-medium text-ok" : "text-muted-foreground")}
             >
               Receita
             </button>
