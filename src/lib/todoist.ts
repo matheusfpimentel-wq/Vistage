@@ -90,26 +90,104 @@ type TodoistTask = {
 
 type TodoistProject = { id: string; name: string };
 
+/**
+ * Traduz a falha pra algo acionável. O `fetch` aqui é o do plugin HTTP do
+ * Tauri, ou seja, passa pelo Rust: quando a requisição não chega a ter
+ * resposta, o que sobe é a string crua do reqwest ("error sending request for
+ * url (…)"), que ia direto pro toast e não dizia o que fazer.
+ *
+ * A distinção que importa: SEM RESPOSTA é problema de rede desta máquina
+ * (DNS, firewall, antivírus com inspeção de TLS, VPN, sem internet); COM
+ * resposta é problema de conta ou de serviço, e aí o status diz qual.
+ */
+function describeTodoistError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  if (/error sending request|dns|connect|timed out|timeout|tls|certificate/i.test(raw)) {
+    return (
+      "não consegui falar com o Todoist (a requisição não chegou a ter " +
+      "resposta). Isso é rede desta máquina: sem internet, DNS, firewall, VPN " +
+      "ou antivírus com inspeção de TLS bloqueando api.todoist.com. Detalhe: " +
+      raw
+    );
+  }
+  return raw;
+}
+
+/** Erro já traduzido — o chamador mostra a mensagem como está. */
+class TodoistError extends Error {
+  /** true quando a requisição não teve resposta (problema de rede local). */
+  readonly offline: boolean;
+  constructor(message: string, offline: boolean) {
+    super(message);
+    this.name = "TodoistError";
+    this.offline = offline;
+  }
+}
+
+const RETRIABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
 async function api<T>(
   token: string,
   method: string,
   path: string,
   body?: unknown
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
+  // Repete SÓ leitura. Um POST/DELETE que falhou no transporte pode ter
+  // chegado ao servidor mesmo assim, e repetir criaria tarefa duplicada no
+  // Todoist ou apagaria a errada — pior do que a sync falhar e tentar de novo
+  // depois. GET é idempotente, então repetir é seguro.
+  const attempts = method === "GET" ? 3 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      lastError = new TodoistError(describeTodoistError(e), true);
+      if (attempt < attempts) {
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+        continue;
+      }
+      throw lastError;
+    }
+
+    if (res.ok) {
+      if (res.status === 204) return undefined as T;
+      return (await res.json()) as T;
+    }
+
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`Todoist API ${res.status}: ${text}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new TodoistError(
+        "o Todoist recusou o token (401/403). Gere um token novo em " +
+          "Todoist > Configurações > Integrações e cole de novo aqui.",
+        false
+      );
+    }
+    if (res.status === 404) {
+      throw new TodoistError(
+        "o Todoist respondeu 404 nesse endereço. Se foi ao buscar as tarefas, " +
+          "o projeto escolhido provavelmente foi apagado ou renomeado lá — " +
+          "selecione o projeto de novo.",
+        false
+      );
+    }
+    lastError = new TodoistError(`Todoist respondeu ${res.status}: ${text}`, false);
+    if (RETRIABLE_STATUS.has(res.status) && attempt < attempts) {
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+      continue;
+    }
+    throw lastError;
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  throw lastError;
 }
 
 /**
@@ -120,7 +198,19 @@ async function api<T>(
 async function apiList<T>(token: string, path: string): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | null = null;
+  // Teto de páginas: o laço só termina quando a API devolve next_cursor nulo.
+  // Se ela repetir o mesmo cursor (ou nunca zerar), isso aqui roda pra sempre
+  // batendo na rede — e o app trava sem erro. 200 páginas é muito mais do que
+  // qualquer projeto real e ainda assim termina.
+  let pages = 0;
   do {
+    if (++pages > 200) {
+      throw new TodoistError(
+        "a listagem do Todoist não terminou depois de 200 páginas. " +
+          "Interrompi pra não ficar em laço infinito.",
+        false
+      );
+    }
     const sep = path.includes("?") ? "&" : "?";
     const url: string = cursor
       ? `${path}${sep}cursor=${encodeURIComponent(cursor)}`
@@ -310,6 +400,113 @@ type SyncResult = {
   updated: number;
   completed: number;
 };
+
+// ────────────────────────────────────────────────
+// Reset: o Vistage vira a fonte da verdade do projeto
+// ────────────────────────────────────────────────
+
+export type TodoistResetPreview = {
+  /** Tarefas que serão APAGADAS no Todoist. Não dá pra desfazer. */
+  remoteToDelete: { id: string; content: string }[];
+  /** Tarefas do Vistage que serão enviadas no lugar. */
+  localToPush: { id: number; title: string }[];
+};
+
+/**
+ * Monta a lista do que o reset faria, SEM fazer nada. Existe porque o reset
+ * apaga coisa no Todoist e isso não volta: a pessoa tem que ver o que vai
+ * embora antes de confirmar (§9 do UI_GUIDELINES).
+ *
+ * A API v1 de `/tasks` devolve só as ATIVAS, então o histórico de concluídas
+ * no Todoist não aparece aqui nem é tocado pelo reset.
+ */
+export async function previewTodoistReset(): Promise<TodoistResetPreview> {
+  const { token, projectId } = await getTodoistConfig();
+  if (!token || !projectId) throw new Error("Todoist não configurado");
+  const db = getDb();
+
+  const [remote, local] = await Promise.all([
+    fetchProjectTasks(token, projectId),
+    db.select<{ id: number; title: string }[]>(
+      `SELECT id, title FROM tasks
+        WHERE status NOT IN ('Cancelada', 'Concluída')
+        ORDER BY id`
+    ),
+  ]);
+
+  return {
+    remoteToDelete: remote.map((t) => ({ id: t.id, content: t.content })),
+    localToPush: local,
+  };
+}
+
+/**
+ * Apaga as tarefas ativas do projeto no Todoist e desfaz os vínculos locais,
+ * deixando o terreno limpo pro passo 3 da sync repovoar a partir do Vistage.
+ *
+ * NÃO empurra nada: quem chama roda `syncTodoist()` em seguida. Separado de
+ * propósito — se o envio falhar no meio, dá pra repetir a sync sem repetir as
+ * exclusões.
+ *
+ * Em caso de falha, PARA na hora e conta quantas já tinham ido. Seguir
+ * apagando depois de um erro de rede deixaria o projeto meio-apagado sem
+ * ninguém saber até onde foi; parando, repetir o reset termina o serviço.
+ */
+export async function resetTodoistFromVistage(): Promise<{
+  deleted: number;
+  cleared: number;
+}> {
+  const { token, projectId } = await getTodoistConfig();
+  if (!token || !projectId) throw new Error("Todoist não configurado");
+  const db = getDb();
+
+  const remote = await fetchProjectTasks(token, projectId);
+  const deletedIds: string[] = [];
+  try {
+    for (const t of remote) {
+      await deleteTodoistTask(token, t.id);
+      deletedIds.push(t.id);
+    }
+  } catch (e) {
+    await clearLinks(deletedIds, false);
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `apaguei ${deletedIds.length} de ${remote.length} no Todoist e parei: ${msg} ` +
+        "Rode o reset de novo pra terminar — o que já foi apagado não volta a aparecer."
+    );
+  }
+
+  // Tudo apagado: o projeto está vazio de tarefas ativas, então TODO vínculo
+  // local está pendurado em nada e precisa cair — inclusive os que já apontavam
+  // pra tarefa apagada lá antes deste reset. Sem isso o passo 3 da sync não
+  // reenviaria essas tarefas, e elas sumiriam do Todoist pra sempre.
+  const cleared = await clearLinks(deletedIds, true);
+
+  // Zera o carimbo da última sync: as comparações de "mudou depois da última
+  // sync" não fazem sentido sobre um projeto que acabou de ser esvaziado.
+  await setSetting(KEY_LAST_SYNC, "");
+
+  emitDataChanged();
+  return { deleted: deletedIds.length, cleared };
+
+  async function clearLinks(ids: string[], all: boolean): Promise<number> {
+    if (all) {
+      const res = await db.execute(
+        "UPDATE tasks SET todoist_id = NULL WHERE todoist_id IS NOT NULL"
+      );
+      return res.rowsAffected;
+    }
+    let n = 0;
+    for (const id of ids) {
+      const res = await db.execute(
+        "UPDATE tasks SET todoist_id = NULL WHERE todoist_id = $1",
+        [id]
+      );
+      n += res.rowsAffected;
+    }
+    return n;
+  }
+}
 
 export async function syncTodoist(): Promise<SyncResult> {
   const { token, projectId } = await getTodoistConfig();

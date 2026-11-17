@@ -11,7 +11,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Vistage" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="icon-192.png" />
+    <!-- 180x180 é o tamanho que o iOS pede; apontar pro 192 fazia ele
+         reescalar e perder nitidez. O iOS IGNORA o manifesto pra ícone de
+         tela de início: é esta linha que vale. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <title>Vistage</title>
   </head>
