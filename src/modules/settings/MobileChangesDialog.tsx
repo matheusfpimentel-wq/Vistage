@@ -83,7 +83,11 @@ export function MobileChangesDialog() {
     try {
       // Debrief de palco sem GIG: o celular subiu as avaliações pra não perder o
       // debrief. Pergunta se quer criar uma GIG já Concluída com tudo preenchido
-      // (repertório/técnica/carisma + marcadores). Senão entra só como sessão.
+      // (repertório/técnica/carisma + marcadores). Senão entra só como sessão —
+      // e aí as notas se perdem, porque não há onde guardá-las sem a GIG.
+      // (No caminho automático o padrão é criar; aqui segue perguntando, porque
+      // se chegou neste diálogo é porque a aplicação automática falhou e vale
+      // deixar a escolha com quem está olhando.)
       let createGigForOrphanStage = false;
       if (pending.some(isOrphanStageDebrief)) {
         createGigForOrphanStage = await confirmDialog({
