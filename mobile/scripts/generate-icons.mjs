@@ -1,4 +1,4 @@
-// Gera os ícones PNG do PWA (192 e 512) sem dependências externas: encoder PNG
+// Gera os ícones PNG do PWA (180, 192 e 512) sem dependências externas: encoder PNG
 // mínimo (zlib do Node + CRC32) desenhando a logo — o "V" de DUAS linhas
 // separadas dentro do anel pontilhado. Rode com: node scripts/generate-icons.mjs
 import { deflateSync } from "node:zlib";
@@ -36,14 +36,18 @@ function iconPng(N){
   }
 
   const SUB=[0.125,0.375,0.625,0.875];        // 4x4 supersample (anti-serrilhado)
-  const raw=Buffer.alloc(N*(N*4+1));let p=0;
-  for(let y=0;y<N;y++){raw[p++]=0;for(let x=0;x<N;x++){let r=0,g=0,b=0,n=0;for(const sy of SUB)for(const sx of SUB){const c=shade(x+sx,y+sy);r+=c[0];g+=c[1];b+=c[2];n++;}raw[p++]=Math.round(r/n);raw[p++]=Math.round(g/n);raw[p++]=Math.round(b/n);raw[p++]=255;}}
+  // RGB, SEM canal alfa (color type 2). O desenho cobre o quadrado inteiro, então
+  // o alfa só ocupava espaço — e ícone de app iOS COM alfa é recusado pela App
+  // Store, então sem ele o mesmo arquivo serve pro PWA e pro build nativo.
+  const raw=Buffer.alloc(N*(N*3+1));let p=0;
+  for(let y=0;y<N;y++){raw[p++]=0;for(let x=0;x<N;x++){let r=0,g=0,b=0,n=0;for(const sy of SUB)for(const sx of SUB){const c=shade(x+sx,y+sy);r+=c[0];g+=c[1];b+=c[2];n++;}raw[p++]=Math.round(r/n);raw[p++]=Math.round(g/n);raw[p++]=Math.round(b/n);}}
   const sig=Buffer.from([137,80,78,71,13,10,26,10]);
-  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(N,0);ihdr.writeUInt32BE(N,4);ihdr[8]=8;ihdr[9]=6;
+  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(N,0);ihdr.writeUInt32BE(N,4);ihdr[8]=8;ihdr[9]=2;
   return Buffer.concat([sig,chunk("IHDR",ihdr),chunk("IDAT",deflateSync(raw,{level:9})),chunk("IEND",Buffer.alloc(0))]);
 }
 
-for(const N of [192,512]){
+// 180 é o tamanho canônico do apple-touch-icon; 192 e 512 são os do manifesto.
+for(const N of [180,192,512]){
   writeFileSync(new URL(`../public/icon-${N}.png`, import.meta.url), iconPng(N));
   console.log(`icon-${N}.png gerado`);
 }
