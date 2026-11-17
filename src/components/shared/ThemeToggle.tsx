@@ -4,9 +4,9 @@ import { isDarkTheme, useThemeStore } from "@/lib/theme";
 
 export function ThemeToggle() {
   const { theme, toggle } = useThemeStore();
-  // Vale pro Centro de Comando também, que é escuro: `toggle` leva pro claro,
-  // então o ícone e o rótulo têm que dizer "claro". Com `theme === "dark"`
-  // escrito à mão, o botão prometia o oposto do que fazia.
+  // Lê de `isDarkTheme` em vez de comparar com "dark" à mão: foi escrevendo
+  // essa condição aqui que o botão passou a prometer o oposto do que fazia
+  // quando existiu um terceiro tema.
   const dark = isDarkTheme(theme);
   return (
     <Button

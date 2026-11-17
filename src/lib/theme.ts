@@ -1,19 +1,13 @@
 import { create } from "zustand";
 import { getDb } from "./db";
 
-/**
- * "command" = Centro de Comando: um tema ESCURO (ver applyToDom — ele mantém a
- * classe .dark), com fundo em camadas, grade sutil e estados em LED. Os valores
- * ficam no bloco `.theme-command` do index.css, nunca aqui: `applyAccent`
- * apaga tokens neutros inline.
- */
-export type Theme = "light" | "dark" | "command";
+export type Theme = "light" | "dark";
 
 /**
- * Um tema claro só: o resto herda tudo o que é escuro. Exportada porque o
- * toast e o botão de tema precisam da MESMA noção — com `theme === "dark"`
- * escrito à mão, o Centro de Comando cairia no lado claro em cada um deles
- * (toast branco sobre tela escura, ícone trocado).
+ * Um tema claro só: o resto é escuro. Com dois temas isto é o mesmo que
+ * `t === "dark"`, e fica como função porque o toast e o botão de tema leem daqui
+ * — foi escrevendo essa condição à mão em cada um que o tema removido quebrou
+ * os dois (toast branco sobre tela escura, ícone trocado).
  */
 export function isDarkTheme(t: Theme): boolean {
   return t !== "light";
@@ -140,25 +134,20 @@ export function applyAccent(accent: Accent, theme: Theme) {
 }
 
 function applyToDom(theme: Theme, accent: Accent) {
-  const root = document.documentElement;
-  // O Centro de Comando CARREGA .dark junto: é um tema escuro, e as utilities
-  // `dark:` que sobraram no código (17) têm que continuar valendo. Sem isso,
-  // elas cairiam no valor de tema claro dentro de um tema escuro.
-  root.classList.toggle("dark", isDarkTheme(theme));
-  root.classList.toggle("theme-command", theme === "command");
+  document.documentElement.classList.toggle("dark", isDarkTheme(theme));
   applyAccent(accent, theme);
 }
 
 /**
  * Normaliza o que veio do localStorage ou do documento. Tema desconhecido cai
- * no escuro — é o que torna a remoção deste tema (ou de qualquer outro) uma
- * mudança segura, e o mesmo caminho que o tema "color" removido já usa.
+ * no escuro, e é isso que torna remover um tema uma mudança segura: quem tinha
+ * o tema antigo salvo simplesmente volta pro escuro, sem tela quebrada.
+ * Já serviu duas vezes — pro "color" e pro "command", ambos removidos.
  */
 function parseTheme(value: string | null | undefined, fallback: Theme): Theme {
-  if (value === "light" || value === "color") return "light"; // "color": 3º tema removido
+  if (value === "light" || value === "color") return "light"; // "color": tema removido
   if (value === "dark") return "dark";
-  if (value === "command") return "command";
-  return fallback;
+  return fallback; // inclui "command", o Centro de Comando removido
 }
 
 export const useThemeStore = create<ThemeState>((set, get) => ({
@@ -183,9 +172,6 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     set({ sidebarLayout: l });
   },
   toggle() {
-    // Alterna só claro/escuro. O Centro de Comando é escolha explícita nas
-    // Configurações: cair nele por atalho de teclado surpreenderia. Estando
-    // nele, o atalho leva pro claro (o oposto, já que ele é escuro).
     get().setTheme(get().theme === "light" ? "dark" : "light");
   },
   hydrate() {

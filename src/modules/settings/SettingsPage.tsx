@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Gauge,
   Loader2,
   Moon,
   ShieldAlert,
@@ -159,18 +158,7 @@ export function SettingsPage() {
                 >
                   <Moon className="h-4 w-4" /> Escuro
                 </Button>
-                <Button
-                  variant={theme === "command" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTheme("command")}
-                >
-                  <Gauge className="h-4 w-4" /> Centro de Comando
-                </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Centro de Comando é escuro, com fundo em camadas, grade sutil e
-                status em LED. A cor de destaque continua valendo nos três.
-              </p>
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Cor de destaque</p>
