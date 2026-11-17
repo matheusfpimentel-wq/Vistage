@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link2, Loader2 } from "lucide-react";
+import { Link2, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { confirmDialog } from "@/components/ui/confirm";
 import { ConnectedBadge, IntegrationActions } from "@/components/shared/IntegrationCard";
+import { TodoistResetDialog } from "./TodoistResetDialog";
 import {
   clearTodoistConfig,
   getTodoistConfig,
@@ -32,6 +33,7 @@ export function TodoistSettings() {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
 
   useEffect(() => {
     void getTodoistConfig().then(({ token: t, projectId: p, lastSync: ls }) => {
@@ -197,12 +199,40 @@ export function TodoistSettings() {
             </Button>
           </>
         ) : (
-          <IntegrationActions
-            timestampLabel={lastSync ? `Última sincronização: ${formatSync(lastSync)}` : null}
-            onSync={() => void handleSync()}
-            syncing={syncing}
-            onDisconnect={() => void handleDisconnect()}
-          />
+          <>
+            <IntegrationActions
+              timestampLabel={lastSync ? `Última sincronização: ${formatSync(lastSync)}` : null}
+              onSync={() => void handleSync()}
+              syncing={syncing}
+              onDisconnect={() => void handleDisconnect()}
+            />
+            {/*
+              Reset: usar quando o projeto no Todoist ficou velho a ponto de não
+              valer reconciliar. A sync normal IMPORTA toda tarefa do Todoist sem
+              vínculo local, então sem isto um projeto desatualizado volta todo
+              pro Vistage na primeira sync que funcionar.
+            */}
+            <div className="flex items-start justify-between gap-3 border-t pt-3">
+              <p className="text-xs text-muted-foreground">
+                Projeto no Todoist muito desatualizado? O reset apaga as tarefas
+                de lá e envia as do Vistage no lugar. Mostra a lista antes.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setResetOpen(true)}
+              >
+                <RotateCcw className="h-4 w-4" /> Resetar
+              </Button>
+            </div>
+            <TodoistResetDialog
+              open={resetOpen}
+              onOpenChange={setResetOpen}
+              onDone={() => setLastSync(new Date().toISOString())}
+            />
+          </>
         )}
       </CardContent>
     </Card>

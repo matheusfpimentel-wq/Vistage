@@ -401,6 +401,113 @@ type SyncResult = {
   completed: number;
 };
 
+// ────────────────────────────────────────────────
+// Reset: o Vistage vira a fonte da verdade do projeto
+// ────────────────────────────────────────────────
+
+export type TodoistResetPreview = {
+  /** Tarefas que serão APAGADAS no Todoist. Não dá pra desfazer. */
+  remoteToDelete: { id: string; content: string }[];
+  /** Tarefas do Vistage que serão enviadas no lugar. */
+  localToPush: { id: number; title: string }[];
+};
+
+/**
+ * Monta a lista do que o reset faria, SEM fazer nada. Existe porque o reset
+ * apaga coisa no Todoist e isso não volta: a pessoa tem que ver o que vai
+ * embora antes de confirmar (§9 do UI_GUIDELINES).
+ *
+ * A API v1 de `/tasks` devolve só as ATIVAS, então o histórico de concluídas
+ * no Todoist não aparece aqui nem é tocado pelo reset.
+ */
+export async function previewTodoistReset(): Promise<TodoistResetPreview> {
+  const { token, projectId } = await getTodoistConfig();
+  if (!token || !projectId) throw new Error("Todoist não configurado");
+  const db = getDb();
+
+  const [remote, local] = await Promise.all([
+    fetchProjectTasks(token, projectId),
+    db.select<{ id: number; title: string }[]>(
+      `SELECT id, title FROM tasks
+        WHERE status NOT IN ('Cancelada', 'Concluída')
+        ORDER BY id`
+    ),
+  ]);
+
+  return {
+    remoteToDelete: remote.map((t) => ({ id: t.id, content: t.content })),
+    localToPush: local,
+  };
+}
+
+/**
+ * Apaga as tarefas ativas do projeto no Todoist e desfaz os vínculos locais,
+ * deixando o terreno limpo pro passo 3 da sync repovoar a partir do Vistage.
+ *
+ * NÃO empurra nada: quem chama roda `syncTodoist()` em seguida. Separado de
+ * propósito — se o envio falhar no meio, dá pra repetir a sync sem repetir as
+ * exclusões.
+ *
+ * Em caso de falha, PARA na hora e conta quantas já tinham ido. Seguir
+ * apagando depois de um erro de rede deixaria o projeto meio-apagado sem
+ * ninguém saber até onde foi; parando, repetir o reset termina o serviço.
+ */
+export async function resetTodoistFromVistage(): Promise<{
+  deleted: number;
+  cleared: number;
+}> {
+  const { token, projectId } = await getTodoistConfig();
+  if (!token || !projectId) throw new Error("Todoist não configurado");
+  const db = getDb();
+
+  const remote = await fetchProjectTasks(token, projectId);
+  const deletedIds: string[] = [];
+  try {
+    for (const t of remote) {
+      await deleteTodoistTask(token, t.id);
+      deletedIds.push(t.id);
+    }
+  } catch (e) {
+    await clearLinks(deletedIds, false);
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `apaguei ${deletedIds.length} de ${remote.length} no Todoist e parei: ${msg} ` +
+        "Rode o reset de novo pra terminar — o que já foi apagado não volta a aparecer."
+    );
+  }
+
+  // Tudo apagado: o projeto está vazio de tarefas ativas, então TODO vínculo
+  // local está pendurado em nada e precisa cair — inclusive os que já apontavam
+  // pra tarefa apagada lá antes deste reset. Sem isso o passo 3 da sync não
+  // reenviaria essas tarefas, e elas sumiriam do Todoist pra sempre.
+  const cleared = await clearLinks(deletedIds, true);
+
+  // Zera o carimbo da última sync: as comparações de "mudou depois da última
+  // sync" não fazem sentido sobre um projeto que acabou de ser esvaziado.
+  await setSetting(KEY_LAST_SYNC, "");
+
+  emitDataChanged();
+  return { deleted: deletedIds.length, cleared };
+
+  async function clearLinks(ids: string[], all: boolean): Promise<number> {
+    if (all) {
+      const res = await db.execute(
+        "UPDATE tasks SET todoist_id = NULL WHERE todoist_id IS NOT NULL"
+      );
+      return res.rowsAffected;
+    }
+    let n = 0;
+    for (const id of ids) {
+      const res = await db.execute(
+        "UPDATE tasks SET todoist_id = NULL WHERE todoist_id = $1",
+        [id]
+      );
+      n += res.rowsAffected;
+    }
+    return n;
+  }
+}
+
 export async function syncTodoist(): Promise<SyncResult> {
   const { token, projectId } = await getTodoistConfig();
   if (!token || !projectId) throw new Error("Todoist não configurado");
