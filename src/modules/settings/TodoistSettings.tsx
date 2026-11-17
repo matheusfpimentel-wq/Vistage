@@ -85,7 +85,9 @@ export function TodoistSettings() {
       setLastSync(now);
       toast.success(msg || "Tudo sincronizado: nenhuma alteração detectada");
     } catch (e) {
-      toast.error(`Erro na sincronização: ${String(e)}`);
+      toast.error(`Erro na sincronização: ${e instanceof Error ? e.message : String(e)}`, {
+        duration: 12000,
+      });
     } finally {
       setSyncing(false);
     }

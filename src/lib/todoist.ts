@@ -90,26 +90,104 @@ type TodoistTask = {
 
 type TodoistProject = { id: string; name: string };
 
+/**
+ * Traduz a falha pra algo acionável. O `fetch` aqui é o do plugin HTTP do
+ * Tauri, ou seja, passa pelo Rust: quando a requisição não chega a ter
+ * resposta, o que sobe é a string crua do reqwest ("error sending request for
+ * url (…)"), que ia direto pro toast e não dizia o que fazer.
+ *
+ * A distinção que importa: SEM RESPOSTA é problema de rede desta máquina
+ * (DNS, firewall, antivírus com inspeção de TLS, VPN, sem internet); COM
+ * resposta é problema de conta ou de serviço, e aí o status diz qual.
+ */
+function describeTodoistError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  if (/error sending request|dns|connect|timed out|timeout|tls|certificate/i.test(raw)) {
+    return (
+      "não consegui falar com o Todoist (a requisição não chegou a ter " +
+      "resposta). Isso é rede desta máquina: sem internet, DNS, firewall, VPN " +
+      "ou antivírus com inspeção de TLS bloqueando api.todoist.com. Detalhe: " +
+      raw
+    );
+  }
+  return raw;
+}
+
+/** Erro já traduzido — o chamador mostra a mensagem como está. */
+class TodoistError extends Error {
+  /** true quando a requisição não teve resposta (problema de rede local). */
+  readonly offline: boolean;
+  constructor(message: string, offline: boolean) {
+    super(message);
+    this.name = "TodoistError";
+    this.offline = offline;
+  }
+}
+
+const RETRIABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
 async function api<T>(
   token: string,
   method: string,
   path: string,
   body?: unknown
 ): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) {
+  // Repete SÓ leitura. Um POST/DELETE que falhou no transporte pode ter
+  // chegado ao servidor mesmo assim, e repetir criaria tarefa duplicada no
+  // Todoist ou apagaria a errada — pior do que a sync falhar e tentar de novo
+  // depois. GET é idempotente, então repetir é seguro.
+  const attempts = method === "GET" ? 3 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    let res: Response;
+    try {
+      res = await fetch(`${BASE}${path}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) {
+      lastError = new TodoistError(describeTodoistError(e), true);
+      if (attempt < attempts) {
+        await new Promise((r) => setTimeout(r, 400 * attempt));
+        continue;
+      }
+      throw lastError;
+    }
+
+    if (res.ok) {
+      if (res.status === 204) return undefined as T;
+      return (await res.json()) as T;
+    }
+
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`Todoist API ${res.status}: ${text}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new TodoistError(
+        "o Todoist recusou o token (401/403). Gere um token novo em " +
+          "Todoist > Configurações > Integrações e cole de novo aqui.",
+        false
+      );
+    }
+    if (res.status === 404) {
+      throw new TodoistError(
+        "o Todoist respondeu 404 nesse endereço. Se foi ao buscar as tarefas, " +
+          "o projeto escolhido provavelmente foi apagado ou renomeado lá — " +
+          "selecione o projeto de novo.",
+        false
+      );
+    }
+    lastError = new TodoistError(`Todoist respondeu ${res.status}: ${text}`, false);
+    if (RETRIABLE_STATUS.has(res.status) && attempt < attempts) {
+      await new Promise((r) => setTimeout(r, 400 * attempt));
+      continue;
+    }
+    throw lastError;
   }
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  throw lastError;
 }
 
 /**
@@ -120,7 +198,19 @@ async function api<T>(
 async function apiList<T>(token: string, path: string): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | null = null;
+  // Teto de páginas: o laço só termina quando a API devolve next_cursor nulo.
+  // Se ela repetir o mesmo cursor (ou nunca zerar), isso aqui roda pra sempre
+  // batendo na rede — e o app trava sem erro. 200 páginas é muito mais do que
+  // qualquer projeto real e ainda assim termina.
+  let pages = 0;
   do {
+    if (++pages > 200) {
+      throw new TodoistError(
+        "a listagem do Todoist não terminou depois de 200 páginas. " +
+          "Interrompi pra não ficar em laço infinito.",
+        false
+      );
+    }
     const sep = path.includes("?") ? "&" : "?";
     const url: string = cursor
       ? `${path}${sep}cursor=${encodeURIComponent(cursor)}`
