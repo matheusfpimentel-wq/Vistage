@@ -11,6 +11,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { getDb, type Db } from "./db";
 import { supabase, currentUser, relayDownload, relayRemove } from "./supabase";
 import { emitDataChanged } from "./events";
+import { toast } from "@/components/ui/toaster";
 import { toLocalISODate, toLocalYearMonth } from "./format";
 import { gigDisplayName } from "@/modules/gigs/displayName";
 import { parsePrepState } from "@/modules/gigs/prep";
@@ -1239,9 +1240,12 @@ export const useMobileChanges = create<{
   setPending: (pending) => set({ pending }),
   refresh: async () => {
     try {
-      // cooling_ack ("deixar esfriar" do celular) aplica sozinho no sync — não é
-      // item de revisão, então não entra na lista de fundir/descartar.
-      set({ pending: (await fetchPendingCaptures()).filter((c) => c.kind !== "cooling_ack") });
+      // Tudo aplica sozinho no sync (ver autoApplyCaptures). O que SOBRA aqui,
+      // portanto, é só o que FALHOU ao ser aplicado — `ingestCaptures` pula a
+      // captura com erro e a deixa pendente. A lista deixou de ser "aguardando
+      // sua revisão" e passou a ser "não consegui aplicar", que é quando o
+      // diálogo de fundir/descartar ainda tem razão de aparecer.
+      set({ pending: await fetchPendingCaptures() });
     } catch {
       /* sem login / offline → ignora */
     }
@@ -1827,24 +1831,53 @@ async function resolveSessionGig(db: Db, fsid: string | null): Promise<number | 
 // Sobe o espelho e atualiza a contagem de capturas aguardando revisão — NÃO
 // aplica nada sozinho: quem decide fundir/descartar é o usuário pelo diálogo.
 /**
- * "Deixar esfriar" feito no celular é preferência de baixo risco (não cria nem
- * edita dado): aplica sozinho, sem passar pela revisão fundir/descartar. Roda
- * ANTES do pushMirror pra o espelho (Esfriando + sininho) já sair sem os itens
- * aceitos — some dos dois lados no mesmo sync, sem esperar revisão no PC.
+ * Tudo que vem do celular entra SOZINHO, sem passar pela revisão
+ * fundir/descartar. Antes só o "deixar esfriar" fazia isso.
+ *
+ * Decisão do dono, e o raciocínio dele: capturar e a coisa não existir até
+ * sentar no PC e aprovar uma a uma fazia a captura parecer um buraco — e o
+ * pior caso de entrar sozinho é excluir depois. O custo do atrito é diário; o
+ * da duplicata é ocasional e barato.
+ *
+ * O que isso aceita de verdade: pessoa e GIG são inseridas SEM casar com o que
+ * já existe (`createContact`/`createGig` só fazem INSERT), então capturar
+ * alguém que já está no CRM cria um segundo registro. É o preço escolhido.
+ *
+ * `createGigForOrphanStage: true` não é detalhe. Quando você avalia um tempo de
+ * palco no celular sem vincular a uma GIG, as notas (repertório, técnica,
+ * carisma, pista) só têm onde morar se a GIG existir — não há coluna pra elas em
+ * `work_sessions`. Sem criar a GIG, elas seriam JOGADAS FORA em silêncio. Então
+ * o padrão preserva o dado: uma GIG "Palco dd/mm" dá pra renomear ou excluir,
+ * uma avaliação perdida não volta.
+ *
+ * Roda ANTES do pushMirror pra o espelho já sair sem os itens aplicados — some
+ * dos dois lados no mesmo sync.
  */
-async function autoApplyCoolingAcks(): Promise<void> {
+let applyingCaptures = false;
+
+async function autoApplyCaptures(): Promise<void> {
+  // Sem esta trava, capturar várias coisas seguidas no celular dispara vários
+  // eventos de Realtime e cada um ingeriria a MESMA lista antes de o primeiro
+  // marcar as capturas como consumidas — criando duplicata de tudo. O tick de
+  // 3 min sozinho não corria esse risco; com o Realtime aplicando, corre.
+  if (applyingCaptures) return;
+  applyingCaptures = true;
   try {
-    const ids = (await fetchPendingCaptures())
-      .filter((c) => c.kind === "cooling_ack")
-      .map((c) => c.id);
-    if (ids.length) await ingestCaptures(ids);
+    const ids = (await fetchPendingCaptures()).map((c) => c.id);
+    if (!ids.length) return;
+    const n = await ingestCaptures(ids, { createGigForOrphanStage: true });
+    // Entrar em silêncio tiraria justamente a chance de "excluir depois": é
+    // preciso saber que entrou pra poder conferir.
+    if (n > 0) toast.success(`${n} novidade(s) do celular adicionada(s)`);
   } catch {
     /* offline / sem login — tenta no próximo tick */
+  } finally {
+    applyingCaptures = false;
   }
 }
 
 export async function syncNow(): Promise<{ pending: number }> {
-  await autoApplyCoolingAcks();
+  await autoApplyCaptures();
   await pushMirror();
   await setSetting(K.lastSyncAt, new Date().toISOString());
   await useMobileChanges.getState().refresh();
@@ -1869,7 +1902,15 @@ export function startAutoSync(): () => void {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "capture_inbox" },
         () => {
-          void useMobileChanges.getState().refresh();
+          // Aplica NA HORA, não só lista. Antes isto só atualizava a fila, e o
+          // diálogo de revisão abria na mesma hora; agora que tudo entra
+          // sozinho, listar sem aplicar faria o diálogo piscar com algo que ia
+          // entrar segundos depois no tick. Aplicando aqui, capturar no celular
+          // aparece no PC em segundos — que é o ganho principal da mudança.
+          void (async () => {
+            await autoApplyCaptures();
+            await useMobileChanges.getState().refresh();
+          })();
         }
       )
       .subscribe();
