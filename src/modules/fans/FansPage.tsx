@@ -606,7 +606,7 @@ export function FansPage() {
             </div>
           </div>
         }
-        viewToggle={
+        leftControls={
           <ViewToggle
             options={[
               { value: "cards", label: "Cards", icon: LayoutGrid },

@@ -20,11 +20,23 @@ type Action = {
 export type SummaryCard = { label: string; value: ReactNode; icon?: LucideIcon };
 
 /**
- * Topo padrão dos módulos:
- *  - cards de resumo opcionais (na cor de destaque do usuário);
- *  - busca global + botão "Filtros" (abre uma JANELA de filtro avançado) +
- *    ação principal na MESMA linha quando couber;
- *  - contador discreto "N registros encontrados" abaixo da busca.
+ * Topo padrão dos módulos. A ORDEM é a regra, e vale pros 13 módulos de uma vez
+ * porque todos passam por aqui (ver §10 do UI_GUIDELINES):
+ *
+ *   [leftControls][secondaryActions]  [busca] [Filtros]        [ação principal]
+ *   └─ encostado no menu lateral                                └─ ml-auto
+ *
+ * Tudo que NÃO é a busca, o botão "Filtros" ou a ação principal fica à
+ * ESQUERDA, colado no menu: alternância de visão, densidade, filtros rápidos
+ * em ícone, ações secundárias. Os três exceptuados mantêm o lugar de sempre.
+ *
+ * A busca NÃO estica. Era o `flex-1` dela que empurrava "Filtros" e os botões
+ * de visão pro meio da tela e fazia o topo parecer desalinhado de módulo pra
+ * módulo, porque cada placeholder tem um tamanho. Em telas estreitas ela volta
+ * a crescer, que é onde isso ajuda em vez de atrapalhar.
+ *
+ * Também: cards de resumo opcionais no topo e um contador discreto
+ * "N registros encontrados" embaixo.
  */
 export function ModuleToolbar({
   primaryAction,
@@ -35,7 +47,7 @@ export function ModuleToolbar({
   filtersActiveCount = 0,
   resultCount,
   resultLabel = "registros encontrados",
-  viewToggle,
+  leftControls,
   children,
 }: {
   primaryAction?: Action;
@@ -48,11 +60,16 @@ export function ModuleToolbar({
   /** Total após busca/filtros — exibido discreto abaixo da busca. */
   resultCount?: number;
   resultLabel?: string;
-  viewToggle?: ReactNode;
+  /**
+   * Controles do módulo que ficam na PONTA ESQUERDA, colados no menu lateral:
+   * alternância de visão, densidade de lista, filtros rápidos em ícone. Chamava
+   * `viewToggle`, mas o nome mentia — o Pessoas já mandava os filtros de papel
+   * por aqui, que não são alternância de visão nenhuma.
+   */
+  leftControls?: ReactNode;
   children?: ReactNode;
 }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const hasActions = !!primaryAction || secondaryActions.length > 0;
 
   return (
     <div className="space-y-3">
@@ -70,11 +87,21 @@ export function ModuleToolbar({
         </div>
       )}
 
-      {(search || filters || viewToggle || hasActions) && (
+      {(search || filters || leftControls || primaryAction || secondaryActions.length > 0) && (
         <div>
           <div className="flex flex-wrap items-center gap-2">
+            {/* ESQUERDA — tudo que não é busca, Filtros ou ação principal. */}
+            {leftControls}
+            {secondaryActions.map((a) => (
+              <Button key={a.label} variant={a.variant ?? "outline"} onClick={a.onClick}>
+                {a.icon && <a.icon className="h-4 w-4" />}
+                {a.label}
+              </Button>
+            ))}
             {search && (
-              <div className="relative min-w-[12rem] flex-1">
+              // Largura limitada no desktop (era `flex-1`, e por isso empurrava
+              // o resto pro meio); volta a crescer só em tela estreita.
+              <div className="relative min-w-[9rem] flex-1 sm:w-72 sm:flex-none">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={search.value}
@@ -98,26 +125,17 @@ export function ModuleToolbar({
                 )}
               </Button>
             )}
-            {viewToggle}
-            {hasActions && (
-              // Ação principal sempre à direita — mesmo sem busca (ex.: aba Alunos),
-              // pra ficar consistente com os demais módulos.
-              <div className="ml-auto flex items-center gap-2">
-                {secondaryActions.map((a) => (
-                  <Button key={a.label} variant={a.variant ?? "outline"} onClick={a.onClick}>
-                    {a.icon && <a.icon className="h-4 w-4" />}
-                    {a.label}
-                  </Button>
-                ))}
-                {primaryAction && (
-                  <Button
-                    variant={primaryAction.variant ?? "default"}
-                    onClick={primaryAction.onClick}
-                  >
-                    {primaryAction.icon && <primaryAction.icon className="h-4 w-4" />}
-                    {primaryAction.label}
-                  </Button>
-                )}
+            {primaryAction && (
+              // Ação principal sempre à direita — mesmo sem busca (ex.: aba
+              // Alunos), pra ficar consistente com os demais módulos.
+              <div className="ml-auto">
+                <Button
+                  variant={primaryAction.variant ?? "default"}
+                  onClick={primaryAction.onClick}
+                >
+                  {primaryAction.icon && <primaryAction.icon className="h-4 w-4" />}
+                  {primaryAction.label}
+                </Button>
               </div>
             )}
           </div>
