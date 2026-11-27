@@ -111,13 +111,20 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
     return () => window.removeEventListener("resize", onResize);
   }, [updateArrows, nav]);
 
+  // Direcao atual (-1 cima, 0 parado, 1 baixo). Existe porque o gatilho agora e
+  // o mousemove, que dispara dezenas de vezes por segundo: sem isso o rAF seria
+  // cancelado e recriado a cada evento.
+  const dirRef = useRef(0);
   const stopAutoScroll = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
+    dirRef.current = 0;
   }, []);
   const startAutoScroll = useCallback(
     (dir: number) => {
+      if (dirRef.current === dir) return; // ja rolando pra ca
       stopAutoScroll();
+      dirRef.current = dir;
       const tick = () => {
         const el = scrollRef.current;
         if (el) {
@@ -132,6 +139,36 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
   );
   useEffect(() => stopAutoScroll, [stopAutoScroll]);
 
+  // Faixa, em px, junto ao topo/base do container que dispara a auto-rolagem.
+  const EDGE = 26;
+  /**
+   * Auto-rolagem por PROXIMIDADE da borda, não por hover num botão.
+   *
+   * Antes o gatilho era `onMouseEnter` nas setas, e era isso que criava o bug:
+   * pra receber o mouse elas precisavam de `z-20`, e aí cobriam o ícone
+   * magnificado embaixo delas. Medido: a seta de 20px cabia INTEIRA dentro do
+   * tile de 68px, e `elementsFromPoint` devolvia ["seta","tile"] — a seta por
+   * cima. Aqui o gatilho é a posição do cursor, que o mousemove do magnify já
+   * tinha em mãos, então as setas não precisam mais receber evento nenhum.
+   *
+   * O gesto do usuário é o mesmo (levar o mouse pra borda) e fica mais fácil de
+   * acertar: vale a largura toda da coluna, não um botão de 36px.
+   */
+  const edgeScroll = useCallback(
+    (cursorY: number) => {
+      const el = scrollRef.current;
+      if (!el || !scrollable) {
+        stopAutoScroll();
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      if (cursorY - r.top < EDGE) startAutoScroll(-1);
+      else if (r.bottom - cursorY < EDGE) startAutoScroll(1);
+      else stopAutoScroll();
+    },
+    [scrollable, startAutoScroll, stopAutoScroll]
+  );
+
   // Índice só dos itens (separadores não entram no array de refs).
   let itemIdx = -1;
 
@@ -140,17 +177,18 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
       {/* Coluna transparente. Normalmente overflow visível (o tile cresce sobre o
           módulo ao magnificar); quando os ícones não cabem, vira rolável + setas. */}
       <div className="relative flex h-screen w-[4.5rem] shrink-0 flex-col items-center">
+        {/* Setas: DICA VISUAL, não botão. Quem rola é a proximidade do cursor
+            (ver edgeScroll). `pointer-events-none` + z abaixo do conteúdo é o
+            que impede de voltarem a cobrir o ícone magnificado. Deixaram de ser
+            <button> de propósito: botão que não recebe clique é mentira pro
+            leitor de tela. */}
         {arrows.up && (
-          <button
-            type="button"
-            aria-label="Rolar para cima"
-            onMouseEnter={() => startAutoScroll(-1)}
-            onMouseLeave={stopAutoScroll}
-            onClick={() => scrollRef.current?.scrollBy({ top: -140, behavior: "smooth" })}
-            className="absolute top-0 z-20 flex h-5 w-9 items-center justify-center rounded-b-xl border border-t-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-0 z-10 flex h-5 w-9 items-center justify-center rounded-b-xl border border-t-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md"
           >
             <ChevronUp className="h-4 w-4" />
-          </button>
+          </div>
         )}
         <div
           ref={scrollRef}
@@ -169,9 +207,20 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
         >
           <div
             ref={contentRef}
-            className={cn("pointer-events-auto flex flex-col items-center gap-2 py-3", !scrollable && "my-auto")}
-            onMouseMove={(e) => magnify(e.clientY)}
-            onMouseLeave={reset}
+            // `relative z-20`: põe os tiles ACIMA das setas (z-10). Sem isso o
+            // ícone magnificado aparecia cortado pela seta.
+            className={cn(
+              "pointer-events-auto relative z-20 flex flex-col items-center gap-2 py-3",
+              !scrollable && "my-auto"
+            )}
+            onMouseMove={(e) => {
+              magnify(e.clientY);
+              edgeScroll(e.clientY);
+            }}
+            onMouseLeave={() => {
+              reset();
+              stopAutoScroll();
+            }}
           >
           {rows.map((row, i) => {
             if (row.kind === "sep") {
@@ -244,16 +293,12 @@ export function SidebarRail({ onNavigate }: { onNavigate?: () => void }) {
           </div>
         </div>
         {arrows.down && (
-          <button
-            type="button"
-            aria-label="Rolar para baixo"
-            onMouseEnter={() => startAutoScroll(1)}
-            onMouseLeave={stopAutoScroll}
-            onClick={() => scrollRef.current?.scrollBy({ top: 140, behavior: "smooth" })}
-            className="absolute bottom-[3.75rem] z-20 flex h-5 w-9 items-center justify-center rounded-t-xl border border-b-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md transition hover:text-foreground"
+          <div
+            aria-hidden
+            className="pointer-events-none absolute bottom-[3.75rem] z-10 flex h-5 w-9 items-center justify-center rounded-t-xl border border-b-0 border-white/15 bg-background/80 text-muted-foreground shadow-sm backdrop-blur-md"
           >
             <ChevronDown className="h-4 w-4" />
-          </button>
+          </div>
         )}
         {/* rodapé fixo: expandir menu (sempre acessível, fora da rolagem) */}
         <div className="flex shrink-0 flex-col items-center pb-3 pt-1">
