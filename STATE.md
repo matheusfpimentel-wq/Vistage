@@ -80,6 +80,23 @@ lazy-loaded em `src/App.tsx`. Sidebar em `src/components/layout/Sidebar.tsx`.
 - Paleta **roxa** — primary HSL 263 80% 68% (dark), 262 70% 56% (light)
 - Utilitários: `bg-primary-gradient`, `text-primary-gradient`, `ring-primary-glow`
 - Botão `variant="dark"` é versão mais escura do gradiente roxo
+- **Cores de estado são TOKENS**, não classes de paleta: `--ok`, `--warn`,
+  `--bad`, `--info`, `--star` (`src/index.css`, registrados no
+  `tailwind.config.js` com `<alpha-value>`, então `bg-warn/10` funciona). Cor
+  fixa de paleta em estado é regressão.
+- **Barra do módulo:** a ordem é regra e está no §10 do `UI_GUIDELINES.md`.
+  Tudo que não é busca / "Filtros" / ação principal fica à ESQUERDA, via o slot
+  `leftControls` do `ModuleToolbar` — o componente por onde passam os 13
+  módulos.
+- **Menu do desktop tem 4 modos** (`SidebarLayout` em `src/lib/theme.ts`):
+  `classic` (rótulos), `rail` (ícones, dock com magnificação), `bottom` (o
+  mesmo dock deitado no rodapé) e `hidden` (volta pelo botão do cabeçalho).
+  Salvo em `document_settings`, então viaja com o `.vistage`. Valor novo entra
+  por `parseSidebarLayout`, nunca por condição escrita à mão.
+- **Ícone: fonte única em `assets/icon.png`.** Desktop sai de `npx tauri icon`;
+  celular, de `mobile/scripts/generate-icons.mjs`, que REDIMENSIONA essa fonte
+  (não desenha). Não existe mais SVG de ícone. PWA em RGB sem alfa — o iOS
+  recusa ícone com canal alfa.
 
 ### Status / labels
 - GIG status (4): **Proposta · Confirmada · Concluída · Cancelada**
