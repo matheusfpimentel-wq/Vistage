@@ -337,6 +337,7 @@ export function TasksPage() {
               tasks={tasks}
               onEdit={openEdit}
               onToggleDone={handleToggleDone}
+              onDelete={handleDelete}
               onCreate={openCreate}
             />
           ) : (
