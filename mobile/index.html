@@ -15,7 +15,9 @@
          reescalar e perder nitidez. O iOS IGNORA o manifesto pra ícone de
          tela de início: é esta linha que vale. -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
-    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <!-- O ícone é uma imagem, não um desenho vetorial: não há SVG fiel pra
+         servir de favicon. O PNG de 192 serve, e o navegador reduz. -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
     <title>Vistage</title>
   </head>
   <body>
