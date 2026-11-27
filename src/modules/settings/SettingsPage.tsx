@@ -11,9 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useModuleView } from "@/lib/moduleView";
 import { confirmDialog } from "@/components/ui/confirm";
 import { Button } from "@/components/ui/button";
+import { InfoHint } from "@/components/ui/tooltip";
 import { toast } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
-import { useThemeStore, ACCENTS } from "@/lib/theme";
+import { useThemeStore, ACCENTS, type SidebarLayout } from "@/lib/theme";
 import { reloadKeepingData } from "@/lib/document";
 import { isDatabaseEmpty, seedExampleData } from "@/lib/seed";
 import {
@@ -34,6 +35,14 @@ import { GoogleSettings } from "./GoogleSettings";
 import { MobileSyncSettings } from "./MobileSyncSettings";
 import { AdvancedRulesSettings } from "./AdvancedRulesSettings";
 import { InsightsBankSettings } from "./InsightsBankSettings";
+
+/** Modos do menu no desktop. Rótulos curtos: a explicação fica atrás do "?". */
+const MENU_LAYOUTS = [
+  { id: "classic", label: "Clássico" },
+  { id: "rail", label: "Ícones" },
+  { id: "bottom", label: "No rodapé" },
+  { id: "hidden", label: "Oculto" },
+] as const satisfies readonly { id: SidebarLayout; label: string }[];
 
 export function SettingsPage() {
   const [tab, setTab] = useModuleView<string>("settings", "perfil");
@@ -181,22 +190,25 @@ export function SettingsPage() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <p className="text-sm font-medium">Menu lateral</p>
-              <div className="flex gap-2">
-                <Button
-                  variant={sidebarLayout === "classic" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSidebarLayout("classic")}
-                >
-                  Clássico
-                </Button>
-                <Button
-                  variant={sidebarLayout === "rail" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSidebarLayout("rail")}
-                >
-                  Ícones
-                </Button>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-medium">Menu</p>
+                <InfoHint>
+                  Vale só no computador. No celular a navegação é a barra de baixo
+                  mais o menu do hambúrguer. Com o menu oculto, o botão de
+                  mostrar fica no cabeçalho, ao lado do nome do documento.
+                </InfoHint>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MENU_LAYOUTS.map((o) => (
+                  <Button
+                    key={o.id}
+                    variant={sidebarLayout === o.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSidebarLayout(o.id)}
+                  >
+                    {o.label}
+                  </Button>
+                ))}
               </div>
             </div>
           </CardContent>

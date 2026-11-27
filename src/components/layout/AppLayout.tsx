@@ -73,16 +73,19 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      {/* Sidebar fixa — só no desktop. Recolher = modo ícones (rail); expandir =
-          nomes (clássico). z-30 + overflow visível: ao magnificar, os tiles do
-          rail sobrepõem a área do módulo. */}
-      <div className="relative z-30 hidden md:block">
-        {sidebarLayout === "rail" ? (
-          <SidebarRail />
-        ) : (
-          <Sidebar onCollapse={() => setSidebarLayout("rail")} />
-        )}
-      </div>
+      {/* Menu lateral — só no desktop, e só nos modos de coluna. z-30 +
+          overflow visível: ao magnificar, os tiles do rail sobrepõem a área do
+          módulo. Nos modos "bottom" e "hidden" esta coluna não existe; o
+          celular não é afetado (tem a MobileTabBar e o drawer). */}
+      {(sidebarLayout === "classic" || sidebarLayout === "rail") && (
+        <div className="relative z-30 hidden md:block">
+          {sidebarLayout === "rail" ? (
+            <SidebarRail />
+          ) : (
+            <Sidebar onCollapse={() => setSidebarLayout("rail")} />
+          )}
+        </div>
+      )}
 
       {/* Drawer mobile — overlay + sidebar deslizante */}
       {mobileNavOpen && (
@@ -121,6 +124,20 @@ export function AppLayout() {
             >
               <Zap className="h-5 w-5" />
             </button>
+            {/* Sem menu lateral, este botão é a ÚNICA saída de volta — por
+                isso ele mora no cabeçalho, que existe em todos os modos, e não
+                dentro do menu que acabou de sumir. */}
+            {sidebarLayout === "hidden" && (
+              <button
+                type="button"
+                onClick={() => setSidebarLayout("classic")}
+                className="hidden h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-foreground md:flex"
+                aria-label="Mostrar menu lateral"
+                title="Mostrar menu lateral"
+              >
+                <PanelLeftOpen className="h-4 w-4" />
+              </button>
+            )}
             {/* FileMenu */}
             <div className="hidden md:block">
               <FileMenu />
@@ -219,6 +236,14 @@ export function AppLayout() {
             </Suspense>
           </ErrorBoundary>
         </main>
+        {/* Dock no rodapé — o mesmo rail, deitado. Fica DEPOIS do <main> na
+            coluna, então o conteúdo encolhe sozinho e não precisa de padding
+            reservado como o da MobileTabBar (que é `fixed`). */}
+        {sidebarLayout === "bottom" && (
+          <div className="relative z-30 hidden border-t md:block">
+            <SidebarRail orientation="horizontal" />
+          </div>
+        )}
         <MobileTabBar />
       </div>
       <Toaster />

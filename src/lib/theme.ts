@@ -26,8 +26,33 @@ export type Accent =
   | "orange"
   | "lime"
   | "slate";
-/** Layout do menu lateral no desktop: clássico (rótulos) ou rail compacto (ícones). */
-export type SidebarLayout = "classic" | "rail";
+/**
+ * Layout do menu no desktop:
+ *  - classic: coluna à esquerda com rótulos
+ *  - rail:    coluna à esquerda só com ícones (dock com magnificação)
+ *  - bottom:  o mesmo dock, DEITADO no rodapé
+ *  - hidden:  sem menu; volta pelo botão do cabeçalho
+ *
+ * No celular isso não vale: lá a navegação é a MobileTabBar + o drawer do
+ * hambúrguer, que não olham pra esta preferência.
+ */
+export type SidebarLayout = "classic" | "rail" | "bottom" | "hidden";
+
+const SIDEBAR_LAYOUTS: readonly SidebarLayout[] = ["classic", "rail", "bottom", "hidden"];
+
+/**
+ * Valida o layout salvo, caindo no fallback se for desconhecido. Centraliza
+ * pelo mesmo motivo de `parseTheme`: a checagem estava escrita à mão em DOIS
+ * lugares (`hydrate` e `hydrateFromDocument`) com a condição repetida, então
+ * todo valor novo exigia lembrar dos dois — e esquecer um deles faria o modo
+ * novo sumir ao reabrir o documento, sem erro nenhum.
+ */
+export function parseSidebarLayout(
+  raw: string | null | undefined,
+  fallback: SidebarLayout
+): SidebarLayout {
+  return SIDEBAR_LAYOUTS.includes(raw as SidebarLayout) ? (raw as SidebarLayout) : fallback;
+}
 
 // Cache local pra pintar sem flash no boot; a FONTE DA VERDADE é a tabela
 // document_settings (viaja com o .vistage).
@@ -182,8 +207,10 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const accent: Accent = ACCENTS.some((a) => a.id === storedAccent)
       ? (storedAccent as Accent)
       : "violet";
-    const storedSidebar = localStorage.getItem(LS_SIDEBAR);
-    const sidebarLayout: SidebarLayout = storedSidebar === "rail" ? "rail" : "classic";
+    const sidebarLayout: SidebarLayout = parseSidebarLayout(
+      localStorage.getItem(LS_SIDEBAR),
+      "classic"
+    );
     applyToDom(theme, accent);
     set({ theme, accent, sidebarLayout });
   },
@@ -203,7 +230,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
       const ds = map.get("sidebarLayout");
       const theme: Theme = parseTheme(dt, get().theme);
       const accent: Accent = ACCENTS.some((a) => a.id === da) ? (da as Accent) : get().accent;
-      const sidebarLayout: SidebarLayout = ds === "rail" || ds === "classic" ? ds : get().sidebarLayout;
+      const sidebarLayout: SidebarLayout = parseSidebarLayout(ds, get().sidebarLayout);
       localStorage.setItem(LS_THEME, theme);
       localStorage.setItem(LS_ACCENT, accent);
       localStorage.setItem(LS_SIDEBAR, sidebarLayout);
