@@ -1,4 +1,4 @@
-import { CheckSquare, Plus } from "lucide-react";
+import { CheckSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "../components/PriorityBadge";
@@ -12,6 +12,12 @@ type Props = {
   tasks: Task[];
   onEdit: (task: Task) => void;
   onToggleDone: (task: Task) => void;
+  /**
+   * Exclui a tarefa. Obrigatório de propósito: na lista cheia excluir existe, e
+   * não ter aqui transformava a densidade compacta numa versão capada em vez de
+   * uma versão densa. Quem chama decide a política (ver TasksPage.handleDelete).
+   */
+  onDelete: (task: Task) => void;
   /** Cria uma nova tarefa — CTA no estado vazio. */
   onCreate?: () => void;
 };
@@ -25,7 +31,7 @@ function taskUrgency(t: Task): UrgencyLevel | null {
  * Lista COMPACTA — uma linha por tarefa (densa), pra varrer muita coisa rápido.
  * Sem descrição/tags/ações em lote; clique no título edita, checkbox conclui.
  */
-export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: Props) {
+export function TaskCompactListView({ tasks, onEdit, onToggleDone, onDelete, onCreate }: Props) {
   if (tasks.length === 0) {
     return (
       <EmptyState
@@ -102,6 +108,23 @@ export function TaskCompactListView({ tasks, onEdit, onToggleDone, onCreate }: P
             <span className="shrink-0">
               <PriorityBadge priority={t.priority} />
             </span>
+            {/* A LINHA inteira abre a edição, então o clique aqui precisa parar
+                de subir — senão excluir abriria o formulário por baixo do
+                diálogo de confirmação. Discreto por padrão (uma lixeira acesa
+                em cada linha de uma lista densa vira ruído) e vermelho só no
+                hover. */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(t);
+              }}
+              className="shrink-0 rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              aria-label={`Excluir ${t.title}`}
+              title="Excluir"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         );
       })}

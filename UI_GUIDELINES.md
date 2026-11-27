@@ -103,6 +103,35 @@ mais as varreduras ativas descritas em "Varreduras" abaixo.
 
 ---
 
+## 10. Barra do módulo (o que fica à esquerda)
+
+A ordem do topo de módulo é regra, não gosto, e mora num lugar só:
+`ModuleToolbar` (`src/components/shared/ModuleToolbar.tsx`), por onde passam os
+13 módulos.
+
+```
+[leftControls][secondaryActions]  [busca] [Filtros]        [ação principal]
+ └─ encostado no menu lateral                               └─ ml-auto
+```
+
+- **Tudo que não é a busca, o botão "Filtros" ou a ação principal ("+ Nova…")
+  fica à ESQUERDA**, colado no menu lateral: alternância de visão, densidade de
+  lista, filtros rápidos em ícone, ações secundárias. Entra pelo slot
+  `leftControls`; ação secundária entra por `secondaryActions` e é posicionada
+  sozinha.
+- **A busca não estica.** Largura limitada no desktop (`sm:w-72`), crescendo só
+  em tela estreita. Com `flex-1` ela empurrava "Filtros" e os controles pro meio
+  da tela, e como cada módulo tem um placeholder de tamanho diferente, o topo
+  saía desalinhado de módulo pra módulo.
+- **Filtro avançado continua atrás do botão "Filtros"**, numa janela — não
+  espalhado pela barra. O contador de filtros ativos (`filtersActiveCount`) é o
+  que avisa que há filtro ligado sem precisar abrir.
+- **Nada de controle solto fora do `ModuleToolbar`.** Módulo que precisa de um
+  controle novo passa por `leftControls`; se não couber lá, é sinal de que ele é
+  filtro e pertence à janela de Filtros.
+
+---
+
 ## Varreduras ativas (fazer, não só "quando tocar")
 
 - **A.1 — "?"**: migrar helper texts impressos para ícone "?" por módulo, em passes

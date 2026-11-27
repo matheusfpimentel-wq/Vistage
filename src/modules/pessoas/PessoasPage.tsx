@@ -306,7 +306,7 @@ export function PessoasPage() {
           onChange: setSearch,
           placeholder: "Buscar nome, @, email, telefone…",
         }}
-        viewToggle={
+        leftControls={
           <div className="flex flex-wrap items-center gap-2">
             {/* Filtro por papel via ícones clicáveis (multi-seleção, persistente). */}
             <div className="flex items-center gap-1 rounded-md border p-0.5">

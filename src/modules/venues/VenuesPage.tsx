@@ -178,7 +178,7 @@ export function VenuesPage() {
             />
           </div>
         }
-        viewToggle={
+        leftControls={
           <ViewToggle
             options={[
               { value: "cards", label: "Cards", icon: LayoutGrid },

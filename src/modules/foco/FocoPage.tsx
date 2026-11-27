@@ -233,7 +233,7 @@ export function FocoPage() {
                     <span className="ml-2 text-xs uppercase text-muted-foreground">{p.context_type}</span>
                   </div>
                   <div className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {formatHours(p.totalMinutes)} · {p.sessions} sessão{p.sessions !== 1 ? "ões" : ""}
+                    {formatHours(p.totalMinutes)} · {p.sessions} sess{p.sessions === 1 ? "ão" : "ões"}
                   </div>
                 </div>
               ))}
@@ -252,7 +252,7 @@ export function FocoPage() {
               <CardTitle className="text-base">Sessões registradas</CardTitle>
               <CardDescription>
                 {sessions.length > 0
-                  ? `${sessions.length} sessão${sessions.length !== 1 ? "ões" : ""} encerrada${sessions.length !== 1 ? "s" : ""}.`
+                  ? `${sessions.length} ${sessions.length === 1 ? "sessão encerrada" : "sessões encerradas"}.`
                   : "Nenhuma sessão encerrada ainda."}
               </CardDescription>
             </div>
